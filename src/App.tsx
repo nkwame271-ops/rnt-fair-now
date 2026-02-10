@@ -18,6 +18,8 @@ import LandlordDashboard from "./pages/landlord/LandlordDashboard";
 import MyProperties from "./pages/landlord/MyProperties";
 import RegisterProperty from "./pages/landlord/RegisterProperty";
 import Agreements from "./pages/landlord/Agreements";
+import AddTenant from "./pages/landlord/AddTenant";
+import MyAgreements from "./pages/tenant/MyAgreements";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +43,7 @@ const App = () => (
             <Route path="file-complaint" element={<FileComplaint />} />
             <Route path="my-cases" element={<MyCases />} />
             <Route path="payments" element={<Payments />} />
+            <Route path="my-agreements" element={<MyAgreements />} />
             <Route path="legal-assistant" element={<LegalAssistant />} />
           </Route>
 
@@ -51,6 +54,7 @@ const App = () => (
             <Route path="my-properties" element={<MyProperties />} />
             <Route path="register-property" element={<RegisterProperty />} />
             <Route path="agreements" element={<Agreements />} />
+            <Route path="add-tenant" element={<AddTenant />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

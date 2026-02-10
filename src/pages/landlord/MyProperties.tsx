@@ -1,11 +1,18 @@
 import { sampleProperties } from "@/data/dummyData";
-import { Building2, Users, MapPin } from "lucide-react";
+import { Building2, Users, MapPin, UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 const MyProperties = () => (
   <div className="max-w-5xl mx-auto space-y-6">
-    <div>
-      <h1 className="text-3xl font-bold text-foreground">My Properties</h1>
-      <p className="text-muted-foreground mt-1">Overview of all registered properties</p>
+    <div className="flex items-center justify-between">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">My Properties</h1>
+        <p className="text-muted-foreground mt-1">Overview of all registered properties</p>
+      </div>
+      <Link to="/landlord/add-tenant">
+        <Button><UserPlus className="h-4 w-4 mr-1" /> Add Tenant</Button>
+      </Link>
     </div>
 
     <div className="space-y-5">
