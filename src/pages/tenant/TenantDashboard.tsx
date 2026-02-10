@@ -8,9 +8,11 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
+  Shield,
+  XCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { sampleComplaints, tenantPayments } from "@/data/dummyData";
+import { sampleComplaints, tenantAgreements, tenantPayments } from "@/data/dummyData";
 
 const quickActions = [
   { to: "/tenant/file-complaint", label: "File Complaint", icon: FileText, color: "bg-destructive/10 text-destructive" },
@@ -21,7 +23,10 @@ const quickActions = [
 
 const TenantDashboard = () => {
   const activeCases = sampleComplaints.filter((c) => c.status !== "Resolved" && c.status !== "Closed").length;
-  const nextPayment = tenantPayments.find((p) => p.status === "Pending");
+  const agreement = tenantAgreements[0];
+  const paidMonths = agreement.payments.filter((p) => p.taxPaid).length;
+  const unpaidMonths = agreement.payments.filter((p) => !p.taxPaid).length;
+  const nextPayment = agreement.payments.find((p) => !p.taxPaid);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -35,9 +40,9 @@ const TenantDashboard = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Active Cases", value: activeCases, icon: AlertTriangle, color: "text-destructive" },
-          { label: "Total Cases", value: sampleComplaints.length, icon: FileText, color: "text-primary" },
-          { label: "Cases Resolved", value: sampleComplaints.filter((c) => c.status === "Resolved").length, icon: CheckCircle2, color: "text-success" },
-          { label: "Next Payment", value: nextPayment ? `GH₵${nextPayment.total}` : "—", icon: Clock, color: "text-info" },
+          { label: "Months Valid", value: `${paidMonths}/${agreement.payments.length}`, icon: Shield, color: "text-success" },
+          { label: "Months Pending", value: unpaidMonths, icon: Clock, color: "text-warning" },
+          { label: "Next Tax Due", value: nextPayment ? `GH₵${nextPayment.taxAmount}` : "—", icon: CreditCard, color: "text-info" },
         ].map((stat) => (
           <div key={stat.label} className="bg-card rounded-xl p-5 shadow-card border border-border">
             <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
@@ -68,21 +73,26 @@ const TenantDashboard = () => {
         </div>
       </div>
 
-      {/* Rental Agreement Summary */}
+      {/* Tenancy Agreement Status */}
       <div className="bg-card rounded-xl p-6 shadow-card border border-border">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Your Rental Agreement</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-foreground">Your Tenancy Agreement</h2>
+          <Link to="/tenant/payments" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">
+            Pay rent <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mb-4">
           <div>
             <div className="text-muted-foreground">Property</div>
-            <div className="font-semibold text-card-foreground">14 Palm St, East Legon</div>
+            <div className="font-semibold text-card-foreground">{agreement.propertyAddress}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Monthly Rent</div>
-            <div className="font-semibold text-card-foreground">GH₵ 2,500</div>
+            <div className="font-semibold text-card-foreground">GH₵ {agreement.monthlyRent.toLocaleString()}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Landlord</div>
-            <div className="font-semibold text-card-foreground">Kwame Asante</div>
+            <div className="font-semibold text-card-foreground">{agreement.landlordName}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Agreement Status</div>
@@ -91,6 +101,22 @@ const TenantDashboard = () => {
             </div>
           </div>
         </div>
+        {/* Validity bar */}
+        <div>
+          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+            <span>{paidMonths} of {agreement.payments.length} months validated</span>
+            <span>{Math.round((paidMonths / agreement.payments.length) * 100)}%</span>
+          </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-success rounded-full transition-all" style={{ width: `${(paidMonths / agreement.payments.length) * 100}%` }} />
+          </div>
+        </div>
+        {unpaidMonths > 0 && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-warning">
+            <Clock className="h-3.5 w-3.5" />
+            <span>{unpaidMonths} month(s) pending — pay the 8% tax to validate</span>
+          </div>
+        )}
       </div>
 
       {/* Recent Cases */}

@@ -301,9 +301,70 @@ export const sampleProperties: LandlordProperty[] = [
   },
 ];
 
-export const tenantPayments = [
-  { id: "PAY-001", date: "2026-02-01", amount: 2500, rent: 2500, tax: 200, total: 2700, status: "Paid", method: "Mobile Money" },
-  { id: "PAY-002", date: "2026-01-01", amount: 2500, rent: 2500, tax: 200, total: 2700, status: "Paid", method: "Bank Transfer" },
-  { id: "PAY-003", date: "2025-12-01", amount: 2500, rent: 2500, tax: 200, total: 2700, status: "Paid", method: "Mobile Money" },
-  { id: "PAY-004", date: "2026-03-01", amount: 2500, rent: 2500, tax: 200, total: 2700, status: "Pending", method: "" },
+export interface TenancyAgreement {
+  id: string;
+  propertyName: string;
+  propertyAddress: string;
+  unitName: string;
+  unitType: PropertyType;
+  landlordName: string;
+  monthlyRent: number;
+  advanceMonths: number;
+  startDate: string;
+  endDate: string;
+  registrationCode: string;
+  payments: TenantPayment[];
+}
+
+export interface TenantPayment {
+  id: string;
+  month: string; // e.g. "March 2026"
+  date: string;
+  monthlyRent: number;
+  taxAmount: number; // 8% of monthlyRent
+  amountToLandlord: number; // 92% of monthlyRent
+  taxPaid: boolean;
+  method: string;
+}
+
+export const tenantAgreements: TenancyAgreement[] = [
+  {
+    id: "AGR-001",
+    propertyName: "Asante Residences",
+    propertyAddress: "14 Palm Street, East Legon",
+    unitName: "Unit A",
+    unitType: "2-Bedroom",
+    landlordName: "Kwame Asante",
+    monthlyRent: 2500,
+    advanceMonths: 6,
+    startDate: "2025-10-01",
+    endDate: "2026-09-30",
+    registrationCode: "RC-GR-2025-04821",
+    payments: [
+      { id: "PAY-001", month: "October 2025", date: "2025-10-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: true, method: "Mobile Money" },
+      { id: "PAY-002", month: "November 2025", date: "2025-11-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: true, method: "Mobile Money" },
+      { id: "PAY-003", month: "December 2025", date: "2025-12-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: true, method: "Bank Transfer" },
+      { id: "PAY-004", month: "January 2026", date: "2026-01-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: true, method: "Mobile Money" },
+      { id: "PAY-005", month: "February 2026", date: "2026-02-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: true, method: "Mobile Money" },
+      { id: "PAY-006", month: "March 2026", date: "2026-03-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: false, method: "" },
+      { id: "PAY-007", month: "April 2026", date: "2026-04-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: false, method: "" },
+      { id: "PAY-008", month: "May 2026", date: "2026-05-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: false, method: "" },
+      { id: "PAY-009", month: "June 2026", date: "2026-06-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: false, method: "" },
+      { id: "PAY-010", month: "July 2026", date: "2026-07-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: false, method: "" },
+      { id: "PAY-011", month: "August 2026", date: "2026-08-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: false, method: "" },
+      { id: "PAY-012", month: "September 2026", date: "2026-09-01", monthlyRent: 2500, taxAmount: 200, amountToLandlord: 2300, taxPaid: false, method: "" },
+    ],
+  },
 ];
+
+// Keep backward compat for dashboard stats
+export const tenantPayments = tenantAgreements[0].payments.map((p) => ({
+  id: p.id,
+  date: p.date,
+  amount: p.monthlyRent,
+  rent: p.monthlyRent,
+  tax: p.taxAmount,
+  total: p.monthlyRent,
+  status: p.taxPaid ? "Paid" as const : "Pending" as const,
+  method: p.method,
+}));
