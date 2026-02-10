@@ -1,12 +1,18 @@
 import { motion } from "framer-motion";
-import { Building2, Users, FileCheck, AlertTriangle, PlusCircle, ArrowRight } from "lucide-react";
+import { Building2, Users, FileCheck, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { sampleProperties } from "@/data/dummyData";
+import { sampleProperties, tenantAgreements } from "@/data/dummyData";
 
 const LandlordDashboard = () => {
   const totalUnits = sampleProperties.reduce((s, p) => s + p.units.length, 0);
   const occupiedUnits = sampleProperties.reduce((s, p) => s + p.units.filter((u) => u.status === "Occupied").length, 0);
   const unregistered = sampleProperties.reduce((s, p) => s + p.units.filter((u) => !u.agreementRegistered && u.tenant).length, 0);
+
+  // Agreement validity from tenant payments
+  const agreement = tenantAgreements[0];
+  const currentMonth = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+  const validAgreements = agreement.payments.filter((p) => p.taxPaid).length;
+  const invalidAgreements = agreement.payments.filter((p) => !p.taxPaid).length;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -56,7 +62,31 @@ const LandlordDashboard = () => {
         </Link>
       </div>
 
-      {/* Properties List */}
+      {/* Tenancy Agreement Validity */}
+      <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-foreground">Tenancy Agreement Validity</h2>
+          <Link to="/landlord/agreements" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">
+            View all <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="bg-success/5 border border-success/20 rounded-lg p-4 text-center">
+            <Shield className="h-5 w-5 text-success mx-auto mb-1" />
+            <div className="text-2xl font-bold text-success">{validAgreements}</div>
+            <div className="text-xs text-muted-foreground">Months Valid</div>
+          </div>
+          <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 text-center">
+            <XCircle className="h-5 w-5 text-destructive mx-auto mb-1" />
+            <div className="text-2xl font-bold text-destructive">{invalidAgreements}</div>
+            <div className="text-xs text-muted-foreground">Months Pending</div>
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Agreements are valid only when tenants have paid their 8% rent tax through Rent Control. {invalidAgreements > 0 && <span className="text-warning font-medium">Some months are still pending validation.</span>}
+        </div>
+      </div>
+
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3">Your Properties</h2>
         <div className="space-y-4">
