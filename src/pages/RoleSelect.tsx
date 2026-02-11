@@ -49,44 +49,64 @@ const RoleSelect = () => {
           className="grid sm:grid-cols-2 gap-6"
         >
           {/* Tenant Card */}
-          <button
-            onClick={() => navigate("/login?role=tenant")}
-            className="group bg-card rounded-2xl p-8 shadow-elevated text-left transition-all hover:shadow-glow hover:-translate-y-1 border border-border"
-          >
-            <div className="w-14 h-14 rounded-xl gradient-hero flex items-center justify-center mb-5">
+          <div className="bg-card rounded-2xl p-8 shadow-elevated border border-border space-y-5">
+            <div className="w-14 h-14 rounded-xl gradient-hero flex items-center justify-center">
               <Users className="h-7 w-7 text-primary-foreground" />
             </div>
-            <h2 className="text-2xl font-bold text-card-foreground mb-2">
+            <h2 className="text-2xl font-bold text-card-foreground">
               I'm a Tenant
             </h2>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-muted-foreground">
               Check rent prices, find a place to rent, file complaints, pay rent, and know your rights.
             </p>
-            <div className="flex items-center gap-2 text-primary font-semibold group-hover:gap-3 transition-all">
-              <span>Get Started</span>
-              <ArrowRight className="h-4 w-4" />
+            <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2 inline-block">
+              Registration: <span className="font-semibold text-foreground">GH₵ 50/year</span> · Get your Tenant ID
             </div>
-          </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => navigate("/register/tenant")}
+                className="flex-1 group bg-primary text-primary-foreground rounded-lg py-3 px-4 font-semibold text-sm hover:opacity-90 transition-all flex items-center justify-center gap-2"
+              >
+                Register <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => navigate("/login?role=tenant")}
+                className="flex-1 group border border-border rounded-lg py-3 px-4 font-semibold text-sm hover:bg-muted transition-all text-foreground"
+              >
+                Sign In
+              </button>
+            </div>
+          </div>
 
           {/* Landlord Card */}
-          <button
-            onClick={() => navigate("/login?role=landlord")}
-            className="group bg-card rounded-2xl p-8 shadow-elevated text-left transition-all hover:shadow-glow hover:-translate-y-1 border border-border"
-          >
-            <div className="w-14 h-14 rounded-xl gradient-gold flex items-center justify-center mb-5">
+          <div className="bg-card rounded-2xl p-8 shadow-elevated border border-border space-y-5">
+            <div className="w-14 h-14 rounded-xl gradient-gold flex items-center justify-center">
               <Building2 className="h-7 w-7 text-accent-foreground" />
             </div>
-            <h2 className="text-2xl font-bold text-card-foreground mb-2">
+            <h2 className="text-2xl font-bold text-card-foreground">
               I'm a Landlord
             </h2>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-muted-foreground">
               Register properties, manage tenants, register agreements, and stay compliant with the law.
             </p>
-            <div className="flex items-center gap-2 text-primary font-semibold group-hover:gap-3 transition-all">
-              <span>Get Started</span>
-              <ArrowRight className="h-4 w-4" />
+            <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2 inline-block">
+              Registration: <span className="font-semibold text-foreground">GH₵ 50/year</span> · Get your Landlord ID
             </div>
-          </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => navigate("/register/landlord")}
+                className="flex-1 group bg-primary text-primary-foreground rounded-lg py-3 px-4 font-semibold text-sm hover:opacity-90 transition-all flex items-center justify-center gap-2"
+              >
+                Register <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => navigate("/login?role=landlord")}
+                className="flex-1 group border border-border rounded-lg py-3 px-4 font-semibold text-sm hover:bg-muted transition-all text-foreground"
+              >
+                Sign In
+              </button>
+            </div>
+          </div>
         </motion.div>
 
         {/* Features Strip */}
