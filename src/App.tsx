@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import RoleSelect from "./pages/RoleSelect";
 import Login from "./pages/Login";
+import RegisterTenant from "./pages/RegisterTenant";
+import RegisterLandlord from "./pages/RegisterLandlord";
 import TenantLayout from "./components/TenantLayout";
 import TenantDashboard from "./pages/tenant/TenantDashboard";
 import Marketplace from "./pages/tenant/Marketplace";
@@ -33,6 +35,8 @@ const App = () => (
         <Routes>
           <Route path="/" element={<RoleSelect />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/register/tenant" element={<RegisterTenant />} />
+          <Route path="/register/landlord" element={<RegisterLandlord />} />
 
           {/* Tenant Routes */}
           <Route path="/tenant" element={<TenantLayout />}>
