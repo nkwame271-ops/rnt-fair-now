@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Shield, User, Phone, Mail, MapPin, CreditCard, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Truck } from "lucide-react";
+import { Shield, User, Phone, Mail, MapPin, CreditCard, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Truck, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,9 @@ const RegisterTenant = () => {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [isCitizen, setIsCitizen] = useState(true);
   const [ghanaCardNo, setGhanaCardNo] = useState("");
+  const [residencePermitNo, setResidencePermitNo] = useState("");
   const [region, setRegion] = useState("");
 
   // Delivery
@@ -36,7 +38,7 @@ const RegisterTenant = () => {
   const generatedId = "TN-2026-" + String(Math.floor(1000 + Math.random() * 9000));
 
   const canProceed = () => {
-    if (step === 0) return fullName && phone && email && ghanaCardNo && region;
+    if (step === 0) return fullName && phone && email && (isCitizen ? ghanaCardNo : residencePermitNo) && region;
     if (step === 1) return deliveryAddress && deliveryCity && deliveryRegion;
     if (step === 2) return paymentMethod && (paymentMethod !== "momo" || momoNumber);
     return true;
@@ -126,12 +128,47 @@ const RegisterTenant = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Ghana Card Number</Label>
-                      <div className="relative">
-                        <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input value={ghanaCardNo} onChange={(e) => setGhanaCardNo(e.target.value)} placeholder="GHA-XXXXXXXXX-X" className="pl-10" />
+                      <Label>Citizenship Status</Label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => { setIsCitizen(true); setResidencePermitNo(""); }}
+                          className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors ${
+                            isCitizen ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:border-primary/40"
+                          }`}
+                        >
+                          <IdCard className="h-4 w-4" />
+                          Ghanaian Citizen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setIsCitizen(false); setGhanaCardNo(""); }}
+                          className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors ${
+                            !isCitizen ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:border-primary/40"
+                          }`}
+                        >
+                          <Globe className="h-4 w-4" />
+                          Non-Citizen
+                        </button>
                       </div>
                     </div>
+                    {isCitizen ? (
+                      <div className="space-y-2">
+                        <Label>Ghana Card Number</Label>
+                        <div className="relative">
+                          <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input value={ghanaCardNo} onChange={(e) => setGhanaCardNo(e.target.value)} placeholder="GHA-XXXXXXXXX-X" className="pl-10" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>Residence Permit Number</Label>
+                        <div className="relative">
+                          <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input value={residencePermitNo} onChange={(e) => setResidencePermitNo(e.target.value)} placeholder="RP-XXXXXXXXX" className="pl-10" />
+                        </div>
+                      </div>
+                    )}
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Phone Number</Label>
