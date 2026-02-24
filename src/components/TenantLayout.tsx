@@ -10,9 +10,9 @@ import {
   LogOut,
   Shield,
   Menu,
-  X,
 } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
   { to: "/tenant/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -27,7 +27,13 @@ const navItems = [
 
 const TenantLayout = () => {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -62,7 +68,7 @@ const TenantLayout = () => {
         </nav>
         <div className="p-3 border-t border-sidebar-border">
           <button
-            onClick={() => navigate("/")}
+            onClick={handleSignOut}
             className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 w-full"
           >
             <LogOut className="h-4 w-4" />

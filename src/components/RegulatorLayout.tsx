@@ -1,27 +1,28 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
+  Users,
   Building2,
-  PlusCircle,
-  FileCheck,
+  FileText,
+  BarChart3,
   LogOut,
   Shield,
   Menu,
-  Eye,
+  AlertTriangle,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
-  { to: "/landlord/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/landlord/my-properties", label: "My Properties", icon: Building2 },
-  { to: "/landlord/register-property", label: "Register Property", icon: PlusCircle },
-  { to: "/landlord/add-tenant", label: "Add Tenant", icon: PlusCircle },
-  { to: "/landlord/agreements", label: "Agreements", icon: FileCheck },
-  { to: "/landlord/viewing-requests", label: "Viewing Requests", icon: Eye },
+  { to: "/regulator/dashboard", label: "Overview", icon: LayoutDashboard },
+  { to: "/regulator/tenants", label: "Tenants", icon: Users },
+  { to: "/regulator/landlords", label: "Landlords", icon: Building2 },
+  { to: "/regulator/properties", label: "Properties", icon: Building2 },
+  { to: "/regulator/complaints", label: "Complaints", icon: AlertTriangle },
+  { to: "/regulator/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
-const LandlordLayout = () => {
+const RegulatorLayout = () => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -41,8 +42,8 @@ const LandlordLayout = () => {
         <div className="p-5 flex items-center gap-2 border-b border-sidebar-border">
           <Shield className="h-6 w-6 text-sidebar-primary" />
           <span className="font-bold text-lg">Rent Control</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-sidebar-primary text-sidebar-primary-foreground font-semibold ml-auto">
-            LANDLORD
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive text-destructive-foreground font-semibold ml-auto">
+            ADMIN
           </span>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -76,10 +77,7 @@ const LandlordLayout = () => {
       </aside>
 
       {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-foreground/30 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
+        <div className="fixed inset-0 z-40 bg-foreground/30 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -87,7 +85,7 @@ const LandlordLayout = () => {
           <button onClick={() => setMobileOpen(true)}>
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-bold text-sm">Rent Control — Landlord</span>
+          <span className="font-bold text-sm">Rent Control — Admin</span>
         </header>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <Outlet />
@@ -97,4 +95,4 @@ const LandlordLayout = () => {
   );
 };
 
-export default LandlordLayout;
+export default RegulatorLayout;
