@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Shield, Mail, Lock, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-const Login = () => {
-  const [searchParams] = useSearchParams();
-  const role = searchParams.get("role") || "tenant";
+const RegulatorLogin = () => {
   const navigate = useNavigate();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,39 +26,34 @@ const Login = () => {
       return;
     }
 
-    // Check role matches
+    // Check if user has regulator role
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", data.user.id)
+      .eq("role", "regulator")
       .maybeSingle();
 
-    const userRole = roleData?.role;
-
-    if (userRole === "tenant") {
-      navigate("/tenant/dashboard");
-    } else if (userRole === "landlord") {
-      navigate("/landlord/dashboard");
-    } else {
-      navigate("/");
+    if (!roleData) {
+      await supabase.auth.signOut();
+      toast.error("Access denied. This login is for Rent Control Office staff only.");
+      setLoading(false);
+      return;
     }
 
-    toast.success("Welcome back!");
+    toast.success("Welcome, Regulator!");
+    navigate("/regulator/dashboard");
     setLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-background flex">
-      <div className="hidden lg:flex lg:w-1/2 gradient-hero items-center justify-center p-12 relative">
+      <div className="hidden lg:flex lg:w-1/2 gradient-hero items-center justify-center p-12">
         <div className="text-primary-foreground max-w-md">
           <Shield className="h-12 w-12 text-secondary mb-6" />
-          <h2 className="text-3xl font-bold mb-4">
-            {role === "tenant" ? "Know Your Rights" : "Stay Compliant"}
-          </h2>
+          <h2 className="text-3xl font-bold mb-4">Rent Control Office</h2>
           <p className="text-primary-foreground/80 text-lg">
-            {role === "tenant"
-              ? "Access fair rent prices, file complaints, and get legal guidance — all in one place."
-              : "Register properties, manage tenants, and ensure all agreements meet legal requirements."}
+            Administrative access to the national rent regulation platform. Monitor compliance, review complaints, and generate reports.
           </p>
         </div>
       </div>
@@ -74,11 +66,11 @@ const Login = () => {
           </button>
 
           <div className="mb-8">
-            <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-3 capitalize">
-              {role}
+            <div className="inline-block px-3 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-semibold mb-3">
+              REGULATOR ACCESS
             </div>
-            <h1 className="text-3xl font-bold text-foreground">Welcome Back</h1>
-            <p className="text-muted-foreground mt-1">Sign in to your account</p>
+            <h1 className="text-3xl font-bold text-foreground">Staff Login</h1>
+            <p className="text-muted-foreground mt-1">Sign in with your Rent Control Office credentials</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -86,7 +78,7 @@ const Login = () => {
               <Label>Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input type="email" placeholder="kwame@example.com" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Input type="email" placeholder="admin@rentcontrol.gov.gh" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
             </div>
             <div className="space-y-2">
@@ -100,17 +92,10 @@ const Login = () => {
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
-
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            Don't have an account?{" "}
-            <button onClick={() => navigate(`/register/${role}`)} className="text-primary font-semibold hover:underline">
-              Register
-            </button>
-          </p>
         </motion.div>
       </div>
     </div>
   );
 };
 
-export default Login;
+export default RegulatorLogin;

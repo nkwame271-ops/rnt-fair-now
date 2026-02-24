@@ -1,58 +1,119 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Shield, User, Phone, Mail, MapPin, CreditCard, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Truck, Globe } from "lucide-react";
+import { Shield, User, Phone, Mail, MapPin, CreditCard, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Truck, Globe, Lock, Briefcase, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { regions } from "@/data/dummyData";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const steps = ["Personal Info", "Delivery Address", "Payment", "Your Tenant ID"];
 
 const RegisterTenant = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   // Personal info
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isCitizen, setIsCitizen] = useState(true);
   const [ghanaCardNo, setGhanaCardNo] = useState("");
   const [residencePermitNo, setResidencePermitNo] = useState("");
   const [region, setRegion] = useState("");
+  const [occupation, setOccupation] = useState("");
+  const [workAddress, setWorkAddress] = useState("");
+  const [emergencyName, setEmergencyName] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
 
   // Delivery
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryCity, setDeliveryCity] = useState("");
   const [deliveryRegion, setDeliveryRegion] = useState("");
-  const [deliveryPhone, setDeliveryPhone] = useState("");
+  const [deliveryLandmark, setDeliveryLandmark] = useState("");
 
   // Payment
   const [paymentMethod, setPaymentMethod] = useState("");
   const [momoNumber, setMomoNumber] = useState("");
 
   // Generated ID
-  const generatedId = "TN-2026-" + String(Math.floor(1000 + Math.random() * 9000));
+  const [generatedId, setGeneratedId] = useState("");
 
   const canProceed = () => {
-    if (step === 0) return fullName && phone && email && (isCitizen ? ghanaCardNo : residencePermitNo) && region;
+    if (step === 0) return fullName && phone && email && password && (isCitizen ? ghanaCardNo : residencePermitNo) && region;
     if (step === 1) return deliveryAddress && deliveryCity && deliveryRegion;
     if (step === 2) return paymentMethod && (paymentMethod !== "momo" || momoNumber);
     return true;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 2) {
-      toast.success("Payment of GH₵ 50.00 processed successfully!");
+      setLoading(true);
+      try {
+        // Sign up
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+              phone,
+              role: "tenant",
+            },
+            emailRedirectTo: window.location.origin,
+          },
+        });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error("Registration failed");
+
+        const userId = authData.user.id;
+        const tenantId = "TN-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
+
+        // Update profile with full details
+        await supabase.from("profiles").update({
+          nationality: isCitizen ? "Ghanaian" : "Non-Ghanaian",
+          is_citizen: isCitizen,
+          ghana_card_no: isCitizen ? ghanaCardNo : null,
+          residence_permit_no: !isCitizen ? residencePermitNo : null,
+          occupation,
+          work_address: workAddress,
+          emergency_contact_name: emergencyName,
+          emergency_contact_phone: emergencyPhone,
+          delivery_address: deliveryAddress,
+          delivery_landmark: deliveryLandmark,
+          delivery_region: deliveryRegion,
+          delivery_area: deliveryCity,
+        }).eq("user_id", userId);
+
+        // Create tenant record
+        await supabase.from("tenants").insert({
+          user_id: userId,
+          tenant_id: tenantId,
+          registration_fee_paid: true,
+          registration_date: new Date().toISOString(),
+          expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+
+        setGeneratedId(tenantId);
+        toast.success("Payment of GH₵ 50.00 processed successfully!");
+        setStep(3);
+      } catch (err: any) {
+        toast.error(err.message || "Registration failed");
+      } finally {
+        setLoading(false);
+      }
+      return;
     }
     setStep(step + 1);
   };
 
   const handleFinish = () => {
-    toast.success("Welcome! Redirecting to your dashboard...");
     navigate("/tenant/dashboard");
   };
 
@@ -105,13 +166,7 @@ const RegisterTenant = () => {
 
         <div className="max-w-lg flex-1">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={step}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
+            <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
               {/* Step 0: Personal Info */}
               {step === 0 && (
                 <div className="space-y-5">
@@ -130,25 +185,17 @@ const RegisterTenant = () => {
                     <div className="space-y-2">
                       <Label>Citizenship Status</Label>
                       <div className="flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => { setIsCitizen(true); setResidencePermitNo(""); }}
+                        <button type="button" onClick={() => { setIsCitizen(true); setResidencePermitNo(""); }}
                           className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors ${
                             isCitizen ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                          }`}
-                        >
-                          <IdCard className="h-4 w-4" />
-                          Ghanaian Citizen
+                          }`}>
+                          <IdCard className="h-4 w-4" /> Ghanaian Citizen
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => { setIsCitizen(false); setGhanaCardNo(""); }}
+                        <button type="button" onClick={() => { setIsCitizen(false); setGhanaCardNo(""); }}
                           className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors ${
                             !isCitizen ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                          }`}
-                        >
-                          <Globe className="h-4 w-4" />
-                          Non-Citizen
+                          }`}>
+                          <Globe className="h-4 w-4" /> Non-Citizen
                         </button>
                       </div>
                     </div>
@@ -186,11 +233,50 @@ const RegisterTenant = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
+                      <Label>Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 6 characters" className="pl-10" type="password" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
                       <Label>Region of Residence</Label>
                       <Select value={region} onValueChange={setRegion}>
                         <SelectTrigger><SelectValue placeholder="Select your region" /></SelectTrigger>
                         <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                       </Select>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Occupation</Label>
+                        <div className="relative">
+                          <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input value={occupation} onChange={(e) => setOccupation(e.target.value)} placeholder="e.g. Teacher" className="pl-10" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Work Address</Label>
+                        <div className="relative">
+                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input value={workAddress} onChange={(e) => setWorkAddress(e.target.value)} placeholder="e.g. Accra Mall" className="pl-10" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Emergency Contact Name</Label>
+                        <div className="relative">
+                          <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input value={emergencyName} onChange={(e) => setEmergencyName(e.target.value)} placeholder="Ama Mensah" className="pl-10" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Emergency Contact Phone</Label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input value={emergencyPhone} onChange={(e) => setEmergencyPhone(e.target.value)} placeholder="020 555 5678" className="pl-10" />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -205,15 +291,19 @@ const RegisterTenant = () => {
                   </div>
                   <div className="bg-accent/10 rounded-lg p-4 flex items-start gap-3 border border-accent/30">
                     <Truck className="h-5 w-5 text-accent-foreground mt-0.5 shrink-0" />
-                    <p className="text-sm text-muted-foreground">Your Tenant ID card will be printed and delivered to this address within 5–7 business days after payment.</p>
+                    <p className="text-sm text-muted-foreground">Your Tenant ID card will be printed and delivered within 5–7 business days after payment.</p>
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Street Address / Landmark</Label>
+                      <Label>Street Address</Label>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="e.g. 14 Palm Street, near Total station" className="pl-10" />
+                        <Input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="e.g. 14 Palm Street" className="pl-10" />
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Nearest Landmark</Label>
+                      <Input value={deliveryLandmark} onChange={(e) => setDeliveryLandmark(e.target.value)} placeholder="e.g. Near Total filling station" />
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -226,13 +316,6 @@ const RegisterTenant = () => {
                           <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
                           <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                         </Select>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Delivery Contact Phone (optional)</Label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input value={deliveryPhone} onChange={(e) => setDeliveryPhone(e.target.value)} placeholder="024 555 1234" className="pl-10" />
                       </div>
                     </div>
                   </div>
@@ -292,14 +375,8 @@ const RegisterTenant = () => {
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Expiry</Label>
-                            <Input placeholder="MM/YY" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>CVV</Label>
-                            <Input placeholder="•••" />
-                          </div>
+                          <div className="space-y-2"><Label>Expiry</Label><Input placeholder="MM/YY" /></div>
+                          <div className="space-y-2"><Label>CVV</Label><Input placeholder="•••" /></div>
                         </div>
                       </div>
                     )}
@@ -310,12 +387,8 @@ const RegisterTenant = () => {
               {/* Step 3: Success */}
               {step === 3 && (
                 <div className="space-y-6 text-center py-8">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", duration: 0.5 }}
-                    className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto"
-                  >
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", duration: 0.5 }}
+                    className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
                     <CheckCircle2 className="h-10 w-10 text-primary" />
                   </motion.div>
                   <div>
@@ -325,23 +398,14 @@ const RegisterTenant = () => {
                   <div className="bg-card rounded-xl border-2 border-primary/30 p-6 inline-block mx-auto">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Your Tenant ID</p>
                     <p className="text-3xl font-extrabold text-primary tracking-wider">{generatedId}</p>
-                    <p className="text-xs text-muted-foreground mt-2">Valid until February 2027</p>
+                    <p className="text-xs text-muted-foreground mt-2">Valid until {new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</p>
                   </div>
                   <div className="bg-muted rounded-xl p-5 text-left space-y-3 max-w-sm mx-auto">
                     <h3 className="font-semibold text-foreground text-sm">What's next?</h3>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                        Share your Tenant ID with your landlord
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                        Your physical ID card will arrive in 5–7 days
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                        Your landlord will send you a tenancy agreement to accept
-                      </li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Check your email to verify your account</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Your physical ID card will arrive in 5–7 days</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Search for properties and accept agreements</li>
                     </ul>
                   </div>
                 </div>
@@ -349,17 +413,15 @@ const RegisterTenant = () => {
             </motion.div>
           </AnimatePresence>
 
-          {/* Navigation Buttons */}
           <div className="mt-8">
             {step < 3 ? (
-              <Button onClick={handleNext} disabled={!canProceed()} className="w-full h-12 text-base font-semibold">
-                {step === 2 ? "Pay GH₵ 50.00" : "Continue"}
-                <ArrowRight className="ml-2 h-4 w-4" />
+              <Button onClick={handleNext} disabled={!canProceed() || loading} className="w-full h-12 text-base font-semibold">
+                {loading ? "Processing..." : step === 2 ? "Pay GH₵ 50.00" : "Continue"}
+                {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
               </Button>
             ) : (
               <Button onClick={handleFinish} className="w-full h-12 text-base font-semibold">
-                Go to Dashboard
-                <ArrowRight className="ml-2 h-4 w-4" />
+                Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>
