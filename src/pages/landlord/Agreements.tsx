@@ -6,6 +6,12 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
+interface CustomFieldDef {
+  label: string;
+  type: string;
+  required: boolean;
+}
+
 interface TenancyView {
   id: string;
   registration_code: string;
@@ -17,6 +23,7 @@ interface TenancyView {
   unitName: string;
   unitType: string;
   propertyName: string;
+  customFieldValues: Record<string, string>;
   payments: {
     id: string;
     month_label: string;
@@ -32,10 +39,14 @@ const Agreements = () => {
   const [tenancies, setTenancies] = useState<TenancyView[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
 
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
+      const { data: configData } = await supabase.from("agreement_template_config").select("*").limit(1).single();
+      if (configData) setCustomFields((configData as any).custom_fields || []);
+
       const { data: ts } = await supabase
         .from("tenancies")
         .select("*, unit:units(unit_name, unit_type, property_id)")
@@ -61,6 +72,7 @@ const Agreements = () => {
           unitName: t.unit.unit_name,
           unitType: t.unit.unit_type,
           propertyName: prop?.property_name || "Property",
+          customFieldValues: (t as any).custom_field_values || {},
           payments: (payments || []) as any[],
         });
       }
@@ -119,6 +131,13 @@ const Agreements = () => {
                   <div>
                     <h3 className="font-bold text-card-foreground">{t.propertyName} — {t.unitName}</h3>
                     <div className="text-sm text-muted-foreground">Tenant: {t.tenantName} ({t.tenantIdCode}) • GH₵ {t.agreed_rent}/mo</div>
+                    {customFields.length > 0 && Object.keys(t.customFieldValues).length > 0 && (
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
+                        {customFields.map(f => t.customFieldValues[f.label] ? (
+                          <span key={f.label}>{f.label}: <strong className="text-card-foreground">{t.customFieldValues[f.label]}</strong></span>
+                        ) : null)}
+                      </div>
+                    )}
                   </div>
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                     t.status === "active" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"

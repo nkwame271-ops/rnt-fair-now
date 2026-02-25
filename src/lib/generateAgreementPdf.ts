@@ -7,6 +7,12 @@ export interface TemplateConfig {
   terms: string[];
 }
 
+export interface CustomFieldDef {
+  label: string;
+  type: "text" | "number" | "date";
+  required: boolean;
+}
+
 export interface AgreementPdfData {
   registrationCode: string;
   landlordName: string;
@@ -22,6 +28,8 @@ export interface AgreementPdfData {
   endDate: string;
   region: string;
   templateConfig?: TemplateConfig;
+  customFields?: CustomFieldDef[];
+  customFieldValues?: Record<string, string>;
 }
 
 const DEFAULT_TERMS = [
@@ -158,6 +166,24 @@ export const generateAgreementPdf = (data: AgreementPdfData) => {
     doc.text(lines, 20, y);
     y += lines.length * 5 + 3;
   });
+
+  // Additional Information (custom fields)
+  if (data.customFields && data.customFields.length > 0 && data.customFieldValues) {
+    y += 5;
+    if (y > doc.internal.pageSize.getHeight() - 60) { doc.addPage(); y = 20; }
+    line(y);
+    y += 10;
+    left("ADDITIONAL INFORMATION", y, 13, "bold");
+    y += 10;
+    data.customFields.forEach((field) => {
+      const value = data.customFieldValues?.[field.label] || "—";
+      left(field.label + ":", y, 10, "bold");
+      doc.setFont("helvetica", "normal");
+      doc.text(value, 85, y);
+      y += 7;
+      if (y > doc.internal.pageSize.getHeight() - 40) { doc.addPage(); y = 20; }
+    });
+  }
 
   // Signatures
   y += 5;

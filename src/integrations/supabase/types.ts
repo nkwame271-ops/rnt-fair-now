@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       agreement_template_config: {
         Row: {
+          custom_fields: Json | null
           id: string
           max_advance_months: number
           max_lease_duration: number
@@ -27,6 +28,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          custom_fields?: Json | null
           id?: string
           max_advance_months?: number
           max_lease_duration?: number
@@ -38,6 +40,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          custom_fields?: Json | null
           id?: string
           max_advance_months?: number
           max_lease_duration?: number
@@ -333,6 +336,7 @@ export type Database = {
           agreed_rent: number
           agreement_pdf_url: string | null
           created_at: string
+          custom_field_values: Json | null
           end_date: string
           id: string
           landlord_accepted: boolean | null
@@ -352,6 +356,7 @@ export type Database = {
           agreed_rent: number
           agreement_pdf_url?: string | null
           created_at?: string
+          custom_field_values?: Json | null
           end_date: string
           id?: string
           landlord_accepted?: boolean | null
@@ -371,6 +376,7 @@ export type Database = {
           agreed_rent?: number
           agreement_pdf_url?: string | null
           created_at?: string
+          custom_field_values?: Json | null
           end_date?: string
           id?: string
           landlord_accepted?: boolean | null
