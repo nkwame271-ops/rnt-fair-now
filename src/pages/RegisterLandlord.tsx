@@ -53,6 +53,8 @@ const RegisterLandlord = () => {
   const handleCreateAndPay = async () => {
     setPayingHubtel(true);
     try {
+      let userId: string;
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -64,17 +66,38 @@ const RegisterLandlord = () => {
 
       if (authError) {
         if (authError.message?.includes("already registered") || authError.message?.includes("already exists")) {
-          toast.error("This email is already registered. Please sign in instead.", {
-            action: { label: "Go to Login", onClick: () => navigate("/login?role=landlord") },
-          });
-          setPayingHubtel(false);
-          return;
-        }
-        throw authError;
-      }
-      if (!authData.user) throw new Error("Registration failed");
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+          if (signInError) {
+            toast.error("This email is already registered. Please sign in instead.", {
+              action: { label: "Go to Login", onClick: () => navigate("/login?role=landlord") },
+            });
+            setPayingHubtel(false);
+            return;
+          }
+          userId = signInData.user.id;
 
-      const userId = authData.user.id;
+          const { data: existingLandlord } = await supabase.from("landlords").select("landlord_id, registration_fee_paid").eq("user_id", userId).maybeSingle();
+          if (existingLandlord?.registration_fee_paid) {
+            toast.success("You're already registered! Redirecting to dashboard...");
+            navigate("/landlord/dashboard");
+            return;
+          }
+          if (existingLandlord) {
+            setGeneratedId(existingLandlord.landlord_id);
+            const { data, error } = await supabase.functions.invoke("hubtel-checkout", { body: { type: "landlord_registration" } });
+            if (error) throw new Error(error.message || "Payment initiation failed");
+            if (data?.error) throw new Error(data.error);
+            if (data?.checkoutUrl) { window.location.href = data.checkoutUrl; return; }
+            throw new Error("No checkout URL received");
+          }
+        } else {
+          throw authError;
+        }
+      } else {
+        if (!authData.user) throw new Error("Registration failed");
+        userId = authData.user.id;
+      }
+
       const landlordId = "LL-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
 
       await supabase.from("profiles").update({
