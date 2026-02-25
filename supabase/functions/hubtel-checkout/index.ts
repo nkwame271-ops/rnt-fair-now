@@ -163,8 +163,16 @@ Deno.serve(async (req) => {
       }
     );
 
-    const result = await response.json();
-    console.log("Hubtel response:", JSON.stringify(result));
+    const responseText = await response.text();
+    console.log("Hubtel raw response:", responseText, "status:", response.status);
+
+    let result: any;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      console.error("Hubtel returned non-JSON:", responseText);
+      throw new Error(`Hubtel returned invalid response (HTTP ${response.status}): ${responseText.substring(0, 200)}`);
+    }
 
     if (!response.ok || result.responseCode !== "0000") {
       console.error("Hubtel error:", JSON.stringify(result));
