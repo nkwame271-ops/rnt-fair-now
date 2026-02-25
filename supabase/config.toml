@@ -1,1 +1,10 @@
 project_id = "qjrvwcwmhuxygdanbxsz"
+
+[functions.hubtel-checkout]
+verify_jwt = false
+
+[functions.hubtel-webhook]
+verify_jwt = false
+
+[functions.legal-assistant]
+verify_jwt = false

@@ -75,28 +75,35 @@ const Payments = () => {
     fetch();
   }, [user]);
 
+  // Check for payment success from redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("status") === "success") {
+      toast.success("Payment processing! It may take a moment to confirm.");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (params.get("status") === "cancelled") {
+      toast.error("Payment was cancelled.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   const handlePayTax = async (paymentId: string) => {
     setPaying(paymentId);
     try {
-      const { error } = await supabase.from("rent_payments").update({
-        tenant_marked_paid: true,
-        status: "tenant_paid",
-        paid_date: new Date().toISOString(),
-        payment_method: "Mobile Money",
-        amount_paid: tenancy!.payments.find(p => p.id === paymentId)!.tax_amount,
-      }).eq("id", paymentId);
+      const { data, error } = await supabase.functions.invoke("hubtel-checkout", {
+        body: { paymentId },
+      });
 
-      if (error) throw error;
+      if (error) throw new Error(error.message || "Payment initiation failed");
+      if (data?.error) throw new Error(data.error);
 
-      setTenancy(prev => prev ? {
-        ...prev,
-        payments: prev.payments.map(p => p.id === paymentId ? { ...p, tenant_marked_paid: true, status: "tenant_paid" } : p),
-      } : null);
-
-      toast.success("8% rent tax marked as paid! Awaiting landlord confirmation.");
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        throw new Error("No checkout URL received");
+      }
     } catch (err: any) {
       toast.error(err.message || "Payment failed");
-    } finally {
       setPaying(null);
     }
   };
