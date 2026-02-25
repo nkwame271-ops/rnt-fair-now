@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import TourGuide from "@/components/TourGuide";
+import { regulatorTourSteps } from "@/data/tourSteps";
 
 const navItems = [
   { to: "/regulator/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -95,6 +97,7 @@ const RegulatorLayout = () => {
           <Outlet />
         </main>
       </div>
+      <TourGuide steps={regulatorTourSteps} storageKey="tour_regulator_completed" />
     </div>
   );
 };
