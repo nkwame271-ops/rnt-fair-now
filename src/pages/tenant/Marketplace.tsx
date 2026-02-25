@@ -57,15 +57,15 @@ const Marketplace = () => {
 
   useEffect(() => {
     const fetchUnits = async () => {
-      const { data } = await supabase
+      const { data } = await (supabase
         .from("units")
-        .select("*, property:properties(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition)")
-        .eq("status", "vacant");
+        .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace)")
+        .eq("status", "vacant") as any).eq("property.listed_on_marketplace", true);
 
       if (!data) { setLoading(false); return; }
 
       // Fetch images for each property
-      const propertyIds = [...new Set(data.map((u: any) => u.property?.id).filter(Boolean))];
+      const propertyIds: string[] = [...new Set((data as any[]).map((u: any) => u.property?.id).filter(Boolean))];
       const { data: images } = await supabase
         .from("property_images")
         .select("property_id, image_url, is_primary")
