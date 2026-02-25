@@ -2,55 +2,83 @@
 
 ## Analysis
 
-I found the root causes of both issues.
+The current system has a gap between what the regulator can configure and what appears in the agreement. Right now:
 
-### Issue 1: Role Misrouting (everyone lands on wrong dashboard)
+- **Regulator** can only edit statutory limits (max advance, tax rate) and terms/conditions (text clauses). The "Auto-Populated Fields" section is hardcoded — the regulator cannot add or remove data fields.
+- **Landlord** fills in hardcoded fields (rent, advance period, start date) when creating a tenancy via AddTenant.
+- **Tenant** sees the agreement and can accept it.
 
-Every single RLS policy in the database is set to **RESTRICTIVE** (`Permissive: No`). In PostgreSQL, restrictive policies require **ALL** policies to pass simultaneously. For the `user_roles` table:
-
-- "Users can read own roles" (RESTRICTIVE) -- `auth.uid() = user_id`
-- "Regulators can read all roles" (RESTRICTIVE) -- `has_role(auth.uid(), 'regulator')`
-
-For a tenant: the first passes, but the second fails because they're not a regulator. Since both are restrictive and **both must pass**, the query returns nothing. The role comes back as `null`, and `ProtectedRoute` redirects to `/`.
-
-This same bug affects **every table** in the system -- properties, tenancies, complaints, etc. All have multiple restrictive policies that block legitimate access.
-
-### Issue 2: Payment gating happens too early
-
-Currently, `RegisterTenant.tsx` and `RegisterLandlord.tsx` create the account AND immediately initiate Hubtel payment on step 2. The user wants: sign up first, go to the dashboard, and see an "unpaid" banner there with a "Pay Now" button.
+The user wants the regulator to define **which data fields** appear in the agreement (e.g., "Occupation of Tenant", "Purpose of Tenancy", "Next of Kin"). The landlord then fills those fields when adding a tenant, and the values carry through to the PDF and to the tenant's view.
 
 ---
 
 ## Plan
 
-### Step 1: Fix all RLS policies (database migration)
+### Step 1: Add `custom_fields` column to `agreement_template_config`
 
-Drop every restrictive policy and recreate them as **PERMISSIVE** (the PostgreSQL default). This affects tables: `user_roles`, `profiles`, `properties`, `property_images`, `units`, `tenancies`, `rent_payments`, `complaints`, `landlords`, `tenants`, `viewing_requests`, `agreement_template_config`.
+Add a JSONB column `custom_fields` that stores an array of field definitions:
 
-### Step 2: Modify registration to skip payment
+```text
+custom_fields: [
+  { "label": "Occupation of Tenant", "type": "text", "required": true },
+  { "label": "Purpose of Tenancy", "type": "text", "required": false },
+  { "label": "Next of Kin", "type": "text", "required": true },
+  ...
+]
+```
 
-**`RegisterTenant.tsx`** and **`RegisterLandlord.tsx`**:
-- Remove step 2 (payment). Change the flow to: Personal Info → Delivery Address → Success (3 steps instead of 4).
-- On the delivery address step, create the account (signup + profile + tenant/landlord record with `registration_fee_paid: false`) and go straight to the success screen.
-- Success screen says "Go to Dashboard" without requiring payment.
+Also add a `custom_field_values` JSONB column to the `tenancies` table to store the landlord's filled-in values for each agreement.
 
-### Step 3: Add registration fee banner to dashboards
+**Database migration:**
+- `ALTER TABLE agreement_template_config ADD COLUMN custom_fields jsonb DEFAULT '[]'::jsonb;`
+- `ALTER TABLE tenancies ADD COLUMN custom_field_values jsonb DEFAULT '{}'::jsonb;`
 
-**`TenantDashboard.tsx`**:
-- On load, fetch the tenant record and check `registration_fee_paid`.
-- If unpaid, show a prominent alert banner at the top: "Your registration fee (GH₵ 50) is unpaid. Pay now to activate your Tenant ID."
-- "Pay Now" button triggers the Hubtel checkout edge function for `tenant_registration`.
+### Step 2: Update Regulator Agreement Templates page
 
-**`LandlordDashboard.tsx`**:
-- Same pattern: fetch landlord record, check `registration_fee_paid`, show banner with "Pay Now" if unpaid.
+**`src/pages/regulator/RegulatorAgreementTemplates.tsx`**:
+- Add a new section "Agreement Data Fields" where the regulator can:
+  - See all current fields (both auto-populated system fields and custom fields)
+  - Add a new custom field (label + type dropdown: text/number/date + required toggle)
+  - Edit existing custom fields
+  - Remove custom fields
+  - Reorder fields (drag or up/down buttons)
+- The auto-populated fields (Registration Code, Landlord Name, etc.) are shown as locked/non-removable items so the regulator knows they exist
+- Custom fields are shown as editable/removable items
+- Save persists to the `custom_fields` column
+
+### Step 3: Update Landlord's AddTenant flow
+
+**`src/pages/landlord/AddTenant.tsx`**:
+- In the "Set Terms" step (step 3), after the existing rent/advance/date fields, dynamically render input fields for each custom field defined by the regulator
+- Field types map to: `text` → Input, `number` → Input type=number, `date` → Input type=date
+- Required fields are validated before proceeding to review
+- Store values in local state as a key-value object
+
+In the "Review" step (step 4), display the custom field values alongside the standard fields.
+
+When submitting, save the custom field values to `tenancies.custom_field_values`.
+
+### Step 4: Update PDF generation
+
+**`src/lib/generateAgreementPdf.ts`**:
+- Accept `customFields` (field definitions) and `customFieldValues` (filled values) in `AgreementPdfData`
+- Add a "ADDITIONAL INFORMATION" section in the PDF that renders each custom field label and its value
+
+### Step 5: Update Tenant's MyAgreements view
+
+**`src/pages/tenant/MyAgreements.tsx`**:
+- Fetch `custom_field_values` from the tenancy record
+- Fetch `custom_fields` from `agreement_template_config` for labels
+- Display custom field data in both the pending and active agreement cards
 
 ### Files to change
 
 | File | Change |
 |------|--------|
-| New migration SQL | Drop all restrictive policies, recreate as permissive |
-| `src/pages/RegisterTenant.tsx` | Remove payment step; create account on step 1 completion; go to dashboard |
-| `src/pages/RegisterLandlord.tsx` | Same as above |
-| `src/pages/tenant/TenantDashboard.tsx` | Add unpaid registration fee banner with Pay Now |
-| `src/pages/landlord/LandlordDashboard.tsx` | Add unpaid registration fee banner with Pay Now |
+| New migration SQL | Add `custom_fields` to `agreement_template_config`, add `custom_field_values` to `tenancies` |
+| `src/pages/regulator/RegulatorAgreementTemplates.tsx` | Add custom fields management UI (add/edit/remove/reorder) |
+| `src/pages/landlord/AddTenant.tsx` | Render dynamic fields from config in Set Terms step; save values on submit |
+| `src/lib/generateAgreementPdf.ts` | Render custom field values in PDF |
+| `src/pages/tenant/MyAgreements.tsx` | Display custom field values in agreement cards |
+| `src/pages/landlord/Agreements.tsx` | Display custom field values in landlord's agreement view |
 
