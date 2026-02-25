@@ -22,10 +22,9 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) throw new Error("Not authenticated");
-    const userId = claimsData.claims.sub as string;
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+    if (authError || !authUser) throw new Error("Not authenticated");
+    const userId = authUser.id;
 
     const body = await req.json();
     const { type } = body; // "rent_tax" | "tenant_registration" | "landlord_registration" | "complaint_fee"
