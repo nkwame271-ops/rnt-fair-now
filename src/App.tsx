@@ -35,6 +35,8 @@ import RegulatorAgreements from "./pages/regulator/RegulatorAgreements";
 import RegulatorAgreementTemplates from "./pages/regulator/RegulatorAgreementTemplates";
 import RegulatorAnalytics from "./pages/regulator/RegulatorAnalytics";
 import InviteStaff from "./pages/regulator/InviteStaff";
+import ProfilePage from "./pages/shared/ProfilePage";
+import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,6 +53,7 @@ const App = () => (
             <Route path="/register/tenant" element={<RegisterTenant />} />
             <Route path="/register/landlord" element={<RegisterLandlord />} />
             <Route path="/regulator/login" element={<RegulatorLogin />} />
+            <Route path="/verify/:role/:id" element={<VerifyRegistration />} />
 
             {/* Tenant Routes */}
             <Route path="/tenant" element={<ProtectedRoute requiredRole="tenant"><TenantLayout /></ProtectedRoute>}>
@@ -63,6 +66,7 @@ const App = () => (
               <Route path="payments" element={<Payments />} />
               <Route path="my-agreements" element={<MyAgreements />} />
               <Route path="legal-assistant" element={<LegalAssistant />} />
+              <Route path="profile" element={<ProfilePage />} />
             </Route>
 
             {/* Landlord Routes */}
@@ -74,6 +78,7 @@ const App = () => (
               <Route path="agreements" element={<Agreements />} />
               <Route path="add-tenant" element={<AddTenant />} />
               <Route path="viewing-requests" element={<LandlordViewingRequests />} />
+              <Route path="profile" element={<ProfilePage />} />
             </Route>
 
             {/* Regulator Routes */}
