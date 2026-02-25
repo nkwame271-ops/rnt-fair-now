@@ -1,18 +1,46 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Building2, Users, FileCheck, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, CheckCircle2 } from "lucide-react";
+import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { sampleProperties, tenantAgreements } from "@/data/dummyData";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 const LandlordDashboard = () => {
-  const totalUnits = sampleProperties.reduce((s, p) => s + p.units.length, 0);
-  const occupiedUnits = sampleProperties.reduce((s, p) => s + p.units.filter((u) => u.status === "Occupied").length, 0);
-  const unregistered = sampleProperties.reduce((s, p) => s + p.units.filter((u) => !u.agreementRegistered && u.tenant).length, 0);
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ properties: 0, totalUnits: 0, occupiedUnits: 0, pendingTenancies: 0, validMonths: 0, pendingMonths: 0 });
 
-  // Agreement validity from tenant payments
-  const agreement = tenantAgreements[0];
-  const currentMonth = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
-  const validAgreements = agreement.payments.filter((p) => p.taxPaid).length;
-  const invalidAgreements = agreement.payments.filter((p) => !p.taxPaid).length;
+  useEffect(() => {
+    if (!user) return;
+    const fetch = async () => {
+      const { data: props } = await supabase.from("properties").select("id").eq("landlord_user_id", user.id);
+      const propIds = (props || []).map(p => p.id);
+
+      let totalUnits = 0, occupiedUnits = 0;
+      if (propIds.length > 0) {
+        const { data: units } = await supabase.from("units").select("status").in("property_id", propIds);
+        totalUnits = (units || []).length;
+        occupiedUnits = (units || []).filter(u => u.status === "occupied").length;
+      }
+
+      const { data: tenancies } = await supabase.from("tenancies").select("id, status").eq("landlord_user_id", user.id);
+      const pendingTenancies = (tenancies || []).filter(t => t.status === "pending").length;
+      const tenancyIds = (tenancies || []).map(t => t.id);
+
+      let validMonths = 0, pendingMonths = 0;
+      if (tenancyIds.length > 0) {
+        const { data: payments } = await supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed").in("tenancy_id", tenancyIds);
+        validMonths = (payments || []).filter(p => p.landlord_confirmed || p.status === "confirmed").length;
+        pendingMonths = (payments || []).filter(p => !p.landlord_confirmed && p.status !== "confirmed").length;
+      }
+
+      setStats({ properties: (props || []).length, totalUnits, occupiedUnits, pendingTenancies, validMonths, pendingMonths });
+      setLoading(false);
+    };
+    fetch();
+  }, [user]);
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -23,10 +51,10 @@ const LandlordDashboard = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Properties", value: sampleProperties.length, icon: Building2, color: "text-primary" },
-          { label: "Total Units", value: totalUnits, icon: Building2, color: "text-info" },
-          { label: "Tenants", value: occupiedUnits, icon: Users, color: "text-success" },
-          { label: "Unregistered", value: unregistered, icon: AlertTriangle, color: "text-destructive" },
+          { label: "Properties", value: stats.properties, icon: Building2, color: "text-primary" },
+          { label: "Total Units", value: stats.totalUnits, icon: Building2, color: "text-info" },
+          { label: "Tenants", value: stats.occupiedUnits, icon: Users, color: "text-success" },
+          { label: "Pending Agreements", value: stats.pendingTenancies, icon: AlertTriangle, color: "text-destructive" },
         ].map((stat) => (
           <div key={stat.label} className="bg-card rounded-xl p-5 shadow-card border border-border">
             <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
@@ -35,19 +63,6 @@ const LandlordDashboard = () => {
           </div>
         ))}
       </div>
-
-      {unregistered > 0 && (
-        <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <div>
-            <div className="font-semibold text-foreground text-sm">Compliance Alert</div>
-            <p className="text-sm text-muted-foreground">You have {unregistered} tenancy agreement(s) that are not registered. By law (Act 220, Section 4), all agreements must be registered within 14 days.</p>
-            <Link to="/landlord/agreements" className="text-sm text-primary font-medium mt-2 inline-flex items-center gap-1 hover:underline">
-              Register now <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-        </div>
-      )}
 
       <div className="grid sm:grid-cols-2 gap-4">
         <Link to="/landlord/register-property" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated transition-all">
@@ -62,70 +77,23 @@ const LandlordDashboard = () => {
         </Link>
       </div>
 
-      {/* Tenancy Agreement Validity */}
+      {/* Validity Overview */}
       <div className="bg-card rounded-xl p-6 shadow-card border border-border">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">Tenancy Agreement Validity</h2>
-          <Link to="/landlord/agreements" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">
-            View all <ArrowRight className="h-3 w-3" />
-          </Link>
+          <h2 className="text-lg font-semibold text-foreground">Payment Validity Overview</h2>
+          <Link to="/landlord/agreements" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">View all <ArrowRight className="h-3 w-3" /></Link>
         </div>
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-2 gap-4">
           <div className="bg-success/5 border border-success/20 rounded-lg p-4 text-center">
             <Shield className="h-5 w-5 text-success mx-auto mb-1" />
-            <div className="text-2xl font-bold text-success">{validAgreements}</div>
-            <div className="text-xs text-muted-foreground">Months Valid</div>
+            <div className="text-2xl font-bold text-success">{stats.validMonths}</div>
+            <div className="text-xs text-muted-foreground">Confirmed Payments</div>
           </div>
           <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 text-center">
             <XCircle className="h-5 w-5 text-destructive mx-auto mb-1" />
-            <div className="text-2xl font-bold text-destructive">{invalidAgreements}</div>
-            <div className="text-xs text-muted-foreground">Months Pending</div>
+            <div className="text-2xl font-bold text-destructive">{stats.pendingMonths}</div>
+            <div className="text-xs text-muted-foreground">Pending Payments</div>
           </div>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Agreements are valid only when tenants have paid their 8% rent tax through Rent Control. {invalidAgreements > 0 && <span className="text-warning font-medium">Some months are still pending validation.</span>}
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-lg font-semibold text-foreground mb-3">Your Properties</h2>
-        <div className="space-y-4">
-          {sampleProperties.map((p) => (
-            <div key={p.id} className="bg-card rounded-xl p-5 shadow-card border border-border">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-bold text-card-foreground">{p.name}</h3>
-                  <div className="text-xs text-muted-foreground">{p.code} • {p.address}</div>
-                </div>
-                <span className="text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-semibold">
-                  {p.units.length} units
-                </span>
-              </div>
-              <div className="grid gap-2">
-                {p.units.map((u) => (
-                  <div key={u.id} className="flex items-center justify-between bg-muted rounded-lg px-4 py-2.5 text-sm">
-                    <div>
-                      <span className="font-medium text-card-foreground">{u.name}</span>
-                      <span className="text-muted-foreground"> — {u.type}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-card-foreground font-semibold">GH₵ {u.rent}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        u.status === "Occupied" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
-                      }`}>
-                        {u.status}
-                      </span>
-                      {u.tenant && !u.agreementRegistered && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
-                          Unregistered
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </div>

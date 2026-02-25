@@ -1,18 +1,9 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  FileText,
-  Calculator,
-  Store,
-  CreditCard,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  ArrowRight,
-  Shield,
-  XCircle,
-} from "lucide-react";
+import { FileText, Calculator, Store, CreditCard, AlertTriangle, CheckCircle2, Clock, ArrowRight, Shield, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { sampleComplaints, tenantAgreements, tenantPayments } from "@/data/dummyData";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 const quickActions = [
   { to: "/tenant/file-complaint", label: "File Complaint", icon: FileText, color: "bg-destructive/10 text-destructive" },
@@ -22,27 +13,66 @@ const quickActions = [
 ];
 
 const TenantDashboard = () => {
-  const activeCases = sampleComplaints.filter((c) => c.status !== "Resolved" && c.status !== "Closed").length;
-  const agreement = tenantAgreements[0];
-  const paidMonths = agreement.payments.filter((p) => p.taxPaid).length;
-  const unpaidMonths = agreement.payments.filter((p) => !p.taxPaid).length;
-  const nextPayment = agreement.payments.find((p) => !p.taxPaid);
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [profileName, setProfileName] = useState("");
+  const [activeCases, setActiveCases] = useState(0);
+  const [tenancy, setTenancy] = useState<{ propertyAddress: string; monthlyRent: number; landlordName: string; paidMonths: number; totalMonths: number; nextTax: number } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetch = async () => {
+      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
+      setProfileName(profile?.full_name || "Tenant");
+
+      const { count } = await supabase.from("complaints").select("id", { count: "exact", head: true }).eq("tenant_user_id", user.id).not("status", "in", '("resolved","closed")');
+      setActiveCases(count || 0);
+
+      const { data: ts } = await supabase
+        .from("tenancies")
+        .select("*, unit:units(unit_name, unit_type, property_id)")
+        .eq("tenant_user_id", user.id)
+        .in("status", ["active", "pending"])
+        .limit(1);
+
+      if (ts && ts.length > 0) {
+        const t = ts[0] as any;
+        const { data: prop } = await supabase.from("properties").select("address").eq("id", t.unit.property_id).single();
+        const { data: landlord } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
+        const { data: payments } = await supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed, tax_amount").eq("tenancy_id", t.id).order("due_date");
+
+        const paid = (payments || []).filter((p: any) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed").length;
+        const nextP = (payments || []).find((p: any) => !p.tenant_marked_paid && !p.landlord_confirmed && p.status !== "confirmed");
+
+        setTenancy({
+          propertyAddress: prop?.address || "",
+          monthlyRent: t.agreed_rent,
+          landlordName: landlord?.full_name || "Unknown",
+          paidMonths: paid,
+          totalMonths: (payments || []).length,
+          nextTax: nextP ? nextP.tax_amount : 0,
+        });
+      }
+      setLoading(false);
+    };
+    fetch();
+  }, [user]);
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      {/* Greeting */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-bold text-foreground">Welcome, Kwame 👋</h1>
+        <h1 className="text-3xl font-bold text-foreground">Welcome, {profileName.split(" ")[0]} 👋</h1>
         <p className="text-muted-foreground mt-1">Here's your rental overview</p>
       </motion.div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Active Cases", value: activeCases, icon: AlertTriangle, color: "text-destructive" },
-          { label: "Months Valid", value: `${paidMonths}/${agreement.payments.length}`, icon: Shield, color: "text-success" },
-          { label: "Months Pending", value: unpaidMonths, icon: Clock, color: "text-warning" },
-          { label: "Next Tax Due", value: nextPayment ? `GH₵${nextPayment.taxAmount}` : "—", icon: CreditCard, color: "text-info" },
+          { label: "Months Valid", value: tenancy ? `${tenancy.paidMonths}/${tenancy.totalMonths}` : "—", icon: Shield, color: "text-success" },
+          { label: "Months Pending", value: tenancy ? tenancy.totalMonths - tenancy.paidMonths : "—", icon: Clock, color: "text-warning" },
+          { label: "Next Tax Due", value: tenancy?.nextTax ? `GH₵${tenancy.nextTax}` : "—", icon: CreditCard, color: "text-info" },
         ].map((stat) => (
           <div key={stat.label} className="bg-card rounded-xl p-5 shadow-card border border-border">
             <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
@@ -52,103 +82,46 @@ const TenantDashboard = () => {
         ))}
       </div>
 
-      {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3">Quick Actions</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {quickActions.map((action) => (
-            <Link
-              key={action.to}
-              to={action.to}
-              className="group bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-all"
-            >
+            <Link key={action.to} to={action.to} className="group bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-all">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${action.color} mb-3`}>
                 <action.icon className="h-5 w-5" />
               </div>
-              <div className="text-sm font-semibold text-card-foreground group-hover:text-primary transition-colors">
-                {action.label}
-              </div>
+              <div className="text-sm font-semibold text-card-foreground group-hover:text-primary transition-colors">{action.label}</div>
             </Link>
           ))}
         </div>
       </div>
 
-      {/* Tenancy Agreement Status */}
-      <div className="bg-card rounded-xl p-6 shadow-card border border-border">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">Your Tenancy Agreement</h2>
-          <Link to="/tenant/payments" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">
-            Pay rent <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mb-4">
-          <div>
-            <div className="text-muted-foreground">Property</div>
-            <div className="font-semibold text-card-foreground">{agreement.propertyAddress}</div>
+      {tenancy && (
+        <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground">Your Tenancy Agreement</h2>
+            <Link to="/tenant/payments" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">Pay rent <ArrowRight className="h-3 w-3" /></Link>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mb-4">
+            <div><div className="text-muted-foreground">Property</div><div className="font-semibold text-card-foreground">{tenancy.propertyAddress}</div></div>
+            <div><div className="text-muted-foreground">Monthly Rent</div><div className="font-semibold text-card-foreground">GH₵ {tenancy.monthlyRent.toLocaleString()}</div></div>
+            <div><div className="text-muted-foreground">Landlord</div><div className="font-semibold text-card-foreground">{tenancy.landlordName}</div></div>
+            <div><div className="text-muted-foreground">Status</div><div className="inline-flex items-center gap-1 text-success font-semibold"><CheckCircle2 className="h-3.5 w-3.5" /> Active</div></div>
           </div>
           <div>
-            <div className="text-muted-foreground">Monthly Rent</div>
-            <div className="font-semibold text-card-foreground">GH₵ {agreement.monthlyRent.toLocaleString()}</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Landlord</div>
-            <div className="font-semibold text-card-foreground">{agreement.landlordName}</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Agreement Status</div>
-            <div className="inline-flex items-center gap-1 text-success font-semibold">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Registered
+            <div className="flex justify-between text-xs text-muted-foreground mb-1"><span>{tenancy.paidMonths} of {tenancy.totalMonths} months validated</span><span>{tenancy.totalMonths > 0 ? Math.round((tenancy.paidMonths / tenancy.totalMonths) * 100) : 0}%</span></div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-success rounded-full transition-all" style={{ width: `${tenancy.totalMonths > 0 ? (tenancy.paidMonths / tenancy.totalMonths) * 100 : 0}%` }} />
             </div>
           </div>
-        </div>
-        {/* Validity bar */}
-        <div>
-          <div className="flex justify-between text-xs text-muted-foreground mb-1">
-            <span>{paidMonths} of {agreement.payments.length} months validated</span>
-            <span>{Math.round((paidMonths / agreement.payments.length) * 100)}%</span>
-          </div>
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
-            <div className="h-full bg-success rounded-full transition-all" style={{ width: `${(paidMonths / agreement.payments.length) * 100}%` }} />
-          </div>
-        </div>
-        {unpaidMonths > 0 && (
-          <div className="mt-3 flex items-center gap-2 text-xs text-warning">
-            <Clock className="h-3.5 w-3.5" />
-            <span>{unpaidMonths} month(s) pending — pay the 8% tax to validate</span>
-          </div>
-        )}
-      </div>
-
-      {/* Recent Cases */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-foreground">Recent Cases</h2>
-          <Link to="/tenant/my-cases" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">
-            View all <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-        <div className="space-y-3">
-          {sampleComplaints.map((c) => (
-            <div key={c.id} className="bg-card rounded-xl p-4 shadow-card border border-border flex items-center justify-between">
-              <div>
-                <div className="font-semibold text-sm text-card-foreground">{c.type}</div>
-                <div className="text-xs text-muted-foreground">{c.id} • {c.dateSubmitted}</div>
-              </div>
-              <span
-                className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                  c.status === "Resolved"
-                    ? "bg-success/10 text-success"
-                    : c.status === "Under Review"
-                    ? "bg-warning/10 text-warning"
-                    : "bg-info/10 text-info"
-                }`}
-              >
-                {c.status}
-              </span>
+          {tenancy.totalMonths - tenancy.paidMonths > 0 && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-warning">
+              <Clock className="h-3.5 w-3.5" />
+              <span>{tenancy.totalMonths - tenancy.paidMonths} month(s) pending — pay the 8% tax to validate</span>
             </div>
-          ))}
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 };
