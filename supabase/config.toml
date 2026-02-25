@@ -1,9 +1,9 @@
 project_id = "qjrvwcwmhuxygdanbxsz"
 
-[functions.hubtel-checkout]
+[functions.paystack-checkout]
 verify_jwt = false
 
-[functions.hubtel-webhook]
+[functions.paystack-webhook]
 verify_jwt = false
 
 [functions.invite-staff]

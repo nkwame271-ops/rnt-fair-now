@@ -90,46 +90,20 @@ const Payments = () => {
   const handlePayTax = async (paymentId: string) => {
     setPaying(paymentId);
     try {
-      const { data, error } = await supabase.functions.invoke("hubtel-checkout", {
+      const { data, error } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "rent_tax", paymentId },
       });
 
       if (error) throw new Error(error.message || "Payment initiation failed");
       if (data?.error) throw new Error(data.error);
 
-      if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
       } else {
         throw new Error("No checkout URL received");
       }
     } catch (err: any) {
       toast.error(err.message || "Payment failed");
-      setPaying(null);
-    }
-  };
-
-  const handleManualDeclaration = async (paymentId: string) => {
-    setPaying(paymentId);
-    try {
-      const { error } = await supabase.from("rent_payments").update({
-        tenant_marked_paid: true,
-        status: "tenant_paid",
-        paid_date: new Date().toISOString(),
-        payment_method: "Off-platform",
-        amount_paid: tenancy!.payments.find(p => p.id === paymentId)!.tax_amount,
-      }).eq("id", paymentId);
-
-      if (error) throw error;
-
-      setTenancy(prev => prev ? {
-        ...prev,
-        payments: prev.payments.map(p => p.id === paymentId ? { ...p, tenant_marked_paid: true, status: "tenant_paid" } : p),
-      } : null);
-
-      toast.success("Payment declared! Awaiting landlord confirmation.");
-    } catch (err: any) {
-      toast.error(err.message || "Declaration failed");
-    } finally {
       setPaying(null);
     }
   };
@@ -199,7 +173,7 @@ const Payments = () => {
         <div className="space-y-1">
           <p className="font-semibold text-foreground text-sm">How rent payment works</p>
           <p>Your monthly rent of <strong>GH₵ {tenancy.agreed_rent.toLocaleString()}</strong> includes an 8% government tax of <strong>GH₵ {(tenancy.agreed_rent * 0.08).toLocaleString()}</strong>.</p>
-          <p>You pay the tax through this app (via Hubtel or manual declaration). This validates your tenancy. The remaining <strong>GH₵ {(tenancy.agreed_rent * 0.92).toLocaleString()}</strong> goes directly to your landlord.</p>
+          <p>You pay the tax through this app via Paystack. This validates your tenancy. The remaining <strong>GH₵ {(tenancy.agreed_rent * 0.92).toLocaleString()}</strong> goes directly to your landlord.</p>
         </div>
       </div>
 
@@ -219,11 +193,7 @@ const Payments = () => {
           </div>
           <Button className="w-full" size="lg" onClick={() => handlePayTax(nextUnpaid.id)} disabled={paying === nextUnpaid.id}>
             <CreditCard className="h-4 w-4 mr-2" />
-            {paying === nextUnpaid.id ? "Processing..." : `Pay GH₵ ${nextUnpaid.tax_amount.toLocaleString()} via Hubtel`}
-          </Button>
-          <div className="text-center my-2 text-xs text-muted-foreground">— or —</div>
-          <Button variant="outline" className="w-full" onClick={() => handleManualDeclaration(nextUnpaid.id)} disabled={paying === nextUnpaid.id}>
-            Declare Off-Platform Payment
+            {paying === nextUnpaid.id ? "Redirecting..." : `Pay GH₵ ${nextUnpaid.tax_amount.toLocaleString()} via Paystack`}
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-3">After tax payment, pay GH₵ {nextUnpaid.amount_to_landlord.toLocaleString()} directly to {tenancy.landlordName}</p>
         </motion.div>

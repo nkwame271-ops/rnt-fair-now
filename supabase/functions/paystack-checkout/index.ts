@@ -29,18 +29,18 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { type } = body; // "rent_tax" | "tenant_registration" | "landlord_registration" | "complaint_fee"
 
-    let totalAmount: number;
-    let description: string;
-    let clientReference: string;
-
     const { data: profile } = await supabase
       .from("profiles")
       .select("full_name, email, phone")
       .eq("user_id", userId)
       .single();
 
+    let totalAmount: number; // in GHS
+    let description: string;
+    let reference: string;
+    let callbackPath: string;
+
     if (type === "rent_tax") {
-      // Existing rent tax flow
       const { paymentId } = body;
       if (!paymentId) throw new Error("paymentId is required");
 
@@ -56,10 +56,10 @@ Deno.serve(async (req) => {
 
       totalAmount = Number(payment.tax_amount);
       description = `Rent tax for ${payment.month_label} - ${(payment as any).tenancy.registration_code}`;
-      clientReference = `rent:${paymentId}`;
+      reference = `rent_${paymentId}`;
+      callbackPath = "/tenant/payments?status=success";
 
     } else if (type === "tenant_registration") {
-      // Check tenant record exists and fee not paid
       const { data: tenant } = await supabase
         .from("tenants")
         .select("id, registration_fee_paid")
@@ -71,7 +71,8 @@ Deno.serve(async (req) => {
 
       totalAmount = 50;
       description = "Tenant ID Registration - Annual Fee (GH₵ 50)";
-      clientReference = `treg:${userId}`;
+      reference = `treg_${userId}_${Date.now()}`;
+      callbackPath = "/tenant/dashboard?status=success";
 
     } else if (type === "landlord_registration") {
       const { data: landlord } = await supabase
@@ -85,7 +86,8 @@ Deno.serve(async (req) => {
 
       totalAmount = 50;
       description = "Landlord ID Registration - Annual Fee (GH₵ 50)";
-      clientReference = `lreg:${userId}`;
+      reference = `lreg_${userId}_${Date.now()}`;
+      callbackPath = "/landlord/dashboard?status=success";
 
     } else if (type === "complaint_fee") {
       const { complaintId } = body;
@@ -103,97 +105,60 @@ Deno.serve(async (req) => {
 
       totalAmount = 20;
       description = "Complaint Filing Fee (GH₵ 20)";
-      clientReference = `comp:${complaintId}`;
+      reference = `comp_${complaintId}`;
+      callbackPath = "/tenant/my-cases?status=success";
 
     } else {
       throw new Error("Invalid payment type");
     }
 
-    const HUBTEL_CLIENT_ID = Deno.env.get("PAYMENT_API_ID")!;
-    const HUBTEL_CLIENT_SECRET = Deno.env.get("PAYMENT_API_KEY")!;
-    const HUBTEL_MERCHANT_ACCOUNT = Deno.env.get("HUBTEL_MERCHANT_ACCOUNT")!;
-    const auth = btoa(`${HUBTEL_CLIENT_ID}:${HUBTEL_CLIENT_SECRET}`);
+    const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
+    if (!PAYSTACK_SECRET_KEY) throw new Error("Payment gateway not configured");
 
-    const projectId = Deno.env.get("SUPABASE_URL")!.match(/https:\/\/(.+)\.supabase\.co/)?.[1] || "";
-    const callbackUrl = `https://${projectId}.supabase.co/functions/v1/hubtel-webhook`;
-    const returnUrl = req.headers.get("origin") || "https://rnt-fair-now.lovable.app";
+    const origin = req.headers.get("origin") || "https://rentcontrol.lovable.app";
+    const callbackUrl = `${origin}${callbackPath}`;
 
-    // Determine return paths based on type
-    let successPath = "/";
-    let cancelPath = "/";
-    if (type === "rent_tax") {
-      successPath = "/tenant/payments?status=success";
-      cancelPath = "/tenant/payments?status=cancelled";
-    } else if (type === "tenant_registration") {
-      successPath = "/register/tenant?status=success";
-      cancelPath = "/register/tenant?status=cancelled";
-    } else if (type === "landlord_registration") {
-      successPath = "/register/landlord?status=success";
-      cancelPath = "/register/landlord?status=cancelled";
-    } else if (type === "complaint_fee") {
-      successPath = "/tenant/my-cases?status=success";
-      cancelPath = "/tenant/file-complaint?status=cancelled";
-    }
-
-    // Detect channel from phone number
-    const phone = (profile?.phone || "").replace(/\s+/g, "");
-    let channel = "mtn-gh"; // default
-    if (phone.startsWith("020") || phone.startsWith("050")) channel = "vodafone-gh";
-    else if (phone.startsWith("026") || phone.startsWith("056") || phone.startsWith("027") || phone.startsWith("057")) channel = "airteltigo-gh";
+    // Paystack amount is in pesewas (multiply by 100)
+    const amountInPesewas = Math.round(totalAmount * 100);
 
     const payload = {
-      CustomerName: profile?.full_name || "Customer",
-      CustomerMsisdn: phone,
-      CustomerEmail: profile?.email || "",
-      Channel: channel,
-      Amount: totalAmount,
-      PrimaryCallbackUrl: callbackUrl,
-      SecondaryCallbackUrl: callbackUrl,
-      Description: description,
-      ClientReference: clientReference,
+      email: profile?.email || authUser.email || "customer@rentcontrol.app",
+      amount: amountInPesewas,
+      currency: "GHS",
+      reference,
+      callback_url: callbackUrl,
+      metadata: {
+        type,
+        userId,
+        custom_fields: [
+          { display_name: "Description", variable_name: "description", value: description },
+          { display_name: "Customer", variable_name: "customer_name", value: profile?.full_name || "Customer" },
+        ],
+      },
     };
 
-    console.log("Hubtel checkout payload:", JSON.stringify(payload));
+    console.log("Paystack init payload:", JSON.stringify(payload));
 
-    const response = await fetch(
-      `https://api.hubtel.com/v1/merchantaccount/merchants/${HUBTEL_MERCHANT_ACCOUNT}/receive/mobilemoney`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${auth}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+    const response = await fetch("https://api.paystack.co/transaction/initialize", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-    const responseText = await response.text();
-    console.log("Hubtel raw response:", responseText, "status:", response.status);
+    const result = await response.json();
+    console.log("Paystack response:", JSON.stringify(result));
 
-    let result: any;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      console.error("Hubtel returned non-JSON:", responseText);
-      throw new Error(`Hubtel returned invalid response (HTTP ${response.status}): ${responseText.substring(0, 200)}`);
+    if (!response.ok || !result.status) {
+      throw new Error(result.message || `Paystack error (HTTP ${response.status})`);
     }
 
-    if (!response.ok) {
-      console.error("Hubtel error:", JSON.stringify(result));
-      throw new Error(result.Message || result.message || `Hubtel returned HTTP ${response.status}`);
-    }
-
-    if (result.ResponseCode !== "0000") {
-      console.error("Hubtel non-success:", JSON.stringify(result));
-      throw new Error(result.Message || "Payment initiation failed");
-    }
-
-    // Mobile money: response is a pending prompt, no checkout URL
     return new Response(JSON.stringify({
-      status: result.Status || "pending",
-      message: result.Message || "Payment prompt sent to your phone. Please approve.",
-      clientReference,
-      data: result.Data,
+      authorization_url: result.data.authorization_url,
+      access_code: result.data.access_code,
+      reference: result.data.reference,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
