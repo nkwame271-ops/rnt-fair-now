@@ -109,9 +109,10 @@ Deno.serve(async (req) => {
       throw new Error("Invalid payment type");
     }
 
-    const HUBTEL_API_ID = Deno.env.get("PAYMENT_API_ID")!;
-    const HUBTEL_API_KEY = Deno.env.get("PAYMENT_API_KEY")!;
-    const auth = btoa(`${HUBTEL_API_ID}:${HUBTEL_API_KEY}`);
+    const HUBTEL_CLIENT_ID = Deno.env.get("PAYMENT_API_ID")!;
+    const HUBTEL_CLIENT_SECRET = Deno.env.get("PAYMENT_API_KEY")!;
+    const HUBTEL_MERCHANT_ACCOUNT = Deno.env.get("HUBTEL_MERCHANT_ACCOUNT")!;
+    const auth = btoa(`${HUBTEL_CLIENT_ID}:${HUBTEL_CLIENT_SECRET}`);
 
     const projectId = Deno.env.get("SUPABASE_URL")!.match(/https:\/\/(.+)\.supabase\.co/)?.[1] || "";
     const callbackUrl = `https://${projectId}.supabase.co/functions/v1/hubtel-webhook`;
@@ -134,24 +135,28 @@ Deno.serve(async (req) => {
       cancelPath = "/tenant/file-complaint?status=cancelled";
     }
 
+    // Detect channel from phone number
+    const phone = (profile?.phone || "").replace(/\s+/g, "");
+    let channel = "mtn-gh"; // default
+    if (phone.startsWith("020") || phone.startsWith("050")) channel = "vodafone-gh";
+    else if (phone.startsWith("026") || phone.startsWith("056") || phone.startsWith("027") || phone.startsWith("057")) channel = "airteltigo-gh";
+
     const payload = {
-      totalAmount,
-      description,
-      callbackUrl,
-      returnUrl: `${returnUrl}${successPath}`,
-      cancellationUrl: `${returnUrl}${cancelPath}`,
-      merchantBusinessLogoUrl: `${returnUrl}/favicon.ico`,
-      merchantAccountNumber: HUBTEL_API_ID,
-      clientReference,
-      customerName: profile?.full_name || "Customer",
-      customerMsisdn: profile?.phone || "",
-      customerEmail: profile?.email || "",
+      CustomerName: profile?.full_name || "Customer",
+      CustomerMsisdn: phone,
+      CustomerEmail: profile?.email || "",
+      Channel: channel,
+      Amount: totalAmount,
+      PrimaryCallbackUrl: callbackUrl,
+      SecondaryCallbackUrl: callbackUrl,
+      Description: description,
+      ClientReference: clientReference,
     };
 
     console.log("Hubtel checkout payload:", JSON.stringify(payload));
 
     const response = await fetch(
-      "https://payproxyapi.hubtel.com/items/initiate",
+      `https://api.hubtel.com/v1/merchantaccount/merchants/${HUBTEL_MERCHANT_ACCOUNT}/receive/mobilemoney`,
       {
         method: "POST",
         headers: {
@@ -173,14 +178,22 @@ Deno.serve(async (req) => {
       throw new Error(`Hubtel returned invalid response (HTTP ${response.status}): ${responseText.substring(0, 200)}`);
     }
 
-    if (!response.ok || result.responseCode !== "0000") {
+    if (!response.ok) {
       console.error("Hubtel error:", JSON.stringify(result));
-      throw new Error(result.message || result.data?.message || "Failed to initiate payment");
+      throw new Error(result.Message || result.message || `Hubtel returned HTTP ${response.status}`);
     }
 
+    if (result.ResponseCode !== "0000") {
+      console.error("Hubtel non-success:", JSON.stringify(result));
+      throw new Error(result.Message || "Payment initiation failed");
+    }
+
+    // Mobile money: response is a pending prompt, no checkout URL
     return new Response(JSON.stringify({
-      checkoutUrl: result.data?.checkoutUrl,
-      checkoutId: result.data?.checkoutId,
+      status: result.Status || "pending",
+      message: result.Message || "Payment prompt sent to your phone. Please approve.",
+      clientReference,
+      data: result.Data,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
