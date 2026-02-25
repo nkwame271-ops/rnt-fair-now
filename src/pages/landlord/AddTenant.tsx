@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { generateAgreementPdf, TemplateConfig } from "@/lib/generateAgreementPdf";
+import { generateAgreementPdf, TemplateConfig, CustomFieldDef } from "@/lib/generateAgreementPdf";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +37,8 @@ const AddTenant = () => {
   const [submitting, setSubmitting] = useState(false);
   const [landlordName, setLandlordName] = useState("");
   const [templateConfig, setTemplateConfig] = useState<TemplateConfig | null>(null);
+  const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
 
   const property = properties.find(p => p.id === selectedPropertyId);
   const unit = property?.units.find(u => u.id === selectedUnitId);
@@ -52,7 +54,11 @@ const AddTenant = () => {
       ]);
       setProperties((propsRes.data || []) as PropertyWithUnits[]);
       setLandlordName(profileRes.data?.full_name || "");
-      if (configRes.data) setTemplateConfig(configRes.data as TemplateConfig);
+      if (configRes.data) {
+        setTemplateConfig(configRes.data as TemplateConfig);
+        const cf = (configRes.data as any).custom_fields || [];
+        setCustomFields(cf);
+      }
       setLoading(false);
     };
     fetchData();
@@ -132,6 +138,8 @@ const AddTenant = () => {
       endDate,
       region: property.region,
       templateConfig: templateConfig || undefined,
+      customFields: customFields.length > 0 ? customFields : undefined,
+      customFieldValues: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
     });
     doc.save(`Tenancy_Agreement_${foundTenant.id}.pdf`);
     toast.success("Agreement PDF downloaded!");
@@ -159,7 +167,8 @@ const AddTenant = () => {
         status: "pending",
         landlord_accepted: true,
         tenant_accepted: false,
-      }).select().single();
+        custom_field_values: customFieldValues,
+      } as any).select().single();
 
       if (error) throw error;
 
@@ -329,6 +338,25 @@ const AddTenant = () => {
               <Input type="date" value={endDate} readOnly className="bg-muted" />
             </div>
           </div>
+          {/* Custom fields from regulator */}
+          {customFields.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-card-foreground border-t border-border pt-4">Additional Information (required by Rent Control)</h3>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {customFields.map((field) => (
+                  <div key={field.label} className="space-y-2">
+                    <Label>{field.label}{field.required && <span className="text-destructive ml-1">*</span>}</Label>
+                    <Input
+                      type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                      value={customFieldValues[field.label] || ""}
+                      onChange={(e) => setCustomFieldValues(prev => ({ ...prev, [field.label]: e.target.value }))}
+                      placeholder={`Enter ${field.label.toLowerCase()}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {monthlyRent > 0 && (
             <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Monthly Rent</span><span className="font-semibold">GH₵ {monthlyRent.toLocaleString()}</span></div>
@@ -338,7 +366,7 @@ const AddTenant = () => {
           )}
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("find-tenant")}>Back</Button>
-            <Button disabled={!rent || monthlyRent <= 0} onClick={() => setStep("review")}>Next: Review</Button>
+            <Button disabled={!rent || monthlyRent <= 0 || customFields.some(f => f.required && !customFieldValues[f.label]?.trim())} onClick={() => setStep("review")}>Next: Review</Button>
           </div>
         </motion.div>
       )}
@@ -363,6 +391,7 @@ const AddTenant = () => {
                 ["Period", `${new Date(startDate).toLocaleDateString("en-GB")} — ${new Date(endDate).toLocaleDateString("en-GB")}`],
                 [`${(taxRate * 100).toFixed(0)}% Tax/mo`, `GH₵ ${tax.toLocaleString()}`],
                 ["To Landlord/mo", `GH₵ ${toLandlord.toLocaleString()}`],
+                ...customFields.map(f => [f.label, customFieldValues[f.label] || "—"]),
               ].map(([label, value]) => (
                 <div key={label}>
                   <span className="text-muted-foreground">{label}</span>

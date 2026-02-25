@@ -1,11 +1,19 @@
 import { useState, useEffect } from "react";
-import { FileText, Settings, Info, Loader2, Plus, GripVertical, Trash2, Pencil, Check, X } from "lucide-react";
+import { FileText, Settings, Info, Loader2, Plus, Trash2, Pencil, Check, X, ArrowUp, ArrowDown, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+interface CustomField {
+  label: string;
+  type: "text" | "number" | "date";
+  required: boolean;
+}
 
 interface TemplateConfig {
   id: string;
@@ -15,7 +23,16 @@ interface TemplateConfig {
   tax_rate: number;
   registration_deadline_days: number;
   terms: string[];
+  custom_fields: CustomField[];
 }
+
+const SYSTEM_FIELDS = [
+  "Registration Code", "Date of Agreement", "Landlord Name", "Tenant Name",
+  "Tenant ID", "Property Name", "Property Address", "Unit Name & Type",
+  "Region", "Monthly Rent", "Advance Period", "Total Advance Amount",
+  "Government Tax", "Amount to Landlord", "Tenancy Start Date",
+  "Tenancy End Date", "Landlord Signature", "Tenant Signature",
+];
 
 const RegulatorAgreementTemplates = () => {
   const [config, setConfig] = useState<TemplateConfig | null>(null);
@@ -24,19 +41,30 @@ const RegulatorAgreementTemplates = () => {
   const [editingTermIndex, setEditingTermIndex] = useState<number | null>(null);
   const [editingTermValue, setEditingTermValue] = useState("");
   const [newTerm, setNewTerm] = useState("");
+  // Custom fields
+  const [newFieldLabel, setNewFieldLabel] = useState("");
+  const [newFieldType, setNewFieldType] = useState<"text" | "number" | "date">("text");
+  const [newFieldRequired, setNewFieldRequired] = useState(false);
+  const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null);
+  const [editingField, setEditingField] = useState<CustomField>({ label: "", type: "text", required: false });
 
   useEffect(() => {
-    const fetch = async () => {
+    const load = async () => {
       const { data, error } = await supabase
         .from("agreement_template_config")
         .select("*")
         .limit(1)
         .single();
-      if (data) setConfig(data as TemplateConfig);
+      if (data) {
+        setConfig({
+          ...data,
+          custom_fields: (data as any).custom_fields || [],
+        } as TemplateConfig);
+      }
       if (error) toast.error("Failed to load template config");
       setLoading(false);
     };
-    fetch();
+    load();
   }, []);
 
   const updateField = (field: keyof TemplateConfig, value: any) => {
@@ -44,12 +72,12 @@ const RegulatorAgreementTemplates = () => {
     setConfig({ ...config, [field]: value });
   };
 
+  // Term management
   const startEditTerm = (index: number) => {
     if (!config) return;
     setEditingTermIndex(index);
     setEditingTermValue(config.terms[index]);
   };
-
   const saveEditTerm = () => {
     if (!config || editingTermIndex === null) return;
     const updated = [...config.terms];
@@ -57,16 +85,47 @@ const RegulatorAgreementTemplates = () => {
     setConfig({ ...config, terms: updated });
     setEditingTermIndex(null);
   };
-
   const removeTerm = (index: number) => {
     if (!config) return;
     setConfig({ ...config, terms: config.terms.filter((_, i) => i !== index) });
   };
-
   const addTerm = () => {
     if (!config || !newTerm.trim()) return;
     setConfig({ ...config, terms: [...config.terms, newTerm.trim()] });
     setNewTerm("");
+  };
+
+  // Custom field management
+  const addCustomField = () => {
+    if (!config || !newFieldLabel.trim()) return;
+    setConfig({ ...config, custom_fields: [...config.custom_fields, { label: newFieldLabel.trim(), type: newFieldType, required: newFieldRequired }] });
+    setNewFieldLabel("");
+    setNewFieldType("text");
+    setNewFieldRequired(false);
+  };
+  const removeCustomField = (index: number) => {
+    if (!config) return;
+    setConfig({ ...config, custom_fields: config.custom_fields.filter((_, i) => i !== index) });
+  };
+  const startEditField = (index: number) => {
+    if (!config) return;
+    setEditingFieldIndex(index);
+    setEditingField({ ...config.custom_fields[index] });
+  };
+  const saveEditField = () => {
+    if (!config || editingFieldIndex === null) return;
+    const updated = [...config.custom_fields];
+    updated[editingFieldIndex] = editingField;
+    setConfig({ ...config, custom_fields: updated });
+    setEditingFieldIndex(null);
+  };
+  const moveField = (index: number, direction: -1 | 1) => {
+    if (!config) return;
+    const newIdx = index + direction;
+    if (newIdx < 0 || newIdx >= config.custom_fields.length) return;
+    const updated = [...config.custom_fields];
+    [updated[index], updated[newIdx]] = [updated[newIdx], updated[index]];
+    setConfig({ ...config, custom_fields: updated });
   };
 
   const handleSave = async () => {
@@ -81,8 +140,9 @@ const RegulatorAgreementTemplates = () => {
         tax_rate: config.tax_rate,
         registration_deadline_days: config.registration_deadline_days,
         terms: config.terms,
+        custom_fields: config.custom_fields as any,
         updated_at: new Date().toISOString(),
-      })
+      } as any)
       .eq("id", config.id);
     setSaving(false);
     if (error) {
@@ -110,7 +170,6 @@ const RegulatorAgreementTemplates = () => {
           <Info className="h-4 w-4 shrink-0" />
           <span>These settings define the rules enforced across all tenancy agreements, in compliance with the Rent Act 220.</span>
         </div>
-
         <div className="grid sm:grid-cols-2 gap-6">
           <div className="space-y-2">
             <Label>Maximum Advance Rent (months)</Label>
@@ -138,13 +197,106 @@ const RegulatorAgreementTemplates = () => {
         </div>
       </div>
 
+      {/* Agreement Data Fields */}
+      <div className="bg-card rounded-xl border border-border shadow-card p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <FileText className="h-5 w-5 text-primary" /> Agreement Data Fields
+        </h2>
+        <p className="text-sm text-muted-foreground">Define what information appears in the tenancy agreement. System fields are auto-populated. Custom fields are filled by landlords when creating agreements.</p>
+
+        {/* System fields (locked) */}
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">System Fields (auto-populated)</h3>
+          <div className="grid sm:grid-cols-2 gap-2 text-sm">
+            {SYSTEM_FIELDS.map(field => (
+              <div key={field} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-muted/50">
+                <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="text-foreground">{field}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Custom fields */}
+        <div>
+          <h3 className="text-sm font-medium text-foreground mb-2">Custom Fields (filled by landlord)</h3>
+          {config.custom_fields.length === 0 && (
+            <p className="text-sm text-muted-foreground italic">No custom fields defined. Add fields below.</p>
+          )}
+          <div className="space-y-2">
+            {config.custom_fields.map((field, index) => (
+              <div key={index} className="flex gap-2 items-center group bg-muted/30 rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                {editingFieldIndex === index ? (
+                  <div className="flex-1 space-y-2">
+                    <div className="grid sm:grid-cols-3 gap-2">
+                      <Input value={editingField.label} onChange={e => setEditingField({ ...editingField, label: e.target.value })} placeholder="Field label" />
+                      <Select value={editingField.type} onValueChange={(v: "text" | "number" | "date") => setEditingField({ ...editingField, type: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">Text</SelectItem>
+                          <SelectItem value="number">Number</SelectItem>
+                          <SelectItem value="date">Date</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="flex items-center gap-2">
+                        <Switch checked={editingField.required} onCheckedChange={c => setEditingField({ ...editingField, required: c })} />
+                        <span className="text-xs text-muted-foreground">Required</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={saveEditField}><Check className="h-3 w-3 mr-1" /> Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingFieldIndex(null)}><X className="h-3 w-3 mr-1" /> Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-foreground">{field.label}</span>
+                        <span className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{field.type}</span>
+                        {field.required && <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">Required</span>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveField(index, -1)} disabled={index === 0}><ArrowUp className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveField(index, 1)} disabled={index === config.custom_fields.length - 1}><ArrowDown className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditField(index)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeCustomField(index)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Add new custom field */}
+          <div className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-border mt-3">
+            <Input placeholder="Field label (e.g. Occupation of Tenant)" value={newFieldLabel} onChange={e => setNewFieldLabel(e.target.value)} className="flex-1" />
+            <Select value={newFieldType} onValueChange={(v: "text" | "number" | "date") => setNewFieldType(v)}>
+              <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="text">Text</SelectItem>
+                <SelectItem value="number">Number</SelectItem>
+                <SelectItem value="date">Date</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2">
+              <Switch checked={newFieldRequired} onCheckedChange={setNewFieldRequired} />
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Required</span>
+            </div>
+            <Button onClick={addCustomField} disabled={!newFieldLabel.trim()}>
+              <Plus className="h-4 w-4 mr-1" /> Add
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {/* Terms & Conditions */}
       <div className="bg-card rounded-xl border border-border shadow-card p-6 space-y-4">
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" /> Standard Terms & Conditions
         </h2>
         <p className="text-sm text-muted-foreground">These terms appear in every generated tenancy agreement PDF. Add, edit, or remove clauses as needed.</p>
-
         <div className="space-y-2">
           {config.terms.map((term, index) => (
             <div key={index} className="flex gap-2 items-start group bg-muted/30 rounded-lg p-3 hover:bg-muted/50 transition-colors">
@@ -169,38 +321,11 @@ const RegulatorAgreementTemplates = () => {
             </div>
           ))}
         </div>
-
         <div className="flex gap-2 pt-2 border-t border-border">
-          <Input
-            placeholder="Add a new term or condition..."
-            value={newTerm}
-            onChange={e => setNewTerm(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && addTerm()}
-            className="flex-1"
-          />
+          <Input placeholder="Add a new term or condition..." value={newTerm} onChange={e => setNewTerm(e.target.value)} onKeyDown={e => e.key === "Enter" && addTerm()} className="flex-1" />
           <Button onClick={addTerm} disabled={!newTerm.trim()}>
             <Plus className="h-4 w-4 mr-1" /> Add Term
           </Button>
-        </div>
-      </div>
-
-      {/* Auto-populated fields info */}
-      <div className="bg-card rounded-xl border border-border shadow-card p-6 space-y-3">
-        <h2 className="text-lg font-semibold text-foreground">Auto-Populated Fields</h2>
-        <p className="text-sm text-muted-foreground">These fields are automatically filled from the landlord and tenant data when an agreement is generated:</p>
-        <div className="grid sm:grid-cols-2 gap-2 text-sm">
-          {[
-            "Registration Code", "Date of Agreement", "Landlord Name", "Tenant Name",
-            "Tenant ID", "Property Name", "Property Address", "Unit Name & Type",
-            "Region", "Monthly Rent", "Advance Period", "Total Advance Amount",
-            "Government Tax", "Amount to Landlord", "Tenancy Start Date",
-            "Tenancy End Date", "Landlord Signature", "Tenant Signature",
-          ].map(field => (
-            <div key={field} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-muted/50">
-              <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-              <span className="text-foreground">{field}</span>
-            </div>
-          ))}
         </div>
       </div>
 

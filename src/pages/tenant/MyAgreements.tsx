@@ -8,6 +8,12 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
+interface CustomFieldDef {
+  label: string;
+  type: string;
+  required: boolean;
+}
+
 interface TenancyView {
   id: string;
   registration_code: string;
@@ -26,6 +32,7 @@ interface TenancyView {
   region: string;
   paidCount: number;
   totalPayments: number;
+  customFieldValues: Record<string, string>;
 }
 
 const MyAgreements = () => {
@@ -35,6 +42,7 @@ const MyAgreements = () => {
   const [accepting, setAccepting] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState("");
   const [tenantIdCode, setTenantIdCode] = useState("");
+  const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -44,6 +52,10 @@ const MyAgreements = () => {
       setTenantName(profile?.full_name || "");
       const { data: tenantRec } = await supabase.from("tenants").select("tenant_id").eq("user_id", user.id).single();
       setTenantIdCode(tenantRec?.tenant_id || "");
+
+      // Get template config for custom field labels
+      const { data: configData } = await supabase.from("agreement_template_config").select("*").limit(1).single();
+      if (configData) setCustomFields((configData as any).custom_fields || []);
 
       const { data: ts } = await supabase
         .from("tenancies")
@@ -78,6 +90,7 @@ const MyAgreements = () => {
           region: prop?.region || "",
           paidCount,
           totalPayments: (payments || []).length,
+          customFieldValues: (t as any).custom_field_values || {},
         });
       }
       setTenancies(results);
@@ -156,6 +169,7 @@ const MyAgreements = () => {
               ["Period", `${new Date(t.start_date).toLocaleDateString("en-GB")} — ${new Date(t.end_date).toLocaleDateString("en-GB")}`],
               ["8% Tax/mo", `GH₵ ${(t.agreed_rent * 0.08).toLocaleString()}`],
               ["To Landlord/mo", `GH₵ ${(t.agreed_rent * 0.92).toLocaleString()}`],
+              ...customFields.map(f => [f.label, t.customFieldValues[f.label] || "—"]),
             ].map(([label, value]) => (
               <div key={label}><span className="text-muted-foreground">{label}</span><div className="font-semibold text-card-foreground">{value}</div></div>
             ))}
