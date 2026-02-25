@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import TourGuide from "@/components/TourGuide";
+import { tenantTourSteps } from "@/data/tourSteps";
 
 const navItems = [
   { to: "/tenant/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -97,6 +99,7 @@ const TenantLayout = () => {
           <Outlet />
         </main>
       </div>
+      <TourGuide steps={tenantTourSteps} storageKey="tour_tenant_completed" />
     </div>
   );
 };
