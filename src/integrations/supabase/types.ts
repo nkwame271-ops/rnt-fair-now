@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      agreement_template_config: {
+        Row: {
+          id: string
+          max_advance_months: number
+          max_lease_duration: number
+          min_lease_duration: number
+          registration_deadline_days: number
+          tax_rate: number
+          terms: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          max_advance_months?: number
+          max_lease_duration?: number
+          min_lease_duration?: number
+          registration_deadline_days?: number
+          tax_rate?: number
+          terms?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          max_advance_months?: number
+          max_lease_duration?: number
+          min_lease_duration?: number
+          registration_deadline_days?: number
+          tax_rate?: number
+          terms?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       complaints: {
         Row: {
           complaint_code: string
