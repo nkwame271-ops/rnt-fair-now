@@ -1,76 +1,102 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { UserPlus, Search, CheckCircle2, FileText, Download, ArrowLeft } from "lucide-react";
+import { UserPlus, Search, CheckCircle2, FileText, Download, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { sampleProperties, type PropertyType } from "@/data/dummyData";
 import { generateAgreementPdf } from "@/lib/generateAgreementPdf";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 type Step = "select-unit" | "find-tenant" | "set-terms" | "review" | "done";
 
-// Simulated tenant lookup
-const mockTenants: Record<string, { name: string; id: string }> = {
-  "TN-2026-0042": { name: "Ama Serwaa", id: "TN-2026-0042" },
-  "TN-2026-0099": { name: "Kofi Mensah", id: "TN-2026-0099" },
-  "TN-2026-0155": { name: "Abena Osei", id: "TN-2026-0155" },
-};
+interface PropertyWithUnits {
+  id: string;
+  property_name: string | null;
+  address: string;
+  region: string;
+  units: { id: string; unit_name: string; unit_type: string; monthly_rent: number; status: string }[];
+}
 
 const AddTenant = () => {
+  const { user } = useAuth();
   const [step, setStep] = useState<Step>("select-unit");
-
-  // Step 1 — select property & unit
-  const [selectedProperty, setSelectedProperty] = useState("");
-  const [selectedUnit, setSelectedUnit] = useState("");
-
-  // Step 2 — find tenant
+  const [properties, setProperties] = useState<PropertyWithUnits[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPropertyId, setSelectedPropertyId] = useState("");
+  const [selectedUnitId, setSelectedUnitId] = useState("");
   const [tenantSearch, setTenantSearch] = useState("");
-  const [foundTenant, setFoundTenant] = useState<{ name: string; id: string } | null>(null);
+  const [foundTenant, setFoundTenant] = useState<{ name: string; id: string; userId: string; tenantIdCode: string } | null>(null);
   const [searching, setSearching] = useState(false);
-
-  // Step 3 — terms
   const [rent, setRent] = useState("");
   const [advanceMonths, setAdvanceMonths] = useState("6");
   const [startDate, setStartDate] = useState("2026-03-01");
+  const [submitting, setSubmitting] = useState(false);
+  const [landlordName, setLandlordName] = useState("");
 
-  // Derived
-  const property = sampleProperties.find((p) => p.id === selectedProperty);
-  const unit = property?.units.find((u) => u.id === selectedUnit);
-  const vacantUnits = property?.units.filter((u) => u.status === "Vacant") ?? [];
+  const property = properties.find(p => p.id === selectedPropertyId);
+  const unit = property?.units.find(u => u.id === selectedUnitId);
+  const vacantUnits = property?.units.filter(u => u.status === "vacant") ?? [];
 
-  const handleSearch = () => {
+  useEffect(() => {
+    if (!user) return;
+    const fetchData = async () => {
+      const { data: props } = await supabase
+        .from("properties")
+        .select("id, property_name, address, region, units(id, unit_name, unit_type, monthly_rent, status)")
+        .eq("landlord_user_id", user.id);
+      setProperties((props || []) as PropertyWithUnits[]);
+
+      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
+      setLandlordName(profile?.full_name || "");
+      setLoading(false);
+    };
+    fetchData();
+  }, [user]);
+
+  const handleSearch = async () => {
     setSearching(true);
-    setTimeout(() => {
-      setSearching(false);
-      const found = mockTenants[tenantSearch.trim()];
-      if (found) {
-        setFoundTenant(found);
-        toast.success(`Tenant found: ${found.name}`);
-      } else {
-        setFoundTenant(null);
-        toast.error("Tenant ID not found. Make sure they have registered on the platform.");
-      }
-    }, 1000);
-  };
+    setFoundTenant(null);
+    try {
+      // Search by tenant_id code
+      const { data: tenants } = await supabase
+        .from("tenants")
+        .select("user_id, tenant_id")
+        .ilike("tenant_id", `%${tenantSearch.trim()}%`);
 
-  const handleSearchByName = () => {
-    setSearching(true);
-    setTimeout(() => {
-      setSearching(false);
-      const match = Object.values(mockTenants).find(
-        (t) => t.name.toLowerCase().includes(tenantSearch.toLowerCase())
-      );
-      if (match) {
-        setFoundTenant(match);
-        toast.success(`Tenant found: ${match.name} (${match.id})`);
+      if (tenants && tenants.length > 0) {
+        const t = tenants[0];
+        const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", t.user_id).single();
+        setFoundTenant({ name: profile?.full_name || "Unknown", id: t.tenant_id, userId: t.user_id, tenantIdCode: t.tenant_id });
+        toast.success(`Tenant found: ${profile?.full_name}`);
       } else {
-        setFoundTenant(null);
-        toast.error("No tenant found with that name.");
+        // Try searching by name
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .ilike("full_name", `%${tenantSearch.trim()}%`);
+
+        if (profiles && profiles.length > 0) {
+          const p = profiles[0];
+          const { data: tenant } = await supabase.from("tenants").select("tenant_id").eq("user_id", p.user_id).single();
+          if (tenant) {
+            setFoundTenant({ name: p.full_name, id: tenant.tenant_id, userId: p.user_id, tenantIdCode: tenant.tenant_id });
+            toast.success(`Tenant found: ${p.full_name} (${tenant.tenant_id})`);
+          } else {
+            toast.error("User found but not registered as a tenant.");
+          }
+        } else {
+          toast.error("No tenant found with that ID or name.");
+        }
       }
-    }, 1000);
+    } catch (err) {
+      toast.error("Search failed.");
+    } finally {
+      setSearching(false);
+    }
   };
 
   const endDate = (() => {
@@ -82,19 +108,22 @@ const AddTenant = () => {
   })();
 
   const registrationCode = `RC-GR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
+  const monthlyRent = parseFloat(rent) || 0;
+  const tax = monthlyRent * 0.08;
+  const toLandlord = monthlyRent * 0.92;
 
   const handleDownloadPdf = () => {
     if (!property || !unit || !foundTenant) return;
     const doc = generateAgreementPdf({
       registrationCode,
-      landlordName: "Kwame Asante",
+      landlordName,
       tenantName: foundTenant.name,
       tenantId: foundTenant.id,
-      propertyName: property.name,
+      propertyName: property.property_name || "Property",
       propertyAddress: property.address,
-      unitName: unit.name,
-      unitType: unit.type,
-      monthlyRent: parseFloat(rent),
+      unitName: unit.unit_name,
+      unitType: unit.unit_type,
+      monthlyRent,
       advanceMonths: parseInt(advanceMonths),
       startDate,
       endDate,
@@ -104,14 +133,63 @@ const AddTenant = () => {
     toast.success("Agreement PDF downloaded!");
   };
 
-  const handleSubmit = () => {
-    setStep("done");
-    toast.success("Tenancy agreement generated and sent to tenant for acceptance!");
+  const handleSubmit = async () => {
+    if (!user || !foundTenant || !property || !unit) return;
+    setSubmitting(true);
+    try {
+      const months = parseInt(advanceMonths);
+      const moveIn = startDate;
+
+      // Create tenancy
+      const { data: tenancy, error } = await supabase.from("tenancies").insert({
+        tenant_user_id: foundTenant.userId,
+        landlord_user_id: user.id,
+        unit_id: unit.id,
+        tenant_id_code: foundTenant.tenantIdCode,
+        registration_code: registrationCode,
+        agreed_rent: monthlyRent,
+        advance_months: months,
+        start_date: startDate,
+        end_date: endDate,
+        move_in_date: moveIn,
+        status: "pending",
+        landlord_accepted: true,
+        tenant_accepted: false,
+      }).select().single();
+
+      if (error) throw error;
+
+      // Generate rent payment schedule
+      for (let i = 0; i < months; i++) {
+        const d = new Date(startDate);
+        d.setMonth(d.getMonth() + i);
+        const monthLabel = d.toLocaleString("en-US", { month: "long", year: "numeric" });
+        const dueDate = d.toISOString().split("T")[0];
+
+        await supabase.from("rent_payments").insert({
+          tenancy_id: tenancy.id,
+          month_label: monthLabel,
+          due_date: dueDate,
+          monthly_rent: monthlyRent,
+          tax_amount: tax,
+          amount_to_landlord: toLandlord,
+          status: "pending",
+        });
+      }
+
+      // Mark unit as occupied
+      await supabase.from("units").update({ status: "occupied" }).eq("id", unit.id);
+
+      setStep("done");
+      toast.success("Tenancy agreement created and sent to tenant!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create tenancy");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const monthlyRent = parseFloat(rent) || 0;
-  const tax = monthlyRent * 0.08;
-  const toLandlord = monthlyRent * 0.92;
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -126,7 +204,7 @@ const AddTenant = () => {
       </div>
 
       {/* Progress */}
-      <div className="flex items-center gap-2 text-xs font-medium">
+      <div className="flex items-center gap-2 text-xs font-medium flex-wrap">
         {["Select Unit", "Find Tenant", "Set Terms", "Review & Generate"].map((s, i) => {
           const steps: Step[] = ["select-unit", "find-tenant", "set-terms", "review"];
           const currentIdx = steps.indexOf(step === "done" ? "review" : step);
@@ -142,73 +220,65 @@ const AddTenant = () => {
         })}
       </div>
 
-      {/* Step 1: Select Property & Unit */}
+      {/* Step 1 */}
       {step === "select-unit" && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
           <h2 className="text-lg font-semibold text-card-foreground">Select Property & Unit</h2>
-
-          <div className="space-y-3">
-            <Label>Property</Label>
-            <Select value={selectedProperty} onValueChange={(v) => { setSelectedProperty(v); setSelectedUnit(""); }}>
-              <SelectTrigger><SelectValue placeholder="Choose a property" /></SelectTrigger>
-              <SelectContent>
-                {sampleProperties.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name} — {p.address}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {property && (
-            <div className="space-y-3">
-              <Label>Vacant Unit</Label>
-              {vacantUnits.length === 0 ? (
-                <p className="text-sm text-warning">No vacant units in this property.</p>
-              ) : (
-                <Select value={selectedUnit} onValueChange={setSelectedUnit}>
-                  <SelectTrigger><SelectValue placeholder="Choose a vacant unit" /></SelectTrigger>
+          {properties.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No properties registered yet. <Link to="/landlord/register-property" className="text-primary underline">Register one first</Link>.</p>
+          ) : (
+            <>
+              <div className="space-y-3">
+                <Label>Property</Label>
+                <Select value={selectedPropertyId} onValueChange={(v) => { setSelectedPropertyId(v); setSelectedUnitId(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Choose a property" /></SelectTrigger>
                   <SelectContent>
-                    {vacantUnits.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>{u.name} — {u.type} (GH₵ {u.rent}/mo)</SelectItem>
+                    {properties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.property_name || "Unnamed"} — {p.address}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              {property && (
+                <div className="space-y-3">
+                  <Label>Vacant Unit</Label>
+                  {vacantUnits.length === 0 ? (
+                    <p className="text-sm text-warning">No vacant units in this property.</p>
+                  ) : (
+                    <Select value={selectedUnitId} onValueChange={setSelectedUnitId}>
+                      <SelectTrigger><SelectValue placeholder="Choose a vacant unit" /></SelectTrigger>
+                      <SelectContent>
+                        {vacantUnits.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>{u.unit_name} — {u.unit_type} (GH₵ {u.monthly_rent}/mo)</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
               )}
-            </div>
+              <Button disabled={!selectedUnitId} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
+                Next: Find Tenant
+              </Button>
+            </>
           )}
-
-          <Button disabled={!selectedUnit} onClick={() => { setRent(unit?.rent.toString() || ""); setStep("find-tenant"); }}>
-            Next: Find Tenant
-          </Button>
         </motion.div>
       )}
 
-      {/* Step 2: Find Tenant */}
+      {/* Step 2 */}
       {step === "find-tenant" && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
           <h2 className="text-lg font-semibold text-card-foreground">Find Tenant</h2>
-          <p className="text-sm text-muted-foreground">Search by Tenant ID or name. The tenant must have registered on the platform first.</p>
-
+          <p className="text-sm text-muted-foreground">Search by Tenant ID or name. The tenant must have registered on the platform.</p>
           <div className="space-y-3">
             <Label>Tenant ID or Name</Label>
             <div className="flex gap-2">
-              <Input
-                placeholder="e.g. TN-2026-0042 or Ama Serwaa"
-                value={tenantSearch}
-                onChange={(e) => { setTenantSearch(e.target.value); setFoundTenant(null); }}
-              />
-              <Button variant="outline" onClick={tenantSearch.startsWith("TN-") ? handleSearch : handleSearchByName} disabled={!tenantSearch.trim() || searching}>
+              <Input placeholder="e.g. TN-2026-0001 or Kwame Mensah" value={tenantSearch} onChange={(e) => { setTenantSearch(e.target.value); setFoundTenant(null); }} />
+              <Button variant="outline" onClick={handleSearch} disabled={!tenantSearch.trim() || searching}>
                 <Search className="h-4 w-4 mr-1" />
                 {searching ? "Searching..." : "Search"}
               </Button>
             </div>
           </div>
-
-          {/* Demo hint */}
-          <div className="text-xs text-muted-foreground bg-muted p-3 rounded-lg">
-            <span className="font-semibold">Demo IDs:</span> TN-2026-0042 (Ama Serwaa), TN-2026-0099 (Kofi Mensah), TN-2026-0155 (Abena Osei)
-          </div>
-
           {foundTenant && (
             <div className="bg-success/5 border border-success/20 rounded-lg p-4 flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
@@ -218,21 +288,17 @@ const AddTenant = () => {
               </div>
             </div>
           )}
-
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("select-unit")}>Back</Button>
-            <Button disabled={!foundTenant} onClick={() => setStep("set-terms")}>
-              Next: Set Terms
-            </Button>
+            <Button disabled={!foundTenant} onClick={() => setStep("set-terms")}>Next: Set Terms</Button>
           </div>
         </motion.div>
       )}
 
-      {/* Step 3: Set Terms */}
+      {/* Step 3 */}
       {step === "set-terms" && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
           <h2 className="text-lg font-semibold text-card-foreground">Set Tenancy Terms</h2>
-
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Monthly Rent (GH₵)</Label>
@@ -259,34 +325,21 @@ const AddTenant = () => {
               <Input type="date" value={endDate} readOnly className="bg-muted" />
             </div>
           </div>
-
           {monthlyRent > 0 && (
             <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Monthly Rent</span>
-                <span className="font-semibold">GH₵ {monthlyRent.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-primary">
-                <span>8% Govt. Tax (via Rent Control)</span>
-                <span className="font-semibold">GH₵ {tax.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">To Landlord (92%)</span>
-                <span className="font-semibold">GH₵ {toLandlord.toLocaleString()}</span>
-              </div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Monthly Rent</span><span className="font-semibold">GH₵ {monthlyRent.toLocaleString()}</span></div>
+              <div className="flex justify-between text-primary"><span>8% Govt. Tax (via Rent Control)</span><span className="font-semibold">GH₵ {tax.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">To Landlord (92%)</span><span className="font-semibold">GH₵ {toLandlord.toLocaleString()}</span></div>
             </div>
           )}
-
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("find-tenant")}>Back</Button>
-            <Button disabled={!rent || monthlyRent <= 0} onClick={() => setStep("review")}>
-              Next: Review
-            </Button>
+            <Button disabled={!rent || monthlyRent <= 0} onClick={() => setStep("review")}>Next: Review</Button>
           </div>
         </motion.div>
       )}
 
-      {/* Step 4: Review */}
+      {/* Step 4 */}
       {step === "review" && property && unit && foundTenant && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
           <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
@@ -296,11 +349,11 @@ const AddTenant = () => {
             <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
               {[
                 ["Registration Code", registrationCode],
-                ["Landlord", "Kwame Asante"],
+                ["Landlord", landlordName],
                 ["Tenant", `${foundTenant.name} (${foundTenant.id})`],
-                ["Property", property.name],
+                ["Property", property.property_name || "Property"],
                 ["Address", property.address],
-                ["Unit", `${unit.name} (${unit.type})`],
+                ["Unit", `${unit.unit_name} (${unit.unit_type})`],
                 ["Monthly Rent", `GH₵ ${monthlyRent.toLocaleString()}`],
                 ["Advance", `${advanceMonths} month(s)`],
                 ["Period", `${new Date(startDate).toLocaleDateString("en-GB")} — ${new Date(endDate).toLocaleDateString("en-GB")}`],
@@ -314,14 +367,13 @@ const AddTenant = () => {
               ))}
             </div>
           </div>
-
           <div className="flex flex-col sm:flex-row gap-3">
             <Button variant="outline" onClick={() => setStep("set-terms")}>Back</Button>
             <Button variant="outline" onClick={handleDownloadPdf}>
-              <Download className="h-4 w-4 mr-1" /> Download PDF Agreement
+              <Download className="h-4 w-4 mr-1" /> Download PDF
             </Button>
-            <Button onClick={handleSubmit}>
-              <UserPlus className="h-4 w-4 mr-1" /> Generate & Send to Tenant
+            <Button onClick={handleSubmit} disabled={submitting}>
+              <UserPlus className="h-4 w-4 mr-1" /> {submitting ? "Creating..." : "Generate & Send to Tenant"}
             </Button>
           </div>
         </motion.div>
@@ -333,18 +385,15 @@ const AddTenant = () => {
           <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto">
             <CheckCircle2 className="h-8 w-8 text-success" />
           </div>
-          <h2 className="text-xl font-bold text-card-foreground">Agreement Sent!</h2>
+          <h2 className="text-xl font-bold text-card-foreground">Agreement Created!</h2>
           <p className="text-muted-foreground text-sm max-w-md mx-auto">
-            The tenancy agreement has been generated and sent to <strong>{foundTenant.name}</strong> ({foundTenant.id}) for review and acceptance.
-            Once accepted, the tenant will pay the 8% government tax through the app to validate the agreement.
+            The tenancy agreement has been created for <strong>{foundTenant.name}</strong> ({foundTenant.id}). The tenant will see this in their Agreements page and must accept it before paying rent.
           </p>
           <div className="flex justify-center gap-3 pt-2">
             <Button variant="outline" onClick={handleDownloadPdf}>
               <Download className="h-4 w-4 mr-1" /> Download PDF
             </Button>
-            <Link to="/landlord/my-properties">
-              <Button>Back to Properties</Button>
-            </Link>
+            <Link to="/landlord/my-properties"><Button>Back to Properties</Button></Link>
           </div>
         </motion.div>
       )}

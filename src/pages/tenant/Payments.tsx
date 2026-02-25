@@ -1,28 +1,120 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { CreditCard, CheckCircle2, Clock, Info, Wallet, FileText, Shield } from "lucide-react";
+import { CreditCard, CheckCircle2, Clock, Info, Wallet, FileText, Shield, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { tenantAgreements } from "@/data/dummyData";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+
+interface Payment {
+  id: string;
+  month_label: string;
+  due_date: string;
+  monthly_rent: number;
+  tax_amount: number;
+  amount_to_landlord: number;
+  status: string;
+  tenant_marked_paid: boolean | null;
+  landlord_confirmed: boolean | null;
+}
+
+interface Tenancy {
+  id: string;
+  registration_code: string;
+  agreed_rent: number;
+  advance_months: number;
+  start_date: string;
+  end_date: string;
+  unit: { unit_name: string; unit_type: string };
+  property: { property_name: string | null; address: string };
+  landlordName: string;
+  payments: Payment[];
+}
 
 const Payments = () => {
+  const { user } = useAuth();
+  const [tenancy, setTenancy] = useState<Tenancy | null>(null);
+  const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState<string | null>(null);
-  const [paidIds, setPaidIds] = useState<Set<string>>(new Set());
-  const agreement = tenantAgreements[0];
 
-  const handlePayTax = (paymentId: string, taxAmount: number) => {
+  useEffect(() => {
+    if (!user) return;
+    const fetch = async () => {
+      const { data: tenancies } = await supabase
+        .from("tenancies")
+        .select("*, unit:units(unit_name, unit_type, property_id)")
+        .eq("tenant_user_id", user.id)
+        .in("status", ["active", "pending"])
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!tenancies || tenancies.length === 0) { setLoading(false); return; }
+      const t = tenancies[0] as any;
+
+      // Get property info
+      const { data: prop } = await supabase.from("properties").select("property_name, address").eq("id", t.unit.property_id).single();
+
+      // Get landlord name
+      const { data: landlordProfile } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
+
+      // Get payments
+      const { data: payments } = await supabase
+        .from("rent_payments")
+        .select("*")
+        .eq("tenancy_id", t.id)
+        .order("due_date", { ascending: true });
+
+      setTenancy({
+        ...t,
+        property: prop || { property_name: null, address: "" },
+        landlordName: landlordProfile?.full_name || "Unknown",
+        payments: (payments || []) as Payment[],
+      });
+      setLoading(false);
+    };
+    fetch();
+  }, [user]);
+
+  const handlePayTax = async (paymentId: string) => {
     setPaying(paymentId);
-    setTimeout(() => {
+    try {
+      const { error } = await supabase.from("rent_payments").update({
+        tenant_marked_paid: true,
+        status: "tenant_paid",
+        paid_date: new Date().toISOString(),
+        payment_method: "Mobile Money",
+        amount_paid: tenancy!.payments.find(p => p.id === paymentId)!.tax_amount,
+      }).eq("id", paymentId);
+
+      if (error) throw error;
+
+      setTenancy(prev => prev ? {
+        ...prev,
+        payments: prev.payments.map(p => p.id === paymentId ? { ...p, tenant_marked_paid: true, status: "tenant_paid" } : p),
+      } : null);
+
+      toast.success("8% rent tax marked as paid! Awaiting landlord confirmation.");
+    } catch (err: any) {
+      toast.error(err.message || "Payment failed");
+    } finally {
       setPaying(null);
-      setPaidIds((prev) => new Set(prev).add(paymentId));
-      toast.success("8% rent tax paid! Your tenancy is now valid for this month.");
-    }, 2000);
+    }
   };
 
-  const isPaid = (p: typeof agreement.payments[0]) => p.taxPaid || paidIds.has(p.id);
-  const nextUnpaid = agreement.payments.find((p) => !isPaid(p));
-  const paidCount = agreement.payments.filter((p) => isPaid(p)).length;
-  const totalMonths = agreement.payments.length;
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+
+  if (!tenancy) return (
+    <div className="max-w-4xl mx-auto py-20 text-center">
+      <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+      <h2 className="text-xl font-bold text-foreground">No active tenancy</h2>
+      <p className="text-muted-foreground mt-1">You don't have an active tenancy agreement yet.</p>
+    </div>
+  );
+
+  const isPaid = (p: Payment) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed";
+  const nextUnpaid = tenancy.payments.find(p => !isPaid(p));
+  const paidCount = tenancy.payments.filter(p => isPaid(p)).length;
+  const totalMonths = tenancy.payments.length;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -38,82 +130,48 @@ const Payments = () => {
           <h2 className="text-lg font-semibold text-card-foreground">Your Tenancy Agreement</h2>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-          <div>
-            <div className="text-muted-foreground">Property</div>
-            <div className="font-semibold text-card-foreground">{agreement.propertyName}</div>
-            <div className="text-xs text-muted-foreground">{agreement.unitName} • {agreement.unitType}</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Monthly Rent</div>
-            <div className="font-semibold text-card-foreground">GH₵ {agreement.monthlyRent.toLocaleString()}</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Landlord</div>
-            <div className="font-semibold text-card-foreground">{agreement.landlordName}</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Validity</div>
-            <div className="font-semibold text-card-foreground">{paidCount}/{totalMonths} months valid</div>
-          </div>
+          <div><div className="text-muted-foreground">Property</div><div className="font-semibold text-card-foreground">{tenancy.property.property_name || "Property"}</div><div className="text-xs text-muted-foreground">{tenancy.unit.unit_name} • {tenancy.unit.unit_type}</div></div>
+          <div><div className="text-muted-foreground">Monthly Rent</div><div className="font-semibold text-card-foreground">GH₵ {tenancy.agreed_rent.toLocaleString()}</div></div>
+          <div><div className="text-muted-foreground">Landlord</div><div className="font-semibold text-card-foreground">{tenancy.landlordName}</div></div>
+          <div><div className="text-muted-foreground">Validity</div><div className="font-semibold text-card-foreground">{paidCount}/{totalMonths} months valid</div></div>
         </div>
         <div className="mt-4">
-          <div className="flex justify-between text-xs text-muted-foreground mb-1">
-            <span>Agreement validity</span>
-            <span>{Math.round((paidCount / totalMonths) * 100)}%</span>
-          </div>
+          <div className="flex justify-between text-xs text-muted-foreground mb-1"><span>Agreement validity</span><span>{totalMonths > 0 ? Math.round((paidCount / totalMonths) * 100) : 0}%</span></div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary rounded-full transition-all duration-500"
-              style={{ width: `${(paidCount / totalMonths) * 100}%` }}
-            />
+            <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${totalMonths > 0 ? (paidCount / totalMonths) * 100 : 0}%` }} />
           </div>
         </div>
       </motion.div>
 
-      {/* How it works */}
+      {/* Info */}
       <div className="flex items-start gap-2 text-xs text-muted-foreground bg-info/5 p-4 rounded-lg border border-info/20">
         <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p className="font-semibold text-foreground text-sm">How rent payment works</p>
-          <p>Your monthly rent of <strong>GH₵ {agreement.monthlyRent.toLocaleString()}</strong> includes an 8% government tax of <strong>GH₵ {(agreement.monthlyRent * 0.08).toLocaleString()}</strong>.</p>
-          <p>You pay the <strong>GH₵ {(agreement.monthlyRent * 0.08).toLocaleString()}</strong> through this app to Rent Control. This validates your tenancy for that month.</p>
-          <p>The remaining <strong>GH₵ {(agreement.monthlyRent * 0.92).toLocaleString()}</strong> is paid directly to your landlord.</p>
+          <p>Your monthly rent of <strong>GH₵ {tenancy.agreed_rent.toLocaleString()}</strong> includes an 8% government tax of <strong>GH₵ {(tenancy.agreed_rent * 0.08).toLocaleString()}</strong>.</p>
+          <p>You pay the tax through this app. This validates your tenancy. The remaining <strong>GH₵ {(tenancy.agreed_rent * 0.92).toLocaleString()}</strong> goes directly to your landlord.</p>
         </div>
       </div>
 
-      {/* Next Payment Due */}
+      {/* Next Payment */}
       {nextUnpaid && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl p-6 shadow-elevated border-2 border-primary/30">
           <div className="flex items-center gap-2 mb-4">
             <Wallet className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-card-foreground">Next Payment — {nextUnpaid.month}</h2>
+            <h2 className="text-lg font-semibold text-card-foreground">Next Payment — {nextUnpaid.month_label}</h2>
           </div>
-
           <div className="bg-muted rounded-lg p-4 space-y-3 mb-5">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Monthly Rent</span>
-              <span className="font-semibold text-card-foreground">GH₵ {nextUnpaid.monthlyRent.toLocaleString()}</span>
-            </div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Monthly Rent</span><span className="font-semibold text-card-foreground">GH₵ {nextUnpaid.monthly_rent.toLocaleString()}</span></div>
             <div className="border-t border-border pt-2 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-primary font-medium">→ 8% Tax (pay via Rent Control)</span>
-                <span className="text-xl font-bold text-primary">GH₵ {nextUnpaid.taxAmount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">→ Remaining (pay landlord directly)</span>
-                <span className="font-semibold text-card-foreground">GH₵ {nextUnpaid.amountToLandlord.toLocaleString()}</span>
-              </div>
+              <div className="flex justify-between text-sm"><span className="text-primary font-medium">→ 8% Tax (pay via Rent Control)</span><span className="text-xl font-bold text-primary">GH₵ {nextUnpaid.tax_amount.toLocaleString()}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-muted-foreground">→ Remaining (pay landlord directly)</span><span className="font-semibold text-card-foreground">GH₵ {nextUnpaid.amount_to_landlord.toLocaleString()}</span></div>
             </div>
           </div>
-
-          <Button className="w-full" size="lg" onClick={() => handlePayTax(nextUnpaid.id, nextUnpaid.taxAmount)} disabled={paying === nextUnpaid.id}>
+          <Button className="w-full" size="lg" onClick={() => handlePayTax(nextUnpaid.id)} disabled={paying === nextUnpaid.id}>
             <CreditCard className="h-4 w-4 mr-2" />
-            {paying === nextUnpaid.id ? "Processing..." : `Pay GH₵ ${nextUnpaid.taxAmount.toLocaleString()} Tax to Rent Control`}
+            {paying === nextUnpaid.id ? "Processing..." : `Pay GH₵ ${nextUnpaid.tax_amount.toLocaleString()} Tax to Rent Control`}
           </Button>
-
-          <p className="text-xs text-muted-foreground text-center mt-3">
-            After payment, pay GH₵ {nextUnpaid.amountToLandlord.toLocaleString()} directly to {agreement.landlordName}
-          </p>
+          <p className="text-xs text-muted-foreground text-center mt-3">After payment, pay GH₵ {nextUnpaid.amount_to_landlord.toLocaleString()} directly to {tenancy.landlordName}</p>
         </motion.div>
       )}
 
@@ -121,40 +179,33 @@ const Payments = () => {
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3">Payment Schedule</h2>
         <div className="space-y-2">
-          {agreement.payments.map((p) => {
+          {tenancy.payments.map((p) => {
             const paid = isPaid(p);
+            const awaitingConfirm = p.tenant_marked_paid && !p.landlord_confirmed && p.status !== "confirmed";
             return (
-              <div key={p.id} className={`bg-card rounded-xl p-4 shadow-card border flex items-center justify-between ${paid ? "border-border" : "border-warning/30"}`}>
+              <div key={p.id} className={`bg-card rounded-xl p-4 shadow-card border flex items-center justify-between ${paid ? "border-border" : awaitingConfirm ? "border-info/30" : "border-warning/30"}`}>
                 <div className="flex items-center gap-3">
                   {paid ? (
-                    <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center">
-                      <Shield className="h-4 w-4 text-success" />
-                    </div>
+                    <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center"><Shield className="h-4 w-4 text-success" /></div>
+                  ) : awaitingConfirm ? (
+                    <div className="w-8 h-8 rounded-full bg-info/10 flex items-center justify-center"><Clock className="h-4 w-4 text-info" /></div>
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                    </div>
+                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><Clock className="h-4 w-4 text-muted-foreground" /></div>
                   )}
                   <div>
-                    <div className="font-semibold text-sm text-card-foreground">{p.month}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Tax: GH₵ {p.taxAmount} • Landlord: GH₵ {p.amountToLandlord.toLocaleString()}
-                    </div>
+                    <div className="font-semibold text-sm text-card-foreground">{p.month_label}</div>
+                    <div className="text-xs text-muted-foreground">Tax: GH₵ {p.tax_amount} • Landlord: GH₵ {p.amount_to_landlord.toLocaleString()}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {paid ? (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-success bg-success/10 px-2.5 py-1 rounded-full">
-                      <CheckCircle2 className="h-3 w-3" /> Valid
-                    </span>
+                  {p.landlord_confirmed || p.status === "confirmed" ? (
+                    <span className="flex items-center gap-1 text-xs font-semibold text-success bg-success/10 px-2.5 py-1 rounded-full"><CheckCircle2 className="h-3 w-3" /> Confirmed</span>
+                  ) : awaitingConfirm ? (
+                    <span className="flex items-center gap-1 text-xs font-semibold text-info bg-info/10 px-2.5 py-1 rounded-full">Awaiting Confirmation</span>
                   ) : nextUnpaid?.id === p.id ? (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
-                      Due Now
-                    </span>
+                    <span className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">Due Now</span>
                   ) : (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
-                      Upcoming
-                    </span>
+                    <span className="flex items-center gap-1 text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">Upcoming</span>
                   )}
                 </div>
               </div>
