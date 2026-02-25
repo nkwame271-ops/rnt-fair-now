@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -24,41 +24,71 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<"tenant" | "landlord" | "regulator" | null>(null);
 
-  const fetchRole = async (userId: string) => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
-    setRole((data?.role as any) || null);
-    return (data?.role as any) || null;
-  };
+  const fetchRole = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) {
+        console.error("Failed to fetch role:", error.message);
+        setRole(null);
+        return null;
+      }
+      const r = (data?.role as "tenant" | "landlord" | "regulator") || null;
+      setRole(r);
+      return r;
+    } catch (err) {
+      console.error("Role fetch exception:", err);
+      setRole(null);
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
-    // Set up auth listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchRole(session.user.id);
+    let mounted = true;
+
+    // Set up auth listener FIRST — but defer async work with setTimeout
+    // to avoid deadlocks within onAuthStateChange
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (!mounted) return;
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+
+      if (newSession?.user) {
+        // Set loading=true so ProtectedRoute shows spinner until role is ready
+        setLoading(true);
+        // Defer the role fetch to avoid Supabase internal deadlock
+        setTimeout(() => {
+          if (mounted) {
+            fetchRole(newSession.user.id).then(() => {
+              if (mounted) setLoading(false);
+            });
+          }
+        }, 0);
       } else {
         setRole(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // Then check existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchRole(session.user.id);
+    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      if (!mounted) return;
+      setSession(existingSession);
+      setUser(existingSession?.user ?? null);
+      if (existingSession?.user) {
+        await fetchRole(existingSession.user.id);
       }
-      setLoading(false);
+      if (mounted) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [fetchRole]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
