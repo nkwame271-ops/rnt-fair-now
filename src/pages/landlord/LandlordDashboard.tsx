@@ -52,13 +52,13 @@ const LandlordDashboard = () => {
   const handlePayRegistrationFee = async () => {
     setPayingFee(true);
     try {
-      const { data, error } = await supabase.functions.invoke("hubtel-checkout", {
+      const { data, error } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "landlord_registration" },
       });
       if (error) throw new Error(error.message || "Payment initiation failed");
       if (data?.error) throw new Error(data.error);
-      if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
       } else {
         throw new Error("No checkout URL received");
       }
