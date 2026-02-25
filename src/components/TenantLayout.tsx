@@ -10,6 +10,7 @@ import {
   LogOut,
   Shield,
   Menu,
+  UserCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,6 +26,7 @@ const navItems = [
   { to: "/tenant/payments", label: "Payments", icon: CreditCard },
   { to: "/tenant/my-agreements", label: "Agreements", icon: FileText },
   { to: "/tenant/legal-assistant", label: "Legal Assistant", icon: MessageSquare },
+  { to: "/tenant/profile", label: "My Profile", icon: UserCircle },
 ];
 
 const TenantLayout = () => {

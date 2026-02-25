@@ -8,6 +8,7 @@ import {
   Shield,
   Menu,
   Eye,
+  UserCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +22,7 @@ const navItems = [
   { to: "/landlord/add-tenant", label: "Add Tenant", icon: PlusCircle },
   { to: "/landlord/agreements", label: "Agreements", icon: FileCheck },
   { to: "/landlord/viewing-requests", label: "Viewing Requests", icon: Eye },
+  { to: "/landlord/profile", label: "My Profile", icon: UserCircle },
 ];
 
 const LandlordLayout = () => {
