@@ -1,84 +1,58 @@
 
 
-## Analysis
+## Problem Analysis
 
-The current system has a gap between what the regulator can configure and what appears in the agreement. Right now:
+There are **two issues** causing the QR code verification to fail:
 
-- **Regulator** can only edit statutory limits (max advance, tax rate) and terms/conditions (text clauses). The "Auto-Populated Fields" section is hardcoded — the regulator cannot add or remove data fields.
-- **Landlord** fills in hardcoded fields (rent, advance period, start date) when creating a tenancy via AddTenant.
-- **Tenant** sees the agreement and can accept it.
+1. **RLS (Row-Level Security) blocks unauthenticated access**: The verification page at `/verify/:role/:id` is a public route (no login required), but the `tenants`, `landlords`, and `profiles` tables all require authentication to read. When someone scans the QR code without being logged in, the database queries silently return no data, making the page show "Not Found" -- or if the route itself isn't resolving on the published site, a 404.
 
-The user wants the regulator to define **which data fields** appear in the agreement (e.g., "Occupation of Tenant", "Purpose of Tenancy", "Next of Kin"). The landlord then fills those fields when adding a tenant, and the values carry through to the PDF and to the tenant's view.
-
----
+2. **Direct client queries won't work for public verification**: Even if we added public RLS policies, that would expose sensitive user data to anyone. The correct approach is to use a backend function that performs the lookup server-side and returns only the minimal verification data.
 
 ## Plan
 
-### Step 1: Add `custom_fields` column to `agreement_template_config`
+### 1. Create a backend function `verify-registration`
 
-Add a JSONB column `custom_fields` that stores an array of field definitions:
+Create `supabase/functions/verify-registration/index.ts` that:
+- Accepts `role` and `id` as query parameters
+- Uses the service role key to query `tenants`/`landlords` and `profiles` tables (bypassing RLS)
+- Returns only the minimal public verification data: name, registration status, fee paid, registration date, expiry date
+- No authentication required (`verify_jwt = false` in config)
 
-```text
-custom_fields: [
-  { "label": "Occupation of Tenant", "type": "text", "required": true },
-  { "label": "Purpose of Tenancy", "type": "text", "required": false },
-  { "label": "Next of Kin", "type": "text", "required": true },
-  ...
-]
+### 2. Update `supabase/config.toml`
+
+Add the `verify-registration` function with `verify_jwt = false` so it can be called without authentication.
+
+### 3. Update `VerifyRegistration.tsx`
+
+Replace direct database queries with a call to the new backend function:
+```typescript
+const { data } = await supabase.functions.invoke("verify-registration", {
+  body: { role, id }
+});
+```
+This ensures the page works for anyone scanning the QR code, regardless of login status.
+
+### 4. Update QR code URL in `ProfilePage.tsx`
+
+Use the actual published URL dynamically from environment variables rather than hardcoding, to ensure the QR code works in both preview and production environments.
+
+---
+
+### Technical Details
+
+**Backend function response shape:**
+```json
+{
+  "found": true,
+  "name": "Kwame Mensah",
+  "status": "active",
+  "feePaid": true,
+  "registrationDate": "2026-02-25T02:30:16.919+00:00",
+  "expiryDate": "2027-02-25T02:30:16.92+00:00",
+  "role": "tenant",
+  "registrationId": "TN-2026-1001"
+}
 ```
 
-Also add a `custom_field_values` JSONB column to the `tenancies` table to store the landlord's filled-in values for each agreement.
-
-**Database migration:**
-- `ALTER TABLE agreement_template_config ADD COLUMN custom_fields jsonb DEFAULT '[]'::jsonb;`
-- `ALTER TABLE tenancies ADD COLUMN custom_field_values jsonb DEFAULT '{}'::jsonb;`
-
-### Step 2: Update Regulator Agreement Templates page
-
-**`src/pages/regulator/RegulatorAgreementTemplates.tsx`**:
-- Add a new section "Agreement Data Fields" where the regulator can:
-  - See all current fields (both auto-populated system fields and custom fields)
-  - Add a new custom field (label + type dropdown: text/number/date + required toggle)
-  - Edit existing custom fields
-  - Remove custom fields
-  - Reorder fields (drag or up/down buttons)
-- The auto-populated fields (Registration Code, Landlord Name, etc.) are shown as locked/non-removable items so the regulator knows they exist
-- Custom fields are shown as editable/removable items
-- Save persists to the `custom_fields` column
-
-### Step 3: Update Landlord's AddTenant flow
-
-**`src/pages/landlord/AddTenant.tsx`**:
-- In the "Set Terms" step (step 3), after the existing rent/advance/date fields, dynamically render input fields for each custom field defined by the regulator
-- Field types map to: `text` → Input, `number` → Input type=number, `date` → Input type=date
-- Required fields are validated before proceeding to review
-- Store values in local state as a key-value object
-
-In the "Review" step (step 4), display the custom field values alongside the standard fields.
-
-When submitting, save the custom field values to `tenancies.custom_field_values`.
-
-### Step 4: Update PDF generation
-
-**`src/lib/generateAgreementPdf.ts`**:
-- Accept `customFields` (field definitions) and `customFieldValues` (filled values) in `AgreementPdfData`
-- Add a "ADDITIONAL INFORMATION" section in the PDF that renders each custom field label and its value
-
-### Step 5: Update Tenant's MyAgreements view
-
-**`src/pages/tenant/MyAgreements.tsx`**:
-- Fetch `custom_field_values` from the tenancy record
-- Fetch `custom_fields` from `agreement_template_config` for labels
-- Display custom field data in both the pending and active agreement cards
-
-### Files to change
-
-| File | Change |
-|------|--------|
-| New migration SQL | Add `custom_fields` to `agreement_template_config`, add `custom_field_values` to `tenancies` |
-| `src/pages/regulator/RegulatorAgreementTemplates.tsx` | Add custom fields management UI (add/edit/remove/reorder) |
-| `src/pages/landlord/AddTenant.tsx` | Render dynamic fields from config in Set Terms step; save values on submit |
-| `src/lib/generateAgreementPdf.ts` | Render custom field values in PDF |
-| `src/pages/tenant/MyAgreements.tsx` | Display custom field values in agreement cards |
-| `src/pages/landlord/Agreements.tsx` | Display custom field values in landlord's agreement view |
+**Security**: The function uses the service role key internally but only returns non-sensitive verification data (name, status, dates). No emails, phone numbers, addresses, or user IDs are exposed.
 
