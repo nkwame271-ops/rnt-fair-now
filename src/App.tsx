@@ -32,6 +32,8 @@ import RegulatorTenants from "./pages/regulator/RegulatorTenants";
 import RegulatorLandlords from "./pages/regulator/RegulatorLandlords";
 import RegulatorProperties from "./pages/regulator/RegulatorProperties";
 import RegulatorComplaints from "./pages/regulator/RegulatorComplaints";
+import RegulatorAgreements from "./pages/regulator/RegulatorAgreements";
+import RegulatorAgreementTemplates from "./pages/regulator/RegulatorAgreementTemplates";
 import RegulatorAnalytics from "./pages/regulator/RegulatorAnalytics";
 import InviteStaff from "./pages/regulator/InviteStaff";
 import NotFound from "./pages/NotFound";
@@ -84,6 +86,8 @@ const App = () => (
               <Route path="landlords" element={<RegulatorLandlords />} />
               <Route path="properties" element={<RegulatorProperties />} />
               <Route path="complaints" element={<RegulatorComplaints />} />
+              <Route path="agreements" element={<RegulatorAgreements />} />
+              <Route path="agreement-templates" element={<RegulatorAgreementTemplates />} />
               <Route path="analytics" element={<RegulatorAnalytics />} />
               <Route path="invite-staff" element={<InviteStaff />} />
             </Route>
