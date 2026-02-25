@@ -91,7 +91,7 @@ const Payments = () => {
     setPaying(paymentId);
     try {
       const { data, error } = await supabase.functions.invoke("hubtel-checkout", {
-        body: { paymentId },
+        body: { type: "rent_tax", paymentId },
       });
 
       if (error) throw new Error(error.message || "Payment initiation failed");

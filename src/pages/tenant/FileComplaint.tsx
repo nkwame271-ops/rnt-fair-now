@@ -40,7 +40,7 @@ const FileComplaint = () => {
     try {
       const complaintCode = `RC-${new Date().getFullYear()}-${String(Math.floor(10000 + Math.random() * 90000))}`;
 
-      const { error } = await supabase.from("complaints").insert({
+      const { data: complaint, error } = await supabase.from("complaints").insert({
         tenant_user_id: user.id,
         complaint_code: complaintCode,
         complaint_type: form.type,
@@ -48,12 +48,24 @@ const FileComplaint = () => {
         property_address: form.address,
         region: form.region,
         description: form.description,
-        status: "submitted",
-      });
+        status: "pending_payment",
+      }).select("id").single();
 
       if (error) throw error;
-      toast.success(`Complaint submitted! Reference: ${complaintCode}`);
-      navigate("/tenant/my-cases");
+
+      // Initiate Hubtel checkout for complaint fee
+      const { data, error: payErr } = await supabase.functions.invoke("hubtel-checkout", {
+        body: { type: "complaint_fee", complaintId: complaint.id },
+      });
+
+      if (payErr) throw new Error(payErr.message || "Payment initiation failed");
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        throw new Error("No checkout URL received");
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to submit complaint");
     } finally {
@@ -171,6 +183,10 @@ const FileComplaint = () => {
               <div><span className="text-muted-foreground">Description:</span> <span className="font-semibold text-card-foreground">{form.description || "—"}</span></div>
               <div><span className="text-muted-foreground">Amount:</span> <span className="font-semibold text-card-foreground">GH₵ {form.amount || "—"}</span></div>
             </div>
+            <div className="bg-card rounded-lg border border-border p-4 space-y-2">
+              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Complaint Filing Fee</span><span className="font-semibold text-primary">GH₵ 20.00</span></div>
+              <p className="text-xs text-muted-foreground">You'll be redirected to Hubtel to pay the filing fee. Your complaint will be submitted once payment is confirmed.</p>
+            </div>
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-info/5 p-3 rounded-lg border border-info/20">
               <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
               <span>By submitting, you confirm the information provided is accurate. False complaints may result in penalties under Act 220.</span>
@@ -189,7 +205,7 @@ const FileComplaint = () => {
           </Button>
         ) : (
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Submitting..." : "Submit Complaint"} <FileText className="h-4 w-4 ml-1" />
+            {submitting ? "Processing..." : "Pay GH₵ 20 & Submit"} <FileText className="h-4 w-4 ml-1" />
           </Button>
         )}
       </div>

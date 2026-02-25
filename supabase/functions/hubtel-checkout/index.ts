@@ -27,26 +27,88 @@ Deno.serve(async (req) => {
     if (claimsError || !claimsData?.claims) throw new Error("Not authenticated");
     const userId = claimsData.claims.sub as string;
 
-    const { paymentId } = await req.json();
-    if (!paymentId) throw new Error("paymentId is required");
+    const body = await req.json();
+    const { type } = body; // "rent_tax" | "tenant_registration" | "landlord_registration" | "complaint_fee"
 
-    // Fetch payment and verify ownership
-    const { data: payment, error: payErr } = await supabase
-      .from("rent_payments")
-      .select("*, tenancy:tenancies(tenant_user_id, registration_code)")
-      .eq("id", paymentId)
-      .single();
+    let totalAmount: number;
+    let description: string;
+    let clientReference: string;
 
-    if (payErr || !payment) throw new Error("Payment not found");
-    if ((payment as any).tenancy.tenant_user_id !== userId) throw new Error("Unauthorized");
-    if (payment.tenant_marked_paid) throw new Error("Already paid");
-
-    // Get tenant profile for customer info
     const { data: profile } = await supabase
       .from("profiles")
       .select("full_name, email, phone")
       .eq("user_id", userId)
       .single();
+
+    if (type === "rent_tax") {
+      // Existing rent tax flow
+      const { paymentId } = body;
+      if (!paymentId) throw new Error("paymentId is required");
+
+      const { data: payment, error: payErr } = await supabase
+        .from("rent_payments")
+        .select("*, tenancy:tenancies(tenant_user_id, registration_code)")
+        .eq("id", paymentId)
+        .single();
+
+      if (payErr || !payment) throw new Error("Payment not found");
+      if ((payment as any).tenancy.tenant_user_id !== userId) throw new Error("Unauthorized");
+      if (payment.tenant_marked_paid) throw new Error("Already paid");
+
+      totalAmount = Number(payment.tax_amount);
+      description = `Rent tax for ${payment.month_label} - ${(payment as any).tenancy.registration_code}`;
+      clientReference = `rent:${paymentId}`;
+
+    } else if (type === "tenant_registration") {
+      // Check tenant record exists and fee not paid
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("id, registration_fee_paid")
+        .eq("user_id", userId)
+        .single();
+
+      if (!tenant) throw new Error("Tenant record not found");
+      if (tenant.registration_fee_paid) throw new Error("Registration fee already paid");
+
+      totalAmount = 50;
+      description = "Tenant ID Registration - Annual Fee (GH₵ 50)";
+      clientReference = `treg:${userId}`;
+
+    } else if (type === "landlord_registration") {
+      const { data: landlord } = await supabase
+        .from("landlords")
+        .select("id, registration_fee_paid")
+        .eq("user_id", userId)
+        .single();
+
+      if (!landlord) throw new Error("Landlord record not found");
+      if (landlord.registration_fee_paid) throw new Error("Registration fee already paid");
+
+      totalAmount = 50;
+      description = "Landlord ID Registration - Annual Fee (GH₵ 50)";
+      clientReference = `lreg:${userId}`;
+
+    } else if (type === "complaint_fee") {
+      const { complaintId } = body;
+      if (!complaintId) throw new Error("complaintId is required");
+
+      const { data: complaint } = await supabase
+        .from("complaints")
+        .select("id, status, tenant_user_id")
+        .eq("id", complaintId)
+        .single();
+
+      if (!complaint) throw new Error("Complaint not found");
+      if (complaint.tenant_user_id !== userId) throw new Error("Unauthorized");
+      if (complaint.status !== "pending_payment") throw new Error("Complaint not awaiting payment");
+
+      totalAmount = 20;
+      description = "Complaint Filing Fee (GH₵ 20)";
+      clientReference = `comp:${complaintId}`;
+
+    } else {
+      throw new Error("Invalid payment type");
+    }
 
     const HUBTEL_API_ID = Deno.env.get("PAYMENT_API_ID")!;
     const HUBTEL_API_KEY = Deno.env.get("PAYMENT_API_KEY")!;
@@ -56,16 +118,33 @@ Deno.serve(async (req) => {
     const callbackUrl = `https://${projectId}.supabase.co/functions/v1/hubtel-webhook`;
     const returnUrl = req.headers.get("origin") || "https://rnt-fair-now.lovable.app";
 
+    // Determine return paths based on type
+    let successPath = "/";
+    let cancelPath = "/";
+    if (type === "rent_tax") {
+      successPath = "/tenant/payments?status=success";
+      cancelPath = "/tenant/payments?status=cancelled";
+    } else if (type === "tenant_registration") {
+      successPath = "/register/tenant?status=success";
+      cancelPath = "/register/tenant?status=cancelled";
+    } else if (type === "landlord_registration") {
+      successPath = "/register/landlord?status=success";
+      cancelPath = "/register/landlord?status=cancelled";
+    } else if (type === "complaint_fee") {
+      successPath = "/tenant/my-cases?status=success";
+      cancelPath = "/tenant/file-complaint?status=cancelled";
+    }
+
     const payload = {
-      totalAmount: Number(payment.tax_amount),
-      description: `Rent tax for ${payment.month_label} - ${(payment as any).tenancy.registration_code}`,
+      totalAmount,
+      description,
       callbackUrl,
-      returnUrl: `${returnUrl}/tenant/payments?status=success`,
-      cancellationUrl: `${returnUrl}/tenant/payments?status=cancelled`,
+      returnUrl: `${returnUrl}${successPath}`,
+      cancellationUrl: `${returnUrl}${cancelPath}`,
       merchantBusinessLogoUrl: `${returnUrl}/favicon.ico`,
       merchantAccountNumber: HUBTEL_API_ID,
-      clientReference: paymentId,
-      customerName: profile?.full_name || "Tenant",
+      clientReference,
+      customerName: profile?.full_name || "Customer",
       customerMsisdn: profile?.phone || "",
       customerEmail: profile?.email || "",
     };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Shield, User, Phone, Mail, MapPin, CreditCard, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Truck, Globe, Lock, Briefcase, UserPlus } from "lucide-react";
@@ -38,8 +38,7 @@ const RegisterTenant = () => {
   const [deliveryLandmark, setDeliveryLandmark] = useState("");
 
   // Payment
-  const [paymentMethod, setPaymentMethod] = useState("");
-  const [momoNumber, setMomoNumber] = useState("");
+  const [payingHubtel, setPayingHubtel] = useState(false);
 
   // Generated ID
   const [generatedId, setGeneratedId] = useState("");
@@ -47,71 +46,105 @@ const RegisterTenant = () => {
   const canProceed = () => {
     if (step === 0) return fullName && phone && email && password && (isCitizen ? ghanaCardNo : residencePermitNo) && region;
     if (step === 1) return deliveryAddress && deliveryCity && deliveryRegion;
-    if (step === 2) return paymentMethod && (paymentMethod !== "momo" || momoNumber);
+    if (step === 2) return true;
     return true;
   };
 
   const handleNext = async () => {
-    if (step === 2) {
-      setLoading(true);
-      try {
-        // Sign up
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-              phone,
-              role: "tenant",
-            },
-            emailRedirectTo: window.location.origin,
-          },
-        });
-
-        if (authError) throw authError;
-        if (!authData.user) throw new Error("Registration failed");
-
-        const userId = authData.user.id;
-        const tenantId = "TN-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
-
-        // Update profile with full details
-        await supabase.from("profiles").update({
-          nationality: isCitizen ? "Ghanaian" : "Non-Ghanaian",
-          is_citizen: isCitizen,
-          ghana_card_no: isCitizen ? ghanaCardNo : null,
-          residence_permit_no: !isCitizen ? residencePermitNo : null,
-          occupation,
-          work_address: workAddress,
-          emergency_contact_name: emergencyName,
-          emergency_contact_phone: emergencyPhone,
-          delivery_address: deliveryAddress,
-          delivery_landmark: deliveryLandmark,
-          delivery_region: deliveryRegion,
-          delivery_area: deliveryCity,
-        }).eq("user_id", userId);
-
-        // Create tenant record
-        await supabase.from("tenants").insert({
-          user_id: userId,
-          tenant_id: tenantId,
-          registration_fee_paid: true,
-          registration_date: new Date().toISOString(),
-          expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-        });
-
-        setGeneratedId(tenantId);
-        toast.success("Payment of GH₵ 50.00 processed successfully!");
-        setStep(3);
-      } catch (err: any) {
-        toast.error(err.message || "Registration failed");
-      } finally {
-        setLoading(false);
-      }
+    if (step === 1) {
+      // Move to payment step
+      setStep(2);
       return;
     }
     setStep(step + 1);
   };
+
+  const handleCreateAndPay = async () => {
+    setPayingHubtel(true);
+    try {
+      // Sign up
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName, phone, role: "tenant" },
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Registration failed");
+
+      const userId = authData.user.id;
+      const tenantId = "TN-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
+
+      // Update profile
+      await supabase.from("profiles").update({
+        nationality: isCitizen ? "Ghanaian" : "Non-Ghanaian",
+        is_citizen: isCitizen,
+        ghana_card_no: isCitizen ? ghanaCardNo : null,
+        residence_permit_no: !isCitizen ? residencePermitNo : null,
+        occupation,
+        work_address: workAddress,
+        emergency_contact_name: emergencyName,
+        emergency_contact_phone: emergencyPhone,
+        delivery_address: deliveryAddress,
+        delivery_landmark: deliveryLandmark,
+        delivery_region: deliveryRegion,
+        delivery_area: deliveryCity,
+      }).eq("user_id", userId);
+
+      // Create tenant record with fee NOT paid
+      await supabase.from("tenants").insert({
+        user_id: userId,
+        tenant_id: tenantId,
+        registration_fee_paid: false,
+      });
+
+      setGeneratedId(tenantId);
+
+      // Initiate Hubtel checkout
+      const { data, error } = await supabase.functions.invoke("hubtel-checkout", {
+        body: { type: "tenant_registration" },
+      });
+
+      if (error) throw new Error(error.message || "Payment initiation failed");
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        throw new Error("No checkout URL received");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Registration failed");
+      setPayingHubtel(false);
+    }
+  };
+
+  // Check for payment success from redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("status") === "success") {
+      toast.success("Payment confirmed! Your Tenant ID registration is complete.");
+      window.history.replaceState({}, "", window.location.pathname);
+      // Check if user is logged in and show success
+      const checkRegistration = async () => {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser) {
+          const { data: tenant } = await supabase.from("tenants").select("tenant_id, registration_fee_paid").eq("user_id", currentUser.id).single();
+          if (tenant) {
+            setGeneratedId(tenant.tenant_id);
+            setStep(3);
+          }
+        }
+      };
+      checkRegistration();
+    } else if (params.get("status") === "cancelled") {
+      toast.error("Payment was cancelled. Please try again.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   const handleFinish = () => {
     navigate("/tenant/dashboard");
@@ -343,43 +376,9 @@ const RegisterTenant = () => {
                       <span className="text-xl font-extrabold text-primary">GH₵ 50.00</span>
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Payment Method</Label>
-                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                        <SelectTrigger><SelectValue placeholder="Select payment method" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="momo">MTN Mobile Money</SelectItem>
-                          <SelectItem value="vodafone">Vodafone Cash</SelectItem>
-                          <SelectItem value="airteltigo">AirtelTigo Money</SelectItem>
-                          <SelectItem value="bank">Bank Card</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {(paymentMethod === "momo" || paymentMethod === "vodafone" || paymentMethod === "airteltigo") && (
-                      <div className="space-y-2">
-                        <Label>Mobile Money Number</Label>
-                        <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input value={momoNumber} onChange={(e) => setMomoNumber(e.target.value)} placeholder="024 555 1234" className="pl-10" />
-                        </div>
-                      </div>
-                    )}
-                    {paymentMethod === "bank" && (
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label>Card Number</Label>
-                          <div className="relative">
-                            <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input placeholder="•••• •••• •••• ••••" className="pl-10" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2"><Label>Expiry</Label><Input placeholder="MM/YY" /></div>
-                          <div className="space-y-2"><Label>CVV</Label><Input placeholder="•••" /></div>
-                        </div>
-                      </div>
-                    )}
+                  <div className="bg-info/5 p-4 rounded-lg border border-info/20 flex items-start gap-2 text-sm text-muted-foreground">
+                    <CreditCard className="h-4 w-4 text-info shrink-0 mt-0.5" />
+                    <span>You'll be redirected to Hubtel to complete payment via Mobile Money, Bank Card, or other methods. Your account will be created and activated once payment is confirmed.</span>
                   </div>
                 </div>
               )}
@@ -414,10 +413,14 @@ const RegisterTenant = () => {
           </AnimatePresence>
 
           <div className="mt-8">
-            {step < 3 ? (
+            {step < 2 ? (
               <Button onClick={handleNext} disabled={!canProceed() || loading} className="w-full h-12 text-base font-semibold">
-                {loading ? "Processing..." : step === 2 ? "Pay GH₵ 50.00" : "Continue"}
-                {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
+                Continue <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            ) : step === 2 ? (
+              <Button onClick={handleCreateAndPay} disabled={payingHubtel} className="w-full h-12 text-base font-semibold">
+                <CreditCard className="mr-2 h-4 w-4" />
+                {payingHubtel ? "Redirecting to Hubtel..." : "Pay GH₵ 50.00 via Hubtel"}
               </Button>
             ) : (
               <Button onClick={handleFinish} className="w-full h-12 text-base font-semibold">
