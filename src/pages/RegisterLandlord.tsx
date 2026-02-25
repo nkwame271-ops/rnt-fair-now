@@ -62,7 +62,16 @@ const RegisterLandlord = () => {
         },
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        if (authError.message?.includes("already registered") || authError.message?.includes("already exists")) {
+          toast.error("This email is already registered. Please sign in instead.", {
+            action: { label: "Go to Login", onClick: () => navigate("/login?role=landlord") },
+          });
+          setPayingHubtel(false);
+          return;
+        }
+        throw authError;
+      }
       if (!authData.user) throw new Error("Registration failed");
 
       const userId = authData.user.id;
