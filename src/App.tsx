@@ -33,6 +33,7 @@ import RegulatorLandlords from "./pages/regulator/RegulatorLandlords";
 import RegulatorProperties from "./pages/regulator/RegulatorProperties";
 import RegulatorComplaints from "./pages/regulator/RegulatorComplaints";
 import RegulatorAnalytics from "./pages/regulator/RegulatorAnalytics";
+import InviteStaff from "./pages/regulator/InviteStaff";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -84,6 +85,7 @@ const App = () => (
               <Route path="properties" element={<RegulatorProperties />} />
               <Route path="complaints" element={<RegulatorComplaints />} />
               <Route path="analytics" element={<RegulatorAnalytics />} />
+              <Route path="invite-staff" element={<InviteStaff />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
