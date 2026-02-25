@@ -62,7 +62,9 @@ const RegisterTenant = () => {
   const handleCreateAndPay = async () => {
     setPayingHubtel(true);
     try {
-      // Sign up
+      let userId: string;
+
+      // Try signup first
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -74,17 +76,42 @@ const RegisterTenant = () => {
 
       if (authError) {
         if (authError.message?.includes("already registered") || authError.message?.includes("already exists")) {
-          toast.error("This email is already registered. Please sign in instead.", {
-            action: { label: "Go to Login", onClick: () => navigate("/login?role=tenant") },
-          });
-          setPayingHubtel(false);
-          return;
-        }
-        throw authError;
-      }
-      if (!authData.user) throw new Error("Registration failed");
+          // Try signing in instead
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+          if (signInError) {
+            toast.error("This email is already registered. Please sign in instead.", {
+              action: { label: "Go to Login", onClick: () => navigate("/login?role=tenant") },
+            });
+            setPayingHubtel(false);
+            return;
+          }
+          userId = signInData.user.id;
 
-      const userId = authData.user.id;
+          // Check if they already have a tenant record with fee paid
+          const { data: existingTenant } = await supabase.from("tenants").select("tenant_id, registration_fee_paid").eq("user_id", userId).maybeSingle();
+          if (existingTenant?.registration_fee_paid) {
+            toast.success("You're already registered! Redirecting to dashboard...");
+            navigate("/tenant/dashboard");
+            return;
+          }
+          // If tenant record exists but not paid, proceed to payment
+          if (existingTenant) {
+            setGeneratedId(existingTenant.tenant_id);
+            const { data, error } = await supabase.functions.invoke("hubtel-checkout", { body: { type: "tenant_registration" } });
+            if (error) throw new Error(error.message || "Payment initiation failed");
+            if (data?.error) throw new Error(data.error);
+            if (data?.checkoutUrl) { window.location.href = data.checkoutUrl; return; }
+            throw new Error("No checkout URL received");
+          }
+          // No tenant record yet — create one below
+        } else {
+          throw authError;
+        }
+      } else {
+        if (!authData.user) throw new Error("Registration failed");
+        userId = authData.user.id;
+      }
+
       const tenantId = "TN-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
 
       // Update profile
