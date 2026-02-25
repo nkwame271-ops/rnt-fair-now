@@ -2,6 +2,8 @@ import jsPDF from "jspdf";
 
 export interface TemplateConfig {
   max_advance_months: number;
+  min_lease_duration: number;
+  max_lease_duration: number;
   tax_rate: number;
   registration_deadline_days: number;
   terms: string[];

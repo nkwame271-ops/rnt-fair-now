@@ -33,6 +33,7 @@ const AddTenant = () => {
   const [searching, setSearching] = useState(false);
   const [rent, setRent] = useState("");
   const [advanceMonths, setAdvanceMonths] = useState("6");
+  const [leaseDurationMonths, setLeaseDurationMonths] = useState("12");
   const [startDate, setStartDate] = useState("2026-03-01");
   const [submitting, setSubmitting] = useState(false);
   const [landlordName, setLandlordName] = useState("");
@@ -107,9 +108,9 @@ const AddTenant = () => {
   };
 
   const endDate = (() => {
-    if (!startDate || !advanceMonths) return "";
+    if (!startDate || !leaseDurationMonths) return "";
     const d = new Date(startDate);
-    d.setMonth(d.getMonth() + parseInt(advanceMonths));
+    d.setMonth(d.getMonth() + parseInt(leaseDurationMonths));
     d.setDate(d.getDate() - 1);
     return d.toISOString().split("T")[0];
   })();
@@ -172,8 +173,9 @@ const AddTenant = () => {
 
       if (error) throw error;
 
-      // Generate rent payment schedule
-      for (let i = 0; i < months; i++) {
+      // Generate rent payment schedule for full lease duration
+      const totalMonths = parseInt(leaseDurationMonths);
+      for (let i = 0; i < totalMonths; i++) {
         const d = new Date(startDate);
         d.setMonth(d.getMonth() + i);
         const monthLabel = d.toLocaleString("en-US", { month: "long", year: "numeric" });
@@ -186,7 +188,7 @@ const AddTenant = () => {
           monthly_rent: monthlyRent,
           tax_amount: tax,
           amount_to_landlord: toLandlord,
-          status: "pending",
+          status: i < months ? "pending" : "pending",
         });
       }
 
@@ -318,7 +320,7 @@ const AddTenant = () => {
               <Input type="number" value={rent} onChange={(e) => setRent(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Advance Period</Label>
+              <Label>Advance Rent Period</Label>
               <Select value={advanceMonths} onValueChange={setAdvanceMonths}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -327,7 +329,19 @@ const AddTenant = () => {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Maximum {maxAdvance} months by law (Act 220)</p>
+              <p className="text-xs text-muted-foreground">Maximum {maxAdvance} months advance rent (Act 220)</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Lease Duration</Label>
+              <Select value={leaseDurationMonths} onValueChange={setLeaseDurationMonths}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: templateConfig?.max_lease_duration ?? 24 }, (_, i) => i + 1).map((m) => (
+                    <SelectItem key={m} value={m.toString()}>{m} month{m > 1 ? "s" : ""}{m === 12 ? " (1 year)" : m === 24 ? " (2 years)" : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Total agreement length (min {templateConfig?.min_lease_duration ?? 1}, max {templateConfig?.max_lease_duration ?? 24} months)</p>
             </div>
             <div className="space-y-2">
               <Label>Start Date</Label>
@@ -387,7 +401,8 @@ const AddTenant = () => {
                 ["Address", property.address],
                 ["Unit", `${unit.unit_name} (${unit.unit_type})`],
                 ["Monthly Rent", `GH₵ ${monthlyRent.toLocaleString()}`],
-                ["Advance", `${advanceMonths} month(s)`],
+                ["Advance Rent", `${advanceMonths} month(s)`],
+                ["Lease Duration", `${leaseDurationMonths} month(s)`],
                 ["Period", `${new Date(startDate).toLocaleDateString("en-GB")} — ${new Date(endDate).toLocaleDateString("en-GB")}`],
                 [`${(taxRate * 100).toFixed(0)}% Tax/mo`, `GH₵ ${tax.toLocaleString()}`],
                 ["To Landlord/mo", `GH₵ ${toLandlord.toLocaleString()}`],
