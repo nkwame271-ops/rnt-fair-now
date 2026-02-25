@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { CreditCard, CheckCircle2, Clock, Info, Wallet, FileText, Shield, Loader2 } from "lucide-react";
+import { CreditCard, CheckCircle2, Clock, Info, Wallet, FileText, Shield, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -108,6 +108,32 @@ const Payments = () => {
     }
   };
 
+  const handleManualDeclaration = async (paymentId: string) => {
+    setPaying(paymentId);
+    try {
+      const { error } = await supabase.from("rent_payments").update({
+        tenant_marked_paid: true,
+        status: "tenant_paid",
+        paid_date: new Date().toISOString(),
+        payment_method: "Off-platform",
+        amount_paid: tenancy!.payments.find(p => p.id === paymentId)!.tax_amount,
+      }).eq("id", paymentId);
+
+      if (error) throw error;
+
+      setTenancy(prev => prev ? {
+        ...prev,
+        payments: prev.payments.map(p => p.id === paymentId ? { ...p, tenant_marked_paid: true, status: "tenant_paid" } : p),
+      } : null);
+
+      toast.success("Payment declared! Awaiting landlord confirmation.");
+    } catch (err: any) {
+      toast.error(err.message || "Declaration failed");
+    } finally {
+      setPaying(null);
+    }
+  };
+
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   if (!tenancy) return (
@@ -122,6 +148,12 @@ const Payments = () => {
   const nextUnpaid = tenancy.payments.find(p => !isPaid(p));
   const paidCount = tenancy.payments.filter(p => isPaid(p)).length;
   const totalMonths = tenancy.payments.length;
+
+  // Arrears calculation
+  const today = new Date();
+  const overduePayments = tenancy.payments.filter(p => !isPaid(p) && new Date(p.due_date) < today);
+  const totalArrears = overduePayments.reduce((sum, p) => sum + p.tax_amount, 0);
+  const isOverdue = (p: Payment) => !isPaid(p) && new Date(p.due_date) < today;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -150,13 +182,24 @@ const Payments = () => {
         </div>
       </motion.div>
 
+      {/* Arrears Warning */}
+      {totalArrears > 0 && (
+        <div className="flex items-start gap-2 text-xs bg-destructive/5 p-4 rounded-lg border border-destructive/20">
+          <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-semibold text-destructive text-sm">Outstanding Arrears: GH₵ {totalArrears.toLocaleString()}</p>
+            <p className="text-muted-foreground">You have {overduePayments.length} overdue month(s). Please settle to maintain your tenancy validity.</p>
+          </div>
+        </div>
+      )}
+
       {/* Info */}
       <div className="flex items-start gap-2 text-xs text-muted-foreground bg-info/5 p-4 rounded-lg border border-info/20">
         <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p className="font-semibold text-foreground text-sm">How rent payment works</p>
           <p>Your monthly rent of <strong>GH₵ {tenancy.agreed_rent.toLocaleString()}</strong> includes an 8% government tax of <strong>GH₵ {(tenancy.agreed_rent * 0.08).toLocaleString()}</strong>.</p>
-          <p>You pay the tax through this app. This validates your tenancy. The remaining <strong>GH₵ {(tenancy.agreed_rent * 0.92).toLocaleString()}</strong> goes directly to your landlord.</p>
+          <p>You pay the tax through this app (via Hubtel or manual declaration). This validates your tenancy. The remaining <strong>GH₵ {(tenancy.agreed_rent * 0.92).toLocaleString()}</strong> goes directly to your landlord.</p>
         </div>
       </div>
 
@@ -176,9 +219,13 @@ const Payments = () => {
           </div>
           <Button className="w-full" size="lg" onClick={() => handlePayTax(nextUnpaid.id)} disabled={paying === nextUnpaid.id}>
             <CreditCard className="h-4 w-4 mr-2" />
-            {paying === nextUnpaid.id ? "Processing..." : `Pay GH₵ ${nextUnpaid.tax_amount.toLocaleString()} Tax to Rent Control`}
+            {paying === nextUnpaid.id ? "Processing..." : `Pay GH₵ ${nextUnpaid.tax_amount.toLocaleString()} via Hubtel`}
           </Button>
-          <p className="text-xs text-muted-foreground text-center mt-3">After payment, pay GH₵ {nextUnpaid.amount_to_landlord.toLocaleString()} directly to {tenancy.landlordName}</p>
+          <div className="text-center my-2 text-xs text-muted-foreground">— or —</div>
+          <Button variant="outline" className="w-full" onClick={() => handleManualDeclaration(nextUnpaid.id)} disabled={paying === nextUnpaid.id}>
+            Declare Off-Platform Payment
+          </Button>
+          <p className="text-xs text-muted-foreground text-center mt-3">After tax payment, pay GH₵ {nextUnpaid.amount_to_landlord.toLocaleString()} directly to {tenancy.landlordName}</p>
         </motion.div>
       )}
 
@@ -190,12 +237,14 @@ const Payments = () => {
             const paid = isPaid(p);
             const awaitingConfirm = p.tenant_marked_paid && !p.landlord_confirmed && p.status !== "confirmed";
             return (
-              <div key={p.id} className={`bg-card rounded-xl p-4 shadow-card border flex items-center justify-between ${paid ? "border-border" : awaitingConfirm ? "border-info/30" : "border-warning/30"}`}>
+              <div key={p.id} className={`bg-card rounded-xl p-4 shadow-card border flex items-center justify-between ${paid ? "border-border" : awaitingConfirm ? "border-info/30" : isOverdue(p) ? "border-destructive/30" : "border-warning/30"}`}>
                 <div className="flex items-center gap-3">
                   {paid ? (
                     <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center"><Shield className="h-4 w-4 text-success" /></div>
                   ) : awaitingConfirm ? (
                     <div className="w-8 h-8 rounded-full bg-info/10 flex items-center justify-center"><Clock className="h-4 w-4 text-info" /></div>
+                  ) : isOverdue(p) ? (
+                    <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center"><AlertTriangle className="h-4 w-4 text-destructive" /></div>
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><Clock className="h-4 w-4 text-muted-foreground" /></div>
                   )}
@@ -209,6 +258,8 @@ const Payments = () => {
                     <span className="flex items-center gap-1 text-xs font-semibold text-success bg-success/10 px-2.5 py-1 rounded-full"><CheckCircle2 className="h-3 w-3" /> Confirmed</span>
                   ) : awaitingConfirm ? (
                     <span className="flex items-center gap-1 text-xs font-semibold text-info bg-info/10 px-2.5 py-1 rounded-full">Awaiting Confirmation</span>
+                  ) : isOverdue(p) ? (
+                    <span className="flex items-center gap-1 text-xs font-semibold text-destructive bg-destructive/10 px-2.5 py-1 rounded-full"><AlertTriangle className="h-3 w-3" /> Overdue</span>
                   ) : nextUnpaid?.id === p.id ? (
                     <span className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">Due Now</span>
                   ) : (

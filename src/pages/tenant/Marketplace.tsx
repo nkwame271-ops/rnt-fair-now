@@ -45,6 +45,8 @@ const Marketplace = () => {
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState("all");
   const [type, setType] = useState("all");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
   const [units, setUnits] = useState<MarketUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUnit, setSelectedUnit] = useState<MarketUnit | null>(null);
@@ -91,6 +93,8 @@ const Marketplace = () => {
     if (search && !(prop.property_name || "").toLowerCase().includes(search.toLowerCase()) && !prop.area.toLowerCase().includes(search.toLowerCase())) return false;
     if (region !== "all" && prop.region !== region) return false;
     if (type !== "all" && u.unit_type !== type) return false;
+    if (minPrice && u.monthly_rent < parseFloat(minPrice)) return false;
+    if (maxPrice && u.monthly_rent > parseFloat(maxPrice)) return false;
     return true;
   });
 
@@ -150,6 +154,10 @@ const Marketplace = () => {
             ))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="flex gap-3">
+        <Input type="number" placeholder="Min price (GH₵)" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="w-full sm:w-40" />
+        <Input type="number" placeholder="Max price (GH₵)" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="w-full sm:w-40" />
       </div>
 
       <div className="text-sm text-muted-foreground">{filtered.length} properties found</div>

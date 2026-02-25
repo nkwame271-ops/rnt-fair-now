@@ -18,7 +18,19 @@ const RegulatorComplaints = () => {
       .from("complaints")
       .select("*")
       .order("created_at", { ascending: false });
-    setComplaints(data || []);
+
+    if (data && data.length > 0) {
+      // Fetch tenant names
+      const tenantIds = [...new Set(data.map((c: any) => c.tenant_user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, phone")
+        .in("user_id", tenantIds);
+      const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+      setComplaints(data.map((c: any) => ({ ...c, _tenantProfile: profileMap.get(c.tenant_user_id) })));
+    } else {
+      setComplaints([]);
+    }
     setLoading(false);
   };
 
@@ -38,9 +50,9 @@ const RegulatorComplaints = () => {
   });
 
   const exportCSV = () => {
-    const headers = ["Code", "Type", "Landlord", "Address", "Region", "Status", "Filed"];
+    const headers = ["Code", "Tenant", "Type", "Landlord", "Address", "Region", "Status", "Filed"];
     const rows = filtered.map((c: any) => [
-      c.complaint_code, c.complaint_type, c.landlord_name, c.property_address, c.region, c.status,
+      c.complaint_code, c._tenantProfile?.full_name || "", c.complaint_type, c.landlord_name, c.property_address, c.region, c.status,
       new Date(c.created_at).toLocaleDateString(),
     ]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
@@ -92,6 +104,7 @@ const RegulatorComplaints = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Code</TableHead>
+              <TableHead>Tenant</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Landlord</TableHead>
               <TableHead>Region</TableHead>
@@ -102,11 +115,12 @@ const RegulatorComplaints = () => {
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No complaints found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No complaints found</TableCell></TableRow>
             ) : (
               filtered.map((c: any) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-mono text-sm font-semibold">{c.complaint_code}</TableCell>
+                  <TableCell className="font-medium">{c._tenantProfile?.full_name || "—"}<div className="text-xs text-muted-foreground">{c._tenantProfile?.phone || ""}</div></TableCell>
                   <TableCell>{c.complaint_type}</TableCell>
                   <TableCell className="font-medium">{c.landlord_name}</TableCell>
                   <TableCell>{c.region}</TableCell>
