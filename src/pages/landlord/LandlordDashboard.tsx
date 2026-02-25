@@ -1,18 +1,27 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, Loader2 } from "lucide-react";
+import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, Loader2, CreditCard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const LandlordDashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
+  const [payingFee, setPayingFee] = useState(false);
   const [stats, setStats] = useState({ properties: 0, totalUnits: 0, occupiedUnits: 0, pendingTenancies: 0, validMonths: 0, pendingMonths: 0 });
 
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
+      // Check registration fee
+      const { data: landlordRecord } = await supabase.from("landlords").select("registration_fee_paid").eq("user_id", user.id).maybeSingle();
+      setRegistrationFeePaid(landlordRecord?.registration_fee_paid ?? true);
+
       const { data: props } = await supabase.from("properties").select("id").eq("landlord_user_id", user.id);
       const propIds = (props || []).map(p => p.id);
 
@@ -40,10 +49,44 @@ const LandlordDashboard = () => {
     fetch();
   }, [user]);
 
+  const handlePayRegistrationFee = async () => {
+    setPayingFee(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("hubtel-checkout", {
+        body: { type: "landlord_registration" },
+      });
+      if (error) throw new Error(error.message || "Payment initiation failed");
+      if (data?.error) throw new Error(data.error);
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        throw new Error("No checkout URL received");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to initiate payment");
+      setPayingFee(false);
+    }
+  };
+
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
+      {/* Registration Fee Banner */}
+      {!registrationFeePaid && (
+        <Alert className="border-warning bg-warning/10 border-2">
+          <AlertTriangle className="h-5 w-5 text-warning" />
+          <AlertTitle className="text-warning font-semibold">Registration Fee Unpaid</AlertTitle>
+          <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1">
+            <span className="text-muted-foreground">Your registration fee (GH₵ 50) is unpaid. Pay now to activate your Landlord ID and receive your physical card.</span>
+            <Button onClick={handlePayRegistrationFee} disabled={payingFee} size="sm" className="shrink-0">
+              <CreditCard className="mr-2 h-4 w-4" />
+              {payingFee ? "Redirecting..." : "Pay GH₵ 50 Now"}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-3xl font-bold text-foreground">Landlord Dashboard</h1>
         <p className="text-muted-foreground mt-1">Manage your properties and stay compliant</p>
@@ -77,7 +120,6 @@ const LandlordDashboard = () => {
         </Link>
       </div>
 
-      {/* Validity Overview */}
       <div className="bg-card rounded-xl p-6 shadow-card border border-border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground">Payment Validity Overview</h2>
