@@ -1,79 +1,56 @@
 
 
-## Comprehensive System Fix Plan
+## Analysis
 
-### Issues Found
+I found the root causes of both issues.
 
-**1. Hubtel Edge Function — `getClaims` does not exist (CRITICAL)**
-The `hubtel-checkout` edge function uses `supabase.auth.getClaims(token)` on line 26, but this method does not exist in the supabase-js SDK. This is why every payment attempt returns `"Unexpected end of JSON input"` — the function crashes before reaching the Hubtel API. The fix is to replace it with `supabase.auth.getUser()`, which validates the JWT and returns the user ID.
+### Issue 1: Role Misrouting (everyone lands on wrong dashboard)
 
-**2. Registration "User already registered" error**
-When a user who already exists tries to register again (e.g. `nkwame271@gmail.com`), the code correctly catches this. However, the user experience needs improvement — the registration pages should first check if the user is already logged in and skip straight to payment if they already have an account but haven't paid.
+Every single RLS policy in the database is set to **RESTRICTIVE** (`Permissive: No`). In PostgreSQL, restrictive policies require **ALL** policies to pass simultaneously. For the `user_roles` table:
 
-**3. Login redirects — regulator login doesn't use auth hook**
-The Login page manually queries `user_roles` after sign-in and navigates, but the `useAuth` hook's `onAuthStateChange` also fires and tries to fetch the role. This creates a race. The `ProtectedRoute` component should handle the redirect after the auth state settles — the login page should just sign in and let the router take over.
+- "Users can read own roles" (RESTRICTIVE) -- `auth.uid() = user_id`
+- "Regulators can read all roles" (RESTRICTIVE) -- `has_role(auth.uid(), 'regulator')`
 
-**4. Data gaps — need more tenancy connections**
-Currently there's only 1 tenancy (linking tenant `3b6ed5f0` to landlord `1fc95bfe`). To demonstrate the regulator view properly, we need more tenancies connecting landlords to tenants, plus some landlords with no tenants and tenants with no landlords.
+For a tenant: the first passes, but the second fails because they're not a regulator. Since both are restrictive and **both must pass**, the query returns nothing. The role comes back as `null`, and `ProtectedRoute` redirects to `/`.
+
+This same bug affects **every table** in the system -- properties, tenancies, complaints, etc. All have multiple restrictive policies that block legitimate access.
+
+### Issue 2: Payment gating happens too early
+
+Currently, `RegisterTenant.tsx` and `RegisterLandlord.tsx` create the account AND immediately initiate Hubtel payment on step 2. The user wants: sign up first, go to the dashboard, and see an "unpaid" banner there with a "Pay Now" button.
 
 ---
 
-### Implementation Plan
+## Plan
 
-#### Step 1: Fix `hubtel-checkout` edge function
-Replace the broken `getClaims` call with `getUser()`:
-```typescript
-// BEFORE (broken):
-const token = authHeader.replace("Bearer ", "");
-const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-if (claimsError || !claimsData?.claims) throw new Error("Not authenticated");
-const userId = claimsData.claims.sub as string;
+### Step 1: Fix all RLS policies (database migration)
 
-// AFTER (working):
-const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-if (authError || !authUser) throw new Error("Not authenticated");
-const userId = authUser.id;
-```
-Then redeploy the function.
+Drop every restrictive policy and recreate them as **PERMISSIVE** (the PostgreSQL default). This affects tables: `user_roles`, `profiles`, `properties`, `property_images`, `units`, `tenancies`, `rent_payments`, `complaints`, `landlords`, `tenants`, `viewing_requests`, `agreement_template_config`.
 
-#### Step 2: Fix Login page navigation
-Update `Login.tsx` to navigate based on the fetched role and also handle the regulator role (currently only handles tenant/landlord). Add regulator redirect:
-```typescript
-if (userRole === "tenant") navigate("/tenant/dashboard");
-else if (userRole === "landlord") navigate("/landlord/dashboard");
-else if (userRole === "regulator") navigate("/regulator/dashboard");
-else navigate("/");
-```
+### Step 2: Modify registration to skip payment
 
-#### Step 3: Seed additional test data
-Insert additional tenancies and rent payments to create a realistic system state:
+**`RegisterTenant.tsx`** and **`RegisterLandlord.tsx`**:
+- Remove step 2 (payment). Change the flow to: Personal Info → Delivery Address → Success (3 steps instead of 4).
+- On the delivery address step, create the account (signup + profile + tenant/landlord record with `registration_fee_paid: false`) and go straight to the success screen.
+- Success screen says "Go to Dashboard" without requiring payment.
 
-- **2 more tenancies** linking existing tenants to landlords:
-  - Tenant `tenant@test.com` (Kwame Mensah) → Landlord `landlord@test.com` (Ama Asante), Sunrise Apartments unit
-  - Tenant `kofi.owusu@test.com` → Landlord `akua.osei@test.com`, Golden Gate Estate unit
+### Step 3: Add registration fee banner to dashboards
 
-- **Rent payment records** for each tenancy so the payment flow is visible
+**`TenantDashboard.tsx`**:
+- On load, fetch the tenant record and check `registration_fee_paid`.
+- If unpaid, show a prominent alert banner at the top: "Your registration fee (GH₵ 50) is unpaid. Pay now to activate your Tenant ID."
+- "Pay Now" button triggers the Hubtel checkout edge function for `tenant_registration`.
 
-This gives the regulator dashboard:
-- 3 landlords (1 with no tenants: Kwesi Addo)
-- 7 tenants (some with tenancies, some without)
-- 4 complaints across different statuses
-- Multiple tenancies showing landlord-tenant connections
+**`LandlordDashboard.tsx`**:
+- Same pattern: fetch landlord record, check `registration_fee_paid`, show banner with "Pay Now" if unpaid.
 
-#### Step 4: Improve registration flow for existing users
-In both `RegisterTenant.tsx` and `RegisterLandlord.tsx`, when the signup returns "user already exists", also try signing in with the provided credentials. If login succeeds and the user has no tenant/landlord record yet, create it and proceed to payment. If they already have a record, redirect to dashboard.
+### Files to change
 
-#### Step 5: Verify all edge functions
-- `hubtel-checkout`: Fix and redeploy (Step 1)
-- `hubtel-webhook`: Already correct — uses service role key, properly handles all payment types
-- `legal-assistant`: Working correctly — uses Lovable AI gateway
-- `invite-staff`: Verify it exists and works
-
-### Technical Details
-
-**Database state** — all RLS policies are now PERMISSIVE (fixed in previous migration). The `user_roles` table correctly has roles for all 11 users (7 tenants, 3 landlords, 1 regulator). The `handle_new_user` trigger auto-creates profiles and assigns roles from signup metadata.
-
-**Hubtel integration** — The `PAYMENT_API_ID` and `PAYMENT_API_KEY` secrets are configured. The API endpoint `https://payproxyapi.hubtel.com/items/initiate` is correct per Hubtel docs. The webhook at `hubtel-webhook` correctly uses the service role key to update records. The only blocker was the `getClaims` crash preventing the checkout from ever reaching Hubtel.
-
-**Auth flow** — The `useAuth` hook now uses role caching and deferred fetching. Login should be fast once the `getClaims` fix removes the edge function error cascade.
+| File | Change |
+|------|--------|
+| New migration SQL | Drop all restrictive policies, recreate as permissive |
+| `src/pages/RegisterTenant.tsx` | Remove payment step; create account on step 1 completion; go to dashboard |
+| `src/pages/RegisterLandlord.tsx` | Same as above |
+| `src/pages/tenant/TenantDashboard.tsx` | Add unpaid registration fee banner with Pay Now |
+| `src/pages/landlord/LandlordDashboard.tsx` | Add unpaid registration fee banner with Pay Now |
 
