@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { generateAgreementPdf } from "@/lib/generateAgreementPdf";
+import { generateAgreementPdf, TemplateConfig } from "@/lib/generateAgreementPdf";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +36,7 @@ const AddTenant = () => {
   const [startDate, setStartDate] = useState("2026-03-01");
   const [submitting, setSubmitting] = useState(false);
   const [landlordName, setLandlordName] = useState("");
+  const [templateConfig, setTemplateConfig] = useState<TemplateConfig | null>(null);
 
   const property = properties.find(p => p.id === selectedPropertyId);
   const unit = property?.units.find(u => u.id === selectedUnitId);
@@ -44,14 +45,14 @@ const AddTenant = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const { data: props } = await supabase
-        .from("properties")
-        .select("id, property_name, address, region, units(id, unit_name, unit_type, monthly_rent, status)")
-        .eq("landlord_user_id", user.id);
-      setProperties((props || []) as PropertyWithUnits[]);
-
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
-      setLandlordName(profile?.full_name || "");
+      const [propsRes, profileRes, configRes] = await Promise.all([
+        supabase.from("properties").select("id, property_name, address, region, units(id, unit_name, unit_type, monthly_rent, status)").eq("landlord_user_id", user.id),
+        supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
+        supabase.from("agreement_template_config").select("*").limit(1).single(),
+      ]);
+      setProperties((propsRes.data || []) as PropertyWithUnits[]);
+      setLandlordName(profileRes.data?.full_name || "");
+      if (configRes.data) setTemplateConfig(configRes.data as TemplateConfig);
       setLoading(false);
     };
     fetchData();
@@ -108,9 +109,11 @@ const AddTenant = () => {
   })();
 
   const registrationCode = `RC-GR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
+  const taxRate = (templateConfig?.tax_rate ?? 8) / 100;
   const monthlyRent = parseFloat(rent) || 0;
-  const tax = monthlyRent * 0.08;
-  const toLandlord = monthlyRent * 0.92;
+  const tax = monthlyRent * taxRate;
+  const toLandlord = monthlyRent * (1 - taxRate);
+  const maxAdvance = templateConfig?.max_advance_months ?? 6;
 
   const handleDownloadPdf = () => {
     if (!property || !unit || !foundTenant) return;
@@ -128,6 +131,7 @@ const AddTenant = () => {
       startDate,
       endDate,
       region: property.region,
+      templateConfig: templateConfig || undefined,
     });
     doc.save(`Tenancy_Agreement_${foundTenant.id}.pdf`);
     toast.success("Agreement PDF downloaded!");
@@ -309,12 +313,12 @@ const AddTenant = () => {
               <Select value={advanceMonths} onValueChange={setAdvanceMonths}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {[1, 2, 3, 4, 5, 6].map((m) => (
+                  {Array.from({ length: maxAdvance }, (_, i) => i + 1).map((m) => (
                     <SelectItem key={m} value={m.toString()}>{m} month{m > 1 ? "s" : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Maximum 6 months by law (Act 220)</p>
+              <p className="text-xs text-muted-foreground">Maximum {maxAdvance} months by law (Act 220)</p>
             </div>
             <div className="space-y-2">
               <Label>Start Date</Label>
@@ -328,8 +332,8 @@ const AddTenant = () => {
           {monthlyRent > 0 && (
             <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Monthly Rent</span><span className="font-semibold">GH₵ {monthlyRent.toLocaleString()}</span></div>
-              <div className="flex justify-between text-primary"><span>8% Govt. Tax (via Rent Control)</span><span className="font-semibold">GH₵ {tax.toLocaleString()}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">To Landlord (92%)</span><span className="font-semibold">GH₵ {toLandlord.toLocaleString()}</span></div>
+              <div className="flex justify-between text-primary"><span>{(taxRate * 100).toFixed(0)}% Govt. Tax (via Rent Control)</span><span className="font-semibold">GH₵ {tax.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">To Landlord ({((1 - taxRate) * 100).toFixed(0)}%)</span><span className="font-semibold">GH₵ {toLandlord.toLocaleString()}</span></div>
             </div>
           )}
           <div className="flex gap-3">
@@ -357,7 +361,7 @@ const AddTenant = () => {
                 ["Monthly Rent", `GH₵ ${monthlyRent.toLocaleString()}`],
                 ["Advance", `${advanceMonths} month(s)`],
                 ["Period", `${new Date(startDate).toLocaleDateString("en-GB")} — ${new Date(endDate).toLocaleDateString("en-GB")}`],
-                ["8% Tax/mo", `GH₵ ${tax.toLocaleString()}`],
+                [`${(taxRate * 100).toFixed(0)}% Tax/mo`, `GH₵ ${tax.toLocaleString()}`],
                 ["To Landlord/mo", `GH₵ ${toLandlord.toLocaleString()}`],
               ].map(([label, value]) => (
                 <div key={label}>

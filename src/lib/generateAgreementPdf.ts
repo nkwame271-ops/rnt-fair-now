@@ -1,5 +1,12 @@
 import jsPDF from "jspdf";
 
+export interface TemplateConfig {
+  max_advance_months: number;
+  tax_rate: number;
+  registration_deadline_days: number;
+  terms: string[];
+}
+
 export interface AgreementPdfData {
   registrationCode: string;
   landlordName: string;
@@ -14,12 +21,24 @@ export interface AgreementPdfData {
   startDate: string;
   endDate: string;
   region: string;
+  templateConfig?: TemplateConfig;
 }
+
+const DEFAULT_TERMS = [
+  "The Tenant shall pay rent monthly, including the statutory 8% government tax through the Rent Control app.",
+  "Advance rent shall not exceed 6 months as mandated by Act 220.",
+  "This agreement must be registered within 14 days of signing.",
+  "The Landlord shall maintain the property in habitable condition.",
+  "Neither party may unilaterally vary the terms without due process.",
+  "The tenancy is only valid for months where the 8% tax has been paid.",
+];
 
 export const generateAgreementPdf = (data: AgreementPdfData) => {
   const doc = new jsPDF();
   const w = doc.internal.pageSize.getWidth();
   let y = 20;
+  const taxRate = (data.templateConfig?.tax_rate ?? 8) / 100;
+  const terms = data.templateConfig?.terms ?? DEFAULT_TERMS;
 
   const center = (text: string, yPos: number, size = 12, style: "normal" | "bold" = "normal") => {
     doc.setFontSize(size);
@@ -70,91 +89,84 @@ export const generateAgreementPdf = (data: AgreementPdfData) => {
   // Parties
   left("PARTIES TO THIS AGREEMENT", y, 13, "bold");
   y += 10;
-
   left("LANDLORD:", y, 11, "bold");
   left(data.landlordName, y + 6, 11);
   y += 16;
-
   left("TENANT:", y, 11, "bold");
   left(`${data.tenantName}  (ID: ${data.tenantId})`, y + 6, 11);
   y += 20;
-
   line(y);
   y += 10;
 
   // Property details
   left("PROPERTY DETAILS", y, 13, "bold");
   y += 10;
-
   const details = [
     ["Property:", data.propertyName],
     ["Address:", data.propertyAddress],
     ["Unit:", `${data.unitName} (${data.unitType})`],
     ["Region:", data.region],
   ];
-
   details.forEach(([label, value]) => {
     left(label, y, 10, "bold");
     doc.setFont("helvetica", "normal");
     doc.text(value, 65, y);
     y += 7;
   });
-
   y += 5;
   line(y);
   y += 10;
 
   // Financial terms
+  const taxAmount = data.monthlyRent * taxRate;
+  const toLandlord = data.monthlyRent * (1 - taxRate);
+
   left("FINANCIAL TERMS", y, 13, "bold");
   y += 10;
-
   const financial = [
     ["Monthly Rent:", `GH₵ ${data.monthlyRent.toLocaleString()}`],
     ["Advance Period:", `${data.advanceMonths} month(s)`],
     ["Total Advance:", `GH₵ ${(data.monthlyRent * data.advanceMonths).toLocaleString()}`],
-    ["Govt. Tax (8%):", `GH₵ ${(data.monthlyRent * 0.08).toLocaleString()} per month`],
-    ["To Landlord (92%):", `GH₵ ${(data.monthlyRent * 0.92).toLocaleString()} per month`],
+    [`Govt. Tax (${(taxRate * 100).toFixed(0)}%):`, `GH₵ ${taxAmount.toLocaleString()} per month`],
+    [`To Landlord (${((1 - taxRate) * 100).toFixed(0)}%):`, `GH₵ ${toLandlord.toLocaleString()} per month`],
     ["Tenancy Start:", new Date(data.startDate).toLocaleDateString("en-GB")],
     ["Tenancy End:", new Date(data.endDate).toLocaleDateString("en-GB")],
   ];
-
   financial.forEach(([label, value]) => {
     left(label, y, 10, "bold");
     doc.setFont("helvetica", "normal");
     doc.text(value, 75, y);
     y += 7;
   });
-
   y += 5;
   line(y);
   y += 10;
 
-  // Terms
+  // Terms - use dynamic terms from config
   left("KEY TERMS & CONDITIONS", y, 13, "bold");
   y += 10;
 
-  const terms = [
-    "1. The Tenant shall pay rent monthly, including the statutory 8% government tax through the Rent Control app.",
-    "2. Advance rent shall not exceed 6 months as mandated by Act 220.",
-    "3. This agreement must be registered within 14 days of signing.",
-    "4. The Landlord shall maintain the property in habitable condition.",
-    "5. Neither party may unilaterally vary the terms without due process.",
-    "6. The tenancy is only valid for months where the 8% tax has been paid.",
-  ];
-
-  terms.forEach((term) => {
-    const lines = doc.splitTextToSize(term, w - 45);
+  terms.forEach((term, i) => {
+    const numberedTerm = `${i + 1}. ${term}`;
+    const lines = doc.splitTextToSize(numberedTerm, w - 45);
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
+    if (y + lines.length * 5 > doc.internal.pageSize.getHeight() - 40) {
+      doc.addPage();
+      y = 20;
+    }
     doc.text(lines, 20, y);
     y += lines.length * 5 + 3;
   });
 
   // Signatures
   y += 5;
+  if (y > doc.internal.pageSize.getHeight() - 50) {
+    doc.addPage();
+    y = 20;
+  }
   line(y);
   y += 15;
-
   left("____________________________", y);
   doc.text("____________________________", w - 20, y, { align: "right" });
   y += 6;
