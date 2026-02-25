@@ -19,31 +19,27 @@ const VerifyRegistration = () => {
     const verify = async () => {
       if (!role || !id) { setLoading(false); return; }
 
-      const table = role === "tenant" ? "tenants" : "landlords";
-      const idCol = role === "tenant" ? "tenant_id" : "landlord_id";
+      try {
+        const { data, error } = await supabase.functions.invoke("verify-registration", {
+          body: { role, id },
+        });
 
-      let data: any = null;
-      if (role === "tenant") {
-        const { data: d } = await supabase.from("tenants").select("*").eq("tenant_id", id).maybeSingle();
-        if (d) {
-          const { data: p } = await supabase.from("profiles").select("full_name").eq("user_id", d.user_id).maybeSingle();
-          data = { ...d, profileName: p?.full_name };
+        if (error) {
+          console.error("Verification error:", error);
+          setLoading(false);
+          return;
         }
-      } else {
-        const { data: d } = await supabase.from("landlords").select("*").eq("landlord_id", id).maybeSingle();
-        if (d) {
-          const { data: p } = await supabase.from("profiles").select("full_name").eq("user_id", d.user_id).maybeSingle();
-          data = { ...d, profileName: p?.full_name };
-        }
-      }
 
-      if (data) {
-        setFound(true);
-        setName(data.profileName || "Unknown");
-        setStatus(data.status);
-        setFeePaid(data.registration_fee_paid);
-        setRegDate(data.registration_date);
-        setExpiryDate(data.expiry_date);
+        if (data?.found) {
+          setFound(true);
+          setName(data.name);
+          setStatus(data.status);
+          setFeePaid(data.feePaid);
+          setRegDate(data.registrationDate);
+          setExpiryDate(data.expiryDate);
+        }
+      } catch (err) {
+        console.error("Verification error:", err);
       }
       setLoading(false);
     };

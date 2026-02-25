@@ -125,8 +125,8 @@ const ProfilePage = () => {
     setChangingPassword(false);
   };
 
-  const publishedUrl = "https://rentcontrol.lovable.app";
-  const qrData = `${publishedUrl}/verify/${role}/${registrationId}`;
+  const baseUrl = window.location.origin;
+  const qrData = `${baseUrl}/verify/${role}/${registrationId}`;
 
   if (loading) {
     return (
