@@ -7,10 +7,11 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 
 interface TenantRecord {
   tenant_id: string;
+  user_id: string;
   status: string;
   registration_date: string | null;
   expiry_date: string | null;
-  profiles: {
+  profile?: {
     full_name: string;
     phone: string;
     email: string | null;
@@ -19,7 +20,7 @@ interface TenantRecord {
     ghana_card_no: string | null;
     residence_permit_no: string | null;
     occupation: string | null;
-  } | null;
+  };
 }
 
 const RegulatorTenants = () => {
@@ -28,15 +29,30 @@ const RegulatorTenants = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase
+    const fetchData = async () => {
+      const { data: tenantData } = await supabase
         .from("tenants")
-        .select("tenant_id, status, registration_date, expiry_date, profiles(full_name, phone, email, nationality, is_citizen, ghana_card_no, residence_permit_no, occupation)")
+        .select("tenant_id, user_id, status, registration_date, expiry_date")
         .order("created_at", { ascending: false });
-      setTenants((data as any) || []);
+
+      if (!tenantData || tenantData.length === 0) { setLoading(false); return; }
+
+      // Fetch profiles separately
+      const userIds = tenantData.map(t => t.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, phone, email, nationality, is_citizen, ghana_card_no, residence_permit_no, occupation")
+        .in("user_id", userIds);
+
+      const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+
+      setTenants(tenantData.map(t => ({
+        ...t,
+        profile: profileMap.get(t.user_id) || undefined,
+      })));
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, []);
 
   const filtered = tenants.filter((t) => {
@@ -44,8 +60,8 @@ const RegulatorTenants = () => {
     const s = search.toLowerCase();
     return (
       t.tenant_id.toLowerCase().includes(s) ||
-      t.profiles?.full_name?.toLowerCase().includes(s) ||
-      t.profiles?.phone?.includes(s)
+      t.profile?.full_name?.toLowerCase().includes(s) ||
+      t.profile?.phone?.includes(s)
     );
   });
 
@@ -53,13 +69,13 @@ const RegulatorTenants = () => {
     const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Status", "Registered", "Expires"];
     const rows = filtered.map((t) => [
       t.tenant_id,
-      t.profiles?.full_name || "",
-      t.profiles?.phone || "",
-      t.profiles?.email || "",
-      t.profiles?.nationality || "",
-      t.profiles?.is_citizen ? "Yes" : "No",
-      t.profiles?.is_citizen ? t.profiles?.ghana_card_no || "" : t.profiles?.residence_permit_no || "",
-      t.profiles?.occupation || "",
+      t.profile?.full_name || "",
+      t.profile?.phone || "",
+      t.profile?.email || "",
+      t.profile?.nationality || "",
+      t.profile?.is_citizen ? "Yes" : "No",
+      t.profile?.is_citizen ? t.profile?.ghana_card_no || "" : t.profile?.residence_permit_no || "",
+      t.profile?.occupation || "",
       t.status,
       t.registration_date ? new Date(t.registration_date).toLocaleDateString() : "",
       t.expiry_date ? new Date(t.expiry_date).toLocaleDateString() : "",
@@ -112,10 +128,10 @@ const RegulatorTenants = () => {
               filtered.map((t) => (
                 <TableRow key={t.tenant_id}>
                   <TableCell className="font-mono text-sm font-semibold text-primary">{t.tenant_id}</TableCell>
-                  <TableCell className="font-medium">{t.profiles?.full_name}</TableCell>
-                  <TableCell>{t.profiles?.phone}</TableCell>
-                  <TableCell>{t.profiles?.is_citizen ? "🇬🇭 Yes" : "Permit"}</TableCell>
-                  <TableCell>{t.profiles?.occupation || "—"}</TableCell>
+                  <TableCell className="font-medium">{t.profile?.full_name || "—"}</TableCell>
+                  <TableCell>{t.profile?.phone || "—"}</TableCell>
+                  <TableCell>{t.profile?.is_citizen ? "🇬🇭 Yes" : "Permit"}</TableCell>
+                  <TableCell>{t.profile?.occupation || "—"}</TableCell>
                   <TableCell>
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
                       t.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"

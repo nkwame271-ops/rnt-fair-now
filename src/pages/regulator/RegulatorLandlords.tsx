@@ -5,33 +5,61 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
+interface LandlordRecord {
+  landlord_id: string;
+  user_id: string;
+  status: string;
+  registration_date: string | null;
+  expiry_date: string | null;
+  profile?: {
+    full_name: string;
+    phone: string;
+    email: string | null;
+    nationality: string;
+  };
+}
+
 const RegulatorLandlords = () => {
-  const [landlords, setLandlords] = useState<any[]>([]);
+  const [landlords, setLandlords] = useState<LandlordRecord[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase
+    const fetchData = async () => {
+      const { data: landlordData } = await supabase
         .from("landlords")
-        .select("landlord_id, status, registration_date, expiry_date, profiles(full_name, phone, email, nationality)")
+        .select("landlord_id, user_id, status, registration_date, expiry_date")
         .order("created_at", { ascending: false });
-      setLandlords(data || []);
+
+      if (!landlordData || landlordData.length === 0) { setLoading(false); return; }
+
+      const userIds = landlordData.map(l => l.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, phone, email, nationality")
+        .in("user_id", userIds);
+
+      const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+
+      setLandlords(landlordData.map(l => ({
+        ...l,
+        profile: profileMap.get(l.user_id) || undefined,
+      })));
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, []);
 
   const filtered = landlords.filter((l) => {
     if (!search) return true;
     const s = search.toLowerCase();
-    return l.landlord_id.toLowerCase().includes(s) || l.profiles?.full_name?.toLowerCase().includes(s);
+    return l.landlord_id.toLowerCase().includes(s) || l.profile?.full_name?.toLowerCase().includes(s);
   });
 
   const exportCSV = () => {
     const headers = ["Landlord ID", "Name", "Phone", "Email", "Status", "Registered", "Expires"];
-    const rows = filtered.map((l: any) => [
-      l.landlord_id, l.profiles?.full_name || "", l.profiles?.phone || "", l.profiles?.email || "",
+    const rows = filtered.map((l) => [
+      l.landlord_id, l.profile?.full_name || "", l.profile?.phone || "", l.profile?.email || "",
       l.status, l.registration_date ? new Date(l.registration_date).toLocaleDateString() : "",
       l.expiry_date ? new Date(l.expiry_date).toLocaleDateString() : "",
     ]);
@@ -74,12 +102,12 @@ const RegulatorLandlords = () => {
             {filtered.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No landlords found</TableCell></TableRow>
             ) : (
-              filtered.map((l: any) => (
+              filtered.map((l) => (
                 <TableRow key={l.landlord_id}>
                   <TableCell className="font-mono text-sm font-semibold text-primary">{l.landlord_id}</TableCell>
-                  <TableCell className="font-medium">{l.profiles?.full_name}</TableCell>
-                  <TableCell>{l.profiles?.phone}</TableCell>
-                  <TableCell>{l.profiles?.email || "—"}</TableCell>
+                  <TableCell className="font-medium">{l.profile?.full_name || "—"}</TableCell>
+                  <TableCell>{l.profile?.phone || "—"}</TableCell>
+                  <TableCell>{l.profile?.email || "—"}</TableCell>
                   <TableCell>
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${l.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{l.status}</span>
                   </TableCell>
