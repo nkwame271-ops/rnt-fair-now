@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -23,8 +23,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<"tenant" | "landlord" | "regulator" | null>(null);
+  const roleCache = useRef<Record<string, string>>({});
+  const initialSessionHandled = useRef(false);
 
   const fetchRole = useCallback(async (userId: string) => {
+    // Return cached role instantly if available
+    if (roleCache.current[userId]) {
+      const cached = roleCache.current[userId] as "tenant" | "landlord" | "regulator";
+      setRole(cached);
+      return cached;
+    }
     try {
       const { data, error } = await supabase
         .from("user_roles")
@@ -37,6 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return null;
       }
       const r = (data?.role as "tenant" | "landlord" | "regulator") || null;
+      if (r) roleCache.current[userId] = r;
       setRole(r);
       return r;
     } catch (err) {
@@ -49,39 +58,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let mounted = true;
 
-    // Set up auth listener FIRST — but defer async work with setTimeout
-    // to avoid deadlocks within onAuthStateChange
+    // 1. Get existing session first (fast path)
+    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+      if (!mounted) return;
+      initialSessionHandled.current = true;
+      setSession(s);
+      setUser(s?.user ?? null);
+      if (s?.user) {
+        await fetchRole(s.user.id);
+      }
+      if (mounted) setLoading(false);
+    });
+
+    // 2. Listen for future changes (sign-in, sign-out, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       if (!mounted) return;
+      // Skip if this is the initial session we already handled
+      if (!initialSessionHandled.current) return;
+
       setSession(newSession);
       setUser(newSession?.user ?? null);
 
       if (newSession?.user) {
-        // Set loading=true so ProtectedRoute shows spinner until role is ready
-        setLoading(true);
-        // Defer the role fetch to avoid Supabase internal deadlock
-        setTimeout(() => {
-          if (mounted) {
-            fetchRole(newSession.user.id).then(() => {
-              if (mounted) setLoading(false);
-            });
-          }
-        }, 0);
+        // Use cached role for instant response, fetch in background
+        const cached = roleCache.current[newSession.user.id];
+        if (cached) {
+          setRole(cached as "tenant" | "landlord" | "regulator");
+          setLoading(false);
+        } else {
+          setLoading(true);
+          fetchRole(newSession.user.id).then(() => {
+            if (mounted) setLoading(false);
+          });
+        }
       } else {
         setRole(null);
         setLoading(false);
       }
-    });
-
-    // Then check existing session
-    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
-      if (!mounted) return;
-      setSession(existingSession);
-      setUser(existingSession?.user ?? null);
-      if (existingSession?.user) {
-        await fetchRole(existingSession.user.id);
-      }
-      if (mounted) setLoading(false);
     });
 
     return () => {
@@ -91,6 +104,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchRole]);
 
   const signOut = async () => {
+    roleCache.current = {};
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
