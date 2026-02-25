@@ -31,25 +31,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .eq("user_id", userId)
       .maybeSingle();
     setRole((data?.role as any) || null);
+    return (data?.role as any) || null;
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Set up auth listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        setTimeout(() => fetchRole(session.user.id), 0);
+        await fetchRole(session.user.id);
       } else {
         setRole(null);
       }
       setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Then check existing session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchRole(session.user.id);
+        await fetchRole(session.user.id);
       }
       setLoading(false);
     });
