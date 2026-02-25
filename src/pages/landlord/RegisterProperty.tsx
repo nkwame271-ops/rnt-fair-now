@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PlusCircle, Trash2, Building2, MapPin, Upload, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { PlusCircle, Trash2, Building2, MapPin, Upload, X, Store } from "lucide-react";
 import { regions, areasByRegion, type PropertyType } from "@/data/dummyData";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -41,6 +42,7 @@ const RegisterProperty = () => {
   const [gpsLocation, setGpsLocation] = useState("");
   const [gettingGps, setGettingGps] = useState(false);
   const [propertyCondition, setPropertyCondition] = useState("");
+  const [listOnMarketplace, setListOnMarketplace] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [units, setUnits] = useState<UnitForm[]>([{
     name: "Unit A", type: "", rent: "",
@@ -98,6 +100,12 @@ const RegisterProperty = () => {
     setSubmitting(true);
 
     try {
+      if (listOnMarketplace && images.length === 0) {
+        toast.error("Please upload at least one image to list on the marketplace");
+        setSubmitting(false);
+        return;
+      }
+
       const regionCode = region.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
       const areaCode = area.slice(0, 2).toUpperCase();
       const propertyCode = `${regionCode}-${areaCode}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999)).padStart(3, "0")}`;
@@ -112,7 +120,8 @@ const RegisterProperty = () => {
         property_code: propertyCode,
         gps_location: gpsLocation || null,
         property_condition: propertyCondition || null,
-      }).select().single();
+        listed_on_marketplace: listOnMarketplace,
+      } as any).select().single();
 
       if (propErr) throw propErr;
 
@@ -215,9 +224,27 @@ const RegisterProperty = () => {
             <Textarea value={propertyCondition} onChange={(e) => setPropertyCondition(e.target.value)} placeholder="Describe overall condition, recent renovations, etc." rows={3} />
           </div>
 
+          {/* Marketplace toggle */}
+          <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-muted/50">
+            <div className="flex items-center gap-3">
+              <Store className="h-5 w-5 text-primary" />
+              <div>
+                <Label className="text-sm font-medium">List on Marketplace</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Make vacant units visible to tenants searching for rentals</p>
+              </div>
+            </div>
+            <Switch checked={listOnMarketplace} onCheckedChange={setListOnMarketplace} />
+          </div>
+
           {/* Images */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1"><Upload className="h-3.5 w-3.5" /> Property Images (up to 6)</Label>
+            <Label className="flex items-center gap-1">
+              <Upload className="h-3.5 w-3.5" /> Property Images (up to 6)
+              {listOnMarketplace && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            {listOnMarketplace && images.length === 0 && (
+              <p className="text-xs text-destructive">At least one image is required for marketplace listings</p>
+            )}
             <input type="file" accept="image/*" multiple onChange={handleImageChange} className="text-sm" />
             {images.length > 0 && (
               <div className="flex gap-2 flex-wrap mt-2">

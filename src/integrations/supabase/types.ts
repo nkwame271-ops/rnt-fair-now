@@ -202,6 +202,7 @@ export type Database = {
           gps_location: string | null
           id: string
           landlord_user_id: string
+          listed_on_marketplace: boolean
           property_code: string
           property_condition: string | null
           property_name: string | null
@@ -215,6 +216,7 @@ export type Database = {
           gps_location?: string | null
           id?: string
           landlord_user_id: string
+          listed_on_marketplace?: boolean
           property_code: string
           property_condition?: string | null
           property_name?: string | null
@@ -228,6 +230,7 @@ export type Database = {
           gps_location?: string | null
           id?: string
           landlord_user_id?: string
+          listed_on_marketplace?: boolean
           property_code?: string
           property_condition?: string | null
           property_name?: string | null
