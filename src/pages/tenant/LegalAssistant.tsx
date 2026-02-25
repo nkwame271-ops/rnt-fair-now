@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Send, Bot, User, Info } from "lucide-react";
+import { MessageSquare, Send, Bot, User, Info, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 const suggestedQuestions = [
   "What is the maximum advance rent allowed?",
@@ -12,45 +13,48 @@ const suggestedQuestions = [
   "What are my rights as a tenant in Ghana?",
 ];
 
-const dummyResponses: Record<string, string> = {
-  "What is the maximum advance rent allowed?":
-    "Under Ghanaian law, landlords can demand a maximum of 6 months' advance rent for residential properties. Any demand exceeding this limit is a violation and can be reported to Rent Control.",
-  "Can my landlord evict me without notice?":
-    "No. A landlord must provide proper notice before eviction. The notice period depends on your rental agreement, but typically ranges from 1 to 3 months. Unlawful eviction can be reported to the police and Rent Control.",
-  "How do I file a complaint with Rent Control?":
-    "You can file a complaint directly through this app by clicking 'File Complaint' in the menu. You'll need your landlord's details, property address, and a description of the issue. You can also visit your nearest Rent Control office.",
-  "What is an illegal rent increase?":
-    "An illegal rent increase is any increase that exceeds the agreed terms without proper notice or justification. Landlords must give reasonable notice and cannot increase rent during an active agreement period.",
-  "What are my rights as a tenant in Ghana?":
-    "As a tenant in Ghana, you have the right to: a registered tenancy agreement, protection from unlawful eviction, fair rent pricing, proper receipts for payments, and the ability to file complaints with Rent Control.",
-};
-
 const LegalAssistant = () => {
   const [messages, setMessages] = useState<{ role: "bot" | "user"; text: string }[]>([
-    { role: "bot", text: "Hello! I'm your legal assistant. I can help you understand your tenant rights in Ghana. Ask me anything or pick a suggested question below." },
+    { role: "bot", text: "Hello! I'm your legal assistant powered by AI. I can help you understand your tenant rights under Ghana's Rent Act (Act 220). Ask me anything or pick a suggested question below." },
   ]);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSend = (text: string) => {
-    if (!text.trim()) return;
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async (text: string) => {
+    if (!text.trim() || loading) return;
     const userMsg = text.trim();
-    setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
+    const updatedMessages = [...messages, { role: "user" as const, text: userMsg }];
+    setMessages(updatedMessages);
     setInput("");
+    setLoading(true);
 
-    // Simulate response
-    setTimeout(() => {
-      const response =
-        dummyResponses[userMsg] ||
-        "That's a great question! In a full implementation, I would provide detailed legal guidance based on Ghana's Rent Act (Act 220). For now, please visit your nearest Rent Control office or call the hotline for specific legal advice.";
-      setMessages((prev) => [...prev, { role: "bot", text: response }]);
-    }, 800);
+    try {
+      const { data, error } = await supabase.functions.invoke("legal-assistant", {
+        body: {
+          question: userMsg,
+          history: updatedMessages.slice(-10), // last 10 messages for context
+        },
+      });
+
+      if (error) throw error;
+      setMessages(prev => [...prev, { role: "bot", text: data.reply }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: "bot", text: "I'm having trouble connecting right now. Please try again or visit your nearest Rent Control office for assistance." }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-8rem)]">
       <div className="mb-4">
         <h1 className="text-3xl font-bold text-foreground">Legal Assistant</h1>
-        <p className="text-muted-foreground mt-1">AI-powered guidance on tenant rights</p>
+        <p className="text-muted-foreground mt-1">AI-powered guidance on tenant rights under Act 220</p>
       </div>
 
       <div className="flex items-start gap-2 text-xs text-muted-foreground bg-warning/5 p-3 rounded-lg border border-warning/20 mb-4">
@@ -73,7 +77,7 @@ const LegalAssistant = () => {
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-xl p-4 text-sm ${
+              className={`max-w-[80%] rounded-xl p-4 text-sm whitespace-pre-wrap ${
                 msg.role === "user"
                   ? "bg-primary text-primary-foreground"
                   : "bg-card border border-border text-card-foreground"
@@ -88,6 +92,17 @@ const LegalAssistant = () => {
             )}
           </motion.div>
         ))}
+        {loading && (
+          <div className="flex gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Bot className="h-4 w-4 text-primary" />
+            </div>
+            <div className="bg-card border border-border rounded-xl p-4">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Suggested Questions */}
@@ -113,8 +128,9 @@ const LegalAssistant = () => {
           onKeyDown={(e) => e.key === "Enter" && handleSend(input)}
           placeholder="Ask about your tenant rights..."
           className="flex-1"
+          disabled={loading}
         />
-        <Button onClick={() => handleSend(input)} size="icon">
+        <Button onClick={() => handleSend(input)} size="icon" disabled={loading || !input.trim()}>
           <Send className="h-4 w-4" />
         </Button>
       </div>

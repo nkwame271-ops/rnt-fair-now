@@ -9,12 +9,16 @@ import { CheckCircle2, FileText, MapPin, Info, ArrowRight, ArrowLeft } from "luc
 import { complaintTypes, regions, areasByRegion } from "@/data/dummyData";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 const steps = ["Complaint Type", "Property Details", "Description", "Review & Submit"];
 
 const FileComplaint = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     type: "",
     landlordName: "",
@@ -30,9 +34,31 @@ const FileComplaint = () => {
   const update = (key: string, value: string) => setForm({ ...form, [key]: value });
   const areas = form.region ? areasByRegion[form.region] || [] : [];
 
-  const handleSubmit = () => {
-    toast.success("Complaint submitted successfully! Reference: RC-2026-00203");
-    navigate("/tenant/my-cases");
+  const handleSubmit = async () => {
+    if (!user) return;
+    setSubmitting(true);
+    try {
+      const complaintCode = `RC-${new Date().getFullYear()}-${String(Math.floor(10000 + Math.random() * 90000))}`;
+
+      const { error } = await supabase.from("complaints").insert({
+        tenant_user_id: user.id,
+        complaint_code: complaintCode,
+        complaint_type: form.type,
+        landlord_name: form.landlordName,
+        property_address: form.address,
+        region: form.region,
+        description: form.description,
+        status: "submitted",
+      });
+
+      if (error) throw error;
+      toast.success(`Complaint submitted! Reference: ${complaintCode}`);
+      navigate("/tenant/my-cases");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit complaint");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -162,8 +188,8 @@ const FileComplaint = () => {
             Next <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         ) : (
-          <Button onClick={handleSubmit}>
-            Submit Complaint <FileText className="h-4 w-4 ml-1" />
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting ? "Submitting..." : "Submit Complaint"} <FileText className="h-4 w-4 ml-1" />
           </Button>
         )}
       </div>

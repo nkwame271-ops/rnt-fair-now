@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Eye, Check, X, Calendar, User } from "lucide-react";
+import { Eye, Check, X, Calendar, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -17,7 +17,26 @@ const LandlordViewingRequests = () => {
       .select("*, units(unit_name, unit_type, monthly_rent), properties(property_name, address)")
       .eq("landlord_user_id", user.id)
       .order("created_at", { ascending: false });
-    setRequests(data || []);
+
+    if (!data || data.length === 0) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch tenant names
+    const tenantUserIds = [...new Set(data.map(r => r.tenant_user_id))];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, full_name, phone")
+      .in("user_id", tenantUserIds);
+
+    const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+
+    setRequests(data.map(r => ({
+      ...r,
+      tenantProfile: profileMap.get(r.tenant_user_id),
+    })));
     setLoading(false);
   };
 
@@ -29,7 +48,7 @@ const LandlordViewingRequests = () => {
     fetchRequests();
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -58,6 +77,14 @@ const LandlordViewingRequests = () => {
                   req.status === "declined" ? "bg-destructive/10 text-destructive" :
                   "bg-muted text-muted-foreground"
                 }`}>{req.status}</span>
+              </div>
+              {/* Tenant info */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                <User className="h-3.5 w-3.5" />
+                <span>
+                  <strong className="text-card-foreground">{req.tenantProfile?.full_name || "Unknown Tenant"}</strong>
+                  {req.tenantProfile?.phone && ` · ${req.tenantProfile.phone}`}
+                </span>
               </div>
               {req.preferred_date && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
