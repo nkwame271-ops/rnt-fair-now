@@ -173,7 +173,7 @@ const Payments = () => {
         <div className="space-y-1">
           <p className="font-semibold text-foreground text-sm">How rent payment works</p>
           <p>Your monthly rent of <strong>GH₵ {tenancy.agreed_rent.toLocaleString()}</strong> includes an 8% government tax of <strong>GH₵ {(tenancy.agreed_rent * 0.08).toLocaleString()}</strong>.</p>
-          <p>You pay the tax through this app via Paystack. This validates your tenancy. The remaining <strong>GH₵ {(tenancy.agreed_rent * 0.92).toLocaleString()}</strong> goes directly to your landlord.</p>
+          <p>You pay the tax through this app. This validates your tenancy. The remaining <strong>GH₵ {(tenancy.agreed_rent * 0.92).toLocaleString()}</strong> goes directly to your landlord.</p>
         </div>
       </div>
 
@@ -193,7 +193,7 @@ const Payments = () => {
           </div>
           <Button className="w-full" size="lg" onClick={() => handlePayTax(nextUnpaid.id)} disabled={paying === nextUnpaid.id}>
             <CreditCard className="h-4 w-4 mr-2" />
-            {paying === nextUnpaid.id ? "Redirecting..." : `Pay GH₵ ${nextUnpaid.tax_amount.toLocaleString()} via Paystack`}
+            {paying === nextUnpaid.id ? "Redirecting..." : `Pay GH₵ ${nextUnpaid.tax_amount.toLocaleString()} Online`}
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-3">After tax payment, pay GH₵ {nextUnpaid.amount_to_landlord.toLocaleString()} directly to {tenancy.landlordName}</p>
         </motion.div>
