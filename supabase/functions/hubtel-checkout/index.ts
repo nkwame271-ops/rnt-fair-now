@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -6,14 +5,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Not authenticated");
+    if (!authHeader?.startsWith("Bearer ")) {
+      throw new Error("Not authenticated");
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -21,8 +22,10 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) throw new Error("Not authenticated");
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) throw new Error("Not authenticated");
+    const userId = claimsData.claims.sub as string;
 
     const { paymentId } = await req.json();
     if (!paymentId) throw new Error("paymentId is required");
@@ -35,14 +38,14 @@ serve(async (req) => {
       .single();
 
     if (payErr || !payment) throw new Error("Payment not found");
-    if (payment.tenancy.tenant_user_id !== user.id) throw new Error("Unauthorized");
+    if ((payment as any).tenancy.tenant_user_id !== userId) throw new Error("Unauthorized");
     if (payment.tenant_marked_paid) throw new Error("Already paid");
 
     // Get tenant profile for customer info
     const { data: profile } = await supabase
       .from("profiles")
       .select("full_name, email, phone")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     const HUBTEL_API_ID = Deno.env.get("PAYMENT_API_ID")!;
@@ -55,7 +58,7 @@ serve(async (req) => {
 
     const payload = {
       totalAmount: Number(payment.tax_amount),
-      description: `Rent tax for ${payment.month_label} - ${payment.tenancy.registration_code}`,
+      description: `Rent tax for ${payment.month_label} - ${(payment as any).tenancy.registration_code}`,
       callbackUrl,
       returnUrl: `${returnUrl}/tenant/payments?status=success`,
       cancellationUrl: `${returnUrl}/tenant/payments?status=cancelled`,
@@ -66,6 +69,8 @@ serve(async (req) => {
       customerMsisdn: profile?.phone || "",
       customerEmail: profile?.email || "",
     };
+
+    console.log("Hubtel checkout payload:", JSON.stringify(payload));
 
     const response = await fetch(
       "https://payproxyapi.hubtel.com/items/initiate",
@@ -80,10 +85,11 @@ serve(async (req) => {
     );
 
     const result = await response.json();
+    console.log("Hubtel response:", JSON.stringify(result));
 
     if (!response.ok || result.responseCode !== "0000") {
       console.error("Hubtel error:", JSON.stringify(result));
-      throw new Error(result.message || "Failed to initiate payment");
+      throw new Error(result.message || result.data?.message || "Failed to initiate payment");
     }
 
     return new Response(JSON.stringify({

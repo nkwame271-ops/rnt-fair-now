@@ -9,6 +9,7 @@ import {
   Shield,
   Menu,
   AlertTriangle,
+  UserPlus,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,6 +21,7 @@ const navItems = [
   { to: "/regulator/properties", label: "Properties", icon: Building2 },
   { to: "/regulator/complaints", label: "Complaints", icon: AlertTriangle },
   { to: "/regulator/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/regulator/invite-staff", label: "Invite Staff", icon: UserPlus },
 ];
 
 const RegulatorLayout = () => {
