@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Shield, User, Phone, Mail, MapPin, CreditCard, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Truck, Building2, Lock, Globe } from "lucide-react";
+import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Truck, Building2, Lock, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import { regions } from "@/data/dummyData";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-const steps = ["Personal Info", "Delivery Address", "Payment", "Your Landlord ID"];
+const steps = ["Personal Info", "Delivery Address", "Your Landlord ID"];
 
 const RegisterLandlord = () => {
   const navigate = useNavigate();
@@ -32,26 +32,27 @@ const RegisterLandlord = () => {
   const [deliveryRegion, setDeliveryRegion] = useState("");
   const [deliveryLandmark, setDeliveryLandmark] = useState("");
 
-  const [payingHubtel, setPayingHubtel] = useState(false);
   const [generatedId, setGeneratedId] = useState("");
 
   const canProceed = () => {
     if (step === 0) return fullName && phone && email && password && (isCitizen ? ghanaCardNo : residencePermitNo) && region;
     if (step === 1) return deliveryAddress && deliveryCity && deliveryRegion;
-    if (step === 2) return true;
     return true;
   };
 
   const handleNext = async () => {
-    if (step === 1) {
-      setStep(2);
+    if (step === 0) {
+      setStep(1);
       return;
     }
-    setStep(step + 1);
+    if (step === 1) {
+      await handleCreateAccount();
+      return;
+    }
   };
 
-  const handleCreateAndPay = async () => {
-    setPayingHubtel(true);
+  const handleCreateAccount = async () => {
+    setLoading(true);
     try {
       let userId: string;
 
@@ -71,24 +72,16 @@ const RegisterLandlord = () => {
             toast.error("This email is already registered. Please sign in instead.", {
               action: { label: "Go to Login", onClick: () => navigate("/login?role=landlord") },
             });
-            setPayingHubtel(false);
+            setLoading(false);
             return;
           }
           userId = signInData.user.id;
 
           const { data: existingLandlord } = await supabase.from("landlords").select("landlord_id, registration_fee_paid").eq("user_id", userId).maybeSingle();
-          if (existingLandlord?.registration_fee_paid) {
-            toast.success("You're already registered! Redirecting to dashboard...");
+          if (existingLandlord) {
+            toast.success("Welcome back! Redirecting to dashboard...");
             navigate("/landlord/dashboard");
             return;
-          }
-          if (existingLandlord) {
-            setGeneratedId(existingLandlord.landlord_id);
-            const { data, error } = await supabase.functions.invoke("hubtel-checkout", { body: { type: "landlord_registration" } });
-            if (error) throw new Error(error.message || "Payment initiation failed");
-            if (data?.error) throw new Error(data.error);
-            if (data?.checkoutUrl) { window.location.href = data.checkoutUrl; return; }
-            throw new Error("No checkout URL received");
           }
         } else {
           throw authError;
@@ -118,47 +111,13 @@ const RegisterLandlord = () => {
       });
 
       setGeneratedId(landlordId);
-
-      // Initiate Hubtel checkout
-      const { data, error } = await supabase.functions.invoke("hubtel-checkout", {
-        body: { type: "landlord_registration" },
-      });
-
-      if (error) throw new Error(error.message || "Payment initiation failed");
-      if (data?.error) throw new Error(data.error);
-
-      if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else {
-        throw new Error("No checkout URL received");
-      }
+      setStep(2);
     } catch (err: any) {
       toast.error(err.message || "Registration failed");
-      setPayingHubtel(false);
+    } finally {
+      setLoading(false);
     }
   };
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("status") === "success") {
-      toast.success("Payment confirmed! Your Landlord ID registration is complete.");
-      window.history.replaceState({}, "", window.location.pathname);
-      const checkRegistration = async () => {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser) {
-          const { data: landlord } = await supabase.from("landlords").select("landlord_id, registration_fee_paid").eq("user_id", currentUser.id).single();
-          if (landlord) {
-            setGeneratedId(landlord.landlord_id);
-            setStep(3);
-          }
-        }
-      };
-      checkRegistration();
-    } else if (params.get("status") === "cancelled") {
-      toast.error("Payment was cancelled. Please try again.");
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
 
   const handleFinish = () => {
     navigate("/landlord/dashboard");
@@ -322,24 +281,6 @@ const RegisterLandlord = () => {
               )}
 
               {step === 2 && (
-                <div className="space-y-5">
-                  <div>
-                    <h1 className="text-2xl font-bold text-foreground">Pay Registration Fee</h1>
-                    <p className="text-muted-foreground mt-1">Annual Landlord ID registration — GH₵ 50.00</p>
-                  </div>
-                  <div className="bg-card rounded-xl border border-border p-5 space-y-3">
-                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Landlord ID Registration</span><span className="font-semibold text-foreground">GH₵ 50.00</span></div>
-                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">ID Card Printing & Delivery</span><span className="font-semibold text-foreground">Included</span></div>
-                    <div className="border-t border-border pt-3 flex justify-between"><span className="font-semibold text-foreground">Total</span><span className="text-xl font-extrabold text-primary">GH₵ 50.00</span></div>
-                  </div>
-                  <div className="bg-info/5 p-4 rounded-lg border border-info/20 flex items-start gap-2 text-sm text-muted-foreground">
-                    <CreditCard className="h-4 w-4 text-info shrink-0 mt-0.5" />
-                    <span>You'll be redirected to Hubtel to complete payment via Mobile Money, Bank Card, or other methods. Your account will be created and activated once payment is confirmed.</span>
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
                 <div className="space-y-6 text-center py-8">
                   <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", duration: 0.5 }}
                     className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
@@ -352,13 +293,13 @@ const RegisterLandlord = () => {
                   <div className="bg-card rounded-xl border-2 border-primary/30 p-6 inline-block mx-auto">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Your Landlord ID</p>
                     <p className="text-3xl font-extrabold text-primary tracking-wider">{generatedId}</p>
-                    <p className="text-xs text-muted-foreground mt-2">Valid until {new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</p>
+                    <p className="text-xs text-muted-foreground mt-2">Pay registration fee on your dashboard to activate</p>
                   </div>
                   <div className="bg-muted rounded-xl p-5 text-left space-y-3 max-w-sm mx-auto">
                     <h3 className="font-semibold text-foreground text-sm">What's next?</h3>
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Check your email to verify your account</li>
-                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Your physical ID card will arrive in 5–7 days</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 50 registration fee from your dashboard</li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Register properties and add tenants</li>
                     </ul>
                   </div>
@@ -370,12 +311,7 @@ const RegisterLandlord = () => {
           <div className="mt-8">
             {step < 2 ? (
               <Button onClick={handleNext} disabled={!canProceed() || loading} className="w-full h-12 text-base font-semibold">
-                Continue <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            ) : step === 2 ? (
-              <Button onClick={handleCreateAndPay} disabled={payingHubtel} className="w-full h-12 text-base font-semibold">
-                <CreditCard className="mr-2 h-4 w-4" />
-                {payingHubtel ? "Redirecting to Hubtel..." : "Pay GH₵ 50.00 via Hubtel"}
+                {loading ? "Creating account..." : "Continue"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
               <Button onClick={handleFinish} className="w-full h-12 text-base font-semibold">
