@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import KycGate from "@/components/KycGate";
 import PropertyLocationPicker from "@/components/PropertyLocationPicker";
+import RouteErrorBoundary from "@/components/RouteErrorBoundary";
 interface UnitForm {
   name: string;
   type: PropertyType | "";
@@ -53,9 +54,22 @@ const RegisterProperty = () => {
     electricityAvailable: false, hasBorehole: false, hasPolytank: false,
     amenities: [], customAmenities: "",
   }]);
-
   const areas = region ? areasByRegion[region] || [] : [];
   const effectiveArea = customArea.trim() || area;
+
+  const DEBUG_REGISTER_PROPERTY_SMOKE_TEST = false;
+
+  if (import.meta.env.DEV) {
+    console.log("[RegisterProperty] render", {
+      hasUser: !!user,
+      region,
+      area,
+      gpsLocation,
+      gpsConfirmed,
+      unitsCount: units.length,
+      listOnMarketplace,
+    });
+  }
 
   const addUnit = () => setUnits([...units, {
     name: `Unit ${String.fromCharCode(65 + units.length)}`, type: "", rent: "",
@@ -78,6 +92,10 @@ const RegisterProperty = () => {
   };
 
   const removeImage = (idx: number) => setImages(images.filter((_, i) => i !== idx));
+
+  if (DEBUG_REGISTER_PROPERTY_SMOKE_TEST) {
+    return <div className="max-w-3xl mx-auto text-foreground">Test Render Works</div>;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,18 +257,36 @@ const RegisterProperty = () => {
             </div>
 
             {/* GPS — Interactive Map Picker with confirmation */}
-            <PropertyLocationPicker
-              region={region}
-              value={gpsLocation}
-              required={true}
-              confirmed={gpsConfirmed}
-              ghanaPostGps={ghanaPostGps}
-              onLocationChange={(loc) => {
-                setGpsLocation(loc ? `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}` : "");
-              }}
-              onConfirmChange={setGpsConfirmed}
-              onGhanaPostGpsChange={setGhanaPostGps}
-            />
+            <RouteErrorBoundary routeName="RegisterProperty.PropertyLocationPicker">
+              <PropertyLocationPicker
+                region={region}
+                value={gpsLocation}
+                required={true}
+                confirmed={gpsConfirmed}
+                ghanaPostGps={ghanaPostGps}
+                onLocationChange={(loc) => {
+                  if (import.meta.env.DEV) {
+                    console.log("[RegisterProperty] onLocationChange", {
+                      loc,
+                      isArray: Array.isArray(loc),
+                      type: typeof loc,
+                    });
+                  }
+                  setGpsLocation(loc ? `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}` : "");
+                }}
+                onConfirmChange={(next) => {
+                  if (import.meta.env.DEV) {
+                    console.log("[RegisterProperty] onConfirmChange", {
+                      next,
+                      isArray: Array.isArray(next),
+                      type: typeof next,
+                    });
+                  }
+                  setGpsConfirmed(!!next);
+                }}
+                onGhanaPostGpsChange={setGhanaPostGps}
+              />
+            </RouteErrorBoundary>
 
             {/* Property condition */}
             <div className="space-y-2">

@@ -115,7 +115,7 @@ const PropertyLocationPicker = ({
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    const map = L.map(mapContainerRef.current, { zoomControl: true });
+    const map = L.map(mapContainerRef.current, { zoomControl: true }).setView([7.9465, -1.0232], 7);
     mapInstanceRef.current = map;
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {

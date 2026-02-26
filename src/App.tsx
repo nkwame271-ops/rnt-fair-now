@@ -42,6 +42,7 @@ import RegulatorFeedback from "./pages/regulator/RegulatorFeedback";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import NotFound from "./pages/NotFound";
+import RouteErrorBoundary from "@/components/RouteErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -78,7 +79,7 @@ const App = () => (
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<LandlordDashboard />} />
               <Route path="my-properties" element={<MyProperties />} />
-              <Route path="register-property" element={<RegisterProperty />} />
+              <Route path="register-property" element={<RouteErrorBoundary routeName="Landlord Register Property"><RegisterProperty /></RouteErrorBoundary>} />
               <Route path="agreements" element={<Agreements />} />
               <Route path="add-tenant" element={<KycGate action="add a tenant"><AddTenant /></KycGate>} />
               <Route path="viewing-requests" element={<LandlordViewingRequests />} />
