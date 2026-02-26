@@ -1,45 +1,75 @@
 
 
-## KYC Verification Flow — Issues Found
+## KYC Verification Flow — End-to-End Fix Plan
 
-After reviewing the full codebase and database, I identified **one critical bug** that will break the regulator's ability to review KYC submissions. The tenant-side upload and selfie capture code looks correct after the recent fixes.
+After investigating the code, database, and RLS policies, I found the root cause of the "Submit for Verification" button not working, plus additional issues to fix.
 
 ---
 
-### Critical Bug: Regulator KYC Review Shows Broken Images
+### Critical Bug: RLS Policy Blocks Resubmission After Rejection
 
-**Problem**: The `identity-documents` storage bucket is **private**. The `KycVerificationCard.tsx` now correctly stores **file paths** (e.g., `user-id/ghana-card-front-123.jpg`) in the database instead of public URLs. However, `RegulatorKyc.tsx` still uses those stored values directly as `<img src={...}>` — which will fail because they're just paths, not accessible URLs.
+The `kyc_verifications` table has this UPDATE policy:
 
-**Lines affected**: `RegulatorKyc.tsx` lines 181, 187, 193 — all three `<img>` tags in the review dialog.
+```
+"Users can update own pending kyc" → USING ((auth.uid() = user_id) AND (status = 'pending'))
+```
 
-**Fix**: When a regulator opens the review dialog, generate **signed URLs** from the stored file paths using `supabase.storage.from("identity-documents").createSignedUrl(path, 600)`. This gives temporary 10-minute access to view the images.
+When a regulator **rejects** a KYC submission, the status becomes `'rejected'`. The UI correctly shows the form again for resubmission, but when the user clicks "Submit for Verification," the code tries to **update** the existing record (line 154). The RLS policy blocks this because `status = 'rejected'`, not `'pending'`. The update silently fails — no error is shown because the code doesn't check the result.
+
+### Bug #2: Silent Failures in handleSubmit
+
+Lines 153-173 of `KycVerificationCard.tsx` perform `update` or `insert` without checking for errors. If RLS blocks the operation, the user sees "KYC documents submitted!" but nothing actually saved.
+
+---
 
 ### Changes
 
-1. **`src/pages/regulator/RegulatorKyc.tsx`**:
-   - Add a `signedUrls` state object (`{ front: string, back: string, selfie: string }`)
-   - When `selectedRecord` is set (review dialog opens), call `createSignedUrl` for each of the 3 file paths
-   - Replace the direct `src={selectedRecord.ghana_card_front_url}` references with the signed URL state values
-   - Show a loading spinner while signed URLs are being generated
+**1. Fix RLS policy on `kyc_verifications`** (database migration)
 
-### No other changes needed
+Drop the restrictive update policy and replace it with one that allows users to update their own record when status is `pending` OR `rejected`:
 
-- **Selfie camera**: The implementation with `onPlaying`, `cameraReady` state, `muted` attribute, and explicit `play()` call is correct. The capture button is properly disabled until the stream is active.
-- **Photo upload**: Files upload to the private bucket correctly. The paths are stored in the database. The `kyc-face-match` edge function already uses the service role to generate signed URLs for AI processing.
-- **KycVerificationCard.tsx**: Already stores paths (not public URLs) and passes paths to the face-match function — this is correct.
+```sql
+DROP POLICY "Users can update own pending kyc" ON kyc_verifications;
+CREATE POLICY "Users can update own non-verified kyc"
+  ON kyc_verifications FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id AND status IN ('pending', 'rejected'));
+```
+
+**2. Fix error handling in `KycVerificationCard.tsx`**
+
+In `handleSubmit`, capture the `error` from both the `update` and `insert` calls and throw if present. This ensures the user sees a proper error toast instead of a false success message.
+
+```typescript
+// For update:
+const { error } = await supabase.from("kyc_verifications").update({...}).eq("id", kyc.id);
+if (error) throw error;
+
+// For insert:
+const { error } = await supabase.from("kyc_verifications").insert({...});
+if (error) throw error;
+```
+
+**3. No other changes needed**
+
+- Storage bucket policies are correct — users can upload to their own folder, regulators can read all docs
+- `RegulatorKyc.tsx` already generates signed URLs for the review dialog (verified in current code)
+- Camera/selfie capture code is correct with `onPlaying`, `cameraReady`, and `muted` attributes
+- The `kyc-face-match` edge function works (logs show successful 90% match score)
+- The KycGate component correctly gates actions behind verification
 
 ---
 
-### Technical Detail
+### Technical Summary
 
 ```text
-Current flow (broken):
-  DB stores: "user-id/ghana-card-front-123.jpg"
-  RegulatorKyc.tsx: <img src="user-id/ghana-card-front-123.jpg" />  ← 404
+Current flow (broken for resubmission):
+  User rejected → clicks "Submit" → UPDATE where status='rejected'
+  → RLS blocks (only allows status='pending') → silent failure → false success toast
 
 Fixed flow:
-  DB stores: "user-id/ghana-card-front-123.jpg"
-  RegulatorKyc.tsx: createSignedUrl("user-id/ghana-card-front-123.jpg")
-                    → <img src="https://...supabase.co/storage/...?token=..." />  ← works
+  User rejected → clicks "Submit" → UPDATE where status IN ('pending','rejected')
+  → RLS allows → files upload → AI match runs → record updated → real success
+  → error handling catches any failure → proper error toast
 ```
 
