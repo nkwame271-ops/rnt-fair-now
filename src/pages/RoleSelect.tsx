@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Building2, Users, ArrowRight, Lock } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 import rcdLogo from "@/assets/rcd-logo.png";
+import coatOfArms from "@/assets/ghana-coat-of-arms.png";
 
 const RoleSelect = () => {
   const navigate = useNavigate();
@@ -15,12 +16,13 @@ const RoleSelect = () => {
         <div className="absolute inset-0 gradient-hero opacity-85" />
         <div className="relative z-10 px-4 py-16 sm:py-24 text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="flex items-center justify-center gap-4 mb-4">
               <div className="bg-white/90 rounded-2xl p-2 shadow-lg backdrop-blur-sm">
                 <img src={rcdLogo} alt="RCD Logo" className="h-16 w-16 object-contain" />
               </div>
-              <span className="text-sm font-semibold tracking-widest uppercase text-secondary">Ghana Rent Control</span>
+              <img src={coatOfArms} alt="Ghana Coat of Arms" className="h-20 w-20 object-contain drop-shadow-lg" />
             </div>
+            <span className="inline-block text-sm font-semibold tracking-widest uppercase text-secondary mb-2">Republic of Ghana · Rent Control Department</span>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-primary-foreground mb-4 leading-tight">
               Protecting Tenants.<br />Empowering Landlords.
             </h1>
