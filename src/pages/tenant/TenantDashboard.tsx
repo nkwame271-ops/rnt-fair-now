@@ -115,7 +115,7 @@ const TenantDashboard = () => {
           { label: "Active Cases", value: activeCases, icon: AlertTriangle, color: "text-destructive" },
           { label: "Months Valid", value: tenancy ? `${tenancy.paidMonths}/${tenancy.totalMonths}` : "—", icon: Shield, color: "text-success" },
           { label: "Months Pending", value: tenancy ? tenancy.totalMonths - tenancy.paidMonths : "—", icon: Clock, color: "text-warning" },
-          { label: "Next Tax Due", value: tenancy?.nextTax ? `GH₵${tenancy.nextTax}` : "—", icon: CreditCard, color: "text-info" },
+          { label: "Next Tax Due", value: tenancy?.nextTax ? `GH₵ ${tenancy.nextTax.toLocaleString()}` : "—", icon: CreditCard, color: "text-info" },
         ].map((stat) => (
           <div key={stat.label} className="bg-card rounded-xl p-5 shadow-card border border-border">
             <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
