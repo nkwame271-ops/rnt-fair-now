@@ -17,8 +17,8 @@ const RoleSelect = () => {
         <div className="relative z-10 px-4 py-16 sm:py-24 text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="flex items-center justify-center gap-4 mb-4">
-              <div className="bg-white rounded-2xl p-3 shadow-lg">
-                <img src={rcdLogo} alt="RCD Logo" className="h-20 w-20 object-contain" />
+              <div>
+                <img src={rcdLogo} alt="RCD Logo" className="h-20 w-20 object-contain drop-shadow-lg" />
               </div>
               <img src={coatOfArms} alt="Ghana Coat of Arms" className="h-20 w-20 object-contain drop-shadow-lg" />
             </div>
@@ -66,7 +66,7 @@ const RoleSelect = () => {
             <h2 className="text-2xl font-bold text-card-foreground">I'm a Landlord</h2>
             <p className="text-muted-foreground">Register properties, manage tenants, register agreements, and stay compliant with the law.</p>
             <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2 inline-block">
-              Registration: <span className="font-semibold text-foreground">GH₵ 50/year</span> · Get your Landlord ID
+              Registration: <span className="font-semibold text-foreground">GH₵ 2 /year</span> · Get your Landlord ID
             </div>
             <div className="flex gap-3">
               <button onClick={() => navigate("/register/landlord")}
