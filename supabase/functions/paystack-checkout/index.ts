@@ -69,8 +69,8 @@ Deno.serve(async (req) => {
       if (!tenant) throw new Error("Tenant record not found");
       if (tenant.registration_fee_paid) throw new Error("Registration fee already paid");
 
-      totalAmount = 50;
-      description = "Tenant ID Registration - Annual Fee (GH₵ 50)";
+      totalAmount = 2;
+      description = "Tenant ID Registration - Annual Fee (GH₵ 2)";
       reference = `treg_${userId}_${Date.now()}`;
       callbackPath = "/tenant/dashboard?status=success";
 
@@ -84,8 +84,8 @@ Deno.serve(async (req) => {
       if (!landlord) throw new Error("Landlord record not found");
       if (landlord.registration_fee_paid) throw new Error("Registration fee already paid");
 
-      totalAmount = 50;
-      description = "Landlord ID Registration - Annual Fee (GH₵ 50)";
+      totalAmount = 2;
+      description = "Landlord ID Registration - Annual Fee (GH₵ 2)";
       reference = `lreg_${userId}_${Date.now()}`;
       callbackPath = "/landlord/dashboard?status=success";
 
@@ -103,8 +103,8 @@ Deno.serve(async (req) => {
       if (complaint.tenant_user_id !== userId) throw new Error("Unauthorized");
       if (complaint.status !== "pending_payment") throw new Error("Complaint not awaiting payment");
 
-      totalAmount = 20;
-      description = "Complaint Filing Fee (GH₵ 20)";
+      totalAmount = 2;
+      description = "Complaint Filing Fee (GH₵ 2)";
       reference = `comp_${complaintId}`;
       callbackPath = "/tenant/my-cases?status=success";
 

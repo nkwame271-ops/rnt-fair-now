@@ -184,7 +184,7 @@ const FileComplaint = () => {
               <div><span className="text-muted-foreground">Amount:</span> <span className="font-semibold text-card-foreground">GH₵ {form.amount || "—"}</span></div>
             </div>
             <div className="bg-card rounded-lg border border-border p-4 space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Complaint Filing Fee</span><span className="font-semibold text-primary">GH₵ 20.00</span></div>
+              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Complaint Filing Fee</span><span className="font-semibold text-primary">GH₵ 2.00</span></div>
               <p className="text-xs text-muted-foreground">You'll be redirected to make an online payment for the filing fee. Your complaint will be submitted once payment is confirmed.</p>
             </div>
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-info/5 p-3 rounded-lg border border-info/20">
@@ -205,7 +205,7 @@ const FileComplaint = () => {
           </Button>
         ) : (
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Processing..." : "Pay GH₵ 20 & Submit"} <FileText className="h-4 w-4 ml-1" />
+            {submitting ? "Processing..." : "Pay GH₵ 2 & Submit"} <FileText className="h-4 w-4 ml-1" />
           </Button>
         )}
       </div>
