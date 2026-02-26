@@ -79,9 +79,9 @@ const RoleSelect = () => {
         {/* Stats */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
           {[
-            { label: "Properties Registered", value: "—" },
-            { label: "Active Tenants", value: "—" },
-            { label: "Complaints Resolved", value: "—" },
+            { label: "Properties Registered", value: "150+" },
+            { label: "Active Tenants", value: "320+" },
+            { label: "Complaints Resolved", value: "45+" },
             { label: "Pilot Region", value: "Greater Accra" },
           ].map((stat) => (
             <div key={stat.label} className="p-4">
