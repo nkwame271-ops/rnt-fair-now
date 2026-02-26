@@ -33,6 +33,28 @@ const RegulatorKyc = () => {
   const [selectedRecord, setSelectedRecord] = useState<KycRecord | null>(null);
   const [notes, setNotes] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [signedUrls, setSignedUrls] = useState<{ front: string; back: string; selfie: string }>({ front: "", back: "", selfie: "" });
+  const [loadingUrls, setLoadingUrls] = useState(false);
+
+  const generateSignedUrls = async (record: KycRecord) => {
+    setLoadingUrls(true);
+    const urls = { front: "", back: "", selfie: "" };
+    const paths = [
+      { key: "front" as const, path: record.ghana_card_front_url },
+      { key: "back" as const, path: record.ghana_card_back_url },
+      { key: "selfie" as const, path: record.selfie_url },
+    ];
+    await Promise.all(
+      paths.map(async ({ key, path }) => {
+        if (path) {
+          const { data } = await supabase.storage.from("identity-documents").createSignedUrl(path, 600);
+          if (data?.signedUrl) urls[key] = data.signedUrl;
+        }
+      })
+    );
+    setSignedUrls(urls);
+    setLoadingUrls(false);
+  };
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -144,7 +166,7 @@ const RegulatorKyc = () => {
                   <div className="flex items-center gap-2">
                     {aiMatchBadge(r.ai_match_result, r.ai_match_score)}
                     {statusBadge(r.status)}
-                    <Button variant="outline" size="sm" onClick={() => { setSelectedRecord(r); setNotes(r.reviewer_notes || ""); }}>
+                    <Button variant="outline" size="sm" onClick={() => { setSelectedRecord(r); setNotes(r.reviewer_notes || ""); generateSignedUrls(r); }}>
                       <Eye className="h-4 w-4 mr-1" /> Review
                     </Button>
                   </div>
@@ -174,26 +196,30 @@ const RegulatorKyc = () => {
                 {statusBadge(selectedRecord.status)}
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1 font-semibold">Ghana Card Front</p>
-                  {selectedRecord.ghana_card_front_url ? (
-                    <img src={selectedRecord.ghana_card_front_url} alt="Front" className="rounded-lg border border-border w-full h-40 object-cover" />
-                  ) : <div className="bg-muted rounded-lg h-40 flex items-center justify-center text-xs text-muted-foreground">Not uploaded</div>}
+              {loadingUrls ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1 font-semibold">Ghana Card Front</p>
+                    {signedUrls.front ? (
+                      <img src={signedUrls.front} alt="Front" className="rounded-lg border border-border w-full h-40 object-cover" />
+                    ) : <div className="bg-muted rounded-lg h-40 flex items-center justify-center text-xs text-muted-foreground">Not uploaded</div>}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1 font-semibold">Ghana Card Back</p>
+                    {signedUrls.back ? (
+                      <img src={signedUrls.back} alt="Back" className="rounded-lg border border-border w-full h-40 object-cover" />
+                    ) : <div className="bg-muted rounded-lg h-40 flex items-center justify-center text-xs text-muted-foreground">Not uploaded</div>}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1 font-semibold">Live Selfie</p>
+                    {signedUrls.selfie ? (
+                      <img src={signedUrls.selfie} alt="Selfie" className="rounded-lg border border-border w-full h-40 object-cover" />
+                    ) : <div className="bg-muted rounded-lg h-40 flex items-center justify-center text-xs text-muted-foreground">Not captured</div>}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1 font-semibold">Ghana Card Back</p>
-                  {selectedRecord.ghana_card_back_url ? (
-                    <img src={selectedRecord.ghana_card_back_url} alt="Back" className="rounded-lg border border-border w-full h-40 object-cover" />
-                  ) : <div className="bg-muted rounded-lg h-40 flex items-center justify-center text-xs text-muted-foreground">Not uploaded</div>}
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1 font-semibold">Live Selfie</p>
-                  {selectedRecord.selfie_url ? (
-                    <img src={selectedRecord.selfie_url} alt="Selfie" className="rounded-lg border border-border w-full h-40 object-cover" />
-                  ) : <div className="bg-muted rounded-lg h-40 flex items-center justify-center text-xs text-muted-foreground">Not captured</div>}
-                </div>
-              </div>
+              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground">Reviewer Notes</label>
