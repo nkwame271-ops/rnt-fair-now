@@ -77,7 +77,7 @@ const App = () => (
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<LandlordDashboard />} />
               <Route path="my-properties" element={<MyProperties />} />
-              <Route path="register-property" element={<KycGate action="register a property"><RegisterProperty /></KycGate>} />
+              <Route path="register-property" element={<RegisterProperty />} />
               <Route path="agreements" element={<Agreements />} />
               <Route path="add-tenant" element={<KycGate action="add a tenant"><AddTenant /></KycGate>} />
               <Route path="viewing-requests" element={<LandlordViewingRequests />} />
