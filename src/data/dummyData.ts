@@ -18,13 +18,22 @@ export const regions = [
 ];
 
 export const areasByRegion: Record<string, string[]> = {
-  "Greater Accra": ["Accra Central", "East Legon", "Tema", "Madina", "Spintex", "Kasoa", "Cantonments", "Osu", "Dansoman", "Teshie"],
-  "Ashanti": ["Kumasi Central", "Adum", "Bantama", "Suame", "Oforikrom", "Asokwa"],
-  "Western": ["Takoradi", "Sekondi", "Tarkwa", "Prestea"],
-  "Eastern": ["Koforidua", "Nkawkaw", "Akim Oda"],
-  "Central": ["Cape Coast", "Elmina", "Winneba", "Kasoa"],
-  "Northern": ["Tamale", "Yendi", "Damongo"],
-  "Volta": ["Ho", "Keta", "Hohoe"],
+  "Greater Accra": ["Accra Central", "East Legon", "Tema", "Madina", "Spintex", "Kasoa", "Cantonments", "Osu", "Dansoman", "Teshie", "Nungua", "Adenta", "Dome", "Achimota", "Haatso", "Ashaiman", "Kwabenya", "Sakumono", "Lashibi", "Airport Residential", "Dzorwulu", "Labone", "Ridge", "Roman Ridge", "Weija", "Gbawe", "Ablekuma", "Lapaz", "Mallam", "Odorkor", "Abelemkpe"],
+  "Ashanti": ["Kumasi Central", "Adum", "Bantama", "Suame", "Oforikrom", "Asokwa", "Nhyiaeso", "Tafo", "Atonsu", "Ahinsan", "Ejisu", "Kwadaso", "Abrepo", "Bomso", "Ayigya", "Kentinkrono", "Asafo", "Kejetia", "Danyame", "Tech Junction", "Buokrom", "Dichemso", "Santasi", "Tanoso", "Abuakwa"],
+  "Western": ["Takoradi", "Sekondi", "Tarkwa", "Prestea", "Axim", "Essikado", "Effia", "Kojokrom", "Anaji", "Airport Ridge", "Beach Road", "New Takoradi", "Fijai", "Kwesimintsim", "Shama", "Nkontompo"],
+  "Eastern": ["Koforidua", "Nkawkaw", "Akim Oda", "Suhum", "Nsawam", "Akropong", "Aburi", "Mampong", "Somanya", "Kade", "Donkorkrom", "Asamankese", "Kibi", "New Tafo", "Osiem"],
+  "Central": ["Cape Coast", "Elmina", "Winneba", "Kasoa", "Mankessim", "Dunkwa-on-Offin", "Saltpond", "Swedru", "Anomabu", "Moree", "Abura", "Pedu", "Efutu", "Assin Fosu", "Twifo Praso"],
+  "Northern": ["Tamale", "Yendi", "Damongo", "Savelugu", "Tolon", "Kumbungu", "Sagnarigu", "Nyankpala", "Bimbilla", "Gushegu", "Karaga", "Nanton"],
+  "Volta": ["Ho", "Keta", "Hohoe", "Kpando", "Aflao", "Akatsi", "Anloga", "Sogakope", "Adidome", "Denu", "Dzodze", "Abor", "Peki", "Juapong"],
+  "Upper East": ["Bolgatanga", "Navrongo", "Bawku", "Paga", "Zuarungu", "Zebilla", "Tongo", "Sumbrungu", "Garu", "Tempane", "Pusiga", "Sandema"],
+  "Upper West": ["Wa", "Tumu", "Nandom", "Lawra", "Jirapa", "Hamile", "Nadowli", "Lambussie", "Kaleo", "Funsi", "Gwollu"],
+  "Bono": ["Sunyani", "Berekum", "Dormaa Ahenkro", "Wenchi", "Techiman", "Nkoranza", "Sampa", "Drobo", "Japekrom", "Odumase", "Fiapre", "Chiraa"],
+  "Bono East": ["Techiman", "Kintampo", "Nkoranza", "Atebubu", "Yeji", "Prang", "Jema", "Kwame Danso", "Tuobodom", "Tanoso"],
+  "Ahafo": ["Goaso", "Bechem", "Duayaw Nkwanta", "Kukuom", "Mim", "Kenyasi", "Hwidiem", "Nkaseim", "Acherensua", "Asunafo"],
+  "Savannah": ["Damongo", "Bole", "Salaga", "Sawla", "Buipe", "Yapei", "Tolon", "Larabanga", "Daboya", "Fufulso"],
+  "North East": ["Nalerigu", "Gambaga", "Walewale", "Bunkpurugu", "Yunyoo", "Chereponi", "Mandari", "Langbinsi", "Gbintiri"],
+  "Oti": ["Dambai", "Nkwanta", "Kadjebi", "Jasikan", "Kete Krachi", "Chinderi", "Brewaniase", "Kpassa", "Biakoye"],
+  "Western North": ["Sefwi Wiawso", "Bibiani", "Juaboso", "Enchi", "Dadieso", "Akontombra", "Bodi", "Sefwi Bekwai", "Asawinso", "Anhwiaso"],
 };
 
 export type PropertyType = "Single Room" | "Chamber & Hall" | "1-Bedroom" | "2-Bedroom" | "3-Bedroom" | "Self-Contained";

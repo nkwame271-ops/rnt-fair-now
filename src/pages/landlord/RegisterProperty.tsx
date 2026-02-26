@@ -7,12 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { PlusCircle, Trash2, Building2, MapPin, Upload, X, Store } from "lucide-react";
+import { PlusCircle, Trash2, Building2, Upload, X, Store } from "lucide-react";
 import { regions, areasByRegion, type PropertyType } from "@/data/dummyData";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import PropertyLocationPicker from "@/components/PropertyLocationPicker";
 
 interface UnitForm {
   name: string;
@@ -39,8 +40,8 @@ const RegisterProperty = () => {
   const [address, setAddress] = useState("");
   const [region, setRegion] = useState("");
   const [area, setArea] = useState("");
+  const [customArea, setCustomArea] = useState("");
   const [gpsLocation, setGpsLocation] = useState("");
-  const [gettingGps, setGettingGps] = useState(false);
   const [propertyCondition, setPropertyCondition] = useState("");
   const [listOnMarketplace, setListOnMarketplace] = useState(false);
   const [payingListingFee, setPayingListingFee] = useState(false);
@@ -53,6 +54,7 @@ const RegisterProperty = () => {
   }]);
 
   const areas = region ? areasByRegion[region] || [] : [];
+  const effectiveArea = customArea.trim() || area;
 
   const addUnit = () => setUnits([...units, {
     name: `Unit ${String.fromCharCode(65 + units.length)}`, type: "", rent: "",
@@ -67,25 +69,6 @@ const RegisterProperty = () => {
     setUnits(updated);
   };
 
-  const getGpsLocation = () => {
-    if (!navigator.geolocation) {
-      toast.error("Geolocation not supported by your browser");
-      return;
-    }
-    setGettingGps(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGpsLocation(`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`);
-        setGettingGps(false);
-        toast.success("GPS location captured!");
-      },
-      () => {
-        setGettingGps(false);
-        toast.error("Could not get location. Please enter manually.");
-      }
-    );
-  };
-
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
@@ -98,6 +81,10 @@ const RegisterProperty = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!effectiveArea) {
+      toast.error("Please select or type an area");
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -108,12 +95,9 @@ const RegisterProperty = () => {
       }
 
       const regionCode = region.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
-      const areaCode = area.slice(0, 2).toUpperCase();
+      const areaCode = effectiveArea.slice(0, 2).toUpperCase();
       const propertyCode = `${regionCode}-${areaCode}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999)).padStart(3, "0")}`;
 
-      // Insert property
-      // If listing on marketplace, save property first but set listed_on_marketplace = false
-      // The listing fee payment webhook will set it to true
       const shouldList = listOnMarketplace;
       
       const { data: prop, error: propErr } = await supabase.from("properties").insert({
@@ -121,11 +105,11 @@ const RegisterProperty = () => {
         property_name: name,
         address,
         region,
-        area,
+        area: effectiveArea,
         property_code: propertyCode,
         gps_location: gpsLocation || null,
         property_condition: propertyCondition || null,
-        listed_on_marketplace: false, // Always false initially; payment activates it
+        listed_on_marketplace: false,
       } as any).select().single();
 
       if (propErr) throw propErr;
@@ -164,7 +148,6 @@ const RegisterProperty = () => {
         });
       }
 
-      // If user wants marketplace listing, redirect to payment
       if (shouldList) {
         setPayingListingFee(true);
         try {
@@ -219,30 +202,34 @@ const RegisterProperty = () => {
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Region</Label>
-              <Select value={region} onValueChange={(v) => { setRegion(v); setArea(""); }}>
+              <Select value={region} onValueChange={(v) => { setRegion(v); setArea(""); setCustomArea(""); }}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Area</Label>
-              <Select value={area} onValueChange={setArea} disabled={!region}>
+              <Select value={area} onValueChange={(v) => { setArea(v); setCustomArea(""); }} disabled={!region}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{areas.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
               </Select>
+              <Input
+                value={customArea}
+                onChange={(e) => { setCustomArea(e.target.value); if (e.target.value) setArea(""); }}
+                placeholder="Or type your area if not listed"
+                className="text-sm"
+              />
             </div>
           </div>
 
-          {/* GPS */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> GPS Location</Label>
-            <div className="flex gap-2">
-              <Input value={gpsLocation} onChange={(e) => setGpsLocation(e.target.value)} placeholder="e.g. 5.614818, -0.205874" />
-              <Button type="button" variant="outline" onClick={getGpsLocation} disabled={gettingGps}>
-                {gettingGps ? "Getting..." : "Auto-detect"}
-              </Button>
-            </div>
-          </div>
+          {/* GPS — Interactive Map Picker */}
+          <PropertyLocationPicker
+            region={region}
+            value={gpsLocation}
+            onLocationChange={(loc) => {
+              setGpsLocation(loc ? `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}` : "");
+            }}
+          />
 
           {/* Property condition */}
           <div className="space-y-2">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap } from "lucide-react";
+import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useKycStatus } from "@/hooks/useKycStatus";
 import { toast } from "sonner";
+import { format, addDays } from "date-fns";
 
 import listing1 from "@/assets/listing-1.jpg";
 import listing2 from "@/assets/listing-2.jpg";
@@ -39,6 +40,8 @@ interface MarketUnit {
     property_condition: string | null;
   };
   imageUrl?: string;
+  availableSoon?: boolean;
+  availableFrom?: string;
 }
 
 const Marketplace = () => {
@@ -59,15 +62,56 @@ const Marketplace = () => {
 
   useEffect(() => {
     const fetchUnits = async () => {
-      const { data } = await (supabase
+      // 1. Fetch vacant units on marketplace-listed properties
+      const { data: vacantData } = await (supabase
         .from("units")
         .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace)")
         .eq("status", "vacant") as any).eq("property.listed_on_marketplace", true);
 
-      if (!data) { setLoading(false); return; }
+      // 2. Fetch occupied units whose tenancy ends within 30 days
+      const thirtyDaysFromNow = format(addDays(new Date(), 30), "yyyy-MM-dd");
+      const today = format(new Date(), "yyyy-MM-dd");
+
+      const { data: expiringTenancies } = await supabase
+        .from("tenancies")
+        .select("unit_id, end_date")
+        .gte("end_date", today)
+        .lte("end_date", thirtyDaysFromNow)
+        .eq("status", "active");
+
+      let expiringUnits: any[] = [];
+      if (expiringTenancies && expiringTenancies.length > 0) {
+        const expiringUnitIds = expiringTenancies.map((t) => t.unit_id);
+        const { data: occupiedData } = await (supabase
+          .from("units")
+          .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace)")
+          .in("id", expiringUnitIds) as any).eq("property.listed_on_marketplace", true);
+
+        if (occupiedData) {
+          const endDateMap: Record<string, string> = {};
+          expiringTenancies.forEach((t) => { endDateMap[t.unit_id] = t.end_date; });
+          expiringUnits = occupiedData.map((u: any) => ({
+            ...u,
+            availableSoon: true,
+            availableFrom: endDateMap[u.id],
+          }));
+        }
+      }
+
+      const allData = [...(vacantData || []), ...expiringUnits];
+
+      // Deduplicate by unit id (in case a unit appears in both)
+      const seen = new Set<string>();
+      const deduped = allData.filter((u: any) => {
+        if (seen.has(u.id)) return false;
+        seen.add(u.id);
+        return true;
+      });
+
+      if (deduped.length === 0) { setLoading(false); return; }
 
       // Fetch images for each property
-      const propertyIds: string[] = [...new Set((data as any[]).map((u: any) => u.property?.id).filter(Boolean))];
+      const propertyIds: string[] = [...new Set(deduped.map((u: any) => u.property?.id).filter(Boolean))];
       const { data: images } = await supabase
         .from("property_images")
         .select("property_id, image_url, is_primary")
@@ -80,7 +124,7 @@ const Marketplace = () => {
         }
       });
 
-      setUnits(data.map((u: any, i: number) => ({
+      setUnits(deduped.map((u: any, i: number) => ({
         ...u,
         imageUrl: imageMap[u.property?.id] || fallbackImages[i % fallbackImages.length],
       })));
@@ -108,7 +152,6 @@ const Marketplace = () => {
     }
     setSubmittingRequest(true);
     try {
-      // Create viewing request with "awaiting_payment" status
       const { data: vr, error } = await supabase.from("viewing_requests").insert({
         tenant_user_id: user.id,
         landlord_user_id: selectedUnit.property.landlord_user_id,
@@ -121,7 +164,6 @@ const Marketplace = () => {
       }).select().single();
       if (error) throw error;
 
-      // Initiate payment for viewing fee
       const { data: payData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "viewing_fee", viewingRequestId: vr.id },
       });
@@ -198,6 +240,11 @@ const Marketplace = () => {
                 <div className="absolute top-3 left-3 flex items-center gap-1 bg-primary/90 text-primary-foreground text-[10px] font-semibold px-2 py-1 rounded-full">
                   <Shield className="h-3 w-3" /> Registered
                 </div>
+                {unit.availableSoon && (
+                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-secondary/90 text-secondary-foreground text-[10px] font-semibold px-2 py-1 rounded-full">
+                    <Clock className="h-3 w-3" /> Available {unit.availableFrom ? format(new Date(unit.availableFrom), "MMM d") : "Soon"}
+                  </div>
+                )}
                 <div className="absolute bottom-3 right-3 bg-card/90 backdrop-blur px-2.5 py-1 rounded-lg text-sm font-bold text-card-foreground">
                   GH₵ {unit.monthly_rent.toLocaleString()}/mo
                 </div>
@@ -213,6 +260,11 @@ const Marketplace = () => {
                   {unit.electricity_available && <span className="flex items-center gap-1"><Zap className="h-3 w-3" /> Power</span>}
                 </div>
                 <div className="flex gap-1.5 mt-3 flex-wrap">
+                  {unit.availableSoon && (
+                    <Badge variant="outline" className="text-[10px] border-secondary text-secondary-foreground bg-secondary/10">
+                      Available Soon
+                    </Badge>
+                  )}
                   {(unit.amenities || []).slice(0, 3).map((a) => (
                     <Badge key={a} variant="secondary" className="text-[10px]">{a}</Badge>
                   ))}
@@ -246,6 +298,13 @@ const Marketplace = () => {
                   <div className="text-xs text-muted-foreground">per month</div>
                 </div>
               </div>
+
+              {selectedUnit.availableSoon && selectedUnit.availableFrom && (
+                <div className="flex items-center gap-2 text-sm bg-secondary/10 text-secondary-foreground rounded-lg px-3 py-2">
+                  <Clock className="h-4 w-4" />
+                  <span>Available from {format(new Date(selectedUnit.availableFrom), "MMMM d, yyyy")}</span>
+                </div>
+              )}
 
               {selectedUnit.property.property_condition && (
                 <p className="text-sm text-muted-foreground">{selectedUnit.property.property_condition}</p>
