@@ -77,23 +77,38 @@ const FileComplaint = () => {
         gps_location: form.gpsLocation || null,
         gps_confirmed: form.gpsConfirmed,
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
-      } as any).select("id").single();
+      }).select("id").single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Complaint insert error:", error);
+        throw error;
+      }
+
+      if (!complaint?.id) {
+        throw new Error("Complaint was not created properly");
+      }
 
       const { data, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "complaint_fee", complaintId: complaint.id },
       });
 
-      if (payErr) throw new Error(payErr.message || "Payment initiation failed");
-      if (data?.error) throw new Error(data.error);
+      if (payErr) {
+        console.error("Paystack invoke error:", payErr);
+        throw new Error(payErr.message || "Payment initiation failed");
+      }
+      if (data?.error) {
+        console.error("Paystack data error:", data.error);
+        throw new Error(data.error);
+      }
 
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
+        console.error("Paystack response missing URL:", data);
         throw new Error("No checkout URL received");
       }
     } catch (err: any) {
+      console.error("FileComplaint handleSubmit error:", err);
       toast.error(err.message || "Failed to submit complaint");
     } finally {
       setSubmitting(false);
