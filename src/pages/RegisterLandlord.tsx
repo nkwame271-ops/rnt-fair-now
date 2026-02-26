@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Truck, Building2, Lock, Globe } from "lucide-react";
+import { Shield, User, Phone, Mail, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Building2, Lock, Globe, Building } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import FormField from "@/components/FormField";
 import { formatPhone, formatGhanaCard, isValidEmail, isValidPhone, isValidGhanaCard, isValidPassword } from "@/lib/formatters";
 
-const steps = ["Account", "Identity", "Delivery", "Your ID"];
+const steps = ["Account", "Identity", "Your ID"];
 
 const RegisterLandlord = () => {
   const navigate = useNavigate();
@@ -27,24 +27,19 @@ const RegisterLandlord = () => {
   const [residencePermitNo, setResidencePermitNo] = useState("");
   const [phone, setPhone] = useState("");
   const [region, setRegion] = useState("");
-  const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [deliveryCity, setDeliveryCity] = useState("");
-  const [deliveryRegion, setDeliveryRegion] = useState("");
-  const [deliveryLandmark, setDeliveryLandmark] = useState("");
   const [generatedId, setGeneratedId] = useState("");
 
   const canProceed = () => {
     switch (step) {
       case 0: return fullName && isValidEmail(email) && isValidPassword(password);
       case 1: return (isCitizen ? isValidGhanaCard(ghanaCardNo) : residencePermitNo.length > 3) && isValidPhone(phone) && region;
-      case 2: return deliveryAddress && deliveryCity && deliveryRegion;
       default: return true;
     }
   };
 
   const handleNext = async () => {
-    if (step < 2) { setStep(step + 1); return; }
-    if (step === 2) { await handleCreateAccount(); return; }
+    if (step < 1) { setStep(step + 1); return; }
+    if (step === 1) { await handleCreateAccount(); return; }
   };
 
   const handleCreateAccount = async () => {
@@ -91,10 +86,6 @@ const RegisterLandlord = () => {
         is_citizen: isCitizen,
         ghana_card_no: isCitizen ? ghanaCardNo : null,
         residence_permit_no: !isCitizen ? residencePermitNo : null,
-        delivery_address: deliveryAddress,
-        delivery_landmark: deliveryLandmark,
-        delivery_region: deliveryRegion,
-        delivery_area: deliveryCity,
       }).eq("user_id", userId);
 
       await supabase.from("landlords").insert({
@@ -104,7 +95,7 @@ const RegisterLandlord = () => {
       });
 
       setGeneratedId(landlordId);
-      setStep(3);
+      setStep(2);
     } catch (err: any) {
       toast.error(err.message || "Registration failed");
     } finally {
@@ -112,7 +103,7 @@ const RegisterLandlord = () => {
     }
   };
 
-  const progressPercent = Math.round((Math.min(step, 3) / 3) * 100);
+  const progressPercent = Math.round((Math.min(step, 2) / 2) * 100);
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -159,7 +150,7 @@ const RegisterLandlord = () => {
         {/* Progress bar */}
         <div className="mb-2 max-w-lg">
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
-            <span>Step {Math.min(step + 1, 3)} of 3</span>
+            <span>Step {Math.min(step + 1, 2)} of 2</span>
             <span>{progressPercent}% complete</span>
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -169,7 +160,7 @@ const RegisterLandlord = () => {
 
         {/* Step labels */}
         <div className="flex items-center gap-1 mb-6 max-w-lg overflow-x-auto">
-          {steps.slice(0, 3).map((s, i) => (
+          {steps.slice(0, 2).map((s, i) => (
             <div key={s} className="flex items-center gap-1">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-all ${
                 i < step ? "bg-primary text-primary-foreground" :
@@ -179,7 +170,7 @@ const RegisterLandlord = () => {
                 {i < step ? <CheckCircle2 className="h-3 w-3" /> : i + 1}
               </div>
               <span className={`text-xs whitespace-nowrap ${i === step ? "text-foreground font-medium" : "text-muted-foreground"}`}>{s}</span>
-              {i < 2 && <div className={`h-px w-4 ${i < step ? "bg-primary" : "bg-border"}`} />}
+              {i < 1 && <div className={`h-px w-4 ${i < step ? "bg-primary" : "bg-border"}`} />}
             </div>
           ))}
         </div>
@@ -279,44 +270,8 @@ const RegisterLandlord = () => {
                 </div>
               )}
 
-              {/* Step 2: Delivery */}
+              {/* Step 2: Success */}
               {step === 2 && (
-                <div className="space-y-5">
-                  <div>
-                    <h1 className="text-2xl font-bold text-foreground">Card Delivery Address</h1>
-                    <p className="text-muted-foreground mt-1">Where should we deliver your Landlord ID card?</p>
-                  </div>
-                  <div className="bg-accent/10 rounded-lg p-4 flex items-start gap-3 border border-accent/30">
-                    <Truck className="h-5 w-5 text-accent-foreground mt-0.5 shrink-0" />
-                    <p className="text-sm text-muted-foreground">Delivered within 5–7 business days after payment.</p>
-                  </div>
-                  <div className="space-y-4">
-                    <FormField label="Street Address" valid={deliveryAddress.length > 3}>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="e.g. 14 Palm Street" className="pl-10" />
-                      </div>
-                    </FormField>
-                    <FormField label="Nearest Landmark" optional>
-                      <Input value={deliveryLandmark} onChange={(e) => setDeliveryLandmark(e.target.value)} placeholder="e.g. Near Total filling station" />
-                    </FormField>
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <FormField label="City / Town" valid={deliveryCity.length > 1}>
-                        <Input value={deliveryCity} onChange={(e) => setDeliveryCity(e.target.value)} placeholder="e.g. Kumasi" />
-                      </FormField>
-                      <FormField label="Region" valid={!!deliveryRegion}>
-                        <Select value={deliveryRegion} onValueChange={setDeliveryRegion}>
-                          <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
-                          <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </FormField>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 3: Success */}
-              {step === 3 && (
                 <div className="space-y-6 text-center py-8">
                   <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", duration: 0.5 }}
                     className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
@@ -336,6 +291,10 @@ const RegisterLandlord = () => {
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Check your email to verify your account</li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 2 registration fee from your dashboard</li>
+                      <li className="flex items-start gap-2">
+                        <Building className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                        Your Rent Card will be available at the Rent Control Department within 5 days. You can opt for delivery later within the app.
+                      </li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Register properties and add tenants</li>
                     </ul>
                   </div>
@@ -345,9 +304,9 @@ const RegisterLandlord = () => {
           </AnimatePresence>
 
           <div className="mt-8">
-            {step < 3 ? (
+            {step < 2 ? (
               <Button onClick={handleNext} disabled={!canProceed() || loading} className="w-full h-12 text-base font-semibold">
-                {loading ? "Creating account..." : step === 2 ? "Create Account" : "Continue"} <ArrowRight className="ml-2 h-4 w-4" />
+                {loading ? "Creating account..." : step === 1 ? "Create Account" : "Continue"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
               <Button onClick={() => navigate("/landlord/dashboard")} className="w-full h-12 text-base font-semibold">
