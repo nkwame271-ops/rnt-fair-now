@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import L from "leaflet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -47,26 +46,6 @@ interface NominatimResult {
   lon: string;
 }
 
-// Child component that handles map click events
-const MapClickHandler = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
-  useMapEvents({
-    click(e) {
-      onMapClick(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-};
-
-// Child component to pan map programmatically
-const MapPanner = ({ center }: { center: [number, number] | null }) => {
-  const map = useMap();
-  useEffect(() => {
-    if (center) {
-      map.flyTo(center, 15, { duration: 1 });
-    }
-  }, [center, map]);
-  return null;
-};
 
 const PropertyLocationPicker = ({
   region,
@@ -88,6 +67,9 @@ const PropertyLocationPicker = ({
   const [manualLng, setManualLng] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
 
   // Parse initial value
   useEffect(() => {
@@ -129,6 +111,62 @@ const PropertyLocationPicker = ({
     updateLocation(lat, lng);
     setPanTo(null);
   };
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapInstanceRef.current) return;
+
+    const map = L.map(mapContainerRef.current, { zoomControl: true });
+    mapInstanceRef.current = map;
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 18,
+    }).addTo(map);
+
+    const onMapClick = (e: L.LeafletMouseEvent) => {
+      updateLocation(e.latlng.lat, e.latlng.lng);
+      setPanTo(null);
+    };
+
+    map.on("click", onMapClick);
+
+    return () => {
+      map.off("click", onMapClick);
+      map.remove();
+      mapInstanceRef.current = null;
+      markerRef.current = null;
+    };
+  }, [updateLocation]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const targetCenter: [number, number] = panTo
+      ?? markerPos
+      ?? (region && GHANA_REGIONS[region]
+        ? [GHANA_REGIONS[region].lat, GHANA_REGIONS[region].lng]
+        : [7.9465, -1.0232]);
+
+    const targetZoom = markerPos || panTo ? 15 : region && GHANA_REGIONS[region] ? 10 : 7;
+    map.flyTo(targetCenter, targetZoom, { duration: 1 });
+
+    if (markerPos) {
+      if (!markerRef.current) {
+        const marker = L.marker(markerPos, { draggable: true }).addTo(map);
+        marker.on("dragend", (e) => {
+          const pos = (e.target as L.Marker).getLatLng();
+          updateLocation(pos.lat, pos.lng);
+        });
+        markerRef.current = marker;
+      } else {
+        markerRef.current.setLatLng(markerPos);
+      }
+    } else if (markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+  }, [markerPos, panTo, region, updateLocation]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -262,31 +300,7 @@ const PropertyLocationPicker = ({
 
       {/* Map */}
       <div className="rounded-lg overflow-hidden border border-border h-[300px]">
-        <MapContainer
-          center={getMapCenter()}
-          zoom={getMapZoom()}
-          style={{ height: "100%", width: "100%" }}
-          scrollWheelZoom={true}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <MapClickHandler onMapClick={handleMapClick} />
-          <MapPanner center={panTo} />
-          {markerPos && (
-            <Marker
-              position={markerPos}
-              draggable={true}
-              eventHandlers={{
-                dragend: (e) => {
-                  const pos = e.target.getLatLng();
-                  updateLocation(pos.lat, pos.lng);
-                },
-              }}
-            />
-          )}
-        </MapContainer>
+        <div ref={mapContainerRef} className="h-full w-full" />
       </div>
 
       {/* Center on device — clearly labeled as map-only */}
