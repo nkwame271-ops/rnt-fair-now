@@ -151,7 +151,7 @@ const KycVerificationCard = () => {
 
       // Store file paths (not public URLs) since bucket is private
       if (kyc) {
-        await supabase.from("kyc_verifications").update({
+        const { error } = await supabase.from("kyc_verifications").update({
           ghana_card_number: ghanaCardNumber,
           ghana_card_front_url: frontPath,
           ghana_card_back_url: backPath,
@@ -160,8 +160,9 @@ const KycVerificationCard = () => {
           ai_match_score: aiResult.match_score,
           ai_match_result: aiResult.match_result,
         }).eq("id", kyc.id);
+        if (error) throw error;
       } else {
-        await supabase.from("kyc_verifications").insert({
+        const { error } = await supabase.from("kyc_verifications").insert({
           user_id: user.id,
           ghana_card_number: ghanaCardNumber,
           ghana_card_front_url: frontPath,
@@ -171,6 +172,7 @@ const KycVerificationCard = () => {
           ai_match_score: aiResult.match_score,
           ai_match_result: aiResult.match_result,
         });
+        if (error) throw error;
       }
 
       toast.success("KYC documents submitted for verification!");
