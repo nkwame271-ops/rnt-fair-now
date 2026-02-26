@@ -95,6 +95,57 @@ export type Database = {
         }
         Relationships: []
       }
+      kyc_verifications: {
+        Row: {
+          ai_match_result: string | null
+          ai_match_score: number | null
+          created_at: string
+          ghana_card_back_url: string | null
+          ghana_card_front_url: string | null
+          ghana_card_number: string
+          id: string
+          reviewed_at: string | null
+          reviewer_notes: string | null
+          reviewer_user_id: string | null
+          selfie_url: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_match_result?: string | null
+          ai_match_score?: number | null
+          created_at?: string
+          ghana_card_back_url?: string | null
+          ghana_card_front_url?: string | null
+          ghana_card_number: string
+          id?: string
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          selfie_url?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_match_result?: string | null
+          ai_match_score?: number | null
+          created_at?: string
+          ghana_card_back_url?: string | null
+          ghana_card_front_url?: string | null
+          ghana_card_number?: string
+          id?: string
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          selfie_url?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       landlords: {
         Row: {
           created_at: string

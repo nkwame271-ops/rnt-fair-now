@@ -10,6 +10,7 @@ import {
   Menu,
   AlertTriangle,
   UserPlus,
+  IdCard,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,6 +26,7 @@ const navItems = [
   { to: "/regulator/agreements", label: "Agreements", icon: FileText },
   { to: "/regulator/agreement-templates", label: "Templates", icon: FileText },
   { to: "/regulator/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/regulator/kyc", label: "KYC Verification", icon: IdCard },
   { to: "/regulator/invite-staff", label: "Invite Staff", icon: UserPlus },
 ];
 

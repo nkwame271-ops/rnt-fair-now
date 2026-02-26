@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { regions } from "@/data/dummyData";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useKycStatus } from "@/hooks/useKycStatus";
 import { toast } from "sonner";
 
 import listing1 from "@/assets/listing-1.jpg";
@@ -42,6 +43,7 @@ interface MarketUnit {
 
 const Marketplace = () => {
   const { user } = useAuth();
+  const { isVerified: kycVerified } = useKycStatus();
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState("all");
   const [type, setType] = useState("all");
@@ -100,6 +102,10 @@ const Marketplace = () => {
 
   const handleRequestViewing = async () => {
     if (!user || !selectedUnit) return;
+    if (!kycVerified) {
+      toast.error("You must verify your Ghana Card before applying for a viewing. Go to your Profile to complete verification.");
+      return;
+    }
     setSubmittingRequest(true);
     try {
       const { error } = await supabase.from("viewing_requests").insert({

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode } from "lucide-react";
+import KycVerificationCard from "@/components/KycVerificationCard";
 
 const ProfilePage = () => {
   const { user, role } = useAuth();
@@ -186,6 +187,9 @@ const ProfilePage = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* KYC Verification */}
+      {role !== "regulator" && <KycVerificationCard />}
 
       {/* Personal Information */}
       <Card>
