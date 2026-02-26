@@ -27,6 +27,7 @@ import Agreements from "./pages/landlord/Agreements";
 import AddTenant from "./pages/landlord/AddTenant";
 import RegulatorLayout from "./components/RegulatorLayout";
 import LandlordViewingRequests from "./pages/landlord/ViewingRequests";
+import LandlordFeedback from "./pages/landlord/LandlordFeedback";
 import RegulatorDashboard from "./pages/regulator/RegulatorDashboard";
 import RegulatorTenants from "./pages/regulator/RegulatorTenants";
 import RegulatorLandlords from "./pages/regulator/RegulatorLandlords";
@@ -82,6 +83,7 @@ const App = () => (
               <Route path="add-tenant" element={<KycGate action="add a tenant"><AddTenant /></KycGate>} />
               <Route path="viewing-requests" element={<LandlordViewingRequests />} />
               <Route path="profile" element={<ProfilePage />} />
+              <Route path="feedback" element={<LandlordFeedback />} />
             </Route>
 
             {/* Regulator Routes */}
