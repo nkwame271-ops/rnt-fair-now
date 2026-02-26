@@ -280,10 +280,16 @@ export type Database = {
           address: string
           area: string
           created_at: string
+          ghana_post_gps: string | null
+          gps_confirmed: boolean
+          gps_confirmed_at: string | null
           gps_location: string | null
           id: string
           landlord_user_id: string
           listed_on_marketplace: boolean
+          location_locked: boolean
+          location_locked_at: string | null
+          location_locked_by: string | null
           property_code: string
           property_condition: string | null
           property_name: string | null
@@ -294,10 +300,16 @@ export type Database = {
           address: string
           area: string
           created_at?: string
+          ghana_post_gps?: string | null
+          gps_confirmed?: boolean
+          gps_confirmed_at?: string | null
           gps_location?: string | null
           id?: string
           landlord_user_id: string
           listed_on_marketplace?: boolean
+          location_locked?: boolean
+          location_locked_at?: string | null
+          location_locked_by?: string | null
           property_code: string
           property_condition?: string | null
           property_name?: string | null
@@ -308,10 +320,16 @@ export type Database = {
           address?: string
           area?: string
           created_at?: string
+          ghana_post_gps?: string | null
+          gps_confirmed?: boolean
+          gps_confirmed_at?: string | null
           gps_location?: string | null
           id?: string
           landlord_user_id?: string
           listed_on_marketplace?: boolean
+          location_locked?: boolean
+          location_locked_at?: string | null
+          location_locked_by?: string | null
           property_code?: string
           property_condition?: string | null
           property_name?: string | null
@@ -345,6 +363,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "property_images_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_location_edits: {
+        Row: {
+          created_at: string
+          edited_by: string
+          id: string
+          new_gps_location: string | null
+          old_gps_location: string | null
+          property_id: string
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          edited_by: string
+          id?: string
+          new_gps_location?: string | null
+          old_gps_location?: string | null
+          property_id: string
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          edited_by?: string
+          id?: string
+          new_gps_location?: string | null
+          old_gps_location?: string | null
+          property_id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_location_edits_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"

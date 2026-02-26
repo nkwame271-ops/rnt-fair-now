@@ -4,8 +4,9 @@ import L from "leaflet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Search, MapPin, Navigation, ChevronDown, Check } from "lucide-react";
+import { Search, MapPin, Navigation, ChevronDown, Check, AlertTriangle, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { GHANA_REGIONS } from "@/lib/gpsUtils";
 import "leaflet/dist/leaflet.css";
@@ -32,6 +33,11 @@ interface Props {
   region?: string;
   value?: string; // "lat, lng" format
   onLocationChange: (location: LocationData | null) => void;
+  onConfirmChange?: (confirmed: boolean) => void;
+  onGhanaPostGpsChange?: (code: string) => void;
+  ghanaPostGps?: string;
+  confirmed?: boolean;
+  required?: boolean;
 }
 
 interface NominatimResult {
@@ -62,7 +68,16 @@ const MapPanner = ({ center }: { center: [number, number] | null }) => {
   return null;
 };
 
-const PropertyLocationPicker = ({ region, value, onLocationChange }: Props) => {
+const PropertyLocationPicker = ({
+  region,
+  value,
+  onLocationChange,
+  onConfirmChange,
+  onGhanaPostGpsChange,
+  ghanaPostGps = "",
+  confirmed = false,
+  required = false,
+}: Props) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -72,7 +87,6 @@ const PropertyLocationPicker = ({ region, value, onLocationChange }: Props) => {
   const [manualLat, setManualLat] = useState("");
   const [manualLng, setManualLng] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
   // Parse initial value
@@ -107,11 +121,13 @@ const PropertyLocationPicker = ({ region, value, onLocationChange }: Props) => {
     setManualLat(lat.toFixed(6));
     setManualLng(lng.toFixed(6));
     onLocationChange({ lat, lng, address });
-  }, [onLocationChange]);
+    // Reset confirmation when location changes
+    if (onConfirmChange) onConfirmChange(false);
+  }, [onLocationChange, onConfirmChange]);
 
   const handleMapClick = (lat: number, lng: number) => {
     updateLocation(lat, lng);
-    setPanTo(null); // Don't pan on click
+    setPanTo(null);
   };
 
   const handleSearch = async () => {
@@ -154,8 +170,9 @@ const PropertyLocationPicker = ({ region, value, onLocationChange }: Props) => {
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        // ONLY pan the map — NEVER set as property location
         setPanTo([pos.coords.latitude, pos.coords.longitude]);
-        toast.info("Map centered on your location. Drag the pin or click the map to set the property's actual position.");
+        toast.info("Map centered on your device. Click or drag the pin to set the PROPERTY's actual position.", { duration: 5000 });
       },
       () => {
         toast.error("Could not get your location.");
@@ -168,6 +185,10 @@ const PropertyLocationPicker = ({ region, value, onLocationChange }: Props) => {
     const lng = parseFloat(manualLng);
     if (isNaN(lat) || isNaN(lng)) {
       toast.error("Enter valid coordinates");
+      return;
+    }
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      toast.error("Coordinates out of range");
       return;
     }
     updateLocation(lat, lng);
@@ -189,7 +210,17 @@ const PropertyLocationPicker = ({ region, value, onLocationChange }: Props) => {
     <div className="space-y-3">
       <Label className="flex items-center gap-1.5">
         <MapPin className="h-3.5 w-3.5" /> Property Location
+        {required && <span className="text-destructive">*</span>}
       </Label>
+
+      {/* Important notice */}
+      <div className="flex items-start gap-2 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-lg px-3 py-2">
+        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+        <span>
+          Pin the <strong>property's physical location</strong>, not your current device location.
+          Use address search or click the map to place the pin accurately.
+        </span>
+      </div>
 
       {/* Address Search */}
       <div className="relative" ref={resultsRef}>
@@ -198,7 +229,7 @@ const PropertyLocationPicker = ({ region, value, onLocationChange }: Props) => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               className="pl-10"
-              placeholder="Search address in Ghana..."
+              placeholder="Search property address in Ghana..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
@@ -230,7 +261,7 @@ const PropertyLocationPicker = ({ region, value, onLocationChange }: Props) => {
       </div>
 
       {/* Map */}
-      <div className="rounded-lg overflow-hidden border border-border h-[280px]">
+      <div className="rounded-lg overflow-hidden border border-border h-[300px]">
         <MapContainer
           center={getMapCenter()}
           zoom={getMapZoom()}
@@ -258,9 +289,9 @@ const PropertyLocationPicker = ({ region, value, onLocationChange }: Props) => {
         </MapContainer>
       </div>
 
-      {/* Center on device button */}
-      <Button type="button" variant="ghost" size="sm" onClick={handleCenterOnDevice} className="text-xs">
-        <Navigation className="h-3.5 w-3.5 mr-1.5" /> Center on my device (map only)
+      {/* Center on device — clearly labeled as map-only */}
+      <Button type="button" variant="ghost" size="sm" onClick={handleCenterOnDevice} className="text-xs text-muted-foreground">
+        <Navigation className="h-3.5 w-3.5 mr-1.5" /> Center map on my device (does NOT set property location)
       </Button>
 
       {/* Manual coordinate entry */}
@@ -300,13 +331,50 @@ const PropertyLocationPicker = ({ region, value, onLocationChange }: Props) => {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Selected coordinates display */}
-      {markerPos && (
-        <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
-          <Check className="h-4 w-4" />
-          <span>Selected: {markerPos[0].toFixed(6)}, {markerPos[1].toFixed(6)}</span>
+      {/* GhanaPost GPS Code (optional) */}
+      {onGhanaPostGpsChange && (
+        <div className="space-y-1">
+          <Label className="text-xs flex items-center gap-1.5">
+            <Globe className="h-3.5 w-3.5" /> GhanaPost GPS Code (optional)
+          </Label>
+          <Input
+            value={ghanaPostGps}
+            onChange={(e) => onGhanaPostGpsChange(e.target.value.toUpperCase())}
+            placeholder="e.g. GA-123-4567"
+            className="text-sm font-mono"
+            maxLength={20}
+          />
         </div>
       )}
+
+      {/* Selected coordinates display + confirmation */}
+      {markerPos ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+            <Check className="h-4 w-4" />
+            <span>Pin placed: {markerPos[0].toFixed(6)}, {markerPos[1].toFixed(6)}</span>
+          </div>
+
+          {/* Confirmation checkbox */}
+          {onConfirmChange && (
+            <label className="flex items-start gap-2.5 cursor-pointer bg-muted rounded-lg px-3 py-2.5 border border-border">
+              <Checkbox
+                checked={confirmed}
+                onCheckedChange={(v) => onConfirmChange(!!v)}
+                className="mt-0.5"
+              />
+              <span className="text-sm">
+                I confirm this pin represents the <strong>property's physical location</strong>, not my current device position.
+              </span>
+            </label>
+          )}
+        </div>
+      ) : required ? (
+        <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+          <MapPin className="h-4 w-4" />
+          <span>Please select the property location on the map before submitting.</span>
+        </div>
+      ) : null}
     </div>
   );
 };
