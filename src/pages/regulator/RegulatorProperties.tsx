@@ -143,7 +143,18 @@ const RegulatorProperties = () => {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {p.gps_location ? (
-                        <span className="text-success flex items-center gap-1"><MapPin className="h-3 w-3" /> Set</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const gps = parseGPS(p.gps_location);
+                            if (gps) {
+                              window.open(`https://www.openstreetmap.org/?mlat=${gps.lat}&mlon=${gps.lng}#map=17/${gps.lat}/${gps.lng}`, "_blank");
+                            }
+                          }}
+                          className="text-success flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <MapPin className="h-3 w-3" /> View
+                        </button>
                       ) : "—"}
                     </TableCell>
                   </TableRow>
