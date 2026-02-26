@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { BarChart3, Users, Building2, TrendingUp, CreditCard } from "lucide-react";
-import LogoLoader from "@/components/LogoLoader";
+import { BarChart3, Users, Building2, TrendingUp, CreditCard, MapPin } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import LogoLoader from "@/components/LogoLoader";
+import PropertyMap, { MapMarker } from "@/components/PropertyMap";
+import { GHANA_REGIONS } from "@/lib/gpsUtils";
 
 const COLORS = ["hsl(152,55%,38%)", "hsl(43,85%,55%)", "hsl(210,60%,50%)", "hsl(0,72%,50%)", "hsl(152,55%,28%)"];
 
@@ -15,6 +17,7 @@ const RegulatorAnalytics = () => {
     totalLandlords: 0,
     totalRevenue: 0,
     totalTaxCollected: 0,
+    regionBreakdown: [],
   });
   const [loading, setLoading] = useState(true);
 
@@ -25,7 +28,7 @@ const RegulatorAnalytics = () => {
       const tenantUserIds = (tenants || []).map(t => t.user_id);
 
       // Fetch profiles for tenant region & citizen data
-      let regionMap: Record<string, number> = {};
+      let regionMap: Record<string, { total: number; citizens: number; nonCitizens: number }> = {};
       let citizens = 0, nonCitizens = 0;
       if (tenantUserIds.length > 0) {
         const { data: profiles } = await supabase
@@ -35,15 +38,29 @@ const RegulatorAnalytics = () => {
 
         (profiles || []).forEach((p: any) => {
           const region = p.delivery_region || "Unknown";
-          regionMap[region] = (regionMap[region] || 0) + 1;
-          if (p.is_citizen) citizens++; else nonCitizens++;
+          if (!regionMap[region]) regionMap[region] = { total: 0, citizens: 0, nonCitizens: 0 };
+          regionMap[region].total++;
+          if (p.is_citizen) { citizens++; regionMap[region].citizens++; }
+          else { nonCitizens++; regionMap[region].nonCitizens++; }
         });
       }
 
       const tenantsByRegion = Object.entries(regionMap)
-        .map(([region, count]) => ({ region, count }))
+        .map(([region, d]) => ({ region, count: d.total }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 10);
+
+      // Region breakdown for map
+      const regionBreakdown = Object.entries(regionMap)
+        .map(([region, d]) => ({ region, ...d }))
+        .sort((a, b) => b.total - a.total);
+
+      // Properties by region
+      const { data: properties } = await supabase.from("properties").select("region");
+      const propRegionMap: Record<string, number> = {};
+      (properties || []).forEach((p: any) => {
+        propRegionMap[p.region] = (propRegionMap[p.region] || 0) + 1;
+      });
 
       // Complaints by type
       const { data: complaints } = await supabase.from("complaints").select("complaint_type");
@@ -56,7 +73,7 @@ const RegulatorAnalytics = () => {
       // Landlords
       const { data: landlords } = await supabase.from("landlords").select("landlord_id");
 
-      // Tax revenue from confirmed payments
+      // Tax revenue
       const { data: payments } = await supabase
         .from("rent_payments")
         .select("tax_amount, status, landlord_confirmed")
@@ -74,11 +91,29 @@ const RegulatorAnalytics = () => {
         ],
         totalRevenue: ((tenants?.length || 0) + (landlords?.length || 0)) * 50,
         totalTaxCollected,
+        regionBreakdown,
+        propRegionMap,
       });
       setLoading(false);
     };
     fetchAnalytics();
   }, []);
+
+  // Build map markers from region breakdown
+  const regionMarkers: MapMarker[] = (data.regionBreakdown || [])
+    .map((r: any) => {
+      const coords = GHANA_REGIONS[r.region];
+      if (!coords) return null;
+      const propCount = data.propRegionMap?.[r.region] || 0;
+      return {
+        lat: coords.lat,
+        lng: coords.lng,
+        label: r.region,
+        detail: `${r.total} tenants (${r.citizens} citizens, ${r.nonCitizens} non-citizens) • ${propCount} properties`,
+        color: r.total > 5 ? "green" as const : r.total > 0 ? "blue" as const : "gold" as const,
+      };
+    })
+    .filter(Boolean) as MapMarker[];
 
   if (loading) return <LogoLoader message="Loading analytics..." />;
 
@@ -86,7 +121,7 @@ const RegulatorAnalytics = () => {
     <div className="max-w-6xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><BarChart3 className="h-7 w-7 text-primary" /> Analytics & Reports</h1>
-        <p className="text-muted-foreground mt-1">Statistical data and trends</p>
+        <p className="text-muted-foreground mt-1">Statistical data, trends, and geographic insights</p>
       </div>
 
       {/* Summary cards */}
@@ -122,6 +157,33 @@ const RegulatorAnalytics = () => {
           </div>
           <div className="text-xs text-muted-foreground">Non-Citizen Tenants</div>
         </div>
+      </div>
+
+      {/* Geographic Map */}
+      <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+          <MapPin className="h-5 w-5 text-primary" /> Regional Distribution Map
+        </h2>
+        {regionMarkers.length > 0 ? (
+          <>
+            <PropertyMap markers={regionMarkers} height="400px" zoom={7} />
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {data.regionBreakdown.map((r: any) => (
+                <div key={r.region} className="text-sm bg-muted/50 rounded-lg px-3 py-2 flex justify-between items-center">
+                  <span className="text-foreground font-medium truncate">{r.region}</span>
+                  <div className="flex gap-2 text-xs shrink-0">
+                    <span className="text-primary font-semibold">{r.total}</span>
+                    {r.nonCitizens > 0 && (
+                      <span className="text-warning">({r.nonCitizens} NC)</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="text-muted-foreground text-center py-12">No regional data yet</p>
+        )}
       </div>
 
       {/* Charts */}

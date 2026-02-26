@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Building2, Download, Search, ChevronDown, ChevronUp, Users, Home, DollarSign } from "lucide-react";
+import LogoLoader from "@/components/LogoLoader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -146,7 +147,7 @@ const RegulatorLandlords = () => {
     const a = document.createElement("a"); a.href = url; a.download = "landlords_export.csv"; a.click();
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+  if (loading) return <LogoLoader message="Loading landlords..." />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
