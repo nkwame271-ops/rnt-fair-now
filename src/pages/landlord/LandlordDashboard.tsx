@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import LogoLoader from "@/components/LogoLoader";
 import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, Loader2, CreditCard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,7 +69,7 @@ const LandlordDashboard = () => {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  if (loading) return <LogoLoader message="Loading dashboard..." />;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">

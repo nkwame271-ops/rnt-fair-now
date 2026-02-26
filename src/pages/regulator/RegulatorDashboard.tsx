@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Users, Building2, FileText, AlertTriangle, TrendingUp, Shield } from "lucide-react";
+import LogoLoader from "@/components/LogoLoader";
 import { supabase } from "@/integrations/supabase/client";
 
 const RegulatorDashboard = () => {
@@ -52,11 +53,7 @@ const RegulatorDashboard = () => {
   ];
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <LogoLoader message="Loading dashboard..." />;
   }
 
   return (
