@@ -14,13 +14,13 @@ const categories = [
 ];
 
 const BetaFeedbackWidget = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState("bug");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
-  if (!user) return null;
+  if (loading || !user) return null;
 
   const handleSubmit = async () => {
     if (!message.trim()) return;
@@ -42,7 +42,7 @@ const BetaFeedbackWidget = () => {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-50">
+    <div className="fixed bottom-5 right-5 z-[9999]">
       <AnimatePresence>
         {open && (
           <motion.div
