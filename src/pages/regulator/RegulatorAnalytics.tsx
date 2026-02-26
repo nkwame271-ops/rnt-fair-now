@@ -89,7 +89,7 @@ const RegulatorAnalytics = () => {
           { name: "Citizens", value: citizens },
           { name: "Non-Citizens", value: nonCitizens },
         ],
-        totalRevenue: ((tenants?.length || 0) + (landlords?.length || 0)) * 50,
+        totalRevenue: ((tenants?.length || 0) + (landlords?.length || 0)) * 2,
         totalTaxCollected,
         regionBreakdown,
         propRegionMap,
