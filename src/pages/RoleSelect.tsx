@@ -82,7 +82,7 @@ const RoleSelect = () => {
             { label: "Properties Registered", value: "150+" },
             { label: "Active Tenants", value: "320+" },
             { label: "Complaints Resolved", value: "45+" },
-            { label: "Pilot Region", value: "Greater Accra" },
+            { label: "Digital & Secure", value: "100%" },
           ].map((stat) => (
             <div key={stat.label} className="p-4">
               <div className="text-2xl font-bold text-primary">{stat.value}</div>
