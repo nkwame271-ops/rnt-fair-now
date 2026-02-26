@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, XCircle, Clock, Eye, IdCard, User } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, Eye, IdCard, User, Search, ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-
+import { useNavigate } from "react-router-dom";
 interface KycRecord {
   id: string;
   user_id: string;
@@ -24,12 +25,15 @@ interface KycRecord {
   profileName?: string;
   profileEmail?: string;
   role?: string;
+  registrationId?: string;
 }
 
 const RegulatorKyc = () => {
+  const navigate = useNavigate();
   const [records, setRecords] = useState<KycRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "verified" | "rejected">("pending");
+  const [search, setSearch] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<KycRecord | null>(null);
   const [notes, setNotes] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -65,19 +69,26 @@ const RegulatorKyc = () => {
     
     if (data && data.length > 0) {
       const userIds = data.map((r: any) => r.user_id);
-      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds);
-      
-      // Get roles
-      const { data: roles } = await supabase.from("user_roles").select("user_id, role").in("user_id", userIds);
+      const [{ data: profiles }, { data: roles }, { data: tenantRecs }, { data: landlordRecs }] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds),
+        supabase.from("user_roles").select("user_id, role").in("user_id", userIds),
+        supabase.from("tenants").select("user_id, tenant_id").in("user_id", userIds),
+        supabase.from("landlords").select("user_id, landlord_id").in("user_id", userIds),
+      ]);
+
+      const tenantMap = new Map((tenantRecs || []).map(t => [t.user_id, t.tenant_id]));
+      const landlordMap = new Map((landlordRecs || []).map(l => [l.user_id, l.landlord_id]));
 
       const enriched = data.map((r: any) => {
         const profile = profiles?.find((p: any) => p.user_id === r.user_id);
         const userRole = roles?.find((ro: any) => ro.user_id === r.user_id);
+        const role = userRole?.role || "unknown";
         return {
           ...r,
           profileName: profile?.full_name || "Unknown",
           profileEmail: profile?.email || "",
-          role: userRole?.role || "unknown",
+          role,
+          registrationId: role === "tenant" ? tenantMap.get(r.user_id) : role === "landlord" ? landlordMap.get(r.user_id) : undefined,
         };
       });
       setRecords(enriched as KycRecord[]);
@@ -126,6 +137,12 @@ const RegulatorKyc = () => {
     return <Badge variant="outline">AI: Unclear ({score}%)</Badge>;
   };
 
+  const filtered = records.filter((r) => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return r.profileName?.toLowerCase().includes(s) || r.profileEmail?.toLowerCase().includes(s) || r.ghana_card_number?.toLowerCase().includes(s) || r.registrationId?.toLowerCase().includes(s);
+  });
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
@@ -133,24 +150,30 @@ const RegulatorKyc = () => {
         <p className="text-muted-foreground text-sm mt-1">Review Ghana Card verification submissions</p>
       </div>
 
-      <div className="flex gap-2">
-        {(["pending", "all", "verified", "rejected"] as const).map((f) => (
-          <Button key={f} variant={filter === f ? "default" : "outline"} size="sm" onClick={() => setFilter(f)}>
-            {f === "pending" ? "Pending" : f === "all" ? "All" : f === "verified" ? "Verified" : "Rejected"}
-          </Button>
-        ))}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search by name, email, Ghana Card, ID..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <div className="flex gap-2">
+          {(["pending", "all", "verified", "rejected"] as const).map((f) => (
+            <Button key={f} variant={filter === f ? "default" : "outline"} size="sm" onClick={() => setFilter(f)}>
+              {f === "pending" ? "Pending" : f === "all" ? "All" : f === "verified" ? "Verified" : "Rejected"}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-      ) : records.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <IdCard className="h-10 w-10 mx-auto mb-2 opacity-50" />
-          <p>No {filter !== "all" ? filter : ""} KYC submissions found</p>
+          <p>{search ? "No matching results" : `No ${filter !== "all" ? filter : ""} KYC submissions found`}</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {records.map((r) => (
+          {filtered.map((r) => (
             <Card key={r.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -160,7 +183,15 @@ const RegulatorKyc = () => {
                     </div>
                     <div>
                       <p className="font-semibold text-foreground">{r.profileName}</p>
-                      <p className="text-xs text-muted-foreground">{r.ghana_card_number} · {r.role} · {r.profileEmail}</p>
+                      <p className="text-xs text-muted-foreground">{r.ghana_card_number} · <span className="capitalize">{r.role}</span> · {r.profileEmail}</p>
+                      {r.registrationId && (
+                        <button
+                          onClick={() => navigate(r.role === "tenant" ? "/regulator/tenants" : "/regulator/landlords")}
+                          className="text-xs text-primary hover:underline flex items-center gap-1 mt-0.5"
+                        >
+                          <ExternalLink className="h-3 w-3" /> {r.registrationId}
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
