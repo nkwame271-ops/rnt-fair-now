@@ -16,7 +16,9 @@ const RoleSelect = () => {
         <div className="relative z-10 px-4 py-16 sm:py-24 text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="flex items-center justify-center gap-3 mb-4">
-              <img src={rcdLogo} alt="RCD Logo" className="h-14 w-14 object-contain" />
+              <div className="bg-white/90 rounded-2xl p-2 shadow-lg backdrop-blur-sm">
+                <img src={rcdLogo} alt="RCD Logo" className="h-16 w-16 object-contain" />
+              </div>
               <span className="text-sm font-semibold tracking-widest uppercase text-secondary">Ghana Rent Control</span>
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-primary-foreground mb-4 leading-tight">

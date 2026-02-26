@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart3, Users, Building2, TrendingUp, CreditCard } from "lucide-react";
+import LogoLoader from "@/components/LogoLoader";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const COLORS = ["hsl(152,55%,38%)", "hsl(43,85%,55%)", "hsl(210,60%,50%)", "hsl(0,72%,50%)", "hsl(152,55%,28%)"];
@@ -79,7 +80,7 @@ const RegulatorAnalytics = () => {
     fetchAnalytics();
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+  if (loading) return <LogoLoader message="Loading analytics..." />;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
