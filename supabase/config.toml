@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.legal-assistant]
 verify_jwt = false
+
+[functions.kyc-face-match]
+verify_jwt = false
+
+[functions.verify-registration]
+verify_jwt = false

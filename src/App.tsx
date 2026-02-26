@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import KycGate from "@/components/KycGate";
 import RoleSelect from "./pages/RoleSelect";
 import Login from "./pages/Login";
 import RegisterTenant from "./pages/RegisterTenant";
@@ -35,6 +36,7 @@ import RegulatorAgreements from "./pages/regulator/RegulatorAgreements";
 import RegulatorAgreementTemplates from "./pages/regulator/RegulatorAgreementTemplates";
 import RegulatorAnalytics from "./pages/regulator/RegulatorAnalytics";
 import InviteStaff from "./pages/regulator/InviteStaff";
+import RegulatorKyc from "./pages/regulator/RegulatorKyc";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import NotFound from "./pages/NotFound";
@@ -61,7 +63,7 @@ const App = () => (
               <Route path="dashboard" element={<TenantDashboard />} />
               <Route path="marketplace" element={<Marketplace />} />
               <Route path="rent-checker" element={<RentChecker />} />
-              <Route path="file-complaint" element={<FileComplaint />} />
+              <Route path="file-complaint" element={<KycGate action="file a complaint"><FileComplaint /></KycGate>} />
               <Route path="my-cases" element={<MyCases />} />
               <Route path="payments" element={<Payments />} />
               <Route path="my-agreements" element={<MyAgreements />} />
@@ -74,9 +76,9 @@ const App = () => (
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<LandlordDashboard />} />
               <Route path="my-properties" element={<MyProperties />} />
-              <Route path="register-property" element={<RegisterProperty />} />
+              <Route path="register-property" element={<KycGate action="register a property"><RegisterProperty /></KycGate>} />
               <Route path="agreements" element={<Agreements />} />
-              <Route path="add-tenant" element={<AddTenant />} />
+              <Route path="add-tenant" element={<KycGate action="add a tenant"><AddTenant /></KycGate>} />
               <Route path="viewing-requests" element={<LandlordViewingRequests />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
@@ -93,6 +95,7 @@ const App = () => (
               <Route path="agreement-templates" element={<RegulatorAgreementTemplates />} />
               <Route path="analytics" element={<RegulatorAnalytics />} />
               <Route path="invite-staff" element={<InviteStaff />} />
+              <Route path="kyc" element={<RegulatorKyc />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
