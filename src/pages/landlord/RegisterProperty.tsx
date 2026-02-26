@@ -43,6 +43,7 @@ const RegisterProperty = () => {
   const [gettingGps, setGettingGps] = useState(false);
   const [propertyCondition, setPropertyCondition] = useState("");
   const [listOnMarketplace, setListOnMarketplace] = useState(false);
+  const [payingListingFee, setPayingListingFee] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [units, setUnits] = useState<UnitForm[]>([{
     name: "Unit A", type: "", rent: "",
@@ -111,6 +112,10 @@ const RegisterProperty = () => {
       const propertyCode = `${regionCode}-${areaCode}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999)).padStart(3, "0")}`;
 
       // Insert property
+      // If listing on marketplace, save property first but set listed_on_marketplace = false
+      // The listing fee payment webhook will set it to true
+      const shouldList = listOnMarketplace;
+      
       const { data: prop, error: propErr } = await supabase.from("properties").insert({
         landlord_user_id: user.id,
         property_name: name,
@@ -120,7 +125,7 @@ const RegisterProperty = () => {
         property_code: propertyCode,
         gps_location: gpsLocation || null,
         property_condition: propertyCondition || null,
-        listed_on_marketplace: listOnMarketplace,
+        listed_on_marketplace: false, // Always false initially; payment activates it
       } as any).select().single();
 
       if (propErr) throw propErr;
@@ -157,6 +162,27 @@ const RegisterProperty = () => {
           amenities: u.amenities,
           custom_amenities: u.customAmenities || null,
         });
+      }
+
+      // If user wants marketplace listing, redirect to payment
+      if (shouldList) {
+        setPayingListingFee(true);
+        try {
+          const { data: payData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
+            body: { type: "listing_fee", propertyId: prop.id },
+          });
+          if (payErr) throw new Error(payErr.message);
+          if (payData?.error) throw new Error(payData.error);
+          if (payData?.authorization_url) {
+            toast.success(`Property registered! Code: ${propertyCode}. Redirecting to pay listing fee...`);
+            window.location.href = payData.authorization_url;
+            return;
+          }
+        } catch (payError: any) {
+          toast.error(`Property saved but listing fee payment failed: ${payError.message}. You can pay later from My Properties.`);
+        } finally {
+          setPayingListingFee(false);
+        }
       }
 
       toast.success(`Property registered! Code: ${propertyCode}`);
@@ -230,7 +256,7 @@ const RegisterProperty = () => {
               <Store className="h-5 w-5 text-primary" />
               <div>
                 <Label className="text-sm font-medium">List on Marketplace</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">Make vacant units visible to tenants searching for rentals</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Make vacant units visible to tenants (GH₵ 2 listing fee applies)</p>
               </div>
             </div>
             <Switch checked={listOnMarketplace} onCheckedChange={setListOnMarketplace} />
@@ -334,8 +360,8 @@ const RegisterProperty = () => {
           </div>
         </div>
 
-        <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting}>
-          {submitting ? "Registering..." : "Register Property"}
+        <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting || payingListingFee}>
+          {payingListingFee ? "Redirecting to payment..." : submitting ? "Registering..." : listOnMarketplace ? "Register & Pay Listing Fee (GH₵ 2)" : "Register Property"}
         </Button>
       </form>
     </div>

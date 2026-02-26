@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     const userId = authUser.id;
 
     const body = await req.json();
-    const { type } = body; // "rent_tax" | "tenant_registration" | "landlord_registration" | "complaint_fee"
+    const { type } = body; // "rent_tax" | "tenant_registration" | "landlord_registration" | "complaint_fee" | "listing_fee" | "viewing_fee"
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -107,6 +107,34 @@ Deno.serve(async (req) => {
       description = "Complaint Filing Fee (GH₵ 2)";
       reference = `comp_${complaintId}`;
       callbackPath = "/tenant/my-cases?status=success";
+
+    } else if (type === "listing_fee") {
+      const { propertyId } = body;
+      if (!propertyId) throw new Error("propertyId is required");
+
+      const { data: prop } = await supabase
+        .from("properties")
+        .select("id, landlord_user_id, listed_on_marketplace")
+        .eq("id", propertyId)
+        .single();
+
+      if (!prop) throw new Error("Property not found");
+      if (prop.landlord_user_id !== userId) throw new Error("Unauthorized");
+      if (prop.listed_on_marketplace) throw new Error("Already listed");
+
+      totalAmount = 2;
+      description = "Property Listing Fee - Marketplace (GH₵ 2)";
+      reference = `list_${propertyId}_${Date.now()}`;
+      callbackPath = "/landlord/my-properties?status=listed";
+
+    } else if (type === "viewing_fee") {
+      const { viewingRequestId } = body;
+      if (!viewingRequestId) throw new Error("viewingRequestId is required");
+
+      totalAmount = 2;
+      description = "Property Viewing Request Fee (GH₵ 2)";
+      reference = `view_${viewingRequestId}`;
+      callbackPath = "/tenant/marketplace?status=viewing_paid";
 
     } else {
       throw new Error("Invalid payment type");
