@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Building2, Users, Shield, ArrowRight, Lock } from "lucide-react";
+import { Building2, Users, ArrowRight, Lock } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
+import rcdLogo from "@/assets/rcd-logo.png";
 
 const RoleSelect = () => {
   const navigate = useNavigate();
@@ -14,8 +15,8 @@ const RoleSelect = () => {
         <div className="absolute inset-0 gradient-hero opacity-85" />
         <div className="relative z-10 px-4 py-16 sm:py-24 text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <Shield className="h-8 w-8 text-secondary" />
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <img src={rcdLogo} alt="RCD Logo" className="h-14 w-14 object-contain" />
               <span className="text-sm font-semibold tracking-widest uppercase text-secondary">Ghana Rent Control</span>
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-primary-foreground mb-4 leading-tight">
