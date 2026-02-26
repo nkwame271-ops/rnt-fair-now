@@ -37,6 +37,7 @@ import RegulatorAgreementTemplates from "./pages/regulator/RegulatorAgreementTem
 import RegulatorAnalytics from "./pages/regulator/RegulatorAnalytics";
 import InviteStaff from "./pages/regulator/InviteStaff";
 import RegulatorKyc from "./pages/regulator/RegulatorKyc";
+import RegulatorFeedback from "./pages/regulator/RegulatorFeedback";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import NotFound from "./pages/NotFound";
@@ -96,6 +97,7 @@ const App = () => (
               <Route path="analytics" element={<RegulatorAnalytics />} />
               <Route path="invite-staff" element={<InviteStaff />} />
               <Route path="kyc" element={<RegulatorKyc />} />
+              <Route path="feedback" element={<RegulatorFeedback />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

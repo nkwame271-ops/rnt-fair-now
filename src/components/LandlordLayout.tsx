@@ -14,6 +14,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import TourGuide from "@/components/TourGuide";
 import { landlordTourSteps } from "@/data/tourSteps";
+import BetaFeedbackWidget from "@/components/BetaFeedbackWidget";
 
 const navItems = [
   { to: "/landlord/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -98,6 +99,7 @@ const LandlordLayout = () => {
         </main>
       </div>
       <TourGuide steps={landlordTourSteps} storageKey="tour_landlord_completed" />
+      <BetaFeedbackWidget />
     </div>
   );
 };

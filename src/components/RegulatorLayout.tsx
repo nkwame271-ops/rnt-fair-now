@@ -11,11 +11,13 @@ import {
   AlertTriangle,
   UserPlus,
   IdCard,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import TourGuide from "@/components/TourGuide";
 import { regulatorTourSteps } from "@/data/tourSteps";
+import BetaFeedbackWidget from "@/components/BetaFeedbackWidget";
 
 const navItems = [
   { to: "/regulator/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -28,6 +30,7 @@ const navItems = [
   { to: "/regulator/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/regulator/kyc", label: "KYC Verification", icon: IdCard },
   { to: "/regulator/invite-staff", label: "Invite Staff", icon: UserPlus },
+  { to: "/regulator/feedback", label: "Beta Feedback", icon: MessageSquare },
 ];
 
 const RegulatorLayout = () => {
@@ -100,6 +103,7 @@ const RegulatorLayout = () => {
         </main>
       </div>
       <TourGuide steps={regulatorTourSteps} storageKey="tour_regulator_completed" />
+      <BetaFeedbackWidget />
     </div>
   );
 };
