@@ -35,7 +35,7 @@ const Payments = () => {
   const { user } = useAuth();
   const [tenancy, setTenancy] = useState<Tenancy | null>(null);
   const [loading, setLoading] = useState(true);
-  const [paying, setPaying] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -51,13 +51,9 @@ const Payments = () => {
       if (!tenancies || tenancies.length === 0) { setLoading(false); return; }
       const t = tenancies[0] as any;
 
-      // Get property info
       const { data: prop } = await supabase.from("properties").select("property_name, address").eq("id", t.unit.property_id).single();
-
-      // Get landlord name
       const { data: landlordProfile } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
 
-      // Get payments
       const { data: payments } = await supabase
         .from("rent_payments")
         .select("*")
@@ -75,7 +71,6 @@ const Payments = () => {
     fetch();
   }, [user]);
 
-  // Check for payment success from redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("status") === "success") {
@@ -87,11 +82,12 @@ const Payments = () => {
     }
   }, []);
 
-  const handlePayTax = async (paymentId: string) => {
-    setPaying(paymentId);
+  const handlePayBulkTax = async () => {
+    if (!tenancy) return;
+    setPaying(true);
     try {
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
-        body: { type: "rent_tax", paymentId },
+        body: { type: "rent_tax_bulk", tenancyId: tenancy.id },
       });
 
       if (error) throw new Error(error.message || "Payment initiation failed");
@@ -104,7 +100,7 @@ const Payments = () => {
       }
     } catch (err: any) {
       toast.error(err.message || "Payment failed");
-      setPaying(null);
+      setPaying(false);
     }
   };
 
@@ -119,11 +115,9 @@ const Payments = () => {
   );
 
   const isPaid = (p: Payment) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed";
-  const nextUnpaid = tenancy.payments.find(p => !isPaid(p));
   const paidCount = tenancy.payments.filter(p => isPaid(p)).length;
   const totalMonths = tenancy.payments.length;
 
-  // Arrears calculation
   const today = new Date();
   const overduePayments = tenancy.payments.filter(p => !isPaid(p) && new Date(p.due_date) < today);
   const totalArrears = overduePayments.reduce((sum, p) => sum + p.tax_amount, 0);
@@ -136,6 +130,8 @@ const Payments = () => {
   const totalAdvanceTax = advancePayments.reduce((sum, p) => sum + p.tax_amount, 0);
   const totalAdvanceToLandlord = advancePayments.reduce((sum, p) => sum + p.amount_to_landlord, 0);
   const advancePaidCount = advancePayments.filter(p => isPaid(p)).length;
+  const unpaidAdvanceTax = advancePayments.filter(p => !isPaid(p)).reduce((sum, p) => sum + p.tax_amount, 0);
+  const allAdvancePaid = advancePaidCount === advanceMonths;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -180,7 +176,7 @@ const Payments = () => {
         <h2 className="text-lg font-semibold text-card-foreground mb-4">Advance Rent Summary ({advanceMonths} months)</h2>
         <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Total Rent ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
-          <div className="flex justify-between text-primary"><span>Total Tax ({(tenancy.agreed_rent > 0 ? ((tenancy.payments[0]?.tax_amount / tenancy.agreed_rent) * 100) : 8).toFixed(0)}%)</span><span className="font-semibold">GH₵ {totalAdvanceTax.toLocaleString()}</span></div>
+          <div className="flex justify-between text-primary"><span>Total Tax (8%)</span><span className="font-semibold">GH₵ {totalAdvanceTax.toLocaleString()}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Total to Landlord</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceToLandlord.toLocaleString()}</span></div>
           <div className="border-t border-border pt-2 flex justify-between font-bold text-base"><span>Grand Total</span><span>GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
           <div className="flex justify-between text-xs text-muted-foreground"><span>Advance months paid</span><span>{advancePaidCount}/{advanceMonths}</span></div>
@@ -192,30 +188,30 @@ const Payments = () => {
         <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p className="font-semibold text-foreground text-sm">How rent payment works</p>
-          <p>Your monthly rent of <strong>GH₵ {tenancy.agreed_rent.toLocaleString()}</strong> includes an 8% government tax of <strong>GH₵ {(tenancy.agreed_rent * 0.08).toLocaleString()}</strong>.</p>
-          <p>You pay the tax through this app. This validates your tenancy. The remaining <strong>GH₵ {(tenancy.agreed_rent * 0.92).toLocaleString()}</strong> goes directly to your landlord.</p>
+          <p>Your advance rent of <strong>GH₵ {totalAdvanceRent.toLocaleString()}</strong> for {advanceMonths} months includes an 8% government tax of <strong>GH₵ {totalAdvanceTax.toLocaleString()}</strong>.</p>
+          <p>You pay the full tax through this app in one transaction. This validates your tenancy. The remaining <strong>GH₵ {totalAdvanceToLandlord.toLocaleString()}</strong> goes directly to your landlord.</p>
         </div>
       </div>
 
-      {/* Next Payment */}
-      {nextUnpaid && (
+      {/* Pay All Advance Tax */}
+      {!allAdvancePaid && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl p-6 shadow-elevated border-2 border-primary/30">
           <div className="flex items-center gap-2 mb-4">
             <Wallet className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-card-foreground">Next Payment — {nextUnpaid.month_label}</h2>
+            <h2 className="text-lg font-semibold text-card-foreground">Pay All Advance Tax</h2>
           </div>
           <div className="bg-muted rounded-lg p-4 space-y-3 mb-5">
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Monthly Rent</span><span className="font-semibold text-card-foreground">GH₵ {nextUnpaid.monthly_rent.toLocaleString()}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Advance Rent ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
             <div className="border-t border-border pt-2 space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-primary font-medium">→ 8% Tax (pay via Rent Control)</span><span className="text-xl font-bold text-primary">GH₵ {nextUnpaid.tax_amount.toLocaleString()}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">→ Remaining (pay landlord directly)</span><span className="font-semibold text-card-foreground">GH₵ {nextUnpaid.amount_to_landlord.toLocaleString()}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-primary font-medium">→ 8% Tax (pay via Rent Control)</span><span className="text-xl font-bold text-primary">GH₵ {unpaidAdvanceTax.toLocaleString()}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-muted-foreground">→ Remaining (pay landlord directly)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceToLandlord.toLocaleString()}</span></div>
             </div>
           </div>
-          <Button className="w-full" size="lg" onClick={() => handlePayTax(nextUnpaid.id)} disabled={paying === nextUnpaid.id}>
+          <Button className="w-full" size="lg" onClick={handlePayBulkTax} disabled={paying}>
             <CreditCard className="h-4 w-4 mr-2" />
-            {paying === nextUnpaid.id ? "Redirecting..." : `Pay GH₵ ${nextUnpaid.tax_amount.toLocaleString()} Online`}
+            {paying ? "Redirecting..." : `Pay GH₵ ${unpaidAdvanceTax.toLocaleString()} Online`}
           </Button>
-          <p className="text-xs text-muted-foreground text-center mt-3">After tax payment, pay GH₵ {nextUnpaid.amount_to_landlord.toLocaleString()} directly to {tenancy.landlordName}</p>
+          <p className="text-xs text-muted-foreground text-center mt-3">After tax payment, pay GH₵ {totalAdvanceToLandlord.toLocaleString()} directly to {tenancy.landlordName}</p>
         </motion.div>
       )}
 
@@ -250,8 +246,6 @@ const Payments = () => {
                     <span className="flex items-center gap-1 text-xs font-semibold text-info bg-info/10 px-2.5 py-1 rounded-full">Awaiting Confirmation</span>
                   ) : isOverdue(p) ? (
                     <span className="flex items-center gap-1 text-xs font-semibold text-destructive bg-destructive/10 px-2.5 py-1 rounded-full"><AlertTriangle className="h-3 w-3" /> Overdue</span>
-                  ) : nextUnpaid?.id === p.id ? (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">Due Now</span>
                   ) : (
                     <span className="flex items-center gap-1 text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">Upcoming</span>
                   )}

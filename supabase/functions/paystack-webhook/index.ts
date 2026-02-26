@@ -15,7 +15,6 @@ Deno.serve(async (req) => {
 
     const rawBody = await req.text();
 
-    // Verify Paystack signature
     const signature = req.headers.get("x-paystack-signature");
     const hash = createHmac("sha512", PAYSTACK_SECRET_KEY).update(rawBody).digest("hex");
 
@@ -34,7 +33,7 @@ Deno.serve(async (req) => {
 
     const data = body.data;
     const reference = data.reference || "";
-    const amountPaid = (data.amount || 0) / 100; // Convert pesewas to GHS
+    const amountPaid = (data.amount || 0) / 100;
     const transactionId = String(data.id || "");
 
     const supabase = createClient(
@@ -42,7 +41,27 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    if (reference.startsWith("rent_")) {
+    if (reference.startsWith("rentbulk_")) {
+      // Bulk advance tax payment: reference = rentbulk_<tenancyId>_<timestamp>
+      const parts = reference.split("_");
+      const tenancyId = parts[1];
+
+      const { error } = await supabase
+        .from("rent_payments")
+        .update({
+          tenant_marked_paid: true,
+          status: "tenant_paid",
+          paid_date: new Date().toISOString(),
+          payment_method: "Paystack",
+          receiver: transactionId,
+        })
+        .eq("tenancy_id", tenancyId)
+        .eq("tenant_marked_paid", false);
+
+      if (error) console.error("Bulk rent payment update error:", error.message);
+      else console.log("Bulk rent payments confirmed for tenancy:", tenancyId);
+
+    } else if (reference.startsWith("rent_")) {
       const paymentId = reference.replace("rent_", "");
       const { error } = await supabase
         .from("rent_payments")
@@ -109,7 +128,6 @@ Deno.serve(async (req) => {
 
     } else if (reference.startsWith("view_")) {
       const viewingRequestId = reference.replace("view_", "");
-      // The viewing request was already created before payment; mark it as paid/active
       const { error } = await supabase
         .from("viewing_requests")
         .update({ status: "pending" })

@@ -34,6 +34,7 @@ const KycVerificationCard = () => {
   const [selfieBlob, setSelfieBlob] = useState<Blob | null>(null);
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -57,14 +58,22 @@ const KycVerificationCard = () => {
 
   const startCamera = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      setCameraReady(false);
       setCameraOpen(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } 
+      });
+      streamRef.current = stream;
+      // Wait for ref to be available after setCameraOpen triggers re-render
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      });
     } catch {
       toast.error("Unable to access camera. Please allow camera permissions.");
+      setCameraOpen(false);
     }
   }, []);
 
@@ -72,6 +81,7 @@ const KycVerificationCard = () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
     setCameraOpen(false);
+    setCameraReady(false);
   }, []);
 
   const captureSelfie = useCallback(() => {
@@ -105,8 +115,7 @@ const KycVerificationCard = () => {
   const uploadFile = async (file: File | Blob, path: string) => {
     const { error } = await supabase.storage.from("identity-documents").upload(path, file, { upsert: true });
     if (error) throw new Error(`Upload failed: ${error.message}`);
-    const { data } = supabase.storage.from("identity-documents").getPublicUrl(path);
-    return data.publicUrl;
+    return path; // Return the storage path, not a public URL
   };
 
   const handleSubmit = async () => {
@@ -123,15 +132,15 @@ const KycVerificationCard = () => {
     setSubmitting(true);
     try {
       const ts = Date.now();
-      const frontUrl = await uploadFile(frontFile, `${user.id}/ghana-card-front-${ts}.jpg`);
-      const backUrl = await uploadFile(backFile, `${user.id}/ghana-card-back-${ts}.jpg`);
-      const selfieUrl = await uploadFile(selfieBlob, `${user.id}/selfie-${ts}.jpg`);
+      const frontPath = await uploadFile(frontFile, `${user.id}/ghana-card-front-${ts}.jpg`);
+      const backPath = await uploadFile(backFile, `${user.id}/ghana-card-back-${ts}.jpg`);
+      const selfiePath = await uploadFile(selfieBlob, `${user.id}/selfie-${ts}.jpg`);
 
-      // AI face matching
+      // AI face matching - pass file paths, edge function generates signed URLs
       let aiResult = { match_score: 0, match_result: "pending" };
       try {
         const { data } = await supabase.functions.invoke("kyc-face-match", {
-          body: { ghanaCardFrontUrl: frontUrl, selfieUrl },
+          body: { ghanaCardFrontPath: frontPath, selfiePath },
         });
         if (data?.match_score !== undefined) {
           aiResult = data;
@@ -140,12 +149,13 @@ const KycVerificationCard = () => {
         console.warn("AI face matching unavailable, proceeding with manual review");
       }
 
+      // Store file paths (not public URLs) since bucket is private
       if (kyc) {
         await supabase.from("kyc_verifications").update({
           ghana_card_number: ghanaCardNumber,
-          ghana_card_front_url: frontUrl,
-          ghana_card_back_url: backUrl,
-          selfie_url: selfieUrl,
+          ghana_card_front_url: frontPath,
+          ghana_card_back_url: backPath,
+          selfie_url: selfiePath,
           status: "pending",
           ai_match_score: aiResult.match_score,
           ai_match_result: aiResult.match_result,
@@ -154,9 +164,9 @@ const KycVerificationCard = () => {
         await supabase.from("kyc_verifications").insert({
           user_id: user.id,
           ghana_card_number: ghanaCardNumber,
-          ghana_card_front_url: frontUrl,
-          ghana_card_back_url: backUrl,
-          selfie_url: selfieUrl,
+          ghana_card_front_url: frontPath,
+          ghana_card_back_url: backPath,
+          selfie_url: selfiePath,
           status: "pending",
           ai_match_score: aiResult.match_score,
           ai_match_result: aiResult.match_result,
@@ -164,7 +174,6 @@ const KycVerificationCard = () => {
       }
 
       toast.success("KYC documents submitted for verification!");
-      // Reload KYC record
       const { data: updated } = await supabase.from("kyc_verifications").select("*").eq("user_id", user.id).maybeSingle();
       setKyc(updated as KycRecord);
     } catch (err: any) {
@@ -185,7 +194,6 @@ const KycVerificationCard = () => {
     }
   };
 
-  // If verified, show simple status
   if (kyc?.status === "verified") {
     return (
       <Card className="border-success/30 bg-success/5">
@@ -204,7 +212,6 @@ const KycVerificationCard = () => {
     );
   }
 
-  // If pending
   if (kyc?.status === "pending") {
     return (
       <Card className="border-warning/30 bg-warning/5">
@@ -292,9 +299,27 @@ const KycVerificationCard = () => {
             </div>
           ) : cameraOpen ? (
             <div className="space-y-2">
-              <video ref={videoRef} autoPlay playsInline className="w-full max-w-sm rounded-lg border border-border" />
+              <div className="relative">
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  playsInline 
+                  muted 
+                  onPlaying={() => setCameraReady(true)}
+                  className="w-full max-w-sm rounded-lg border border-border" 
+                />
+                {!cameraReady && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-muted/80 rounded-lg">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Camera loading...
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="flex gap-2">
-                <Button onClick={captureSelfie} size="sm"><Camera className="h-4 w-4 mr-1" />Capture</Button>
+                <Button onClick={captureSelfie} size="sm" disabled={!cameraReady}>
+                  <Camera className="h-4 w-4 mr-1" />Capture
+                </Button>
                 <Button onClick={stopCamera} variant="outline" size="sm">Cancel</Button>
               </div>
             </div>
