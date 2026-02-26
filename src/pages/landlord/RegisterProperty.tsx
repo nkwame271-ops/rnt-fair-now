@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +41,8 @@ const RegisterProperty = () => {
   const [area, setArea] = useState("");
   const [customArea, setCustomArea] = useState("");
   const [gpsLocation, setGpsLocation] = useState("");
+  const [gpsConfirmed, setGpsConfirmed] = useState(false);
+  const [ghanaPostGps, setGhanaPostGps] = useState("");
   const [propertyCondition, setPropertyCondition] = useState("");
   const [listOnMarketplace, setListOnMarketplace] = useState(false);
   const [payingListingFee, setPayingListingFee] = useState(false);
@@ -85,6 +86,17 @@ const RegisterProperty = () => {
       toast.error("Please select or type an area");
       return;
     }
+
+    // GPS is mandatory
+    if (!gpsLocation) {
+      toast.error("Please select the property location on the map");
+      return;
+    }
+    if (!gpsConfirmed) {
+      toast.error("Please confirm the pin represents the property's physical location");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -107,7 +119,10 @@ const RegisterProperty = () => {
         region,
         area: effectiveArea,
         property_code: propertyCode,
-        gps_location: gpsLocation || null,
+        gps_location: gpsLocation,
+        gps_confirmed: true,
+        gps_confirmed_at: new Date().toISOString(),
+        ghana_post_gps: ghanaPostGps || null,
         property_condition: propertyCondition || null,
         listed_on_marketplace: false,
       } as any).select().single();
@@ -222,13 +237,18 @@ const RegisterProperty = () => {
             </div>
           </div>
 
-          {/* GPS — Interactive Map Picker */}
+          {/* GPS — Interactive Map Picker with confirmation */}
           <PropertyLocationPicker
             region={region}
             value={gpsLocation}
+            required={true}
+            confirmed={gpsConfirmed}
+            ghanaPostGps={ghanaPostGps}
             onLocationChange={(loc) => {
               setGpsLocation(loc ? `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}` : "");
             }}
+            onConfirmChange={setGpsConfirmed}
+            onGhanaPostGpsChange={setGhanaPostGps}
           />
 
           {/* Property condition */}
