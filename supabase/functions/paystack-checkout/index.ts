@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     const userId = authUser.id;
 
     const body = await req.json();
-    const { type } = body; // "rent_tax" | "tenant_registration" | "landlord_registration" | "complaint_fee" | "listing_fee" | "viewing_fee"
+    const { type } = body;
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -35,12 +35,42 @@ Deno.serve(async (req) => {
       .eq("user_id", userId)
       .single();
 
-    let totalAmount: number; // in GHS
+    let totalAmount: number;
     let description: string;
     let reference: string;
     let callbackPath: string;
 
-    if (type === "rent_tax") {
+    if (type === "rent_tax_bulk") {
+      const { tenancyId } = body;
+      if (!tenancyId) throw new Error("tenancyId is required");
+
+      // Verify tenancy belongs to user
+      const { data: tenancy, error: tErr } = await supabase
+        .from("tenancies")
+        .select("id, tenant_user_id, registration_code, advance_months")
+        .eq("id", tenancyId)
+        .single();
+
+      if (tErr || !tenancy) throw new Error("Tenancy not found");
+      if ((tenancy as any).tenant_user_id !== userId) throw new Error("Unauthorized");
+
+      // Get all unpaid advance payments
+      const { data: unpaidPayments, error: pErr } = await supabase
+        .from("rent_payments")
+        .select("id, tax_amount, tenant_marked_paid")
+        .eq("tenancy_id", tenancyId)
+        .eq("tenant_marked_paid", false)
+        .order("due_date", { ascending: true });
+
+      if (pErr) throw new Error("Failed to fetch payments");
+      if (!unpaidPayments || unpaidPayments.length === 0) throw new Error("No unpaid payments found");
+
+      totalAmount = unpaidPayments.reduce((sum: number, p: any) => sum + Number(p.tax_amount), 0);
+      description = `Bulk advance rent tax (${unpaidPayments.length} months) - ${(tenancy as any).registration_code}`;
+      reference = `rentbulk_${tenancyId}_${Date.now()}`;
+      callbackPath = "/tenant/payments?status=success";
+
+    } else if (type === "rent_tax") {
       const { paymentId } = body;
       if (!paymentId) throw new Error("paymentId is required");
 
@@ -146,7 +176,6 @@ Deno.serve(async (req) => {
     const origin = req.headers.get("origin") || "https://rentcontrol.lovable.app";
     const callbackUrl = `${origin}${callbackPath}`;
 
-    // Paystack amount is in pesewas (multiply by 100)
     const amountInPesewas = Math.round(totalAmount * 100);
 
     const payload = {
