@@ -76,15 +76,26 @@ const KycVerificationCard = () => {
 
   const captureSelfie = useCallback(() => {
     if (!videoRef.current) return;
+    const video = videoRef.current;
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (!w || !h) {
+      toast.error("Camera not ready yet. Please wait a moment and try again.");
+      return;
+    }
     const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, w, h);
     canvas.toBlob((blob) => {
       if (blob) {
         setSelfieBlob(blob);
         setSelfiePreview(URL.createObjectURL(blob));
         stopCamera();
+      } else {
+        toast.error("Failed to capture image. Please try again.");
       }
     }, "image/jpeg", 0.85);
   }, [stopCamera]);
