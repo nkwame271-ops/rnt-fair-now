@@ -1,17 +1,21 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import LogoLoader from "@/components/LogoLoader";
-import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, Loader2, CreditCard } from "lucide-react";
+import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, CreditCard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import PageTransition from "@/components/PageTransition";
+import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
+import AnimatedCounter from "@/components/AnimatedCounter";
+import { getTimeGreeting } from "@/lib/greeting";
 
 const LandlordDashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [profileName, setProfileName] = useState("");
   const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
   const [stats, setStats] = useState({ properties: 0, totalUnits: 0, occupiedUnits: 0, pendingTenancies: 0, validMonths: 0, pendingMonths: 0 });
@@ -19,7 +23,9 @@ const LandlordDashboard = () => {
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
-      // Check registration fee
+      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
+      setProfileName(profile?.full_name || "Landlord");
+
       const { data: landlordRecord } = await supabase.from("landlords").select("registration_fee_paid").eq("user_id", user.id).maybeSingle();
       setRegistrationFeePaid(landlordRecord?.registration_fee_paid ?? true);
 
@@ -72,74 +78,83 @@ const LandlordDashboard = () => {
   if (loading) return <LogoLoader message="Loading dashboard..." />;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      {/* Registration Fee Banner */}
-      {!registrationFeePaid && (
-        <Alert className="border-warning bg-warning/10 border-2">
-          <AlertTriangle className="h-5 w-5 text-warning" />
-          <AlertTitle className="text-warning font-semibold">Registration Fee Unpaid</AlertTitle>
-          <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1">
-            <span className="text-muted-foreground">Your registration fee (GH₵ 2) is unpaid. Pay now to activate your Landlord ID and access all platform features.</span>
-            <Button onClick={handlePayRegistrationFee} disabled={payingFee} size="sm" className="shrink-0">
-              <CreditCard className="mr-2 h-4 w-4" />
-              {payingFee ? "Redirecting..." : "Pay GH₵ 2 Now"}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
+    <PageTransition>
+      <div className="max-w-5xl mx-auto space-y-8">
+        {!registrationFeePaid && (
+          <Alert className="border-warning bg-warning/10 border-2">
+            <AlertTriangle className="h-5 w-5 text-warning" />
+            <AlertTitle className="text-warning font-semibold">Registration Fee Unpaid</AlertTitle>
+            <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1">
+              <span className="text-muted-foreground">Your registration fee (GH₵ 2) is unpaid. Pay now to activate your Landlord ID and access all platform features.</span>
+              <Button onClick={handlePayRegistrationFee} disabled={payingFee} size="sm" className="shrink-0">
+                <CreditCard className="mr-2 h-4 w-4" />
+                {payingFee ? "Redirecting..." : "Pay GH₵ 2 Now"}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-bold text-foreground">Landlord Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Manage your properties and stay compliant</p>
-      </motion.div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Properties", value: stats.properties, icon: Building2, color: "text-primary" },
-          { label: "Total Units", value: stats.totalUnits, icon: Building2, color: "text-info" },
-          { label: "Tenants", value: stats.occupiedUnits, icon: Users, color: "text-success" },
-          { label: "Pending Agreements", value: stats.pendingTenancies, icon: AlertTriangle, color: "text-destructive" },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-card rounded-xl p-5 shadow-card border border-border">
-            <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
-            <div className="text-2xl font-bold text-card-foreground">{stat.value}</div>
-            <div className="text-xs text-muted-foreground">{stat.label}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-4">
-        <Link to="/landlord/register-property" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated transition-all">
-          <PlusCircle className="h-6 w-6 text-primary mb-3" />
-          <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">Register New Property</h3>
-          <p className="text-sm text-muted-foreground mt-1">Add a new property with units and pricing</p>
-        </Link>
-        <Link to="/landlord/my-properties" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated transition-all">
-          <Building2 className="h-6 w-6 text-primary mb-3" />
-          <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">View Properties</h3>
-          <p className="text-sm text-muted-foreground mt-1">Manage existing properties and tenants</p>
-        </Link>
-      </div>
-
-      <div className="bg-card rounded-xl p-6 shadow-card border border-border">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">Payment Validity Overview</h2>
-          <Link to="/landlord/agreements" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">View all <ArrowRight className="h-3 w-3" /></Link>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">{getTimeGreeting(profileName)}</h1>
+          <p className="text-muted-foreground mt-1">Manage your properties and stay compliant</p>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-success/5 border border-success/20 rounded-lg p-4 text-center">
-            <Shield className="h-5 w-5 text-success mx-auto mb-1" />
-            <div className="text-2xl font-bold text-success">{stats.validMonths}</div>
-            <div className="text-xs text-muted-foreground">Confirmed Payments</div>
+
+        <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: "Properties", value: stats.properties, icon: Building2, color: "text-primary" },
+            { label: "Total Units", value: stats.totalUnits, icon: Building2, color: "text-info" },
+            { label: "Tenants", value: stats.occupiedUnits, icon: Users, color: "text-success" },
+            { label: "Pending Agreements", value: stats.pendingTenancies, icon: AlertTriangle, color: "text-destructive" },
+          ].map((stat) => (
+            <StaggeredItem key={stat.label}>
+              <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
+                <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
+                <div className="text-2xl font-bold text-card-foreground">
+                  <AnimatedCounter value={stat.value} />
+                </div>
+                <div className="text-xs text-muted-foreground">{stat.label}</div>
+              </div>
+            </StaggeredItem>
+          ))}
+        </StaggeredGrid>
+
+        <StaggeredGrid className="grid sm:grid-cols-2 gap-4">
+          <StaggeredItem>
+            <Link to="/landlord/register-property" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
+              <PlusCircle className="h-6 w-6 text-primary mb-3" />
+              <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">Register New Property</h3>
+              <p className="text-sm text-muted-foreground mt-1">Add a new property with units and pricing</p>
+            </Link>
+          </StaggeredItem>
+          <StaggeredItem>
+            <Link to="/landlord/my-properties" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
+              <Building2 className="h-6 w-6 text-primary mb-3" />
+              <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">View Properties</h3>
+              <p className="text-sm text-muted-foreground mt-1">Manage existing properties and tenants</p>
+            </Link>
+          </StaggeredItem>
+        </StaggeredGrid>
+
+        <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground">Payment Validity Overview</h2>
+            <Link to="/landlord/agreements" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">View all <ArrowRight className="h-3 w-3" /></Link>
           </div>
-          <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 text-center">
-            <XCircle className="h-5 w-5 text-destructive mx-auto mb-1" />
-            <div className="text-2xl font-bold text-destructive">{stats.pendingMonths}</div>
-            <div className="text-xs text-muted-foreground">Pending Payments</div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-success/5 border border-success/20 rounded-lg p-4 text-center">
+              <Shield className="h-5 w-5 text-success mx-auto mb-1" />
+              <div className="text-2xl font-bold text-success"><AnimatedCounter value={stats.validMonths} /></div>
+              <div className="text-xs text-muted-foreground">Confirmed Payments</div>
+            </div>
+            <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 text-center">
+              <XCircle className="h-5 w-5 text-destructive mx-auto mb-1" />
+              <div className="text-2xl font-bold text-destructive"><AnimatedCounter value={stats.pendingMonths} /></div>
+              <div className="text-xs text-muted-foreground">Pending Payments</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </PageTransition>
   );
 };
 
