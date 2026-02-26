@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Users, Download, Search, ChevronDown, ChevronUp, Home, FileText, Calendar, User } from "lucide-react";
+import LogoLoader from "@/components/LogoLoader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -162,7 +163,7 @@ const RegulatorTenants = () => {
     const a = document.createElement("a"); a.href = url; a.download = "tenants_export.csv"; a.click();
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+  if (loading) return <LogoLoader message="Loading tenants..." />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
