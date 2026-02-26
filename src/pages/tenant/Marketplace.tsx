@@ -108,7 +108,8 @@ const Marketplace = () => {
     }
     setSubmittingRequest(true);
     try {
-      const { error } = await supabase.from("viewing_requests").insert({
+      // Create viewing request with "awaiting_payment" status
+      const { data: vr, error } = await supabase.from("viewing_requests").insert({
         tenant_user_id: user.id,
         landlord_user_id: selectedUnit.property.landlord_user_id,
         property_id: selectedUnit.property.id,
@@ -116,13 +117,22 @@ const Marketplace = () => {
         message: viewingMessage || null,
         preferred_date: viewingDate || null,
         preferred_time: viewingTime || null,
-      });
+        status: "awaiting_payment",
+      }).select().single();
       if (error) throw error;
-      toast.success("Viewing request sent to landlord!");
-      setSelectedUnit(null);
-      setViewingMessage("");
-      setViewingDate("");
-      setViewingTime("");
+
+      // Initiate payment for viewing fee
+      const { data: payData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
+        body: { type: "viewing_fee", viewingRequestId: vr.id },
+      });
+      if (payErr) throw new Error(payErr.message);
+      if (payData?.error) throw new Error(payData.error);
+
+      if (payData?.authorization_url) {
+        window.location.href = payData.authorization_url;
+      } else {
+        throw new Error("No checkout URL received");
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to send request");
     } finally {
@@ -285,8 +295,9 @@ const Marketplace = () => {
                 <Textarea value={viewingMessage} onChange={(e) => setViewingMessage(e.target.value)} placeholder="Optional message to landlord..." rows={2} />
                 <Button className="w-full" onClick={handleRequestViewing} disabled={submittingRequest}>
                   <Send className="h-4 w-4 mr-2" />
-                  {submittingRequest ? "Sending..." : "Send Viewing Request"}
+                  {submittingRequest ? "Processing..." : "Pay GH₵ 2 & Send Viewing Request"}
                 </Button>
+                <p className="text-xs text-muted-foreground text-center">A GH₵ 2 viewing fee is required to send this request</p>
               </div>
             </div>
           </motion.div>

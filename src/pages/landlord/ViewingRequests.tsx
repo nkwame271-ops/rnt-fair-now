@@ -75,8 +75,9 @@ const LandlordViewingRequests = () => {
                   req.status === "pending" ? "bg-warning/10 text-warning" :
                   req.status === "accepted" ? "bg-success/10 text-success" :
                   req.status === "declined" ? "bg-destructive/10 text-destructive" :
+                  req.status === "awaiting_payment" ? "bg-muted text-muted-foreground" :
                   "bg-muted text-muted-foreground"
-                }`}>{req.status}</span>
+                }`}>{req.status === "awaiting_payment" ? "Awaiting Payment" : req.status}</span>
               </div>
               {/* Tenant info */}
               <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">

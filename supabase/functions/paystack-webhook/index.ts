@@ -97,6 +97,28 @@ Deno.serve(async (req) => {
       if (error) console.error("Complaint update error:", error.message);
       else console.log("Complaint fee confirmed:", complaintId);
 
+    } else if (reference.startsWith("list_")) {
+      const propertyId = reference.split("_")[1];
+      const { error } = await supabase
+        .from("properties")
+        .update({ listed_on_marketplace: true })
+        .eq("id", propertyId);
+
+      if (error) console.error("Listing fee update error:", error.message);
+      else console.log("Property listed on marketplace:", propertyId);
+
+    } else if (reference.startsWith("view_")) {
+      const viewingRequestId = reference.replace("view_", "");
+      // The viewing request was already created before payment; mark it as paid/active
+      const { error } = await supabase
+        .from("viewing_requests")
+        .update({ status: "pending" })
+        .eq("id", viewingRequestId)
+        .eq("status", "awaiting_payment");
+
+      if (error) console.error("Viewing fee update error:", error.message);
+      else console.log("Viewing request activated:", viewingRequestId);
+
     } else {
       console.log("Unknown reference format:", reference);
     }

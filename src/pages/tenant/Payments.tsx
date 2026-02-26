@@ -129,6 +129,14 @@ const Payments = () => {
   const totalArrears = overduePayments.reduce((sum, p) => sum + p.tax_amount, 0);
   const isOverdue = (p: Payment) => !isPaid(p) && new Date(p.due_date) < today;
 
+  // Advance rent aggregation
+  const advanceMonths = tenancy.advance_months;
+  const advancePayments = tenancy.payments.slice(0, advanceMonths);
+  const totalAdvanceRent = advancePayments.reduce((sum, p) => sum + p.monthly_rent, 0);
+  const totalAdvanceTax = advancePayments.reduce((sum, p) => sum + p.tax_amount, 0);
+  const totalAdvanceToLandlord = advancePayments.reduce((sum, p) => sum + p.amount_to_landlord, 0);
+  const advancePaidCount = advancePayments.filter(p => isPaid(p)).length;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
@@ -166,6 +174,18 @@ const Payments = () => {
           </div>
         </div>
       )}
+
+      {/* Advance Rent Summary */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-card rounded-xl p-6 shadow-card border border-border">
+        <h2 className="text-lg font-semibold text-card-foreground mb-4">Advance Rent Summary ({advanceMonths} months)</h2>
+        <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Total Rent ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
+          <div className="flex justify-between text-primary"><span>Total Tax ({(tenancy.agreed_rent > 0 ? ((tenancy.payments[0]?.tax_amount / tenancy.agreed_rent) * 100) : 8).toFixed(0)}%)</span><span className="font-semibold">GH₵ {totalAdvanceTax.toLocaleString()}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Total to Landlord</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceToLandlord.toLocaleString()}</span></div>
+          <div className="border-t border-border pt-2 flex justify-between font-bold text-base"><span>Grand Total</span><span>GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
+          <div className="flex justify-between text-xs text-muted-foreground"><span>Advance months paid</span><span>{advancePaidCount}/{advanceMonths}</span></div>
+        </div>
+      </motion.div>
 
       {/* Info */}
       <div className="flex items-start gap-2 text-xs text-muted-foreground bg-info/5 p-4 rounded-lg border border-info/20">
