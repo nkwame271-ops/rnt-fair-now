@@ -89,6 +89,9 @@ export type Database = {
           complaint_type: string
           created_at: string
           description: string
+          gps_confirmed: boolean
+          gps_confirmed_at: string | null
+          gps_location: string | null
           id: string
           landlord_name: string
           property_address: string
@@ -102,6 +105,9 @@ export type Database = {
           complaint_type: string
           created_at?: string
           description: string
+          gps_confirmed?: boolean
+          gps_confirmed_at?: string | null
+          gps_location?: string | null
           id?: string
           landlord_name: string
           property_address: string
@@ -115,6 +121,9 @@ export type Database = {
           complaint_type?: string
           created_at?: string
           description?: string
+          gps_confirmed?: boolean
+          gps_confirmed_at?: string | null
+          gps_location?: string | null
           id?: string
           landlord_name?: string
           property_address?: string

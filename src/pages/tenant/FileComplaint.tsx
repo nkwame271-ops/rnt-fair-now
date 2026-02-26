@@ -5,20 +5,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, FileText, MapPin, Info, ArrowRight, ArrowLeft } from "lucide-react";
+import { CheckCircle2, FileText, MapPin, Info, ArrowRight, ArrowLeft, Navigation, AlertTriangle, Check } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { complaintTypes, regions, areasByRegion } from "@/data/dummyData";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-const steps = ["Complaint Type", "Property Details", "Description", "Review & Submit"];
+const steps = ["Complaint Type", "Property Details", "Location", "Description", "Review & Submit"];
 
 const FileComplaint = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
   const [form, setForm] = useState({
     type: "",
     landlordName: "",
@@ -29,10 +31,33 @@ const FileComplaint = () => {
     description: "",
     amount: "",
     date: "",
+    gpsLocation: "",
+    gpsConfirmed: false,
   });
 
-  const update = (key: string, value: string) => setForm({ ...form, [key]: value });
+  const update = (key: string, value: string | boolean) => setForm({ ...form, [key]: value });
   const areas = form.region ? areasByRegion[form.region] || [] : [];
+
+  const handleCaptureGps = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation not supported by your browser");
+      return;
+    }
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
+        setForm(prev => ({ ...prev, gpsLocation: loc, gpsConfirmed: false }));
+        setGettingLocation(false);
+        toast.success("Location captured! Please confirm it matches the complaint property.");
+      },
+      (err) => {
+        setGettingLocation(false);
+        toast.error("Could not get your location. Please enable location access.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const handleSubmit = async () => {
     if (!user) return;
@@ -49,11 +74,13 @@ const FileComplaint = () => {
         region: form.region,
         description: form.description,
         status: "pending_payment",
-      }).select("id").single();
+        gps_location: form.gpsLocation || null,
+        gps_confirmed: form.gpsConfirmed,
+        gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
+      } as any).select("id").single();
 
       if (error) throw error;
 
-      // Initiate Paystack checkout for complaint fee
       const { data, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "complaint_fee", complaintId: complaint.id },
       });
@@ -156,6 +183,54 @@ const FileComplaint = () => {
 
         {step === 2 && (
           <div className="space-y-4">
+            <Label className="flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5" /> Complaint Location (GPS)
+            </Label>
+            <div className="flex items-start gap-2 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-lg px-3 py-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                Please capture your GPS location <strong>at or near the property</strong> where the complaint occurred. This helps the Rent Control team locate the property faster.
+              </span>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCaptureGps}
+              disabled={gettingLocation}
+              className="w-full"
+            >
+              <Navigation className="h-4 w-4 mr-2" />
+              {gettingLocation ? "Getting location..." : form.gpsLocation ? "Recapture GPS Location" : "Capture My GPS Location"}
+            </Button>
+
+            {form.gpsLocation && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                  <Check className="h-4 w-4" />
+                  <span>Location captured: {form.gpsLocation}</span>
+                </div>
+                <label className="flex items-start gap-2.5 cursor-pointer bg-muted rounded-lg px-3 py-2.5 border border-border">
+                  <Checkbox
+                    checked={form.gpsConfirmed}
+                    onCheckedChange={(v) => update("gpsConfirmed", !!v)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm">
+                    I confirm I am at or near the <strong>property in question</strong> and this GPS location is accurate.
+                  </span>
+                </label>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              GPS capture is optional but highly recommended for faster resolution.
+            </p>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label>Describe the incident in detail</Label>
               <Textarea rows={5} value={form.description} onChange={(e) => update("description", e.target.value)} placeholder="What happened? Include dates, amounts, and any relevant context..." />
@@ -173,13 +248,16 @@ const FileComplaint = () => {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="space-y-4 text-sm">
             <div className="bg-muted rounded-lg p-4 space-y-2">
               <div><span className="text-muted-foreground">Type:</span> <span className="font-semibold text-card-foreground">{form.type}</span></div>
               <div><span className="text-muted-foreground">Landlord:</span> <span className="font-semibold text-card-foreground">{form.landlordName || "—"}</span></div>
               <div><span className="text-muted-foreground">Property:</span> <span className="font-semibold text-card-foreground">{form.address || "—"}</span></div>
               <div><span className="text-muted-foreground">Location:</span> <span className="font-semibold text-card-foreground">{form.area}, {form.region}</span></div>
+              {form.gpsLocation && (
+                <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold text-card-foreground">{form.gpsLocation} {form.gpsConfirmed ? "✓ Confirmed" : ""}</span></div>
+              )}
               <div><span className="text-muted-foreground">Description:</span> <span className="font-semibold text-card-foreground">{form.description || "—"}</span></div>
               <div><span className="text-muted-foreground">Amount:</span> <span className="font-semibold text-card-foreground">GH₵ {form.amount || "—"}</span></div>
             </div>
@@ -199,7 +277,7 @@ const FileComplaint = () => {
         <Button variant="outline" onClick={() => setStep(step - 1)} disabled={step === 0}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Back
         </Button>
-        {step < 3 ? (
+        {step < 4 ? (
           <Button onClick={() => setStep(step + 1)}>
             Next <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
