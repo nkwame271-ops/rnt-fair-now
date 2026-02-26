@@ -78,10 +78,10 @@ const LandlordDashboard = () => {
           <AlertTriangle className="h-5 w-5 text-warning" />
           <AlertTitle className="text-warning font-semibold">Registration Fee Unpaid</AlertTitle>
           <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1">
-            <span className="text-muted-foreground">Your registration fee (GH₵ 50) is unpaid. Pay now to activate your Landlord ID and receive your physical card.</span>
+            <span className="text-muted-foreground">Your registration fee (GH₵ 2) is unpaid. Pay now to activate your Landlord ID and access all platform features.</span>
             <Button onClick={handlePayRegistrationFee} disabled={payingFee} size="sm" className="shrink-0">
               <CreditCard className="mr-2 h-4 w-4" />
-              {payingFee ? "Redirecting..." : "Pay GH₵ 50 Now"}
+              {payingFee ? "Redirecting..." : "Pay GH₵ 2 Now"}
             </Button>
           </AlertDescription>
         </Alert>

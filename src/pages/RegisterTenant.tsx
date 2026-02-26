@@ -144,14 +144,25 @@ const RegisterTenant = () => {
           <p className="text-primary-foreground/80 text-lg mb-8">
             Get your unique Tenant ID to access rent control services, file complaints, and manage your tenancy agreements.
           </p>
-          <div className="bg-primary-foreground/10 rounded-xl p-5 backdrop-blur-sm border border-primary-foreground/20">
-            <div className="flex items-center gap-3 mb-3">
-              <IdCard className="h-5 w-5 text-secondary" />
-              <span className="font-semibold">Annual Registration</span>
-            </div>
-            <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ 50.00</div>
-            <p className="text-primary-foreground/70 text-sm">Per year · Includes physical ID card delivery</p>
-          </div>
+           <div className="bg-primary-foreground/10 rounded-xl p-5 backdrop-blur-sm border border-primary-foreground/20">
+             <div className="flex items-center gap-3 mb-3">
+               <IdCard className="h-5 w-5 text-secondary" />
+               <span className="font-semibold">Annual Registration</span>
+             </div>
+             <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ 2.00</div>
+             <p className="text-primary-foreground/70 text-sm mb-3">Per year · Includes physical ID card delivery</p>
+             <div className="border-t border-primary-foreground/20 pt-3">
+               <p className="text-sm font-semibold mb-2">Registration Fee Covers:</p>
+               <ul className="space-y-1.5 text-sm text-primary-foreground/80">
+                 <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Marketplace access</li>
+                 <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Tenant ID card</li>
+                 <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Rent card</li>
+                 <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Complaint system</li>
+                 <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Tenancy agreement management</li>
+                 <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />12-month platform access</li>
+               </ul>
+             </div>
+           </div>
         </div>
       </div>
 
@@ -359,7 +370,7 @@ const RegisterTenant = () => {
                     <h3 className="font-semibold text-foreground text-sm">What's next?</h3>
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Check your email to verify your account</li>
-                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 50 registration fee from your dashboard</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 2 registration fee from your dashboard</li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Your physical ID card will arrive in 5–7 days after payment</li>
                     </ul>
                   </div>
