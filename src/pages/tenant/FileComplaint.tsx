@@ -60,7 +60,14 @@ const FileComplaint = () => {
   };
 
   const handleSubmit = async () => {
-    if (!user) return;
+    if (!user) {
+      toast.error("You must be logged in to file a complaint");
+      return;
+    }
+    if (!form.type || !form.landlordName || !form.address || !form.region || !form.description) {
+      toast.error("Please fill in all required fields before submitting");
+      return;
+    }
     setSubmitting(true);
     try {
       const complaintCode = `RC-${new Date().getFullYear()}-${String(Math.floor(10000 + Math.random() * 90000))}`;
@@ -88,13 +95,24 @@ const FileComplaint = () => {
         throw new Error("Complaint was not created properly");
       }
 
+      console.log("Invoking paystack-checkout for complaint:", complaint.id);
       const { data, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "complaint_fee", complaintId: complaint.id },
       });
 
+      console.log("Paystack response - data:", JSON.stringify(data), "error:", payErr);
+
       if (payErr) {
         console.error("Paystack invoke error:", payErr);
-        throw new Error(payErr.message || "Payment initiation failed");
+        // Try to extract error message from FunctionsHttpError context
+        let errorMsg = payErr.message || "Payment initiation failed";
+        try {
+          if (payErr.context) {
+            const body = await payErr.context.json();
+            errorMsg = body?.error || errorMsg;
+          }
+        } catch (_) {}
+        throw new Error(errorMsg);
       }
       if (data?.error) {
         console.error("Paystack data error:", data.error);
@@ -102,6 +120,7 @@ const FileComplaint = () => {
       }
 
       if (data?.authorization_url) {
+        console.log("Redirecting to Paystack:", data.authorization_url);
         window.location.href = data.authorization_url;
       } else {
         console.error("Paystack response missing URL:", data);
