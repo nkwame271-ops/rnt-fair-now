@@ -264,7 +264,7 @@ const AddTenant = () => {
                       <SelectTrigger><SelectValue placeholder="Choose a vacant unit" /></SelectTrigger>
                       <SelectContent>
                         {vacantUnits.map((u) => (
-                          <SelectItem key={u.id} value={u.id}>{u.unit_name} — {u.unit_type} (GH₵ {u.monthly_rent}/mo)</SelectItem>
+                          <SelectItem key={u.id} value={u.id}>{u.unit_name} — {u.unit_type} (GH₵ {u.monthly_rent.toLocaleString()}/mo)</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

@@ -91,15 +91,15 @@ const RentChecker = () => {
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="bg-muted rounded-lg p-4">
                 <div className="text-xs text-muted-foreground mb-1">Minimum</div>
-                <div className="text-xl font-bold text-card-foreground">GH₵ {result.min}</div>
+                <div className="text-xl font-bold text-card-foreground">GH₵ {result.min.toLocaleString()}</div>
               </div>
               <div className="bg-primary/10 rounded-lg p-4">
                 <div className="text-xs text-primary mb-1 font-medium">Average</div>
-                <div className="text-xl font-bold text-primary">GH₵ {result.avg}</div>
+                <div className="text-xl font-bold text-primary">GH₵ {result.avg.toLocaleString()}</div>
               </div>
               <div className="bg-muted rounded-lg p-4">
                 <div className="text-xs text-muted-foreground mb-1">Maximum</div>
-                <div className="text-xl font-bold text-card-foreground">GH₵ {result.max}</div>
+                <div className="text-xl font-bold text-card-foreground">GH₵ {result.max.toLocaleString()}</div>
               </div>
             </div>
           </div>
@@ -138,7 +138,7 @@ const RentChecker = () => {
                   <p className="text-sm text-muted-foreground mt-1">
                     Your rent of GH₵ {parseFloat(currentRent).toLocaleString()} is{" "}
                     <strong>{Math.abs(result.diff).toFixed(1)}%</strong>{" "}
-                    {result.diff >= 0 ? "above" : "below"} the average of GH₵ {result.avg}.
+                    {result.diff >= 0 ? "above" : "below"} the average of GH₵ {result.avg.toLocaleString()}.
                   </p>
                   {result.diff > 20 && (
                     <div className="mt-3 space-y-1 text-sm text-muted-foreground">

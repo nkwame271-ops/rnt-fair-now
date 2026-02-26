@@ -240,7 +240,7 @@ const Payments = () => {
                   )}
                   <div>
                     <div className="font-semibold text-sm text-card-foreground">{p.month_label}</div>
-                    <div className="text-xs text-muted-foreground">Tax: GH₵ {p.tax_amount} • Landlord: GH₵ {p.amount_to_landlord.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Tax: GH₵ {p.tax_amount.toLocaleString()} • Landlord: GH₵ {p.amount_to_landlord.toLocaleString()}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
