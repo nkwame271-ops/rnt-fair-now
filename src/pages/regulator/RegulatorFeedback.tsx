@@ -16,11 +16,29 @@ const RegulatorFeedback = () => {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase
+      const { data: fbData } = await supabase
         .from("beta_feedback")
-        .select("*, profiles:user_id(full_name, email)")
+        .select("*")
         .order("created_at", { ascending: false });
-      setFeedback(data || []);
+
+      if (fbData && fbData.length > 0) {
+        // Fetch profile names for all unique user_ids
+        const userIds = [...new Set(fbData.map((f) => f.user_id))];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", userIds);
+
+        const profileMap = new Map(
+          (profiles || []).map((p) => [p.user_id, p])
+        );
+
+        setFeedback(
+          fbData.map((f) => ({ ...f, profile: profileMap.get(f.user_id) || null }))
+        );
+      } else {
+        setFeedback([]);
+      }
       setLoading(false);
     };
     load();
@@ -65,7 +83,7 @@ const RegulatorFeedback = () => {
         ) : feedback.map((f) => {
           const cat = categoryConfig[f.category] || categoryConfig.bug;
           const CatIcon = cat.icon;
-          const profile = f.profiles as any;
+          const profile = f.profile as any;
           return (
             <div key={f.id} className="bg-card rounded-xl p-4 border border-border shadow-card">
               <div className="flex items-start justify-between gap-3">
