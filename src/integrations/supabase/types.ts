@@ -485,6 +485,44 @@ export type Database = {
           },
         ]
       }
+      ratings: {
+        Row: {
+          created_at: string
+          id: string
+          rated_user_id: string
+          rater_user_id: string
+          rating: number
+          review: string | null
+          tenancy_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rated_user_id: string
+          rater_user_id: string
+          rating: number
+          review?: string | null
+          tenancy_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rated_user_id?: string
+          rater_user_id?: string
+          rating?: number
+          review?: string | null
+          tenancy_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_tenancy_id_fkey"
+            columns: ["tenancy_id"]
+            isOneToOne: false
+            referencedRelation: "tenancies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rent_payments: {
         Row: {
           amount_paid: number | null
@@ -543,6 +581,64 @@ export type Database = {
             columns: ["tenancy_id"]
             isOneToOne: false
             referencedRelation: "tenancies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rental_applications: {
+        Row: {
+          created_at: string
+          id: string
+          landlord_user_id: string
+          property_id: string
+          status: string
+          tenant_user_id: string
+          unit_id: string
+          updated_at: string
+          viewing_request_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          landlord_user_id: string
+          property_id: string
+          status?: string
+          tenant_user_id: string
+          unit_id: string
+          updated_at?: string
+          viewing_request_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          landlord_user_id?: string
+          property_id?: string
+          status?: string
+          tenant_user_id?: string
+          unit_id?: string
+          updated_at?: string
+          viewing_request_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rental_applications_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rental_applications_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rental_applications_viewing_request_id_fkey"
+            columns: ["viewing_request_id"]
+            isOneToOne: false
+            referencedRelation: "viewing_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -679,6 +775,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tenant_preferences: {
+        Row: {
+          created_at: string
+          current_location: string | null
+          id: string
+          max_budget: number | null
+          min_budget: number | null
+          preferred_location: string | null
+          preferred_move_in_date: string | null
+          property_type: string | null
+          tenant_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_location?: string | null
+          id?: string
+          max_budget?: number | null
+          min_budget?: number | null
+          preferred_location?: string | null
+          preferred_move_in_date?: string | null
+          property_type?: string | null
+          tenant_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_location?: string | null
+          id?: string
+          max_budget?: number | null
+          min_budget?: number | null
+          preferred_location?: string | null
+          preferred_move_in_date?: string | null
+          property_type?: string | null
+          tenant_user_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       tenants: {
         Row: {

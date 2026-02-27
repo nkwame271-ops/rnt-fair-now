@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import RatingDialog from "@/components/RatingDialog";
 
 interface CustomFieldDef {
   label: string;
@@ -33,6 +34,7 @@ interface TenancyView {
   paidCount: number;
   totalPayments: number;
   customFieldValues: Record<string, string>;
+  landlord_user_id: string;
 }
 
 const MyAgreements = () => {
@@ -91,6 +93,7 @@ const MyAgreements = () => {
           paidCount,
           totalPayments: (payments || []).length,
           customFieldValues: (t as any).custom_field_values || {},
+          landlord_user_id: t.landlord_user_id,
         });
       }
       setTenancies(results);
@@ -215,6 +218,7 @@ const MyAgreements = () => {
                 <div className="flex gap-3">
                   <Button variant="outline" size="sm" onClick={() => handleDownload(t)}><Download className="h-4 w-4 mr-1" /> Download PDF</Button>
                   <Link to="/tenant/payments"><Button size="sm"><CreditCard className="h-4 w-4 mr-1" /> Pay Rent</Button></Link>
+                  <RatingDialog tenancyId={t.id} ratedUserId={t.landlord_user_id} ratedUserName={t.landlordName} />
                 </div>
               </div>
             ))}

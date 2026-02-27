@@ -4,12 +4,14 @@ import {
   Building2,
   PlusCircle,
   FileCheck,
+  FileText,
   LogOut,
   Shield,
   Menu,
   Eye,
   UserCircle,
   MessageSquare,
+  MessageCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,6 +27,8 @@ const navItems = [
   { to: "/landlord/add-tenant", label: "Add Tenant", icon: PlusCircle },
   { to: "/landlord/agreements", label: "Agreements", icon: FileCheck },
   { to: "/landlord/viewing-requests", label: "Viewing Requests", icon: Eye },
+  { to: "/landlord/rental-applications", label: "Applications", icon: FileText },
+  { to: "/landlord/messages", label: "Messages", icon: MessageCircle },
   { to: "/landlord/profile", label: "My Profile", icon: UserCircle },
   { to: "/landlord/feedback", label: "Beta Feedback", icon: MessageSquare },
 ];

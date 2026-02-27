@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle } from "lucide-react";
+import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle, Lock, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +64,8 @@ const Marketplace = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [messageText, setMessageText] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [confirmedViewings, setConfirmedViewings] = useState<Set<string>>(new Set());
+  const [applyingRent, setApplyingRent] = useState(false);
 
   useEffect(() => {
     const fetchUnits = async () => {
@@ -133,19 +135,18 @@ const Marketplace = () => {
     fetchUnits();
   }, []);
 
-  // Fetch watchlist
+  // Fetch watchlist + confirmed viewings
   useEffect(() => {
     if (!user) return;
-    const fetchWatchlist = async () => {
-      const { data } = await supabase
-        .from("watchlist")
-        .select("unit_id")
-        .eq("tenant_user_id", user.id);
-      if (data) {
-        setWatchlist(new Set(data.map(w => w.unit_id)));
-      }
+    const fetchUserData = async () => {
+      const [{ data: wl }, { data: vr }] = await Promise.all([
+        supabase.from("watchlist").select("unit_id").eq("tenant_user_id", user.id),
+        supabase.from("viewing_requests").select("unit_id").eq("tenant_user_id", user.id).in("status", ["accepted", "confirmed"]),
+      ]);
+      if (wl) setWatchlist(new Set(wl.map(w => w.unit_id)));
+      if (vr) setConfirmedViewings(new Set(vr.map(v => v.unit_id)));
     };
-    fetchWatchlist();
+    fetchUserData();
   }, [user]);
 
   const toggleWatchlist = async (unitId: string, e: React.MouseEvent) => {
@@ -357,9 +358,16 @@ const Marketplace = () => {
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-card-foreground">{selectedUnit.property.property_name || selectedUnit.unit_name}</h2>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                    <MapPin className="h-3.5 w-3.5" /> {selectedUnit.property.address}
-                  </div>
+                  {confirmedViewings.has(selectedUnit.id) ? (
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                      <MapPin className="h-3.5 w-3.5" /> {selectedUnit.property.address}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                      <Lock className="h-3.5 w-3.5" /> {selectedUnit.property.area}, {selectedUnit.property.region}
+                      <span className="text-[10px] ml-1">(Exact address after viewing)</span>
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold text-primary">GH₵ {selectedUnit.monthly_rent.toLocaleString()}</div>
@@ -448,6 +456,60 @@ const Marketplace = () => {
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">A GH₵ 2 viewing fee is required to send this request</p>
               </div>
+
+              {/* Apply to Rent - only after confirmed viewing */}
+              {confirmedViewings.has(selectedUnit.id) && (
+                <div className="border-t border-border pt-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Viewing confirmed — you can now apply to rent this property</span>
+                  </div>
+                  {selectedUnit.property.gps_location && (
+                    <div className="rounded-lg overflow-hidden border border-border">
+                      <iframe
+                        width="100%"
+                        height="200"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${(() => {
+                          const [lat, lng] = selectedUnit.property.gps_location!.split(',').map(s => parseFloat(s.trim()));
+                          return `${lng - 0.005},${lat - 0.005},${lng + 0.005},${lat + 0.005}&layer=mapnik&marker=${lat},${lng}`;
+                        })()}`}
+                      />
+                    </div>
+                  )}
+                  <Button
+                    className="w-full"
+                    onClick={async () => {
+                      if (!user || !selectedUnit) return;
+                      setApplyingRent(true);
+                      try {
+                        const { error } = await supabase.from("rental_applications").insert({
+                          tenant_user_id: user.id,
+                          landlord_user_id: selectedUnit.property.landlord_user_id,
+                          property_id: selectedUnit.property.id,
+                          unit_id: selectedUnit.id,
+                        });
+                        if (error) {
+                          if (error.code === "23505") toast.error("You've already applied for this property");
+                          else throw error;
+                        } else {
+                          toast.success("Rental application submitted! The landlord will review your profile.");
+                          setSelectedUnit(null);
+                        }
+                      } catch (err: any) {
+                        toast.error(err.message || "Failed to apply");
+                      } finally {
+                        setApplyingRent(false);
+                      }
+                    }}
+                    disabled={applyingRent}
+                  >
+                    {applyingRent ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                    Apply to Rent
+                  </Button>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
