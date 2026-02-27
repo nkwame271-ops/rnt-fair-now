@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import TourGuide from "@/components/TourGuide";
 import { regulatorTourSteps } from "@/data/tourSteps";
 import BetaFeedbackWidget from "@/components/BetaFeedbackWidget";
+import NotificationBell from "@/components/NotificationBell";
 
 const navItems = [
   { to: "/regulator/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -93,11 +94,14 @@ const RegulatorLayout = () => {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-4 lg:hidden">
-          <button onClick={() => setMobileOpen(true)}>
+        <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-4">
+          <button onClick={() => setMobileOpen(true)} className="lg:hidden">
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-bold text-sm">Rent Control — Admin</span>
+          <span className="font-bold text-sm lg:hidden">Rent Control — Admin</span>
+          <div className="ml-auto">
+            <NotificationBell />
+          </div>
         </header>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <Outlet />
