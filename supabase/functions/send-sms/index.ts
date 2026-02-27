@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const ARKESEL_API_URL = "https://sms.arkesel.com/sms/api?action=send-sms";
+const ARKESEL_API_URL = "https://api.arkesel.com/api/v2/sms/send";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -36,20 +36,25 @@ serve(async (req) => {
 
     const senderID = sender || "RentGhana";
 
-    const response = await fetch(ARKESEL_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "send-sms",
-        api_key: ARKESEL_API_KEY,
-        to: normalizedPhone,
-        from: senderID,
-        sms: message,
-      }),
+    const params = new URLSearchParams({
+      action: "send-sms",
+      api_key: ARKESEL_API_KEY,
+      to: normalizedPhone,
+      from: senderID,
+      sms: message,
     });
 
-    const data = await response.json();
-    console.log("Arkesel response:", JSON.stringify(data));
+    const response = await fetch(`https://sms.arkesel.com/sms/api?${params.toString()}`);
+
+    const responseText = await response.text();
+    console.log("Arkesel raw response:", responseText);
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error("Arkesel returned non-JSON: " + responseText.substring(0, 200));
+    }
 
     if (data.code !== "ok") {
       throw new Error(data.message || "SMS sending failed");
