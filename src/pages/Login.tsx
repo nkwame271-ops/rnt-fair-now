@@ -15,6 +15,9 @@ const Login = () => {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showForgot, setShowForgot] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -92,7 +95,10 @@ const Login = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Password</Label>
+              <div className="flex items-center justify-between">
+                <Label>Password</Label>
+                <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-primary hover:underline">Forgot password?</button>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input type="password" placeholder="••••••••" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -102,6 +108,30 @@ const Login = () => {
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
+
+          {showForgot && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 bg-muted rounded-xl p-4 border border-border space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Reset Password</h3>
+              <p className="text-xs text-muted-foreground">Enter your email and we'll send you a reset link.</p>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input type="email" placeholder="kwame@example.com" className="pl-10" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} />
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setShowForgot(false)}>Cancel</Button>
+                <Button size="sm" disabled={resetLoading} onClick={async () => {
+                  if (!resetEmail.trim()) { toast.error("Enter your email"); return; }
+                  setResetLoading(true);
+                  const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+                    redirectTo: `${window.location.origin}/reset-password`,
+                  });
+                  setResetLoading(false);
+                  if (error) { toast.error(error.message); }
+                  else { toast.success("Reset link sent! Check your email."); setShowForgot(false); }
+                }}>{resetLoading ? "Sending..." : "Send Reset Link"}</Button>
+              </div>
+            </motion.div>
+          )}
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             Don't have an account?{" "}
