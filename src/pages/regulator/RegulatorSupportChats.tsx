@@ -140,7 +140,7 @@ const RegulatorSupportChats = () => {
       <div className="max-w-6xl mx-auto">
         <h1 className="text-2xl font-bold text-foreground mb-6">Support Chats</h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[600px]">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-12rem)] min-h-[400px]">
           {/* Conversation list */}
           <div className="border border-border rounded-xl overflow-hidden flex flex-col bg-card">
             <div className="p-3 border-b border-border font-semibold text-sm text-foreground">
