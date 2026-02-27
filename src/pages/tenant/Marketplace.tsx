@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useKycStatus } from "@/hooks/useKycStatus";
 import { toast } from "sonner";
+import { sendSms } from "@/lib/smsService";
 import { format, addDays } from "date-fns";
 
 import listing1 from "@/assets/listing-1.jpg";
@@ -214,6 +215,17 @@ const Marketplace = () => {
         status: "awaiting_payment",
       }).select().single();
       if (error) throw error;
+
+      // Send SMS notification for viewing request (non-blocking)
+      const { data: tenantProfile } = await supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle();
+      if (tenantProfile?.phone) {
+        sendSms(tenantProfile.phone, "viewing_scheduled", {
+          property: selectedUnit.property.property_name || selectedUnit.property.address,
+          action: "requested",
+          date: viewingDate || "TBD",
+          time: viewingTime || "",
+        });
+      }
 
       const { data: payData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "viewing_fee", viewingRequestId: vr.id },

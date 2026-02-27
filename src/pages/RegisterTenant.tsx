@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { regions } from "@/data/dummyData";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { sendSms } from "@/lib/smsService";
 import FormField from "@/components/FormField";
 import { formatPhone, formatGhanaCard, isValidEmail, isValidPhone, isValidGhanaCard, isValidPassword } from "@/lib/formatters";
 
@@ -122,6 +123,14 @@ const RegisterTenant = () => {
       });
 
       setGeneratedId(tenantId);
+      
+      // Send registration success SMS (non-blocking)
+      sendSms(phone, "registration_success", {
+        name: fullName,
+        role: "Tenant",
+        id: tenantId,
+      });
+      
       setStep(3);
     } catch (err: any) {
       toast.error(err.message || "Registration failed");

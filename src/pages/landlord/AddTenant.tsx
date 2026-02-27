@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { sendSms } from "@/lib/smsService";
 
 type Step = "select-unit" | "find-tenant" | "set-terms" | "review" | "done";
 
@@ -194,6 +195,17 @@ const AddTenant = () => {
 
       // Mark unit as occupied
       await supabase.from("units").update({ status: "occupied" }).eq("id", unit.id);
+
+      // Send SMS to both tenant and landlord about the agreement
+      const { data: tenantProfile } = await supabase.from("profiles").select("phone").eq("user_id", foundTenant.userId).maybeSingle();
+      const { data: landlordProfile } = await supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle();
+      const propName = property?.property_name || property?.address || "Property";
+      if (tenantProfile?.phone) {
+        sendSms(tenantProfile.phone, "agreement_signed", { code: registrationCode, action: "created", property: propName });
+      }
+      if (landlordProfile?.phone) {
+        sendSms(landlordProfile.phone, "agreement_signed", { code: registrationCode, action: "created", property: propName });
+      }
 
       setStep("done");
       toast.success("Tenancy agreement created and sent to tenant!");

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { sendSms } from "@/lib/smsService";
 
 const steps = ["Complaint Type", "Property Details", "Location", "Description", "Review & Submit"];
 
@@ -93,6 +94,12 @@ const FileComplaint = () => {
 
       if (!complaint?.id) {
         throw new Error("Complaint was not created properly");
+      }
+
+      // Send SMS notification for complaint filed (non-blocking)
+      const { data: profile } = await supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle();
+      if (profile?.phone) {
+        sendSms(profile.phone, "complaint_filed", { code: complaintCode });
       }
 
       console.log("Invoking paystack-checkout for complaint:", complaint.id);
