@@ -96,19 +96,24 @@ const FileComplaint = () => {
       }
 
       console.log("Invoking paystack-checkout for complaint:", complaint.id);
-      const { data, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
+      const { data: rawData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "complaint_fee", complaintId: complaint.id },
       });
+
+      // Handle response - may come as string or object
+      let data = rawData;
+      if (typeof rawData === "string") {
+        try { data = JSON.parse(rawData); } catch { data = rawData; }
+      }
 
       console.log("Paystack response - data:", JSON.stringify(data), "error:", payErr);
 
       if (payErr) {
         console.error("Paystack invoke error:", payErr);
-        // Try to extract error message from FunctionsHttpError context
         let errorMsg = payErr.message || "Payment initiation failed";
         try {
-          if (payErr.context) {
-            const body = await payErr.context.json();
+          if ((payErr as any).context) {
+            const body = await (payErr as any).context.json();
             errorMsg = body?.error || errorMsg;
           }
         } catch (_) {}
@@ -124,7 +129,7 @@ const FileComplaint = () => {
         window.location.href = data.authorization_url;
       } else {
         console.error("Paystack response missing URL:", data);
-        throw new Error("No checkout URL received");
+        throw new Error("No checkout URL received. Please try again.");
       }
     } catch (err: any) {
       console.error("FileComplaint handleSubmit error:", err);

@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock } from "lucide-react";
+import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { regions } from "@/data/dummyData";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -59,16 +60,18 @@ const Marketplace = () => {
   const [viewingDate, setViewingDate] = useState("");
   const [viewingTime, setViewingTime] = useState("");
   const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [watchlist, setWatchlist] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState("all");
+  const [messageText, setMessageText] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   useEffect(() => {
     const fetchUnits = async () => {
-      // 1. Fetch vacant units on marketplace-listed properties
       const { data: vacantData } = await (supabase
         .from("units")
         .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace)")
         .eq("status", "vacant") as any).eq("property.listed_on_marketplace", true);
 
-      // 2. Fetch occupied units whose tenancy ends within 30 days
       const thirtyDaysFromNow = format(addDays(new Date(), 30), "yyyy-MM-dd");
       const today = format(new Date(), "yyyy-MM-dd");
 
@@ -99,8 +102,6 @@ const Marketplace = () => {
       }
 
       const allData = [...(vacantData || []), ...expiringUnits];
-
-      // Deduplicate by unit id (in case a unit appears in both)
       const seen = new Set<string>();
       const deduped = allData.filter((u: any) => {
         if (seen.has(u.id)) return false;
@@ -110,7 +111,6 @@ const Marketplace = () => {
 
       if (deduped.length === 0) { setLoading(false); return; }
 
-      // Fetch images for each property
       const propertyIds: string[] = [...new Set(deduped.map((u: any) => u.property?.id).filter(Boolean))];
       const { data: images } = await supabase
         .from("property_images")
@@ -133,9 +133,59 @@ const Marketplace = () => {
     fetchUnits();
   }, []);
 
+  // Fetch watchlist
+  useEffect(() => {
+    if (!user) return;
+    const fetchWatchlist = async () => {
+      const { data } = await supabase
+        .from("watchlist")
+        .select("unit_id")
+        .eq("tenant_user_id", user.id);
+      if (data) {
+        setWatchlist(new Set(data.map(w => w.unit_id)));
+      }
+    };
+    fetchWatchlist();
+  }, [user]);
+
+  const toggleWatchlist = async (unitId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) return;
+    if (watchlist.has(unitId)) {
+      await supabase.from("watchlist").delete().eq("tenant_user_id", user.id).eq("unit_id", unitId);
+      setWatchlist(prev => { const next = new Set(prev); next.delete(unitId); return next; });
+      toast.success("Removed from watchlist");
+    } else {
+      await supabase.from("watchlist").insert({ tenant_user_id: user.id, unit_id: unitId });
+      setWatchlist(prev => new Set(prev).add(unitId));
+      toast.success("Added to watchlist");
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!user || !selectedUnit || !messageText.trim()) return;
+    setSendingMessage(true);
+    try {
+      const { error } = await supabase.from("marketplace_messages").insert({
+        sender_user_id: user.id,
+        receiver_user_id: selectedUnit.property.landlord_user_id,
+        unit_id: selectedUnit.id,
+        message: messageText.trim(),
+      });
+      if (error) throw error;
+      toast.success("Message sent to landlord!");
+      setMessageText("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send message");
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const filtered = units.filter((u) => {
     const prop = u.property;
     if (!prop) return false;
+    if (activeTab === "watchlist" && !watchlist.has(u.id)) return false;
     if (search && !(prop.property_name || "").toLowerCase().includes(search.toLowerCase()) && !prop.area.toLowerCase().includes(search.toLowerCase())) return false;
     if (region !== "all" && prop.region !== region) return false;
     if (type !== "all" && u.unit_type !== type) return false;
@@ -191,6 +241,15 @@ const Marketplace = () => {
         <p className="text-muted-foreground mt-1">Find verified rental properties across Ghana</p>
       </div>
 
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="all">All Listings</TabsTrigger>
+          <TabsTrigger value="watchlist" className="flex items-center gap-1">
+            <Heart className="h-3 w-3" /> My Watchlist ({watchlist.size})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -222,7 +281,9 @@ const Marketplace = () => {
 
       {filtered.length === 0 ? (
         <div className="bg-card rounded-xl p-8 text-center border border-border">
-          <p className="text-muted-foreground">No vacant units available matching your criteria.</p>
+          <p className="text-muted-foreground">
+            {activeTab === "watchlist" ? "Your watchlist is empty. Click the heart icon on listings to save them." : "No vacant units available matching your criteria."}
+          </p>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -241,10 +302,17 @@ const Marketplace = () => {
                   <Shield className="h-3 w-3" /> Registered
                 </div>
                 {unit.availableSoon && (
-                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-secondary/90 text-secondary-foreground text-[10px] font-semibold px-2 py-1 rounded-full">
+                  <div className="absolute top-3 right-12 flex items-center gap-1 bg-secondary/90 text-secondary-foreground text-[10px] font-semibold px-2 py-1 rounded-full">
                     <Clock className="h-3 w-3" /> Available {unit.availableFrom ? format(new Date(unit.availableFrom), "MMM d") : "Soon"}
                   </div>
                 )}
+                {/* Watchlist heart */}
+                <button
+                  onClick={(e) => toggleWatchlist(unit.id, e)}
+                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors"
+                >
+                  <Heart className={`h-4 w-4 ${watchlist.has(unit.id) ? "fill-destructive text-destructive" : "text-muted-foreground"}`} />
+                </button>
                 <div className="absolute bottom-3 right-3 bg-card/90 backdrop-blur px-2.5 py-1 rounded-lg text-sm font-bold text-card-foreground">
                   GH₵ {unit.monthly_rent.toLocaleString()}/mo
                 </div>
@@ -329,6 +397,28 @@ const Marketplace = () => {
                 {(selectedUnit.amenities || []).map((a) => (
                   <Badge key={a} variant="secondary">{a}</Badge>
                 ))}
+              </div>
+
+              {/* Message Landlord */}
+              <div className="border-t border-border pt-4 space-y-3">
+                <h3 className="font-semibold text-card-foreground text-sm flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-primary" /> Message Landlord
+                </h3>
+                <Textarea
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  placeholder="Ask a question about this property..."
+                  rows={2}
+                />
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleSendMessage}
+                  disabled={sendingMessage || !messageText.trim()}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  {sendingMessage ? "Sending..." : "Send Message"}
+                </Button>
               </div>
 
               {/* Viewing Request Form */}

@@ -5,6 +5,8 @@ import LogoLoader from "@/components/LogoLoader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { generateProfilePdf } from "@/lib/generateProfilePdf";
+import { toast } from "sonner";
 
 interface TenantFull {
   tenant_id: string;
@@ -221,6 +223,26 @@ const RegulatorTenants = () => {
 
               {isExpanded && (
                 <div className="border-t border-border p-5 bg-muted/10 space-y-5">
+                  <div className="flex justify-end">
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      const { data: kyc } = await supabase.from("kyc_verifications").select("status, ghana_card_number, ai_match_score, ai_match_result, reviewer_notes").eq("user_id", t.user_id).maybeSingle();
+                      generateProfilePdf({
+                        role: "tenant",
+                        roleId: t.tenant_id,
+                        status: t.status,
+                        registrationDate: t.registration_date,
+                        expiryDate: t.expiry_date,
+                        registrationFeePaid: t.registration_fee_paid,
+                        profile: t.profile as any,
+                        kyc: kyc as any,
+                        tenancies: t.tenancies,
+                        complaints: t.complaints,
+                      });
+                      toast.success("Profile PDF downloaded");
+                    }}>
+                      <Download className="h-4 w-4 mr-1" /> Download Full Profile PDF
+                    </Button>
+                  </div>
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
                     {/* Personal Info */}
                     <div className="space-y-3">

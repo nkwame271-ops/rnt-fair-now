@@ -4,6 +4,8 @@ import { Building2, Download, Search, ChevronDown, ChevronUp, Users, Home, Dolla
 import LogoLoader from "@/components/LogoLoader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { generateProfilePdf } from "@/lib/generateProfilePdf";
+import { toast } from "sonner";
 
 interface LandlordFull {
   landlord_id: string;
@@ -194,6 +196,26 @@ const RegulatorLandlords = () => {
 
               {isExpanded && (
                 <div className="border-t border-border p-5 bg-muted/10 space-y-5">
+                  <div className="flex justify-end">
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      const { data: kyc } = await supabase.from("kyc_verifications").select("status, ghana_card_number, ai_match_score, ai_match_result, reviewer_notes").eq("user_id", l.user_id).maybeSingle();
+                      generateProfilePdf({
+                        role: "landlord",
+                        roleId: l.landlord_id,
+                        status: l.status,
+                        registrationDate: l.registration_date,
+                        expiryDate: l.expiry_date,
+                        registrationFeePaid: l.registration_fee_paid,
+                        profile: l.profile as any,
+                        kyc: kyc as any,
+                        properties: l.properties,
+                        tenancies: l.tenancies,
+                      });
+                      toast.success("Profile PDF downloaded");
+                    }}>
+                      <Download className="h-4 w-4 mr-1" /> Download Full Profile PDF
+                    </Button>
+                  </div>
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
                     {/* Personal info */}
                     <div className="space-y-3">
