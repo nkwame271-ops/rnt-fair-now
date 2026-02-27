@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import TourGuide from "@/components/TourGuide";
 import { tenantTourSteps } from "@/data/tourSteps";
 import BetaFeedbackWidget from "@/components/BetaFeedbackWidget";
+import LiveChatWidget from "@/components/LiveChatWidget";
 
 const navItems = [
   { to: "/tenant/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -104,6 +105,7 @@ const TenantLayout = () => {
       </div>
       <TourGuide steps={tenantTourSteps} storageKey="tour_tenant_completed" />
       <BetaFeedbackWidget />
+      <LiveChatWidget />
     </div>
   );
 };
