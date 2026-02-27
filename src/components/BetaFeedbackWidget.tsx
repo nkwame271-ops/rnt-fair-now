@@ -13,9 +13,13 @@ const categories = [
   { value: "praise", label: "Love it", icon: ThumbsUp, color: "bg-success/10 text-success border-success/30" },
 ];
 
-const BetaFeedbackWidget = () => {
+interface BetaFeedbackWidgetProps {
+  onClose?: () => void;
+}
+
+const BetaFeedbackWidget = ({ onClose }: BetaFeedbackWidgetProps) => {
   const { user, loading } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!onClose); // auto-open when used from hub
   const [category, setCategory] = useState("bug");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -38,11 +42,12 @@ const BetaFeedbackWidget = () => {
       toast.success("Thanks for your feedback! 🎉");
       setMessage("");
       setOpen(false);
+      onClose?.();
     }
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-[9999]">
+    <div className={onClose ? "" : "fixed bottom-5 right-5 z-[9999]"}>
       <AnimatePresence>
         {open && (
           <motion.div
@@ -56,7 +61,7 @@ const BetaFeedbackWidget = () => {
                 <h3 className="text-sm font-semibold text-card-foreground">Beta Feedback</h3>
                 <p className="text-xs text-muted-foreground">Help us improve!</p>
               </div>
-              <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => { setOpen(false); onClose?.(); }} className="text-muted-foreground hover:text-foreground">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -99,14 +104,16 @@ const BetaFeedbackWidget = () => {
         )}
       </AnimatePresence>
 
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setOpen(!open)}
-        className="h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
-      >
-        {open ? <X className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
-      </motion.button>
+      {!onClose && (
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setOpen(!open)}
+          className="h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+        >
+          {open ? <X className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
+        </motion.button>
+      )}
     </div>
   );
 };

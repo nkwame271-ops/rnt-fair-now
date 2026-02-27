@@ -20,9 +20,13 @@ const FAQ_CHIPS = [
   "How do I register a property?",
 ];
 
-const LiveChatWidget = () => {
+interface LiveChatWidgetProps {
+  onClose?: () => void;
+}
+
+const LiveChatWidget = ({ onClose }: LiveChatWidgetProps) => {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!onClose); // auto-open when used from hub
   const [mode, setMode] = useState<"ai" | "agent">("ai");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMsg, setNewMsg] = useState("");
@@ -211,7 +215,7 @@ const LiveChatWidget = () => {
 
   return (
     <>
-      {!open && (
+      {!onClose && !open && (
         <button
           onClick={() => setOpen(true)}
           className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all flex items-center justify-center hover:scale-105"
@@ -222,7 +226,7 @@ const LiveChatWidget = () => {
       )}
 
       {open && (
-        <div className="fixed bottom-6 right-6 z-50 w-[370px] max-w-[calc(100vw-2rem)] h-[520px] max-h-[calc(100vh-6rem)] bg-card border border-border rounded-2xl shadow-elevated flex flex-col overflow-hidden">
+        <div className={`${onClose ? '' : 'fixed bottom-6 right-6 z-50'} w-[370px] max-w-[calc(100vw-2rem)] h-[520px] max-h-[calc(100vh-6rem)] bg-card border border-border rounded-2xl shadow-elevated flex flex-col overflow-hidden`}>
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-primary text-primary-foreground rounded-t-2xl">
             <div className="flex items-center gap-2">
@@ -233,10 +237,10 @@ const LiveChatWidget = () => {
               </div>
             </div>
             <div className="flex gap-1">
-              <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-primary-foreground/20 transition-colors">
+              <button onClick={() => { setOpen(false); onClose?.(); }} className="p-1 rounded hover:bg-primary-foreground/20 transition-colors">
                 <MinusCircle className="h-4 w-4" />
               </button>
-              <button onClick={() => { setOpen(false); setMessages([]); setMode("ai"); setConversationId(null); }} className="p-1 rounded hover:bg-primary-foreground/20 transition-colors">
+              <button onClick={() => { setOpen(false); setMessages([]); setMode("ai"); setConversationId(null); onClose?.(); }} className="p-1 rounded hover:bg-primary-foreground/20 transition-colors">
                 <X className="h-4 w-4" />
               </button>
             </div>

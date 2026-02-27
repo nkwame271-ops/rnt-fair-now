@@ -17,7 +17,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import TourGuide from "@/components/TourGuide";
 import { regulatorTourSteps } from "@/data/tourSteps";
-import BetaFeedbackWidget from "@/components/BetaFeedbackWidget";
+import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
 
 const navItems = [
@@ -108,7 +108,7 @@ const RegulatorLayout = () => {
         </main>
       </div>
       <TourGuide steps={regulatorTourSteps} storageKey="tour_regulator_completed" />
-      <BetaFeedbackWidget />
+      <FloatingActionHub />
     </div>
   );
 };
