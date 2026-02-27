@@ -28,7 +28,7 @@ const RoleSelect = () => {
       title: "Regulator",
       description: "Oversee rent control operations, review complaints, and enforce compliance.",
       icon: Lock,
-      path: "/regulator-login",
+      path: "/regulator/login",
       color: "from-rose-500 to-red-600",
     },
   ];
