@@ -19,10 +19,9 @@ const FloatingActionHub = () => {
     setActivePanel(null);
   };
 
-  // If a panel is active, render it directly
   if (activePanel === "chat") {
     return (
-      <div className="fixed bottom-6 right-6 z-[9999]">
+      <div className="fixed bottom-4 right-4 z-[9999] max-w-[calc(100vw-2rem)]">
         <LiveChatWidget onClose={handleClose} />
       </div>
     );
@@ -30,14 +29,14 @@ const FloatingActionHub = () => {
 
   if (activePanel === "feedback") {
     return (
-      <div className="fixed bottom-6 right-6 z-[9999]">
+      <div className="fixed bottom-4 right-4 z-[9999] max-w-[calc(100vw-2rem)]">
         <BetaFeedbackWidget onClose={handleClose} />
       </div>
     );
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-2">
+    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end gap-2">
       <AnimatePresence>
         {menuOpen && (
           <>
@@ -66,15 +65,13 @@ const FloatingActionHub = () => {
         )}
       </AnimatePresence>
 
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
+      <button
         onClick={() => setMenuOpen(!menuOpen)}
-        className="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+        className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all active:scale-95"
         aria-label="Help & Feedback"
       >
-        {menuOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-6 w-6" />}
-      </motion.button>
+        {menuOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />}
+      </button>
     </div>
   );
 };
