@@ -31,6 +31,7 @@ const navItems = [
   { to: "/regulator/kyc", label: "KYC Verification", icon: IdCard },
   { to: "/regulator/invite-staff", label: "Invite Staff", icon: UserPlus },
   { to: "/regulator/feedback", label: "Beta Feedback", icon: MessageSquare },
+  { to: "/regulator/support-chats", label: "Support Chats", icon: MessageSquare },
 ];
 
 const RegulatorLayout = () => {
