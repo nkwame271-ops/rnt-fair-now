@@ -81,19 +81,29 @@ const RoleSelect = () => {
           </div>
         </motion.div>
 
-        {/* Stats */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-          {[
-          { label: "Properties Registered", value: "150+" },
-          { label: "Active Tenants", value: "320+" },
-          { label: "Complaints Resolved", value: "45+" },
-          { label: "Digital & Secure", value: "100%" }].
-          map((stat) =>
-          <div key={stat.label} className="p-4">
-              <div className="text-2xl font-bold text-primary">{stat.value}</div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
+        {/* About the Rent Control Department */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} className="mt-12 bg-card rounded-2xl border border-border p-6 sm:p-8 shadow-card">
+          <h2 className="text-xl font-bold text-foreground mb-3">About the Rent Control Department</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+            The Rent Control Department is a government agency under the Ministry of Works and Housing, established under the <span className="font-semibold text-foreground">Rent Act, 1963 (Act 220)</span> to regulate rent, protect tenants' and landlords' rights, and resolve tenancy disputes across Ghana.
+          </p>
+          <div className="grid sm:grid-cols-3 gap-4 mb-4">
+            <div className="bg-muted rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-foreground mb-1">Rent Regulation</h3>
+              <p className="text-xs text-muted-foreground">Setting fair rent levels and ensuring compliance with rent control legislation nationwide.</p>
             </div>
-          )}
+            <div className="bg-muted rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-foreground mb-1">Dispute Resolution</h3>
+              <p className="text-xs text-muted-foreground">Mediating and adjudicating tenancy disputes between landlords and tenants through formal proceedings.</p>
+            </div>
+            <div className="bg-muted rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-foreground mb-1">Tenancy Registration</h3>
+              <p className="text-xs text-muted-foreground">Registering tenancy agreements to protect both parties and maintain an official record of all tenancies.</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground italic">
+            Our mission is to ensure affordable, secure, and well-regulated housing for all Ghanaians through transparent governance and digital innovation.
+          </p>
         </motion.div>
 
         {/* Regulator link */}

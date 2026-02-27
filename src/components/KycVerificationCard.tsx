@@ -27,6 +27,7 @@ const KycVerificationCard = () => {
   const [kyc, setKyc] = useState<KycRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [isCitizen, setIsCitizen] = useState(true);
 
   const [ghanaCardNumber, setGhanaCardNumber] = useState("");
   const [frontFile, setFrontFile] = useState<File | null>(null);
@@ -42,6 +43,16 @@ const KycVerificationCard = () => {
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
+      // Fetch profile to check citizenship
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_citizen")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (profile) {
+        setIsCitizen(profile.is_citizen);
+      }
+
       const { data } = await supabase
         .from("kyc_verifications")
         .select("*")
@@ -64,7 +75,6 @@ const KycVerificationCard = () => {
         video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } 
       });
       streamRef.current = stream;
-      // Wait for ref to be available after setCameraOpen triggers re-render
       requestAnimationFrame(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -115,28 +125,36 @@ const KycVerificationCard = () => {
   const uploadFile = async (file: File | Blob, path: string) => {
     const { error } = await supabase.storage.from("identity-documents").upload(path, file, { upsert: true });
     if (error) throw new Error(`Upload failed: ${error.message}`);
-    return path; // Return the storage path, not a public URL
+    return path;
   };
 
   const handleSubmit = async () => {
     if (!user) return;
 
-    if (!GHANA_CARD_REGEX.test(ghanaCardNumber)) {
-      toast.error("Invalid Ghana Card format. Use: GHA-XXXXXXXXX-X");
-      return;
+    if (isCitizen) {
+      if (!GHANA_CARD_REGEX.test(ghanaCardNumber)) {
+        toast.error("Invalid Ghana Card format. Use: GHA-XXXXXXXXX-X");
+        return;
+      }
+      if (!frontFile) { toast.error("Please upload Ghana Card front image"); return; }
+      if (!backFile) { toast.error("Please upload Ghana Card back image"); return; }
+    } else {
+      if (!ghanaCardNumber.trim()) {
+        toast.error("Please enter your Passport Number");
+        return;
+      }
+      if (!frontFile) { toast.error("Please upload your Passport image"); return; }
     }
-    if (!frontFile) { toast.error("Please upload Ghana Card front image"); return; }
-    if (!backFile) { toast.error("Please upload Ghana Card back image"); return; }
     if (!selfieBlob) { toast.error("Please take a live selfie"); return; }
 
     setSubmitting(true);
     try {
       const ts = Date.now();
-      const frontPath = await uploadFile(frontFile, `${user.id}/ghana-card-front-${ts}.jpg`);
-      const backPath = await uploadFile(backFile, `${user.id}/ghana-card-back-${ts}.jpg`);
+      const frontPath = await uploadFile(frontFile, `${user.id}/${isCitizen ? "ghana-card-front" : "passport"}-${ts}.jpg`);
+      const backPath = isCitizen && backFile ? await uploadFile(backFile, `${user.id}/ghana-card-back-${ts}.jpg`) : null;
       const selfiePath = await uploadFile(selfieBlob, `${user.id}/selfie-${ts}.jpg`);
 
-      // AI face matching - pass file paths, edge function generates signed URLs
+      // AI face matching
       let aiResult = { match_score: 0, match_result: "pending" };
       try {
         const { data } = await supabase.functions.invoke("kyc-face-match", {
@@ -149,28 +167,23 @@ const KycVerificationCard = () => {
         console.warn("AI face matching unavailable, proceeding with manual review");
       }
 
-      // Store file paths (not public URLs) since bucket is private
+      const kycPayload = {
+        ghana_card_number: ghanaCardNumber,
+        ghana_card_front_url: frontPath,
+        ghana_card_back_url: backPath,
+        selfie_url: selfiePath,
+        status: "pending",
+        ai_match_score: aiResult.match_score,
+        ai_match_result: aiResult.match_result,
+      };
+
       if (kyc) {
-        const { error } = await supabase.from("kyc_verifications").update({
-          ghana_card_number: ghanaCardNumber,
-          ghana_card_front_url: frontPath,
-          ghana_card_back_url: backPath,
-          selfie_url: selfiePath,
-          status: "pending",
-          ai_match_score: aiResult.match_score,
-          ai_match_result: aiResult.match_result,
-        }).eq("id", kyc.id);
+        const { error } = await supabase.from("kyc_verifications").update(kycPayload).eq("id", kyc.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("kyc_verifications").insert({
           user_id: user.id,
-          ghana_card_number: ghanaCardNumber,
-          ghana_card_front_url: frontPath,
-          ghana_card_back_url: backPath,
-          selfie_url: selfiePath,
-          status: "pending",
-          ai_match_score: aiResult.match_score,
-          ai_match_result: aiResult.match_result,
+          ...kycPayload,
         });
         if (error) throw error;
       }
@@ -196,6 +209,8 @@ const KycVerificationCard = () => {
     }
   };
 
+  const idLabel = isCitizen ? "Ghana Card" : "Passport";
+
   if (kyc?.status === "verified") {
     return (
       <Card className="border-success/30 bg-success/5">
@@ -205,7 +220,7 @@ const KycVerificationCard = () => {
               <CheckCircle2 className="h-5 w-5 text-success" />
             </div>
             <div>
-              <h3 className="font-semibold text-foreground">Ghana Card Verified</h3>
+              <h3 className="font-semibold text-foreground">{idLabel} Verified</h3>
               <p className="text-sm text-muted-foreground">{kyc.ghana_card_number} · Your identity has been verified</p>
             </div>
           </div>
@@ -224,7 +239,7 @@ const KycVerificationCard = () => {
             </div>
             <div>
               <h3 className="font-semibold text-foreground">Verification Pending</h3>
-              <p className="text-sm text-muted-foreground">Your Ghana Card ({kyc.ghana_card_number}) is being reviewed. This typically takes 1-2 business days.</p>
+              <p className="text-sm text-muted-foreground">Your {idLabel} ({kyc.ghana_card_number}) is being reviewed. This typically takes 1-2 business days.</p>
             </div>
           </div>
         </CardContent>
@@ -238,7 +253,7 @@ const KycVerificationCard = () => {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
-              <IdCard className="h-5 w-5 text-primary" /> Ghana Card Verification
+              <IdCard className="h-5 w-5 text-primary" /> {idLabel} Verification
             </CardTitle>
             <CardDescription>
               {kyc?.status === "rejected"
@@ -255,39 +270,50 @@ const KycVerificationCard = () => {
         )}
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* Ghana Card Number */}
+        {/* ID Number */}
         <div className="space-y-2">
-          <Label>Ghana Card Number</Label>
+          <Label>{isCitizen ? "Ghana Card Number" : "Passport Number"}</Label>
           <Input
             value={ghanaCardNumber}
-            onChange={(e) => setGhanaCardNumber(e.target.value.toUpperCase())}
-            placeholder="GHA-XXXXXXXXX-X"
-            maxLength={15}
+            onChange={(e) => setGhanaCardNumber(isCitizen ? e.target.value.toUpperCase() : e.target.value)}
+            placeholder={isCitizen ? "GHA-XXXXXXXXX-X" : "e.g. G0123456"}
+            maxLength={isCitizen ? 15 : 20}
           />
-          {ghanaCardNumber && !GHANA_CARD_REGEX.test(ghanaCardNumber) && (
+          {isCitizen && ghanaCardNumber && !GHANA_CARD_REGEX.test(ghanaCardNumber) && (
             <p className="text-xs text-destructive">Format: GHA-XXXXXXXXX-X (e.g., GHA-123456789-0)</p>
           )}
         </div>
 
-        {/* Front & Back uploads */}
-        <div className="grid sm:grid-cols-2 gap-4">
+        {/* Document uploads */}
+        {isCitizen ? (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Ghana Card Front</Label>
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors">
+                <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                <span className="text-xs text-muted-foreground">{frontFile ? frontFile.name : "Click to upload"}</span>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => setFrontFile(e.target.files?.[0] || null)} />
+              </label>
+            </div>
+            <div className="space-y-2">
+              <Label>Ghana Card Back</Label>
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors">
+                <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                <span className="text-xs text-muted-foreground">{backFile ? backFile.name : "Click to upload"}</span>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => setBackFile(e.target.files?.[0] || null)} />
+              </label>
+            </div>
+          </div>
+        ) : (
           <div className="space-y-2">
-            <Label>Ghana Card Front</Label>
+            <Label>Passport (Front Page)</Label>
             <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors">
               <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-              <span className="text-xs text-muted-foreground">{frontFile ? frontFile.name : "Click to upload"}</span>
+              <span className="text-xs text-muted-foreground">{frontFile ? frontFile.name : "Click to upload passport photo page"}</span>
               <input type="file" accept="image/*" className="hidden" onChange={(e) => setFrontFile(e.target.files?.[0] || null)} />
             </label>
           </div>
-          <div className="space-y-2">
-            <Label>Ghana Card Back</Label>
-            <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors">
-              <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-              <span className="text-xs text-muted-foreground">{backFile ? backFile.name : "Click to upload"}</span>
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => setBackFile(e.target.files?.[0] || null)} />
-            </label>
-          </div>
-        </div>
+        )}
 
         {/* Selfie */}
         <div className="space-y-2">

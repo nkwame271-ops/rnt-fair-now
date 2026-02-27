@@ -28,11 +28,31 @@ const RegisterLandlord = () => {
   const [phone, setPhone] = useState("");
   const [region, setRegion] = useState("");
   const [generatedId, setGeneratedId] = useState("");
+  const [payingRegistration, setPayingRegistration] = useState(false);
+
+  const handlePayRegistration = async () => {
+    setPayingRegistration(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("paystack-checkout", {
+        body: { type: "landlord_registration" },
+      });
+      if (error) throw new Error(error.message || "Payment initiation failed");
+      if (data?.error) throw new Error(data.error);
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
+      } else {
+        throw new Error("No checkout URL received");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to initiate payment");
+      setPayingRegistration(false);
+    }
+  };
 
   const canProceed = () => {
     switch (step) {
       case 0: return fullName && isValidEmail(email) && isValidPassword(password);
-      case 1: return (isCitizen ? isValidGhanaCard(ghanaCardNo) : residencePermitNo.length > 3) && isValidPhone(phone) && region;
+      case 1: return (isCitizen ? isValidGhanaCard(ghanaCardNo) : true) && isValidPhone(phone) && region;
       default: return true;
     }
   };
@@ -247,7 +267,7 @@ const RegisterLandlord = () => {
                         </div>
                       </FormField>
                     ) : (
-                      <FormField label="Residence Permit Number" valid={residencePermitNo.length > 3}>
+                      <FormField label="Residence Permit Number (Optional)" optional>
                         <div className="relative">
                           <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input value={residencePermitNo} onChange={(e) => setResidencePermitNo(e.target.value)} placeholder="RP-XXXXXXXXX" className="pl-10" />
@@ -309,8 +329,8 @@ const RegisterLandlord = () => {
                 {loading ? "Creating account..." : step === 1 ? "Create Account" : "Continue"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={() => navigate("/landlord/dashboard")} className="w-full h-12 text-base font-semibold">
-                Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+              <Button onClick={handlePayRegistration} disabled={payingRegistration} className="w-full h-12 text-base font-semibold bg-success hover:bg-success/90">
+                {payingRegistration ? "Redirecting to payment..." : "Pay GH₵ 2 Registration Fee"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>
