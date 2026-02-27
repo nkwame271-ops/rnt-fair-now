@@ -103,9 +103,14 @@ const RegulatorLayout = () => {
             <NotificationBell />
           </div>
         </header>
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto pb-16">
           <Outlet />
         </main>
+        <footer className="border-t border-border bg-card px-4 py-2 flex items-center justify-center gap-2">
+          <span className="text-muted-foreground text-[10px]">Powered by</span>
+          <img src="/cfled-logo.png" alt="CFLED" className="h-5 w-auto opacity-60" />
+          <span className="text-muted-foreground text-[10px]">Center for Financial Literacy, E-Commerce & Digitalization</span>
+        </footer>
       </div>
       <TourGuide steps={regulatorTourSteps} storageKey="tour_regulator_completed" />
       <FloatingActionHub />

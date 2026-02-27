@@ -316,8 +316,24 @@ const FileComplaint = () => {
         <Button variant="outline" onClick={() => setStep(step - 1)} disabled={step === 0}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Back
         </Button>
-        {step < 4 ? (
-          <Button onClick={() => setStep(step + 1)}>
+      {step < 4 ? (
+          <Button onClick={() => {
+            // Per-step validation
+            if (step === 0 && !form.type) {
+              toast.error("Please select a complaint type before proceeding");
+              return;
+            }
+            if (step === 1) {
+              if (!form.landlordName.trim()) { toast.error("Landlord / Agent Name is required"); return; }
+              if (!form.address.trim()) { toast.error("Property Address is required"); return; }
+              if (!form.region) { toast.error("Region is required"); return; }
+            }
+            if (step === 3 && !form.description.trim()) {
+              toast.error("Please describe the incident before proceeding");
+              return;
+            }
+            setStep(step + 1);
+          }}>
             Next <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         ) : (
