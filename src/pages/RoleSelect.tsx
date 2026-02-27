@@ -24,13 +24,6 @@ const RoleSelect = () => {
       path: "/login?role=landlord",
       color: "from-amber-500 to-orange-600",
     },
-    {
-      title: "Regulator",
-      description: "Oversee rent control operations, review complaints, and enforce compliance.",
-      icon: Lock,
-      path: "/regulator/login",
-      color: "from-rose-500 to-red-600",
-    },
   ];
 
   return (
@@ -141,7 +134,7 @@ const RoleSelect = () => {
             <p className="text-muted-foreground text-sm">Select your role to continue</p>
           </motion.div>
 
-          <div className="grid sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid sm:grid-cols-2 gap-8 max-w-3xl mx-auto">
             {roles.map((role, i) => (
               <motion.button
                 key={role.title}
@@ -192,9 +185,17 @@ const RoleSelect = () => {
                 <div className="space-y-2 text-muted-foreground text-xs">
                   <p>Rent Act, 1963 (Act 220)</p>
                   <p>Rent (Amendment) Decree, 1973</p>
-                  <p>© {new Date().getFullYear()} Rent Control Department</p>
                 </div>
               </div>
+            </div>
+            <div className="mt-6 pt-4 border-t border-border/50 flex items-center justify-between">
+              <p className="text-muted-foreground/50 text-[11px]">© {new Date().getFullYear()} Rent Control Department</p>
+              <button
+                onClick={() => navigate("/regulator/login")}
+                className="text-muted-foreground/40 hover:text-muted-foreground text-[11px] transition-colors"
+              >
+                Staff Portal
+              </button>
             </div>
           </div>
         </footer>
