@@ -1,0 +1,2 @@
+ALTER TABLE public.viewing_requests DROP CONSTRAINT viewing_requests_status_check;
+ALTER TABLE public.viewing_requests ADD CONSTRAINT viewing_requests_status_check CHECK (status = ANY (ARRAY['awaiting_payment'::text, 'pending'::text, 'accepted'::text, 'declined'::text, 'completed'::text]));
