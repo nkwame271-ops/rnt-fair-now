@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
     if (!PAYSTACK_SECRET_KEY) throw new Error("Payment gateway not configured");
 
-    const origin = req.headers.get("origin") || "https://rentcontrol.lovable.app";
+    const origin = req.headers.get("origin") || "https://rentghanapilot.lovable.app";
     const callbackUrl = `${origin}${callbackPath}`;
 
     const amountInPesewas = Math.round(totalAmount * 100);
