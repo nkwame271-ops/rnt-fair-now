@@ -19,26 +19,45 @@ const FloatingActionHub = () => {
     setActivePanel(null);
   };
 
-  if (activePanel === "chat") {
-    return (
-      <div className="fixed bottom-4 right-4 z-[9999] max-w-[calc(100vw-2rem)]">
-        <LiveChatWidget onClose={handleClose} />
-      </div>
-    );
-  }
-
-  if (activePanel === "feedback") {
-    return (
-      <div className="fixed bottom-4 right-4 z-[9999] max-w-[calc(100vw-2rem)]">
-        <BetaFeedbackWidget onClose={handleClose} />
-      </div>
-    );
-  }
+  const handleFabClick = () => {
+    if (activePanel) {
+      handleClose();
+    } else {
+      setMenuOpen(!menuOpen);
+    }
+  };
 
   return (
     <div className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end gap-2">
+      {/* Active panel widget */}
       <AnimatePresence>
-        {menuOpen && (
+        {activePanel === "chat" && (
+          <motion.div
+            key="chat-panel"
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="max-w-[calc(100vw-2rem)]"
+          >
+            <LiveChatWidget onClose={handleClose} />
+          </motion.div>
+        )}
+        {activePanel === "feedback" && (
+          <motion.div
+            key="feedback-panel"
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="max-w-[calc(100vw-2rem)]"
+          >
+            <BetaFeedbackWidget onClose={handleClose} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Menu options */}
+      <AnimatePresence>
+        {menuOpen && !activePanel && (
           <>
             <motion.button
               initial={{ opacity: 0, y: 10, scale: 0.8 }}
@@ -65,12 +84,13 @@ const FloatingActionHub = () => {
         )}
       </AnimatePresence>
 
+      {/* FAB button - always visible */}
       <button
-        onClick={() => setMenuOpen(!menuOpen)}
+        onClick={handleFabClick}
         className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all active:scale-95"
         aria-label="Help & Feedback"
       >
-        {menuOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />}
+        {activePanel || menuOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />}
       </button>
     </div>
   );
