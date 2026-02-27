@@ -24,6 +24,7 @@ import LandlordLayout from "./components/LandlordLayout";
 import LandlordDashboard from "./pages/landlord/LandlordDashboard";
 import MyProperties from "./pages/landlord/MyProperties";
 import RegisterProperty from "./pages/landlord/RegisterProperty";
+import EditProperty from "./pages/landlord/EditProperty";
 import Agreements from "./pages/landlord/Agreements";
 import AddTenant from "./pages/landlord/AddTenant";
 import RegulatorLayout from "./components/RegulatorLayout";
@@ -80,6 +81,7 @@ const App = () => (
               <Route path="dashboard" element={<LandlordDashboard />} />
               <Route path="my-properties" element={<MyProperties />} />
               <Route path="register-property" element={<ErrorBoundary section="Register Property Page"><RegisterProperty /></ErrorBoundary>} />
+              <Route path="edit-property/:id" element={<EditProperty />} />
               <Route path="agreements" element={<Agreements />} />
               <Route path="add-tenant" element={<KycGate action="add a tenant"><AddTenant /></KycGate>} />
               <Route path="viewing-requests" element={<LandlordViewingRequests />} />

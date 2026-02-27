@@ -218,6 +218,44 @@ export type Database = {
         }
         Relationships: []
       }
+      marketplace_messages: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          read: boolean
+          receiver_user_id: string
+          sender_user_id: string
+          unit_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          read?: boolean
+          receiver_user_id: string
+          sender_user_id: string
+          unit_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          read?: boolean
+          receiver_user_id?: string
+          sender_user_id?: string
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_messages_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -713,6 +751,35 @@ export type Database = {
           },
           {
             foreignKeyName: "viewing_requests_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watchlist: {
+        Row: {
+          created_at: string
+          id: string
+          tenant_user_id: string
+          unit_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          tenant_user_id: string
+          unit_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          tenant_user_id?: string
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watchlist_unit_id_fkey"
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"

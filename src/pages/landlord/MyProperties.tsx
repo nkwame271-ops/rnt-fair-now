@@ -1,10 +1,22 @@
 import { useEffect, useState } from "react";
-import { Building2, Users, MapPin, UserPlus, Loader2, Droplets, Zap, ChefHat, Bath, CircleDot } from "lucide-react";
+import { Building2, Users, MapPin, UserPlus, Loader2, Droplets, Zap, ChefHat, Bath, CircleDot, Pencil, Trash2, Store, StoreIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Unit {
   id: string;
@@ -31,6 +43,7 @@ interface Property {
   area: string;
   gps_location: string | null;
   property_condition: string | null;
+  listed_on_marketplace: boolean;
   units: Unit[];
   tenancyCount: number;
 }
@@ -46,12 +59,15 @@ const facilityIcons: Record<string, { icon: React.ReactNode; label: string }> = 
 
 const MyProperties = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [listingId, setListingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    const fetch = async () => {
+    const fetchProps = async () => {
       const { data: props } = await supabase
         .from("properties")
         .select("*, units(*)")
@@ -74,8 +90,55 @@ const MyProperties = () => {
       })));
       setLoading(false);
     };
-    fetch();
+    fetchProps();
   }, [user]);
+
+  const handleDelete = async (propertyId: string) => {
+    setDeletingId(propertyId);
+    // Delete units first, then property
+    await supabase.from("units").delete().eq("property_id", propertyId);
+    await supabase.from("property_images").delete().eq("property_id", propertyId);
+    const { error } = await supabase.from("properties").delete().eq("id", propertyId).eq("landlord_user_id", user!.id);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      setProperties(prev => prev.filter(p => p.id !== propertyId));
+      toast.success("Property deleted");
+    }
+    setDeletingId(null);
+  };
+
+  const handleToggleListing = async (property: Property) => {
+    if (property.listed_on_marketplace) {
+      // Delist
+      setListingId(property.id);
+      const { error } = await supabase.from("properties").update({ listed_on_marketplace: false }).eq("id", property.id);
+      if (error) { toast.error(error.message); }
+      else {
+        setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: false } : p));
+        toast.success("Property delisted from marketplace");
+      }
+      setListingId(null);
+    } else {
+      // List → pay listing fee via Paystack
+      setListingId(property.id);
+      try {
+        const { data, error } = await supabase.functions.invoke("paystack-checkout", {
+          body: { type: "listing_fee", propertyId: property.id },
+        });
+        if (error) throw new Error(error.message);
+        if (data?.error) throw new Error(data.error);
+        if (data?.authorization_url) {
+          window.location.href = data.authorization_url;
+        } else {
+          throw new Error("No checkout URL received");
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Failed to initiate listing payment");
+        setListingId(null);
+      }
+    }
+  };
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -115,9 +178,14 @@ const MyProperties = () => {
                       <div className="text-xs text-primary-foreground/60 mt-0.5">GPS: {p.gps_location}</div>
                     )}
                   </div>
-                  <span className="text-xs bg-primary-foreground/20 px-2.5 py-1 rounded-full font-semibold">
-                    {p.property_code}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {p.listed_on_marketplace && (
+                      <Badge className="bg-success/80 text-success-foreground text-xs">Listed</Badge>
+                    )}
+                    <span className="text-xs bg-primary-foreground/20 px-2.5 py-1 rounded-full font-semibold">
+                      {p.property_code}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex gap-4 mt-3 text-sm">
                   <span className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {p.units.length} units</span>
@@ -126,12 +194,58 @@ const MyProperties = () => {
                 {p.property_condition && (
                   <div className="text-xs text-primary-foreground/70 mt-2">Condition: {p.property_condition}</div>
                 )}
+
+                {/* Action buttons */}
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={(e) => { e.stopPropagation(); navigate(`/landlord/edit-property/${p.id}`); }}
+                    className="text-xs"
+                  >
+                    <Pencil className="h-3 w-3 mr-1" /> Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={(e) => { e.stopPropagation(); handleToggleListing(p); }}
+                    disabled={listingId === p.id}
+                    className="text-xs"
+                  >
+                    <Store className="h-3 w-3 mr-1" />
+                    {listingId === p.id ? "Processing..." : p.listed_on_marketplace ? "Delist" : "List on Marketplace"}
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="destructive" className="text-xs" onClick={(e) => e.stopPropagation()}>
+                        <Trash2 className="h-3 w-3 mr-1" /> Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Property?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete "{p.property_name || p.property_code}" and all its units. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(p.id)}
+                          disabled={deletingId === p.id}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {deletingId === p.id ? "Deleting..." : "Delete Property"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
 
               <div className="p-4 space-y-4">
                 {p.units.map((u) => (
                   <div key={u.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border/50">
-                    {/* Unit header */}
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="font-semibold text-card-foreground">{u.unit_name}</span>
@@ -147,7 +261,6 @@ const MyProperties = () => {
                       </div>
                     </div>
 
-                    {/* Facilities */}
                     <div className="flex flex-wrap gap-1.5">
                       {Object.entries(facilityIcons).map(([key, { icon, label }]) => {
                         const hasIt = (u as any)[key];
@@ -160,7 +273,6 @@ const MyProperties = () => {
                       })}
                     </div>
 
-                    {/* Amenities */}
                     {((u.amenities && u.amenities.length > 0) || u.custom_amenities) && (
                       <div className="flex flex-wrap gap-1.5">
                         {(u.amenities || []).map((a) => (
