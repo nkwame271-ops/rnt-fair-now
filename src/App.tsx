@@ -8,6 +8,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import KycGate from "@/components/KycGate";
 import RoleSelect from "./pages/RoleSelect";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import RegisterTenant from "./pages/RegisterTenant";
 import RegisterLandlord from "./pages/RegisterLandlord";
 import RegulatorLogin from "./pages/RegulatorLogin";
@@ -65,6 +66,7 @@ const App = () => (
             <Route path="/register/landlord" element={<RegisterLandlord />} />
             <Route path="/regulator/login" element={<RegulatorLogin />} />
             <Route path="/verify/:role/:id" element={<VerifyRegistration />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Tenant Routes */}
             <Route path="/tenant" element={<ProtectedRoute requiredRole="tenant"><TenantLayout /></ProtectedRoute>}>

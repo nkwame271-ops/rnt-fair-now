@@ -19,7 +19,7 @@ interface BetaFeedbackWidgetProps {
 
 const BetaFeedbackWidget = ({ onClose }: BetaFeedbackWidgetProps) => {
   const { user, loading } = useAuth();
-  const [open, setOpen] = useState(!onClose); // auto-open when used from hub
+  const [open, setOpen] = useState(true); // always start open
   const [category, setCategory] = useState("bug");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);

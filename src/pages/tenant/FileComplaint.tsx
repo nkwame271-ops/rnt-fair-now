@@ -204,7 +204,7 @@ const FileComplaint = () => {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Region</Label>
-                <Select value={form.region} onValueChange={(v) => { update("region", v); update("area", ""); }}>
+                <Select value={form.region} onValueChange={(v) => setForm(prev => ({ ...prev, region: v, area: "" }))}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                 </Select>
