@@ -1,0 +1,2 @@
+ALTER TABLE public.complaints DROP CONSTRAINT complaints_status_check;
+ALTER TABLE public.complaints ADD CONSTRAINT complaints_status_check CHECK (status = ANY (ARRAY['submitted', 'under_review', 'in_progress', 'resolved', 'closed', 'pending_payment']));
