@@ -20,6 +20,8 @@ import MyCases from "./pages/tenant/MyCases";
 import Payments from "./pages/tenant/Payments";
 import LegalAssistant from "./pages/tenant/LegalAssistant";
 import MyAgreements from "./pages/tenant/MyAgreements";
+import TenantPreferences from "./pages/tenant/Preferences";
+import TenantMessages from "./pages/tenant/Messages";
 import LandlordLayout from "./components/LandlordLayout";
 import LandlordDashboard from "./pages/landlord/LandlordDashboard";
 import MyProperties from "./pages/landlord/MyProperties";
@@ -30,6 +32,8 @@ import AddTenant from "./pages/landlord/AddTenant";
 import RegulatorLayout from "./components/RegulatorLayout";
 import LandlordViewingRequests from "./pages/landlord/ViewingRequests";
 import LandlordFeedback from "./pages/landlord/LandlordFeedback";
+import LandlordMessages from "./pages/landlord/Messages";
+import RentalApplications from "./pages/landlord/RentalApplications";
 import RegulatorDashboard from "./pages/regulator/RegulatorDashboard";
 import RegulatorTenants from "./pages/regulator/RegulatorTenants";
 import RegulatorLandlords from "./pages/regulator/RegulatorLandlords";
@@ -73,6 +77,8 @@ const App = () => (
               <Route path="payments" element={<Payments />} />
               <Route path="my-agreements" element={<MyAgreements />} />
               <Route path="legal-assistant" element={<LegalAssistant />} />
+              <Route path="preferences" element={<TenantPreferences />} />
+              <Route path="messages" element={<TenantMessages />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
@@ -86,6 +92,8 @@ const App = () => (
               <Route path="agreements" element={<Agreements />} />
               <Route path="add-tenant" element={<KycGate action="add a tenant"><AddTenant /></KycGate>} />
               <Route path="viewing-requests" element={<LandlordViewingRequests />} />
+              <Route path="messages" element={<LandlordMessages />} />
+              <Route path="rental-applications" element={<RentalApplications />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="feedback" element={<LandlordFeedback />} />
             </Route>

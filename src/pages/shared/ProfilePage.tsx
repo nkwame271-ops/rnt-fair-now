@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode } from "lucide-react";
+import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode, Star } from "lucide-react";
 import KycVerificationCard from "@/components/KycVerificationCard";
+import UserRatings from "@/components/UserRatings";
 
 const ProfilePage = () => {
   const { user, role } = useAuth();
@@ -190,6 +191,19 @@ const ProfilePage = () => {
 
       {/* KYC Verification */}
       {role !== "regulator" && <KycVerificationCard />}
+
+      {/* Ratings */}
+      {user && role !== "regulator" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2"><Star className="h-5 w-5 text-primary" /> Ratings & Reviews</CardTitle>
+            <CardDescription>What others say about you</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UserRatings userId={user.id} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Personal Information */}
       <Card>

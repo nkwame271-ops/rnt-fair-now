@@ -7,10 +7,12 @@ import {
   Briefcase,
   CreditCard,
   MessageSquare,
+  MessageCircle,
   LogOut,
   Shield,
   Menu,
   UserCircle,
+  Bell,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +30,8 @@ const navItems = [
   { to: "/tenant/payments", label: "Payments", icon: CreditCard },
   { to: "/tenant/my-agreements", label: "Agreements", icon: FileText },
   { to: "/tenant/legal-assistant", label: "Legal Assistant", icon: MessageSquare },
+  { to: "/tenant/preferences", label: "Preferences", icon: Bell },
+  { to: "/tenant/messages", label: "Messages", icon: MessageCircle },
   { to: "/tenant/profile", label: "My Profile", icon: UserCircle },
 ];
 
