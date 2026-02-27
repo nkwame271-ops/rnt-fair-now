@@ -16,8 +16,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import TourGuide from "@/components/TourGuide";
 import { tenantTourSteps } from "@/data/tourSteps";
-import BetaFeedbackWidget from "@/components/BetaFeedbackWidget";
-import LiveChatWidget from "@/components/LiveChatWidget";
+import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
 
 const navItems = [
@@ -108,8 +107,7 @@ const TenantLayout = () => {
         </main>
       </div>
       <TourGuide steps={tenantTourSteps} storageKey="tour_tenant_completed" />
-      <BetaFeedbackWidget />
-      <LiveChatWidget />
+      <FloatingActionHub />
     </div>
   );
 };
