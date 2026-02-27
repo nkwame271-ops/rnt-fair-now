@@ -5,6 +5,7 @@ import LiveChatWidget from "@/components/LiveChatWidget";
 import heroBg from "@/assets/hero-bg.jpg";
 import rcdLogo from "@/assets/rcd-logo.png";
 import coatOfArms from "@/assets/ghana-coat-of-arms.png";
+import cfledLogo from "@/assets/cfled-logo.png";
 
 const RoleSelect = () => {
   const navigate = useNavigate();
@@ -188,8 +189,12 @@ const RoleSelect = () => {
                 </div>
               </div>
             </div>
-            <div className="mt-6 pt-4 border-t border-border/50 flex items-center justify-between">
+            <div className="mt-6 pt-4 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-3">
               <p className="text-muted-foreground/50 text-[11px]">© {new Date().getFullYear()} Rent Control Department</p>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground/50 text-[10px]">Powered by</span>
+                <img src={cfledLogo} alt="CFLED" className="h-7 w-auto opacity-60" />
+              </div>
               <button
                 onClick={() => navigate("/regulator/login")}
                 className="text-muted-foreground/40 hover:text-muted-foreground text-[11px] transition-colors"
