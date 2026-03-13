@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Building2, Users, ArrowRight, Lock, Shield, Scale, Phone, Mail, MapPin } from "lucide-react";
+import { Building2, Users, ArrowRight, Lock, Shield, Scale, Phone, Mail, MapPin, Code2, Database, FileJson } from "lucide-react";
 import LiveChatWidget from "@/components/LiveChatWidget";
 import heroBg from "@/assets/hero-bg.jpg";
 import rcdLogo from "@/assets/rcd-logo.png";
