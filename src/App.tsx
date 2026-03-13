@@ -47,6 +47,7 @@ import InviteStaff from "./pages/regulator/InviteStaff";
 import RegulatorKyc from "./pages/regulator/RegulatorKyc";
 import RegulatorFeedback from "./pages/regulator/RegulatorFeedback";
 import RegulatorSupportChats from "./pages/regulator/RegulatorSupportChats";
+import AgencyApiKeys from "./pages/regulator/AgencyApiKeys";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import NotFound from "./pages/NotFound";
