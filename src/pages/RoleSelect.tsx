@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Building2, Users, ArrowRight, Lock, Shield, Scale, Phone, Mail, MapPin } from "lucide-react";
+import { Building2, Users, ArrowRight, Lock, Shield, Scale, Phone, Mail, MapPin, Code2, Database, FileJson } from "lucide-react";
 import LiveChatWidget from "@/components/LiveChatWidget";
 import heroBg from "@/assets/hero-bg.jpg";
 import rcdLogo from "@/assets/rcd-logo.png";
@@ -120,6 +120,77 @@ const RoleSelect = () => {
                 <p className="text-muted-foreground text-sm">{item.text}</p>
               </motion.div>
             ))}
+          </div>
+        </section>
+
+        {/* API Services Section */}
+        <section className="bg-muted/30 border-y border-border">
+          <div className="max-w-6xl mx-auto px-4 py-16 sm:py-20">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="text-center mb-12"
+            >
+              <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-1.5 text-xs font-semibold mb-4">
+                <Code2 className="h-3.5 w-3.5" /> API SERVICES
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">Open Data for Government Agencies</h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto text-sm sm:text-base">
+                We provide secure, scoped API access to verified rental housing data for authorized government agencies. Each agency receives a unique API key limited to only the data they are authorized to access.
+              </p>
+            </motion.div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+              {[
+                { agency: "Ghana Revenue Authority (GRA)", data: "Landlord rental income summaries, 8% rent tax collected per period, landlord tax profiles", icon: FileJson, scopes: ["tax:read"] },
+                { agency: "National Identification Authority (NIA)", data: "Ghana Card KYC verification statistics, identity cross-referencing counts", icon: Shield, scopes: ["identity:read"] },
+                { agency: "Ghana Statistical Service (GSS)", data: "Tenant/landlord counts by region, citizen vs non-citizen breakdown, property type distribution", icon: Database, scopes: ["stats:read", "tenants:read"] },
+                { agency: "Metropolitan & District Assemblies", data: "Properties by area, vacancy rates, complaint counts for local planning and zoning", icon: Building2, scopes: ["properties:read", "complaints:read"] },
+                { agency: "Ministry of Works & Housing", data: "National property inventory, housing conditions, regional distribution data", icon: Building2, scopes: ["properties:read", "stats:read"] },
+                { agency: "Ghana Police Service", data: "Housing complaint records and tenant/landlord dispute data on request", icon: Shield, scopes: ["complaints:read"] },
+              ].map((item, i) => (
+                <motion.div
+                  key={item.agency}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.08, duration: 0.4 }}
+                  className="bg-card border border-border rounded-xl p-5"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <item.icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <h3 className="font-semibold text-foreground text-sm">{item.agency}</h3>
+                  </div>
+                  <p className="text-muted-foreground text-xs mb-3">{item.data}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {item.scopes.map((s) => (
+                      <span key={s} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{s}</span>
+                    ))}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-6 max-w-2xl mx-auto">
+              <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-2">
+                <Code2 className="h-4 w-4 text-primary" /> API Request Example
+              </h3>
+              <div className="bg-muted rounded-lg p-4 font-mono text-xs space-y-1 text-muted-foreground">
+                <p className="text-foreground">POST /functions/v1/agency-api</p>
+                <p>Header: X-API-Key: rcd_xxxxxxxxxx...</p>
+                <p className="text-foreground mt-2">{"{"}</p>
+                <p>&nbsp; "endpoint": "stats/overview",</p>
+                <p>&nbsp; "filters": {"{"} "region": "Greater Accra" {"}"}</p>
+                <p className="text-foreground">{"}"}</p>
+              </div>
+              <p className="text-muted-foreground text-xs mt-3">
+                Contact the Rent Control Department to request API access for your agency.
+              </p>
+            </div>
           </div>
         </section>
 

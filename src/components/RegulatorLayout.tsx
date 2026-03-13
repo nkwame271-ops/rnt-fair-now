@@ -33,6 +33,7 @@ const navItems = [
   { to: "/regulator/invite-staff", label: "Invite Staff", icon: UserPlus },
   { to: "/regulator/feedback", label: "Beta Feedback", icon: MessageSquare },
   { to: "/regulator/support-chats", label: "Support Chats", icon: MessageSquare },
+  { to: "/regulator/api-keys", label: "Agency APIs", icon: Shield },
 ];
 
 const RegulatorLayout = () => {

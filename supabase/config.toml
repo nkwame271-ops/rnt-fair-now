@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.send-sms]
 verify_jwt = false
+
+[functions.agency-api]
+verify_jwt = false
