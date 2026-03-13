@@ -53,6 +53,39 @@ export type Database = {
         }
         Relationships: []
       }
+      api_keys: {
+        Row: {
+          agency_name: string
+          api_key_hash: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          last_used_at: string | null
+          scopes: string[]
+        }
+        Insert: {
+          agency_name: string
+          api_key_hash: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          scopes?: string[]
+        }
+        Update: {
+          agency_name?: string
+          api_key_hash?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          scopes?: string[]
+        }
+        Relationships: []
+      }
       beta_feedback: {
         Row: {
           category: string
