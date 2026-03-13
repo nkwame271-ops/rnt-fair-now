@@ -116,6 +116,7 @@ const App = () => (
               <Route path="kyc" element={<RegulatorKyc />} />
               <Route path="feedback" element={<RegulatorFeedback />} />
               <Route path="support-chats" element={<RegulatorSupportChats />} />
+              <Route path="api-keys" element={<AgencyApiKeys />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
