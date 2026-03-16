@@ -1,16 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Shield, Mail, Lock, ArrowLeft, KeyRound } from "lucide-react";
+import { Shield, Mail, Lock, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-type LoginMode = "password" | "otp";
-type OtpStep = "email" | "verify";
+type LoginMode = "password" | "magic-link";
 
 const Login = () => {
   const [searchParams] = useSearchParams();
@@ -25,10 +23,9 @@ const Login = () => {
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
 
-  // OTP state
-  const [otpStep, setOtpStep] = useState<OtpStep>("email");
-  const [otpEmail, setOtpEmail] = useState("");
-  const [otpCode, setOtpCode] = useState("");
+  // Magic link state
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [magicLinkEmail, setMagicLinkEmail] = useState("");
 
   const navigateByRole = async (userId: string) => {
     const { data: roleData } = await supabase
@@ -46,6 +43,17 @@ const Login = () => {
     toast.success("Welcome back!");
   };
 
+  // Detect if user arrived via magic link redirect (already authenticated)
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await navigateByRole(session.user.id);
+      }
+    };
+    checkSession();
+  }, []);
+
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -59,36 +67,22 @@ const Login = () => {
     setLoading(false);
   };
 
-  const handleSendOtp = async () => {
-    if (!otpEmail.trim()) { toast.error("Please enter your email"); return; }
+  const handleSendMagicLink = async () => {
+    if (!magicLinkEmail.trim()) { toast.error("Please enter your email"); return; }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ email: otpEmail });
+    const { error } = await supabase.auth.signInWithOtp({
+      email: magicLinkEmail,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login?role=${role}`,
+      },
+    });
     setLoading(false);
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Verification code sent to your email!");
-      setOtpStep("verify");
+      toast.success("Magic link sent! Check your email.");
+      setMagicLinkSent(true);
     }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otpCode.length < 6) { toast.error("Please enter the full 6-digit code"); return; }
-    setLoading(true);
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: otpEmail,
-      token: otpCode,
-      type: "email",
-    });
-    if (error) {
-      toast.error(error.message);
-      setLoading(false);
-      return;
-    }
-    if (data.user) {
-      await navigateByRole(data.user.id);
-    }
-    setLoading(false);
   };
 
   return (
@@ -125,16 +119,16 @@ const Login = () => {
           {/* Mode toggle */}
           <div className="flex bg-muted rounded-lg p-1 mb-6">
             <button
-              onClick={() => { setMode("password"); setOtpStep("email"); setOtpCode(""); }}
+              onClick={() => { setMode("password"); setMagicLinkSent(false); }}
               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${mode === "password" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             >
               <Lock className="h-3.5 w-3.5" /> Password
             </button>
             <button
-              onClick={() => { setMode("otp"); setShowForgot(false); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${mode === "otp" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              onClick={() => { setMode("magic-link"); setShowForgot(false); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${mode === "magic-link" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             >
-              <KeyRound className="h-3.5 w-3.5" /> Email OTP
+              <KeyRound className="h-3.5 w-3.5" /> Magic Link
             </button>
           </div>
 
@@ -190,10 +184,10 @@ const Login = () => {
             </>
           )}
 
-          {/* OTP MODE */}
-          {mode === "otp" && otpStep === "email" && (
+          {/* MAGIC LINK MODE */}
+          {mode === "magic-link" && !magicLinkSent && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">We'll send a 6-digit verification code to your email.</p>
+              <p className="text-sm text-muted-foreground">We'll send a sign-in link to your email. Click it to log in — no password needed.</p>
               <div className="space-y-2">
                 <Label>Email</Label>
                 <div className="relative">
@@ -202,49 +196,38 @@ const Login = () => {
                     type="email"
                     placeholder="kwame@example.com"
                     className="pl-10"
-                    value={otpEmail}
-                    onChange={(e) => setOtpEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleSendOtp(); }}
+                    value={magicLinkEmail}
+                    onChange={(e) => setMagicLinkEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSendMagicLink(); }}
                   />
                 </div>
               </div>
-              <Button onClick={handleSendOtp} className="w-full h-12 text-base font-semibold" disabled={loading}>
-                {loading ? "Sending code..." : "Send Verification Code"}
+              <Button onClick={handleSendMagicLink} className="w-full h-12 text-base font-semibold" disabled={loading}>
+                {loading ? "Sending..." : "Send Magic Link"}
               </Button>
             </div>
           )}
 
-          {mode === "otp" && otpStep === "verify" && (
+          {mode === "magic-link" && magicLinkSent && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-              <div className="text-center space-y-1">
-                <KeyRound className="h-8 w-8 text-primary mx-auto" />
-                <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to</p>
-                <p className="text-sm font-semibold text-foreground">{otpEmail}</p>
+              <div className="text-center space-y-3 py-4">
+                <CheckCircle2 className="h-12 w-12 text-primary mx-auto" />
+                <h3 className="text-lg font-semibold text-foreground">Check Your Email</h3>
+                <p className="text-sm text-muted-foreground">
+                  We've sent a sign-in link to
+                </p>
+                <p className="text-sm font-semibold text-foreground">{magicLinkEmail}</p>
+                <p className="text-xs text-muted-foreground">
+                  Click the link in the email to sign in. You can close this tab.
+                </p>
               </div>
-
-              <div className="flex justify-center">
-                <InputOTP maxLength={6} value={otpCode} onChange={setOtpCode}>
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
-
-              <Button onClick={handleVerifyOtp} className="w-full h-12 text-base font-semibold" disabled={loading || otpCode.length < 6}>
-                {loading ? "Verifying..." : "Verify & Sign In"}
-              </Button>
 
               <div className="flex items-center justify-between text-xs">
-                <button onClick={() => { setOtpStep("email"); setOtpCode(""); }} className="text-muted-foreground hover:text-foreground transition-colors">
+                <button onClick={() => { setMagicLinkSent(false); }} className="text-muted-foreground hover:text-foreground transition-colors">
                   ← Change email
                 </button>
-                <button onClick={handleSendOtp} disabled={loading} className="text-primary hover:underline">
-                  Resend code
+                <button onClick={handleSendMagicLink} disabled={loading} className="text-primary hover:underline">
+                  Resend link
                 </button>
               </div>
             </motion.div>

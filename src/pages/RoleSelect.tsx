@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Building2, Users, ArrowRight, Lock, Shield, Scale, Phone, Mail, MapPin, Code2, Database, FileJson } from "lucide-react";
 import LiveChatWidget from "@/components/LiveChatWidget";
+import { useAuth } from "@/hooks/useAuth";
 import heroBg from "@/assets/hero-bg.jpg";
 import rcdLogo from "@/assets/rcd-logo.png";
 import coatOfArms from "@/assets/ghana-coat-of-arms.png";
@@ -9,6 +11,17 @@ import cfledLogo from "@/assets/cfled-logo.png";
 
 const RoleSelect = () => {
   const navigate = useNavigate();
+  const { user, role, loading } = useAuth();
+
+  // Redirect authenticated users to their dashboard
+  useEffect(() => {
+    if (loading) return;
+    if (user && role) {
+      if (role === "tenant") navigate("/tenant/dashboard", { replace: true });
+      else if (role === "landlord") navigate("/landlord/dashboard", { replace: true });
+      else if (role === "regulator") navigate("/regulator/dashboard", { replace: true });
+    }
+  }, [user, role, loading, navigate]);
 
   const roles = [
     {
