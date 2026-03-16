@@ -105,7 +105,14 @@ Deno.serve(async (req) => {
         .eq("id", paymentId);
 
       if (error) console.error("Rent payment update error:", error.message);
-      else console.log("Rent payment confirmed:", paymentId);
+      else {
+        console.log("Rent payment confirmed:", paymentId);
+        const { data: payment } = await supabase.from("rent_payments").select("tenancy_id").eq("id", paymentId).single();
+        if (payment) {
+          const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", payment.tenancy_id).single();
+          if (tenancy) await sendPaymentSms(tenancy.tenant_user_id, amountPaid, "Rent tax payment", reference);
+        }
+      }
 
     } else if (reference.startsWith("treg_")) {
       const userId = reference.split("_")[1];
