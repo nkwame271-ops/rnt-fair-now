@@ -43,6 +43,8 @@ interface Property {
   area: string;
   gps_location: string | null;
   property_condition: string | null;
+  property_category: string;
+  assessment_status: string;
   listed_on_marketplace: boolean;
   units: Unit[];
   tenancyCount: number;
