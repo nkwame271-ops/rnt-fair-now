@@ -112,8 +112,8 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
           <div className="bg-card rounded-xl border border-border p-5 space-y-4">
             <div className="text-center">
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Registration Fee</p>
-              <p className="text-3xl font-extrabold text-primary">GH₵ 2.00</p>
-              <p className="text-xs text-muted-foreground">Per year</p>
+              <p className="text-3xl font-extrabold text-primary">{role === "tenant" ? "GH₵ 10.00" : "GH₵ 35.00"}</p>
+              <p className="text-xs text-muted-foreground">Per year{role === "landlord" ? " · Includes Rent Card" : ""}</p>
             </div>
 
             <div className="border-t border-border pt-4">
