@@ -358,8 +358,8 @@ const RegisterProperty = () => {
             </div>
           </ErrorBoundary>
 
-          <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting || payingListingFee}>
-            {payingListingFee ? "Redirecting to payment..." : submitting ? "Registering..." : listOnMarketplace ? "Register & Pay Listing Fee (GH₵ 2)" : "Register Property"}
+          <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting}>
+            {submitting ? "Registering..." : "Register Property"}
           </Button>
         </form>
       </div>

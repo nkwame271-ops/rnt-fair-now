@@ -221,11 +221,12 @@ const MyProperties = () => {
                     size="sm"
                     variant="secondary"
                     onClick={(e) => { e.stopPropagation(); handleToggleListing(p); }}
-                    disabled={listingId === p.id}
+                    disabled={listingId === p.id || (p.assessment_status !== "approved" && !p.listed_on_marketplace)}
                     className="text-xs"
+                    title={p.assessment_status !== "approved" && !p.listed_on_marketplace ? "Property must be approved before listing on marketplace" : undefined}
                   >
                     <Store className="h-3 w-3 mr-1" />
-                    {listingId === p.id ? "Processing..." : p.listed_on_marketplace ? "Delist" : "List on Marketplace"}
+                    {listingId === p.id ? "Processing..." : p.listed_on_marketplace ? "Delist" : p.assessment_status !== "approved" ? "Awaiting Approval" : "List on Marketplace"}
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>

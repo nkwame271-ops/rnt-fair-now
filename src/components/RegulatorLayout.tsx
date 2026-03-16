@@ -29,6 +29,7 @@ const navItems = [
   { to: "/regulator/landlords", label: "Landlords", icon: Building2 },
   { to: "/regulator/properties", label: "Properties", icon: Building2 },
   { to: "/regulator/complaints", label: "Complaints", icon: AlertTriangle },
+  { to: "/regulator/applications", label: "Applications", icon: ClipboardList },
   { to: "/regulator/agreements", label: "Agreements", icon: FileText },
   { to: "/regulator/agreement-templates", label: "Templates", icon: FileText },
   { to: "/regulator/rent-assessments", label: "Rent Assessments", icon: TrendingUp },

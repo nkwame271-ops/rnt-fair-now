@@ -121,6 +121,16 @@ const EditProperty = () => {
           </div>
         </div>
         <div className="space-y-2">
+          <Label>Property Category *</Label>
+          <Select value={propertyCategory} onValueChange={(v) => setPropertyCategory(v as "residential" | "commercial")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="residential">Residential Property</SelectItem>
+              <SelectItem value="commercial">Commercial Property</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
           <Label>Property Condition</Label>
           <Input value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="e.g. Newly built, Good condition" />
         </div>
