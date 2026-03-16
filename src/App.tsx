@@ -34,6 +34,8 @@ import RegulatorLayout from "./components/RegulatorLayout";
 import LandlordViewingRequests from "./pages/landlord/ViewingRequests";
 import LandlordFeedback from "./pages/landlord/LandlordFeedback";
 import LandlordMessages from "./pages/landlord/Messages";
+import LandlordApplications from "./pages/landlord/LandlordApplications";
+import LandlordComplaints from "./pages/landlord/LandlordComplaints";
 import RentalApplications from "./pages/landlord/RentalApplications";
 import RegulatorDashboard from "./pages/regulator/RegulatorDashboard";
 import RegulatorTenants from "./pages/regulator/RegulatorTenants";
@@ -50,6 +52,7 @@ import RegulatorSupportChats from "./pages/regulator/RegulatorSupportChats";
 import AgencyApiKeys from "./pages/regulator/AgencyApiKeys";
 import EngineRoom from "./pages/regulator/EngineRoom";
 import RegulatorRentAssessments from "./pages/regulator/RegulatorRentAssessments";
+import RegulatorApplications from "./pages/regulator/RegulatorApplications";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import NotFound from "./pages/NotFound";
@@ -99,6 +102,8 @@ const App = () => (
               <Route path="viewing-requests" element={<LandlordViewingRequests />} />
               <Route path="messages" element={<LandlordMessages />} />
               <Route path="rental-applications" element={<RentalApplications />} />
+              <Route path="applications" element={<LandlordApplications />} />
+              <Route path="complaints" element={<LandlordComplaints />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="feedback" element={<LandlordFeedback />} />
             </Route>
@@ -112,6 +117,7 @@ const App = () => (
               <Route path="properties" element={<RegulatorProperties />} />
               <Route path="complaints" element={<RegulatorComplaints />} />
               <Route path="agreements" element={<RegulatorAgreements />} />
+              <Route path="applications" element={<RegulatorApplications />} />
               <Route path="agreement-templates" element={<RegulatorAgreementTemplates />} />
               <Route path="analytics" element={<RegulatorAnalytics />} />
               <Route path="invite-staff" element={<InviteStaff />} />

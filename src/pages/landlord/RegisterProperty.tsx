@@ -46,8 +46,7 @@ const RegisterProperty = () => {
   const [gpsConfirmed, setGpsConfirmed] = useState(false);
   const [ghanaPostGps, setGhanaPostGps] = useState("");
   const [propertyCondition, setPropertyCondition] = useState("");
-  const [listOnMarketplace, setListOnMarketplace] = useState(false);
-  const [payingListingFee, setPayingListingFee] = useState(false);
+  const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial">("residential");
   const [images, setImages] = useState<File[]>([]);
   const [units, setUnits] = useState<UnitForm[]>([{
     name: "Unit A", type: "", rent: "",
@@ -101,17 +100,9 @@ const RegisterProperty = () => {
     setSubmitting(true);
 
     try {
-      if (listOnMarketplace && images.length === 0) {
-        toast.error("Please upload at least one image to list on the marketplace");
-        setSubmitting(false);
-        return;
-      }
-
       const regionCode = region.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
       const areaCode = effectiveArea.slice(0, 2).toUpperCase();
       const propertyCode = `${regionCode}-${areaCode}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999)).padStart(3, "0")}`;
-
-      const shouldList = listOnMarketplace;
 
       const { data: prop, error: propErr } = await supabase.from("properties").insert({
         landlord_user_id: user.id,
@@ -125,6 +116,7 @@ const RegisterProperty = () => {
         gps_confirmed_at: new Date().toISOString(),
         ghana_post_gps: ghanaPostGps || null,
         property_condition: propertyCondition || null,
+        property_category: propertyCategory,
         listed_on_marketplace: false,
       } as any).select().single();
 
@@ -162,27 +154,7 @@ const RegisterProperty = () => {
         });
       }
 
-      if (shouldList) {
-        setPayingListingFee(true);
-        try {
-          const { data: payData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
-            body: { type: "listing_fee", propertyId: prop.id },
-          });
-          if (payErr) throw new Error(payErr.message);
-          if (payData?.error) throw new Error(payData.error);
-          if (payData?.authorization_url) {
-            toast.success(`Property registered! Code: ${propertyCode}. Redirecting to pay listing fee...`);
-            window.location.href = payData.authorization_url;
-            return;
-          }
-        } catch (payError: any) {
-          toast.error(`Property saved but listing fee payment failed: ${payError.message}. You can pay later from My Properties.`);
-        } finally {
-          setPayingListingFee(false);
-        }
-      }
-
-      toast.success(`Property registered! Code: ${propertyCode}`);
+      toast.success(`Property registered! Code: ${propertyCode}. Your property is now under assessment.`);
       navigate("/landlord/my-properties");
     } catch (err: any) {
       toast.error(err.message || "Failed to register property");
@@ -255,22 +227,32 @@ const RegisterProperty = () => {
                 />
               </ErrorBoundary>
 
+              {/* Property Category */}
+              <div className="space-y-2">
+                <Label>Property Category *</Label>
+                <Select value={propertyCategory} onValueChange={(v) => setPropertyCategory(v as "residential" | "commercial")}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="residential">Residential Property</SelectItem>
+                    <SelectItem value="commercial">Commercial Property</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">This determines the applicable government tax rate</p>
+              </div>
+
               {/* Property condition */}
               <div className="space-y-2">
                 <Label>Property Condition Notes</Label>
                 <Textarea value={propertyCondition} onChange={(e) => setPropertyCondition(e.target.value)} placeholder="Describe overall condition, recent renovations, etc." rows={3} />
               </div>
 
-              {/* Marketplace toggle */}
-              <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-muted/50">
-                <div className="flex items-center gap-3">
-                  <Store className="h-5 w-5 text-primary" />
-                  <div>
-                    <Label className="text-sm font-medium">List on Marketplace</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">Make vacant units visible to tenants (GH₵ 2 listing fee applies)</p>
-                  </div>
+              {/* Processing notice */}
+              <div className="flex items-center gap-3 rounded-lg border border-info/30 p-4 bg-info/5">
+                <Store className="h-5 w-5 text-info" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Marketplace Listing</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Your property will be listed on the marketplace after it has been assessed and approved by Rent Control.</p>
                 </div>
-                <Switch checked={listOnMarketplace} onCheckedChange={setListOnMarketplace} />
               </div>
 
               {/* Images (isolated boundary) */}
@@ -278,11 +260,7 @@ const RegisterProperty = () => {
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1">
                     <Upload className="h-3.5 w-3.5" /> Property Images (up to 6)
-                    {listOnMarketplace && <span className="text-destructive ml-1">*</span>}
                   </Label>
-                  {listOnMarketplace && images.length === 0 && (
-                    <p className="text-xs text-destructive">At least one image is required for marketplace listings</p>
-                  )}
                   <input type="file" accept="image/*" multiple onChange={handleImageChange} className="text-sm" />
                   {images.length > 0 && (
                     <div className="flex gap-2 flex-wrap mt-2">
@@ -376,8 +354,8 @@ const RegisterProperty = () => {
             </div>
           </ErrorBoundary>
 
-          <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting || payingListingFee}>
-            {payingListingFee ? "Redirecting to payment..." : submitting ? "Registering..." : listOnMarketplace ? "Register & Pay Listing Fee (GH₵ 2)" : "Register Property"}
+          <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting}>
+            {submitting ? "Registering..." : "Register Property"}
           </Button>
         </form>
       </div>

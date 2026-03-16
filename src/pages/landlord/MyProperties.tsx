@@ -43,6 +43,8 @@ interface Property {
   area: string;
   gps_location: string | null;
   property_condition: string | null;
+  property_category: string;
+  assessment_status: string;
   listed_on_marketplace: boolean;
   units: Unit[];
   tenancyCount: number;
@@ -179,15 +181,18 @@ const MyProperties = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs capitalize bg-primary-foreground/10 text-primary-foreground border-primary-foreground/20">
+                      {p.property_category || "residential"}
+                    </Badge>
                     {p.listed_on_marketplace && (
                       <Badge className="bg-success/80 text-success-foreground text-xs">Listed</Badge>
                     )}
                     <Badge variant="outline" className={`text-xs ${
-                      (p as any).assessment_status === "approved"
+                      p.assessment_status === "approved"
                         ? "bg-success/10 text-success border-success/20"
                         : "text-warning border-warning/30"
                     }`}>
-                      {(p as any).assessment_status === "approved" ? "Assessed ✓" : "Pending Assessment"}
+                      {p.assessment_status === "approved" ? "Fully Assessed ✓" : "Processing — Under Assessment"}
                     </Badge>
                     <span className="text-xs bg-primary-foreground/20 px-2.5 py-1 rounded-full font-semibold">
                       {p.property_code}
@@ -216,11 +221,12 @@ const MyProperties = () => {
                     size="sm"
                     variant="secondary"
                     onClick={(e) => { e.stopPropagation(); handleToggleListing(p); }}
-                    disabled={listingId === p.id}
+                    disabled={listingId === p.id || (p.assessment_status !== "approved" && !p.listed_on_marketplace)}
                     className="text-xs"
+                    title={p.assessment_status !== "approved" && !p.listed_on_marketplace ? "Property must be approved before listing on marketplace" : undefined}
                   >
                     <Store className="h-3 w-3 mr-1" />
-                    {listingId === p.id ? "Processing..." : p.listed_on_marketplace ? "Delist" : "List on Marketplace"}
+                    {listingId === p.id ? "Processing..." : p.listed_on_marketplace ? "Delist" : p.assessment_status !== "approved" ? "Awaiting Approval" : "List on Marketplace"}
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>

@@ -23,6 +23,7 @@ const EditProperty = () => {
   const [area, setArea] = useState("");
   const [condition, setCondition] = useState("");
   const [ghanaPostGps, setGhanaPostGps] = useState("");
+  const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial">("residential");
 
   useEffect(() => {
     if (!user || !id) return;
@@ -44,6 +45,7 @@ const EditProperty = () => {
       setArea(data.area);
       setCondition(data.property_condition || "");
       setGhanaPostGps(data.ghana_post_gps || "");
+      setPropertyCategory(((data as any).property_category as "residential" | "commercial") || "residential");
       setLoading(false);
     };
     fetch();
@@ -64,7 +66,8 @@ const EditProperty = () => {
         area,
         property_condition: condition || null,
         ghana_post_gps: ghanaPostGps || null,
-      })
+        property_category: propertyCategory,
+      } as any)
       .eq("id", id!)
       .eq("landlord_user_id", user!.id);
 
@@ -116,6 +119,16 @@ const EditProperty = () => {
               <SelectContent>{areas.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Property Category *</Label>
+          <Select value={propertyCategory} onValueChange={(v) => setPropertyCategory(v as "residential" | "commercial")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="residential">Residential Property</SelectItem>
+              <SelectItem value="commercial">Commercial Property</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label>Property Condition</Label>
