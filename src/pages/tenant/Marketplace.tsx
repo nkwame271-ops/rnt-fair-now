@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle, Lock, CheckCircle2 } from "lucide-react";
+import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle, Lock, CheckCircle2, Eye } from "lucide-react";
+import StreetViewEmbed from "@/components/StreetViewEmbed";
+import NearbyAmenities from "@/components/NearbyAmenities";
+import { Tabs as TabsRoot, TabsContent, TabsList, TabsTrigger as TabsTrig } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
