@@ -1,0 +1,1 @@
+ALTER TABLE public.landlords ADD COLUMN IF NOT EXISTS rent_card_delivery_requested boolean NOT NULL DEFAULT false;

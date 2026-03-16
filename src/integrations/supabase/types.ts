@@ -349,6 +349,7 @@ export type Database = {
           landlord_id: string
           registration_date: string | null
           registration_fee_paid: boolean
+          rent_card_delivery_requested: boolean
           status: string
           user_id: string
         }
@@ -359,6 +360,7 @@ export type Database = {
           landlord_id: string
           registration_date?: string | null
           registration_fee_paid?: boolean
+          rent_card_delivery_requested?: boolean
           status?: string
           user_id: string
         }
@@ -369,6 +371,7 @@ export type Database = {
           landlord_id?: string
           registration_date?: string | null
           registration_fee_paid?: boolean
+          rent_card_delivery_requested?: boolean
           status?: string
           user_id?: string
         }
