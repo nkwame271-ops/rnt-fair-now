@@ -99,8 +99,8 @@ Deno.serve(async (req) => {
       if (!tenant) throw new Error("Tenant record not found");
       if (tenant.registration_fee_paid) throw new Error("Registration fee already paid");
 
-      totalAmount = 2;
-      description = "Tenant ID Registration - Annual Fee (GH₵ 2)";
+      totalAmount = 10;
+      description = "Tenant ID Registration - Annual Fee (GH₵ 10)";
       reference = `treg_${userId}_${Date.now()}`;
       callbackPath = "/tenant/dashboard?status=success";
 
