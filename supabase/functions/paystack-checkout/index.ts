@@ -114,8 +114,8 @@ Deno.serve(async (req) => {
       if (!landlord) throw new Error("Landlord record not found");
       if (landlord.registration_fee_paid) throw new Error("Registration fee already paid");
 
-      totalAmount = 2;
-      description = "Landlord ID Registration - Annual Fee (GH₵ 2)";
+      totalAmount = 35;
+      description = "Landlord ID Registration - Annual Fee (GH₵ 35, includes Rent Card)";
       reference = `lreg_${userId}_${Date.now()}`;
       callbackPath = "/landlord/dashboard?status=success";
 

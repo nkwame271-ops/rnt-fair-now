@@ -383,7 +383,7 @@ const RegisterTenant = () => {
               </Button>
             ) : (
               <Button onClick={handlePayRegistration} disabled={payingRegistration} className="w-full h-12 text-base font-semibold bg-success hover:bg-success/90">
-                {payingRegistration ? "Redirecting to payment..." : "Pay GH₵ 2 Registration Fee"} <ArrowRight className="ml-2 h-4 w-4" />
+                {payingRegistration ? "Redirecting to payment..." : "Pay GH₵ 10 Registration Fee"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>
