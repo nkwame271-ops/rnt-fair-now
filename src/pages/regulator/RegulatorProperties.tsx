@@ -217,6 +217,7 @@ const RegulatorProperties = () => {
                 {/* Info */}
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div><span className="text-muted-foreground">Code:</span> <span className="font-semibold">{detailProperty.property_code}</span></div>
+                  <div><span className="text-muted-foreground">Category:</span> <span className="font-semibold capitalize">{(detailProperty as any).property_category || "residential"}</span></div>
                   <div><span className="text-muted-foreground">Region:</span> <span className="font-semibold">{detailProperty.region}, {detailProperty.area}</span></div>
                   <div><span className="text-muted-foreground">Address:</span> <span className="font-semibold">{detailProperty.address}</span></div>
                   <div><span className="text-muted-foreground">Condition:</span> <span className="font-semibold">{detailProperty.property_condition || "—"}</span></div>
