@@ -1,0 +1,67 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+interface FeatureFlag {
+  feature_key: string;
+  label: string;
+  description: string | null;
+  is_enabled: boolean;
+}
+
+let cachedFlags: FeatureFlag[] | null = null;
+let fetchPromise: Promise<FeatureFlag[]> | null = null;
+
+const fetchFlags = async (): Promise<FeatureFlag[]> => {
+  if (cachedFlags) return cachedFlags;
+  if (fetchPromise) return fetchPromise;
+  fetchPromise = supabase
+    .from("feature_flags")
+    .select("feature_key, label, description, is_enabled")
+    .then(({ data }) => {
+      cachedFlags = (data as FeatureFlag[]) || [];
+      fetchPromise = null;
+      return cachedFlags;
+    });
+  return fetchPromise;
+};
+
+export const invalidateFeatureFlags = () => {
+  cachedFlags = null;
+  fetchPromise = null;
+};
+
+export const useFeatureFlag = (key: string): { enabled: boolean; loading: boolean } => {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchFlags().then((flags) => {
+      const flag = flags.find((f) => f.feature_key === key);
+      setEnabled(flag?.is_enabled ?? false);
+      setLoading(false);
+    });
+  }, [key]);
+
+  return { enabled, loading };
+};
+
+export const useAllFeatureFlags = () => {
+  const [flags, setFlags] = useState<FeatureFlag[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchFlags().then((f) => {
+      setFlags(f);
+      setLoading(false);
+    });
+  }, []);
+
+  return { flags, loading, refetch: () => {
+    invalidateFeatureFlags();
+    setLoading(true);
+    fetchFlags().then((f) => {
+      setFlags(f);
+      setLoading(false);
+    });
+  }};
+};
