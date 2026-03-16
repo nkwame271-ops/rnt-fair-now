@@ -319,11 +319,11 @@ const RegisterLandlord = () => {
                     <h3 className="font-semibold text-foreground text-sm">What's next?</h3>
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Check your email to verify your account</li>
-                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 2 registration fee from your dashboard</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 35 registration fee from your dashboard</li>
                       <li className="flex items-start gap-2">
-                        <Building className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                        Your Rent Card will be available at the Rent Control Department within 5 days. You can opt for delivery later within the app.
-                      </li>
+                         <Building className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                         Your Rent Card will be available at the Rent Control Department within 5 days. You can also request delivery below.
+                       </li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Register properties and add tenants</li>
                     </ul>
                   </div>
