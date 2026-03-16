@@ -220,6 +220,56 @@ const Agreements = () => {
           })}
         </div>
       )}
+
+      {/* Rent Increase Dialog */}
+      <Dialog open={!!increaseDialog} onOpenChange={(open) => !open && setIncreaseDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" /> Request Rent Increase
+            </DialogTitle>
+          </DialogHeader>
+          {increaseDialog && (
+            <div className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                <span className="text-muted-foreground">Current Rent:</span>
+                <span className="ml-2 font-bold">GH₵ {increaseDialog.currentRent.toLocaleString()}/mo</span>
+              </div>
+              <div className="space-y-2">
+                <Label>Proposed New Rent (GH₵)</Label>
+                <Input
+                  type="number"
+                  value={proposedRent}
+                  onChange={(e) => setProposedRent(e.target.value)}
+                  placeholder="Enter new monthly rent"
+                  min={increaseDialog.currentRent + 1}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Reason for Increase</Label>
+                <Textarea
+                  value={increaseReason}
+                  onChange={(e) => setIncreaseReason(e.target.value)}
+                  placeholder="e.g. Property improvements, market rate adjustment..."
+                  className="min-h-[80px]"
+                />
+              </div>
+              <div className="text-xs text-muted-foreground bg-info/5 p-3 rounded-lg border border-info/20">
+                <Info className="h-3.5 w-3.5 inline mr-1 text-info" />
+                Per the Rent Act 220, rent increases must be assessed and approved by Rent Control before taking effect.
+              </div>
+              <Button
+                onClick={handleSubmitRentIncrease}
+                disabled={submittingIncrease || !proposedRent || parseFloat(proposedRent) <= increaseDialog.currentRent}
+                className="w-full"
+              >
+                {submittingIncrease ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <TrendingUp className="h-4 w-4 mr-2" />}
+                Submit for Assessment
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
