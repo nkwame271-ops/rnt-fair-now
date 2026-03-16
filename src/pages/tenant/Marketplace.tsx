@@ -137,16 +137,30 @@ const Marketplace = () => {
     fetchUnits();
   }, []);
 
-  // Fetch watchlist + confirmed viewings
+  // Fetch watchlist + all viewing requests
   useEffect(() => {
     if (!user) return;
     const fetchUserData = async () => {
       const [{ data: wl }, { data: vr }] = await Promise.all([
         supabase.from("watchlist").select("unit_id").eq("tenant_user_id", user.id),
-        supabase.from("viewing_requests").select("unit_id").eq("tenant_user_id", user.id).in("status", ["accepted", "confirmed"]),
+        supabase.from("viewing_requests").select("unit_id, status").eq("tenant_user_id", user.id),
       ]);
       if (wl) setWatchlist(new Set(wl.map(w => w.unit_id)));
-      if (vr) setConfirmedViewings(new Set(vr.map(v => v.unit_id)));
+      if (vr) {
+        const confirmed = new Set<string>();
+        const byUnit: Record<string, string> = {};
+        vr.forEach(v => {
+          // Track the most relevant status per unit (skip declined/cancelled)
+          if (v.status === "declined" || v.status === "cancelled") return;
+          if (v.status === "accepted" || v.status === "confirmed") confirmed.add(v.unit_id);
+          // Store the active status for display purposes
+          if (!byUnit[v.unit_id] || v.status === "accepted" || v.status === "confirmed") {
+            byUnit[v.unit_id] = v.status;
+          }
+        });
+        setConfirmedViewings(confirmed);
+        setViewingRequestsByUnit(byUnit);
+      }
     };
     fetchUserData();
   }, [user]);
