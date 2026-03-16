@@ -101,6 +101,7 @@ const RegulatorAnalytics = () => {
         totalTaxCollected,
         regionBreakdown,
         propRegionMap,
+        heatmapPoints,
       });
       setLoading(false);
     };
