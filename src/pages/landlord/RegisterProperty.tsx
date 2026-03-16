@@ -46,8 +46,7 @@ const RegisterProperty = () => {
   const [gpsConfirmed, setGpsConfirmed] = useState(false);
   const [ghanaPostGps, setGhanaPostGps] = useState("");
   const [propertyCondition, setPropertyCondition] = useState("");
-  const [listOnMarketplace, setListOnMarketplace] = useState(false);
-  const [payingListingFee, setPayingListingFee] = useState(false);
+  const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial">("residential");
   const [images, setImages] = useState<File[]>([]);
   const [units, setUnits] = useState<UnitForm[]>([{
     name: "Unit A", type: "", rent: "",
