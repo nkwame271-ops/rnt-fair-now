@@ -227,22 +227,32 @@ const RegisterProperty = () => {
                 />
               </ErrorBoundary>
 
+              {/* Property Category */}
+              <div className="space-y-2">
+                <Label>Property Category *</Label>
+                <Select value={propertyCategory} onValueChange={(v) => setPropertyCategory(v as "residential" | "commercial")}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="residential">Residential Property</SelectItem>
+                    <SelectItem value="commercial">Commercial Property</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">This determines the applicable government tax rate</p>
+              </div>
+
               {/* Property condition */}
               <div className="space-y-2">
                 <Label>Property Condition Notes</Label>
                 <Textarea value={propertyCondition} onChange={(e) => setPropertyCondition(e.target.value)} placeholder="Describe overall condition, recent renovations, etc." rows={3} />
               </div>
 
-              {/* Marketplace toggle */}
-              <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-muted/50">
-                <div className="flex items-center gap-3">
-                  <Store className="h-5 w-5 text-primary" />
-                  <div>
-                    <Label className="text-sm font-medium">List on Marketplace</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">Make vacant units visible to tenants (GH₵ 2 listing fee applies)</p>
-                  </div>
+              {/* Processing notice */}
+              <div className="flex items-center gap-3 rounded-lg border border-info/30 p-4 bg-info/5">
+                <Store className="h-5 w-5 text-info" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Marketplace Listing</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Your property will be listed on the marketplace after it has been assessed and approved by Rent Control.</p>
                 </div>
-                <Switch checked={listOnMarketplace} onCheckedChange={setListOnMarketplace} />
               </div>
 
               {/* Images (isolated boundary) */}
