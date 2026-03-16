@@ -84,7 +84,11 @@ Deno.serve(async (req) => {
         .eq("tenant_marked_paid", false);
 
       if (error) console.error("Bulk rent payment update error:", error.message);
-      else console.log("Bulk rent payments confirmed for tenancy:", tenancyId);
+      else {
+        console.log("Bulk rent payments confirmed for tenancy:", tenancyId);
+        const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", tenancyId).single();
+        if (tenancy) await sendPaymentSms(tenancy.tenant_user_id, amountPaid, "Bulk advance rent tax", reference);
+      }
 
     } else if (reference.startsWith("rent_")) {
       const paymentId = reference.replace("rent_", "");
