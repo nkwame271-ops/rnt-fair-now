@@ -197,10 +197,16 @@ const Payments = () => {
             <h2 className="text-lg font-semibold text-card-foreground">Pay All Advance Tax</h2>
           </div>
           <div className="bg-muted rounded-lg p-4 space-y-3 mb-5">
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Advance Rent ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
-            <div className="border-t border-border pt-2">
-              <div className="flex justify-between text-sm"><span className="text-primary font-medium">→ Total Charges (pay via Rent Control)</span><span className="text-xl font-bold text-primary">GH₵ {unpaidAdvanceTax.toLocaleString()}</span></div>
-            </div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Charges ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
+            {advanceMonths - advancePaidCount > 0 && (
+              <div className="border-t border-border pt-2 space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{advanceMonths - advancePaidCount} unpaid month(s) × GH₵ {advancePayments.find(p => !isPaid(p))?.tax_amount.toLocaleString() || "0"} tax each</span>
+                  <span>= GH₵ {unpaidAdvanceTax.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm"><span className="text-primary font-medium">→ Amount to pay online</span><span className="text-xl font-bold text-primary">GH₵ {unpaidAdvanceTax.toLocaleString()}</span></div>
+              </div>
+            )}
           </div>
           <Button className="w-full" size="lg" onClick={handlePayBulkTax} disabled={paying}>
             <CreditCard className="h-4 w-4 mr-2" />

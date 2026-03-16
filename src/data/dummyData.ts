@@ -47,36 +47,127 @@ export interface RentPrice {
   max: number;
 }
 
+// Helper to generate rent entries for an area
+const makeRents = (region: string, area: string, base: number): RentPrice[] => [
+  { region, area, type: "Single Room", min: Math.round(base * 0.6), avg: base, max: Math.round(base * 1.5) },
+  { region, area, type: "Chamber & Hall", min: Math.round(base * 1.5), avg: Math.round(base * 2.2), max: Math.round(base * 3) },
+  { region, area, type: "1-Bedroom", min: Math.round(base * 2.5), avg: Math.round(base * 3.5), max: Math.round(base * 5) },
+  { region, area, type: "2-Bedroom", min: Math.round(base * 4), avg: Math.round(base * 6), max: Math.round(base * 9) },
+  { region, area, type: "3-Bedroom", min: Math.round(base * 7), avg: Math.round(base * 10), max: Math.round(base * 15) },
+  { region, area, type: "Self-Contained", min: Math.round(base * 2), avg: Math.round(base * 3), max: Math.round(base * 4.5) },
+];
+
 export const rentPrices: RentPrice[] = [
-  { region: "Greater Accra", area: "East Legon", type: "Single Room", min: 250, avg: 400, max: 600 },
-  { region: "Greater Accra", area: "East Legon", type: "Chamber & Hall", min: 500, avg: 800, max: 1200 },
-  { region: "Greater Accra", area: "East Legon", type: "1-Bedroom", min: 800, avg: 1200, max: 2000 },
-  { region: "Greater Accra", area: "East Legon", type: "2-Bedroom", min: 1500, avg: 2500, max: 4000 },
-  { region: "Greater Accra", area: "East Legon", type: "3-Bedroom", min: 3000, avg: 4500, max: 7000 },
-  { region: "Greater Accra", area: "Tema", type: "Single Room", min: 150, avg: 250, max: 400 },
-  { region: "Greater Accra", area: "Tema", type: "Chamber & Hall", min: 300, avg: 500, max: 800 },
-  { region: "Greater Accra", area: "Tema", type: "1-Bedroom", min: 500, avg: 800, max: 1200 },
-  { region: "Greater Accra", area: "Tema", type: "2-Bedroom", min: 1000, avg: 1500, max: 2500 },
-  { region: "Greater Accra", area: "Madina", type: "Single Room", min: 100, avg: 200, max: 350 },
-  { region: "Greater Accra", area: "Madina", type: "Chamber & Hall", min: 250, avg: 400, max: 650 },
-  { region: "Greater Accra", area: "Madina", type: "1-Bedroom", min: 400, avg: 650, max: 1000 },
-  { region: "Greater Accra", area: "Spintex", type: "Single Room", min: 200, avg: 350, max: 500 },
-  { region: "Greater Accra", area: "Spintex", type: "Chamber & Hall", min: 400, avg: 650, max: 1000 },
-  { region: "Greater Accra", area: "Spintex", type: "1-Bedroom", min: 700, avg: 1000, max: 1600 },
-  { region: "Greater Accra", area: "Spintex", type: "2-Bedroom", min: 1200, avg: 2000, max: 3000 },
-  { region: "Greater Accra", area: "Accra Central", type: "Single Room", min: 200, avg: 300, max: 500 },
-  { region: "Greater Accra", area: "Accra Central", type: "Chamber & Hall", min: 350, avg: 550, max: 900 },
-  { region: "Ashanti", area: "Kumasi Central", type: "Single Room", min: 80, avg: 150, max: 250 },
-  { region: "Ashanti", area: "Kumasi Central", type: "Chamber & Hall", min: 200, avg: 350, max: 500 },
-  { region: "Ashanti", area: "Kumasi Central", type: "1-Bedroom", min: 350, avg: 550, max: 800 },
-  { region: "Ashanti", area: "Kumasi Central", type: "2-Bedroom", min: 600, avg: 900, max: 1400 },
-  { region: "Western", area: "Takoradi", type: "Single Room", min: 100, avg: 180, max: 300 },
-  { region: "Western", area: "Takoradi", type: "Chamber & Hall", min: 250, avg: 400, max: 600 },
-  { region: "Western", area: "Takoradi", type: "1-Bedroom", min: 400, avg: 600, max: 900 },
-  { region: "Central", area: "Cape Coast", type: "Single Room", min: 80, avg: 150, max: 250 },
-  { region: "Central", area: "Cape Coast", type: "Chamber & Hall", min: 200, avg: 300, max: 500 },
-  { region: "Northern", area: "Tamale", type: "Single Room", min: 60, avg: 120, max: 200 },
-  { region: "Northern", area: "Tamale", type: "Chamber & Hall", min: 150, avg: 250, max: 400 },
+  // Greater Accra
+  ...makeRents("Greater Accra", "East Legon", 400),
+  ...makeRents("Greater Accra", "Tema", 250),
+  ...makeRents("Greater Accra", "Madina", 200),
+  ...makeRents("Greater Accra", "Spintex", 350),
+  ...makeRents("Greater Accra", "Accra Central", 300),
+  ...makeRents("Greater Accra", "Cantonments", 500),
+  ...makeRents("Greater Accra", "Osu", 350),
+  ...makeRents("Greater Accra", "Dansoman", 180),
+  ...makeRents("Greater Accra", "Kasoa", 120),
+  ...makeRents("Greater Accra", "Adenta", 200),
+  ...makeRents("Greater Accra", "Dome", 220),
+  ...makeRents("Greater Accra", "Ashaiman", 100),
+
+  // Ashanti
+  ...makeRents("Ashanti", "Kumasi Central", 150),
+  ...makeRents("Ashanti", "Adum", 180),
+  ...makeRents("Ashanti", "Bantama", 130),
+  ...makeRents("Ashanti", "Oforikrom", 120),
+  ...makeRents("Ashanti", "Ejisu", 100),
+  ...makeRents("Ashanti", "Nhyiaeso", 160),
+  ...makeRents("Ashanti", "Kwadaso", 110),
+
+  // Western
+  ...makeRents("Western", "Takoradi", 180),
+  ...makeRents("Western", "Sekondi", 140),
+  ...makeRents("Western", "Tarkwa", 160),
+  ...makeRents("Western", "Anaji", 200),
+  ...makeRents("Western", "Effia", 150),
+
+  // Eastern
+  ...makeRents("Eastern", "Koforidua", 140),
+  ...makeRents("Eastern", "Nkawkaw", 100),
+  ...makeRents("Eastern", "Suhum", 90),
+  ...makeRents("Eastern", "Nsawam", 100),
+  ...makeRents("Eastern", "Akim Oda", 80),
+
+  // Central
+  ...makeRents("Central", "Cape Coast", 150),
+  ...makeRents("Central", "Elmina", 120),
+  ...makeRents("Central", "Winneba", 110),
+  ...makeRents("Central", "Kasoa", 120),
+  ...makeRents("Central", "Swedru", 90),
+
+  // Northern
+  ...makeRents("Northern", "Tamale", 120),
+  ...makeRents("Northern", "Yendi", 70),
+  ...makeRents("Northern", "Savelugu", 60),
+  ...makeRents("Northern", "Sagnarigu", 100),
+  ...makeRents("Northern", "Damongo", 80),
+
+  // Volta
+  ...makeRents("Volta", "Ho", 130),
+  ...makeRents("Volta", "Hohoe", 100),
+  ...makeRents("Volta", "Keta", 90),
+  ...makeRents("Volta", "Aflao", 80),
+  ...makeRents("Volta", "Kpando", 85),
+
+  // Upper East
+  ...makeRents("Upper East", "Bolgatanga", 100),
+  ...makeRents("Upper East", "Navrongo", 70),
+  ...makeRents("Upper East", "Bawku", 60),
+  ...makeRents("Upper East", "Zuarungu", 50),
+
+  // Upper West
+  ...makeRents("Upper West", "Wa", 90),
+  ...makeRents("Upper West", "Tumu", 50),
+  ...makeRents("Upper West", "Lawra", 45),
+  ...makeRents("Upper West", "Jirapa", 40),
+
+  // Bono
+  ...makeRents("Bono", "Sunyani", 140),
+  ...makeRents("Bono", "Berekum", 100),
+  ...makeRents("Bono", "Dormaa Ahenkro", 90),
+  ...makeRents("Bono", "Wenchi", 80),
+
+  // Bono East
+  ...makeRents("Bono East", "Techiman", 120),
+  ...makeRents("Bono East", "Kintampo", 80),
+  ...makeRents("Bono East", "Atebubu", 70),
+  ...makeRents("Bono East", "Nkoranza", 75),
+
+  // Ahafo
+  ...makeRents("Ahafo", "Goaso", 100),
+  ...makeRents("Ahafo", "Bechem", 80),
+  ...makeRents("Ahafo", "Duayaw Nkwanta", 70),
+  ...makeRents("Ahafo", "Mim", 60),
+
+  // Savannah
+  ...makeRents("Savannah", "Damongo", 80),
+  ...makeRents("Savannah", "Bole", 50),
+  ...makeRents("Savannah", "Salaga", 55),
+  ...makeRents("Savannah", "Sawla", 40),
+
+  // North East
+  ...makeRents("North East", "Nalerigu", 60),
+  ...makeRents("North East", "Gambaga", 50),
+  ...makeRents("North East", "Walewale", 55),
+
+  // Oti
+  ...makeRents("Oti", "Dambai", 80),
+  ...makeRents("Oti", "Nkwanta", 70),
+  ...makeRents("Oti", "Kadjebi", 65),
+  ...makeRents("Oti", "Jasikan", 60),
+
+  // Western North
+  ...makeRents("Western North", "Sefwi Wiawso", 90),
+  ...makeRents("Western North", "Bibiani", 100),
+  ...makeRents("Western North", "Juaboso", 70),
+  ...makeRents("Western North", "Enchi", 65),
 ];
 
 export interface Listing {
@@ -327,11 +418,11 @@ export interface TenancyAgreement {
 
 export interface TenantPayment {
   id: string;
-  month: string; // e.g. "March 2026"
+  month: string;
   date: string;
   monthlyRent: number;
-  taxAmount: number; // 8% of monthlyRent
-  amountToLandlord: number; // 92% of monthlyRent
+  taxAmount: number;
+  amountToLandlord: number;
   taxPaid: boolean;
   method: string;
 }

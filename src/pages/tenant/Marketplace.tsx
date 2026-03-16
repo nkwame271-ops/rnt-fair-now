@@ -66,6 +66,7 @@ const Marketplace = () => {
   const [messageText, setMessageText] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const [confirmedViewings, setConfirmedViewings] = useState<Set<string>>(new Set());
+  const [viewingRequestsByUnit, setViewingRequestsByUnit] = useState<Record<string, string>>({});
   const [applyingRent, setApplyingRent] = useState(false);
 
   useEffect(() => {
@@ -136,16 +137,30 @@ const Marketplace = () => {
     fetchUnits();
   }, []);
 
-  // Fetch watchlist + confirmed viewings
+  // Fetch watchlist + all viewing requests
   useEffect(() => {
     if (!user) return;
     const fetchUserData = async () => {
       const [{ data: wl }, { data: vr }] = await Promise.all([
         supabase.from("watchlist").select("unit_id").eq("tenant_user_id", user.id),
-        supabase.from("viewing_requests").select("unit_id").eq("tenant_user_id", user.id).in("status", ["accepted", "confirmed"]),
+        supabase.from("viewing_requests").select("unit_id, status").eq("tenant_user_id", user.id),
       ]);
       if (wl) setWatchlist(new Set(wl.map(w => w.unit_id)));
-      if (vr) setConfirmedViewings(new Set(vr.map(v => v.unit_id)));
+      if (vr) {
+        const confirmed = new Set<string>();
+        const byUnit: Record<string, string> = {};
+        vr.forEach(v => {
+          // Track the most relevant status per unit (skip declined/cancelled)
+          if (v.status === "declined" || v.status === "cancelled") return;
+          if (v.status === "accepted" || v.status === "confirmed") confirmed.add(v.unit_id);
+          // Store the active status for display purposes
+          if (!byUnit[v.unit_id] || v.status === "accepted" || v.status === "confirmed") {
+            byUnit[v.unit_id] = v.status;
+          }
+        });
+        setConfirmedViewings(confirmed);
+        setViewingRequestsByUnit(byUnit);
+      }
     };
     fetchUserData();
   }, [user]);
@@ -441,33 +456,63 @@ const Marketplace = () => {
                 </Button>
               </div>
 
-              {/* Viewing Request Form */}
-              <div className="border-t border-border pt-4 space-y-3">
-                <h3 className="font-semibold text-card-foreground text-sm">Request a Viewing</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Preferred Date</Label>
-                    <Input type="date" value={viewingDate} onChange={(e) => setViewingDate(e.target.value)} />
+              {/* Viewing Request Form or Status */}
+              {(() => {
+                const existingStatus = viewingRequestsByUnit[selectedUnit.id];
+                if (existingStatus === "awaiting_payment") {
+                  return (
+                    <div className="border-t border-border pt-4">
+                      <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 rounded-lg px-3 py-2">
+                        <Clock className="h-4 w-4" />
+                        <span>Payment pending — complete payment to send your viewing request</span>
+                      </div>
+                    </div>
+                  );
+                }
+                if (existingStatus === "pending") {
+                  return (
+                    <div className="border-t border-border pt-4">
+                      <div className="flex items-center gap-2 text-sm text-info bg-info/10 rounded-lg px-3 py-2">
+                        <Clock className="h-4 w-4" />
+                        <span>Viewing requested — awaiting landlord response</span>
+                      </div>
+                    </div>
+                  );
+                }
+                if (existingStatus === "accepted" || existingStatus === "confirmed") {
+                  // Handled by the Apply to Rent section below
+                  return null;
+                }
+                // No existing request — show the form
+                return (
+                  <div className="border-t border-border pt-4 space-y-3">
+                    <h3 className="font-semibold text-card-foreground text-sm">Request a Viewing</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Preferred Date</Label>
+                        <Input type="date" value={viewingDate} onChange={(e) => setViewingDate(e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Preferred Time</Label>
+                        <Select value={viewingTime} onValueChange={setViewingTime}>
+                          <SelectTrigger><SelectValue placeholder="Time" /></SelectTrigger>
+                          <SelectContent>
+                            {["Morning (8-12)", "Afternoon (12-4)", "Evening (4-7)"].map(t => (
+                              <SelectItem key={t} value={t}>{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Textarea value={viewingMessage} onChange={(e) => setViewingMessage(e.target.value)} placeholder="Optional message to landlord..." rows={2} />
+                    <Button className="w-full" onClick={handleRequestViewing} disabled={submittingRequest}>
+                      <Send className="h-4 w-4 mr-2" />
+                      {submittingRequest ? "Processing..." : "Pay GH₵ 2 & Send Viewing Request"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground text-center">A GH₵ 2 viewing fee is required to send this request</p>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Preferred Time</Label>
-                    <Select value={viewingTime} onValueChange={setViewingTime}>
-                      <SelectTrigger><SelectValue placeholder="Time" /></SelectTrigger>
-                      <SelectContent>
-                        {["Morning (8-12)", "Afternoon (12-4)", "Evening (4-7)"].map(t => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <Textarea value={viewingMessage} onChange={(e) => setViewingMessage(e.target.value)} placeholder="Optional message to landlord..." rows={2} />
-                <Button className="w-full" onClick={handleRequestViewing} disabled={submittingRequest}>
-                  <Send className="h-4 w-4 mr-2" />
-                  {submittingRequest ? "Processing..." : "Pay GH₵ 2 & Send Viewing Request"}
-                </Button>
-                <p className="text-xs text-muted-foreground text-center">A GH₵ 2 viewing fee is required to send this request</p>
-              </div>
+                );
+              })()}
 
               {/* Apply to Rent - only after confirmed viewing */}
               {confirmedViewings.has(selectedUnit.id) && (

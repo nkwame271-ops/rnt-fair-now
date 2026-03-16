@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
       if (tErr || !tenancy) throw new Error("Tenancy not found");
       if ((tenancy as any).tenant_user_id !== userId) throw new Error("Unauthorized");
 
-      // Get all unpaid advance payments
+      // Get all unpaid advance payments (dedup by id)
       const { data: unpaidPayments, error: pErr } = await supabase
         .from("rent_payments")
         .select("id, tax_amount, tenant_marked_paid")
@@ -65,7 +65,16 @@ Deno.serve(async (req) => {
       if (pErr) throw new Error("Failed to fetch payments");
       if (!unpaidPayments || unpaidPayments.length === 0) throw new Error("No unpaid payments found");
 
-      totalAmount = unpaidPayments.reduce((sum: number, p: any) => sum + Number(p.tax_amount), 0);
+      // Deduplicate by payment id to prevent double-counting
+      const seenIds = new Set<string>();
+      const dedupedPayments = unpaidPayments.filter((p: any) => {
+        if (seenIds.has(p.id)) return false;
+        seenIds.add(p.id);
+        return true;
+      });
+
+      totalAmount = dedupedPayments.reduce((sum: number, p: any) => sum + Number(p.tax_amount), 0);
+      console.log(`Bulk tax: ${dedupedPayments.length} payments, total=${totalAmount}`);
       description = `Bulk advance rent tax (${unpaidPayments.length} months) - ${(tenancy as any).registration_code}`;
       reference = `rentbulk_${tenancyId}_${Date.now()}`;
       callbackPath = "/tenant/payments?status=success";
