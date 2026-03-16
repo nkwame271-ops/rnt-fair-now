@@ -154,27 +154,7 @@ const RegisterProperty = () => {
         });
       }
 
-      if (shouldList) {
-        setPayingListingFee(true);
-        try {
-          const { data: payData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
-            body: { type: "listing_fee", propertyId: prop.id },
-          });
-          if (payErr) throw new Error(payErr.message);
-          if (payData?.error) throw new Error(payData.error);
-          if (payData?.authorization_url) {
-            toast.success(`Property registered! Code: ${propertyCode}. Redirecting to pay listing fee...`);
-            window.location.href = payData.authorization_url;
-            return;
-          }
-        } catch (payError: any) {
-          toast.error(`Property saved but listing fee payment failed: ${payError.message}. You can pay later from My Properties.`);
-        } finally {
-          setPayingListingFee(false);
-        }
-      }
-
-      toast.success(`Property registered! Code: ${propertyCode}`);
+      toast.success(`Property registered! Code: ${propertyCode}. Your property is now under assessment.`);
       navigate("/landlord/my-properties");
     } catch (err: any) {
       toast.error(err.message || "Failed to register property");
