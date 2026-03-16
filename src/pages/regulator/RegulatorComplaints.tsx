@@ -104,21 +104,6 @@ const RegulatorComplaints = () => {
     const a = document.createElement("a"); a.href = url; a.download = "complaints_export.csv"; a.click();
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
-
-  const statusColors: Record<string, string> = {
-    submitted: "bg-info/10 text-info",
-    under_review: "bg-warning/10 text-warning",
-    in_progress: "bg-primary/10 text-primary",
-    resolved: "bg-success/10 text-success",
-    closed: "bg-muted text-muted-foreground",
-  };
-
-  const statusCounts = complaints.reduce((acc, c) => {
-    acc[c.status] = (acc[c.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
   const [activeTab, setActiveTab] = useState<"tenant" | "landlord">("tenant");
   const [landlordComplaints, setLandlordComplaints] = useState<any[]>([]);
 
@@ -144,6 +129,21 @@ const RegulatorComplaints = () => {
     toast.success(`Status updated to ${newStatus}`);
     fetchLandlordComplaints();
   };
+
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+
+  const statusColors: Record<string, string> = {
+    submitted: "bg-info/10 text-info",
+    under_review: "bg-warning/10 text-warning",
+    in_progress: "bg-primary/10 text-primary",
+    resolved: "bg-success/10 text-success",
+    closed: "bg-muted text-muted-foreground",
+  };
+
+  const statusCounts = complaints.reduce((acc, c) => {
+    acc[c.status] = (acc[c.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
