@@ -119,6 +119,32 @@ const RegulatorComplaints = () => {
     return acc;
   }, {} as Record<string, number>);
 
+  const [activeTab, setActiveTab] = useState<"tenant" | "landlord">("tenant");
+  const [landlordComplaints, setLandlordComplaints] = useState<any[]>([]);
+
+  const fetchLandlordComplaints = async () => {
+    const { data } = await supabase
+      .from("landlord_complaints")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data && data.length > 0) {
+      const landlordIds = [...new Set(data.map((c: any) => c.landlord_user_id))];
+      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, phone, email").in("user_id", landlordIds);
+      const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+      setLandlordComplaints(data.map((c: any) => ({ ...c, _landlordProfile: profileMap.get(c.landlord_user_id) })));
+    } else {
+      setLandlordComplaints([]);
+    }
+  };
+
+  useEffect(() => { fetchLandlordComplaints(); }, []);
+
+  const updateLandlordComplaintStatus = async (id: string, newStatus: string) => {
+    await supabase.from("landlord_complaints").update({ status: newStatus } as any).eq("id", id);
+    toast.success(`Status updated to ${newStatus}`);
+    fetchLandlordComplaints();
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -126,9 +152,19 @@ const RegulatorComplaints = () => {
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
             <AlertTriangle className="h-7 w-7 text-warning" /> Complaints Management
           </h1>
-          <p className="text-muted-foreground mt-1">{filtered.length} complaints total</p>
+          <p className="text-muted-foreground mt-1">{filtered.length} tenant complaints • {landlordComplaints.length} landlord complaints</p>
         </div>
         <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
+      </div>
+
+      {/* Tab switcher */}
+      <div className="flex bg-muted rounded-lg p-0.5 w-fit">
+        <button onClick={() => setActiveTab("tenant")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "tenant" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          Tenant Complaints ({complaints.length})
+        </button>
+        <button onClick={() => setActiveTab("landlord")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "landlord" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          Landlord Complaints ({landlordComplaints.length})
+        </button>
       </div>
 
       {/* Status summary cards */}
