@@ -206,7 +206,7 @@ const Payments = () => {
             <CreditCard className="h-4 w-4 mr-2" />
             {paying ? "Redirecting..." : `Pay GH₵ ${unpaidAdvanceTax.toLocaleString()} Online`}
           </Button>
-          <p className="text-xs text-muted-foreground text-center mt-3">After tax payment, pay GH₵ {totalAdvanceToLandlord.toLocaleString()} directly to {tenancy.landlordName}</p>
+          <p className="text-xs text-muted-foreground text-center mt-3">After online payment, settle the remaining balance directly with {tenancy.landlordName}</p>
         </motion.div>
       )}
 
