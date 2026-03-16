@@ -23,6 +23,7 @@ const EditProperty = () => {
   const [area, setArea] = useState("");
   const [condition, setCondition] = useState("");
   const [ghanaPostGps, setGhanaPostGps] = useState("");
+  const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial">("residential");
 
   useEffect(() => {
     if (!user || !id) return;
