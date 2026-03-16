@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode, Star } from "lucide-react";
+import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode, Star, Download } from "lucide-react";
 import KycVerificationCard from "@/components/KycVerificationCard";
 import UserRatings from "@/components/UserRatings";
 
