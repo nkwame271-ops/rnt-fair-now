@@ -1,0 +1,233 @@
+import { useState, useEffect } from "react";
+import { AlertTriangle, Plus, Loader2, Upload, X, Clock, CheckCircle2, Image } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { regions } from "@/data/dummyData";
+
+const complaintTypes = [
+  "Tenant refusing to vacate",
+  "Tenant damaging property",
+  "Unpaid rent",
+  "Unauthorized subletting",
+  "Noise / disturbance",
+  "Other",
+];
+
+const statusConfig: Record<string, string> = {
+  submitted: "bg-info/10 text-info",
+  under_review: "bg-warning/10 text-warning",
+  in_progress: "bg-primary/10 text-primary",
+  resolved: "bg-success/10 text-success",
+  closed: "bg-muted text-muted-foreground",
+};
+
+const LandlordComplaints = () => {
+  const { user } = useAuth();
+  const [complaints, setComplaints] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [complaintType, setComplaintType] = useState("");
+  const [tenantName, setTenantName] = useState("");
+  const [propertyAddress, setPropertyAddress] = useState("");
+  const [region, setRegion] = useState("");
+  const [description, setDescription] = useState("");
+  const [documents, setDocuments] = useState<File[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchComplaints();
+  }, [user]);
+
+  const fetchComplaints = async () => {
+    const { data } = await supabase
+      .from("landlord_complaints")
+      .select("*")
+      .eq("landlord_user_id", user!.id)
+      .order("created_at", { ascending: false });
+    setComplaints(data || []);
+    setLoading(false);
+  };
+
+  const handleDocChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) setDocuments(prev => [...prev, ...Array.from(e.target.files!)].slice(0, 6));
+  };
+
+  const resetForm = () => {
+    setComplaintType(""); setTenantName(""); setPropertyAddress("");
+    setRegion(""); setDescription(""); setDocuments([]);
+  };
+
+  const handleSubmit = async () => {
+    if (!user) return;
+    setSubmitting(true);
+    try {
+      const evidenceUrls: string[] = [];
+      for (const file of documents) {
+        const ext = file.name.split(".").pop();
+        const path = `${user.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error } = await supabase.storage.from("application-evidence").upload(path, file);
+        if (error) { console.error(error); continue; }
+        const { data: { publicUrl } } = supabase.storage.from("application-evidence").getPublicUrl(path);
+        evidenceUrls.push(publicUrl);
+      }
+
+      const code = `LC-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
+
+      const { error } = await supabase.from("landlord_complaints").insert({
+        landlord_user_id: user.id,
+        complaint_code: code,
+        complaint_type: complaintType,
+        tenant_name: tenantName || null,
+        property_address: propertyAddress,
+        region,
+        description,
+        evidence_urls: evidenceUrls,
+      } as any);
+
+      if (error) throw error;
+      toast.success(`Complaint filed! Code: ${code}`);
+      setDialogOpen(false);
+      resetForm();
+      fetchComplaints();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+            <AlertTriangle className="h-7 w-7 text-warning" /> Complaints
+          </h1>
+          <p className="text-muted-foreground mt-1">File and track complaints with Rent Control</p>
+        </div>
+        <Button onClick={() => setDialogOpen(true)}>
+          <Plus className="h-4 w-4 mr-1" /> File Complaint
+        </Button>
+      </div>
+
+      {complaints.length === 0 ? (
+        <div className="bg-card rounded-xl p-8 text-center border border-border">
+          <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+          <h3 className="font-semibold text-card-foreground">No complaints filed</h3>
+          <p className="text-sm text-muted-foreground mt-1">File a complaint if you have an issue to report.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {complaints.map((c) => (
+            <div key={c.id} className="bg-card rounded-xl p-5 border border-border shadow-card space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-bold text-primary">{c.complaint_code}</span>
+                    <span className="text-sm text-muted-foreground">{c.complaint_type}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {c.property_address}, {c.region} • {new Date(c.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <Badge className={`${statusConfig[c.status] || ""} text-xs`}>{c.status.replace("_", " ")}</Badge>
+              </div>
+              <p className="text-sm text-foreground">{c.description}</p>
+              {c.evidence_urls?.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {c.evidence_urls.map((url: string, i: number) => (
+                    <img key={i} src={url} alt={`Doc ${i + 1}`} className="w-16 h-16 rounded-lg object-cover border border-border" />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* File Complaint Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } else setDialogOpen(true); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" /> File a Complaint
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Complaint Type *</Label>
+              <Select value={complaintType} onValueChange={setComplaintType}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>
+                  {complaintTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Tenant Name (if applicable)</Label>
+              <Input value={tenantName} onChange={(e) => setTenantName(e.target.value)} placeholder="Name of tenant involved" />
+            </div>
+            <div className="space-y-2">
+              <Label>Property Address *</Label>
+              <Input value={propertyAddress} onChange={(e) => setPropertyAddress(e.target.value)} placeholder="Address of affected property" />
+            </div>
+            <div className="space-y-2">
+              <Label>Region *</Label>
+              <Select value={region} onValueChange={setRegion}>
+                <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
+                <SelectContent>{regions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Description *</Label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe the issue in detail..."
+                className="min-h-[100px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1"><Image className="h-3.5 w-3.5" /> Supporting Documents (up to 6)</Label>
+              <input type="file" accept="image/*,.pdf" multiple onChange={handleDocChange} className="text-sm" />
+              {documents.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {documents.map((f, i) => (
+                    <div key={i} className="relative">
+                      <Badge variant="secondary" className="text-xs pr-5">{f.name.slice(0, 15)}</Badge>
+                      <button onClick={() => setDocuments(prev => prev.filter((_, idx) => idx !== i))} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5">
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting || !complaintType || !propertyAddress.trim() || !region || !description.trim()}
+              className="w-full"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+              Submit Complaint
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default LandlordComplaints;
