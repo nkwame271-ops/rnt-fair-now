@@ -175,10 +175,7 @@ const Payments = () => {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-card rounded-xl p-6 shadow-card border border-border">
         <h2 className="text-lg font-semibold text-card-foreground mb-4">Advance Rent Summary ({advanceMonths} months)</h2>
         <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
-          <div className="flex justify-between"><span className="text-muted-foreground">Total Rent ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
-          <div className="flex justify-between text-primary"><span>Total Tax (8%)</span><span className="font-semibold">GH₵ {totalAdvanceTax.toLocaleString()}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Total to Landlord</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceToLandlord.toLocaleString()}</span></div>
-          <div className="border-t border-border pt-2 flex justify-between font-bold text-base"><span>Grand Total</span><span>GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
+          <div className="flex justify-between font-bold text-base"><span>Total Charges ({advanceMonths} months)</span><span>GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
           <div className="flex justify-between text-xs text-muted-foreground"><span>Advance months paid</span><span>{advancePaidCount}/{advanceMonths}</span></div>
         </div>
       </motion.div>
@@ -188,8 +185,7 @@ const Payments = () => {
         <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p className="font-semibold text-foreground text-sm">How rent payment works</p>
-          <p>Your advance rent of <strong>GH₵ {totalAdvanceRent.toLocaleString()}</strong> for {advanceMonths} months includes an 8% government tax of <strong>GH₵ {totalAdvanceTax.toLocaleString()}</strong>.</p>
-          <p>You pay the full tax through this app in one transaction. This validates your tenancy. The remaining <strong>GH₵ {totalAdvanceToLandlord.toLocaleString()}</strong> goes directly to your landlord.</p>
+          <p>Your advance rent of <strong>GH₵ {totalAdvanceRent.toLocaleString()}</strong> for {advanceMonths} months includes a government tax processed through this app. Pay the tax online to validate your tenancy. The remaining amount goes directly to your landlord.</p>
         </div>
       </div>
 
@@ -202,16 +198,15 @@ const Payments = () => {
           </div>
           <div className="bg-muted rounded-lg p-4 space-y-3 mb-5">
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Advance Rent ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
-            <div className="border-t border-border pt-2 space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-primary font-medium">→ 8% Tax (pay via Rent Control)</span><span className="text-xl font-bold text-primary">GH₵ {unpaidAdvanceTax.toLocaleString()}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">→ Remaining (pay landlord directly)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceToLandlord.toLocaleString()}</span></div>
+            <div className="border-t border-border pt-2">
+              <div className="flex justify-between text-sm"><span className="text-primary font-medium">→ Total Charges (pay via Rent Control)</span><span className="text-xl font-bold text-primary">GH₵ {unpaidAdvanceTax.toLocaleString()}</span></div>
             </div>
           </div>
           <Button className="w-full" size="lg" onClick={handlePayBulkTax} disabled={paying}>
             <CreditCard className="h-4 w-4 mr-2" />
             {paying ? "Redirecting..." : `Pay GH₵ ${unpaidAdvanceTax.toLocaleString()} Online`}
           </Button>
-          <p className="text-xs text-muted-foreground text-center mt-3">After tax payment, pay GH₵ {totalAdvanceToLandlord.toLocaleString()} directly to {tenancy.landlordName}</p>
+          <p className="text-xs text-muted-foreground text-center mt-3">After online payment, settle the remaining balance directly with {tenancy.landlordName}</p>
         </motion.div>
       )}
 
@@ -236,7 +231,7 @@ const Payments = () => {
                   )}
                   <div>
                     <div className="font-semibold text-sm text-card-foreground">{p.month_label}</div>
-                    <div className="text-xs text-muted-foreground">Tax: GH₵ {p.tax_amount.toLocaleString()} • Landlord: GH₵ {p.amount_to_landlord.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Total Charges: GH₵ {(p.tax_amount + p.amount_to_landlord).toLocaleString()}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

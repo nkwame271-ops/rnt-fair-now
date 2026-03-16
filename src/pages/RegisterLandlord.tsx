@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Shield, User, Phone, Mail, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Building2, Lock, Globe, Building } from "lucide-react";
+import { Shield, User, Phone, Mail, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Building2, Lock, Globe, Building, Truck } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -30,6 +31,7 @@ const RegisterLandlord = () => {
   const [region, setRegion] = useState("");
   const [generatedId, setGeneratedId] = useState("");
   const [payingRegistration, setPayingRegistration] = useState(false);
+  const [requestDelivery, setRequestDelivery] = useState(false);
 
   const handlePayRegistration = async () => {
     setPayingRegistration(true);
@@ -149,8 +151,8 @@ const RegisterLandlord = () => {
               <Building2 className="h-5 w-5 text-secondary" />
               <span className="font-semibold">Annual Registration</span>
             </div>
-            <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ 2.00</div>
-            <p className="text-primary-foreground/70 text-sm mb-3">Per year · Includes physical ID card delivery</p>
+            <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ 35.00</div>
+            <p className="text-primary-foreground/70 text-sm mb-3">Per year · Includes Rent Card</p>
             <div className="border-t border-primary-foreground/20 pt-3">
               <p className="text-sm font-semibold mb-2">Registration Fee Covers:</p>
               <ul className="space-y-1.5 text-sm text-primary-foreground/80">
@@ -319,13 +321,32 @@ const RegisterLandlord = () => {
                     <h3 className="font-semibold text-foreground text-sm">What's next?</h3>
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Check your email to verify your account</li>
-                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 2 registration fee from your dashboard</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 35 registration fee from your dashboard</li>
                       <li className="flex items-start gap-2">
-                        <Building className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                        Your Rent Card will be available at the Rent Control Department within 5 days. You can opt for delivery later within the app.
-                      </li>
+                         <Building className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                         Your Rent Card will be available at the Rent Control Department within 5 days. You can also request delivery below.
+                       </li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Register properties and add tenants</li>
-                    </ul>
+                     </ul>
+                  </div>
+                  {/* Rent Card Delivery Option */}
+                  <div className="bg-card rounded-xl border border-border p-5 text-left max-w-sm mx-auto">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <Checkbox
+                        checked={requestDelivery}
+                        onCheckedChange={(checked) => {
+                          setRequestDelivery(!!checked);
+                          if (checked) {
+                            supabase.from("landlords").update({ rent_card_delivery_requested: true }).eq("landlord_id", generatedId).then(() => {});
+                          }
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground flex items-center gap-1.5"><Truck className="h-4 w-4 text-primary" /> Request Physical Rent Card Delivery</p>
+                        <p className="text-xs text-muted-foreground mt-1">We'll deliver your rent card to your registered address. Delivery details will be confirmed separately.</p>
+                      </div>
+                    </label>
                   </div>
                 </div>
               )}
@@ -339,7 +360,7 @@ const RegisterLandlord = () => {
               </Button>
             ) : (
               <Button onClick={handlePayRegistration} disabled={payingRegistration} className="w-full h-12 text-base font-semibold bg-success hover:bg-success/90">
-                {payingRegistration ? "Redirecting to payment..." : "Pay GH₵ 2 Registration Fee"} <ArrowRight className="ml-2 h-4 w-4" />
+                {payingRegistration ? "Redirecting to payment..." : "Pay GH₵ 35 Registration Fee"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>

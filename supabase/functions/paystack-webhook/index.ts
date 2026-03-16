@@ -41,6 +41,31 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Helper to send SMS via edge function
+    const sendPaymentSms = async (userId: string, amount: number, description: string, ref: string) => {
+      try {
+        const { data: profile } = await supabase.from("profiles").select("phone").eq("user_id", userId).single();
+        if (profile?.phone) {
+          let normalizedPhone = profile.phone.replace(/\s/g, "").replace(/^0/, "233");
+          if (!normalizedPhone.startsWith("233")) normalizedPhone = "233" + normalizedPhone;
+          
+          const ARKESEL_API_KEY = Deno.env.get("ARKESEL_API_KEY");
+          if (ARKESEL_API_KEY) {
+            const params = new URLSearchParams({
+              action: "send-sms",
+              api_key: ARKESEL_API_KEY,
+              to: normalizedPhone,
+              from: "RentGhana",
+              sms: `RentGhana: Your payment of GH₵ ${amount.toFixed(2)} for ${description} has been confirmed. Reference: ${ref}. Thank you!`,
+            });
+            await fetch(`https://sms.arkesel.com/sms/api?${params.toString()}`);
+          }
+        }
+      } catch (e) {
+        console.error("SMS send error:", e);
+      }
+    };
+
     if (reference.startsWith("rentbulk_")) {
       // Bulk advance tax payment: reference = rentbulk_<tenancyId>_<timestamp>
       const parts = reference.split("_");
@@ -59,7 +84,11 @@ Deno.serve(async (req) => {
         .eq("tenant_marked_paid", false);
 
       if (error) console.error("Bulk rent payment update error:", error.message);
-      else console.log("Bulk rent payments confirmed for tenancy:", tenancyId);
+      else {
+        console.log("Bulk rent payments confirmed for tenancy:", tenancyId);
+        const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", tenancyId).single();
+        if (tenancy) await sendPaymentSms(tenancy.tenant_user_id, amountPaid, "Bulk advance rent tax", reference);
+      }
 
     } else if (reference.startsWith("rent_")) {
       const paymentId = reference.replace("rent_", "");
@@ -76,7 +105,14 @@ Deno.serve(async (req) => {
         .eq("id", paymentId);
 
       if (error) console.error("Rent payment update error:", error.message);
-      else console.log("Rent payment confirmed:", paymentId);
+      else {
+        console.log("Rent payment confirmed:", paymentId);
+        const { data: payment } = await supabase.from("rent_payments").select("tenancy_id").eq("id", paymentId).single();
+        if (payment) {
+          const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", payment.tenancy_id).single();
+          if (tenancy) await sendPaymentSms(tenancy.tenant_user_id, amountPaid, "Rent tax payment", reference);
+        }
+      }
 
     } else if (reference.startsWith("treg_")) {
       const userId = reference.split("_")[1];
@@ -90,7 +126,10 @@ Deno.serve(async (req) => {
         .eq("user_id", userId);
 
       if (error) console.error("Tenant reg update error:", error.message);
-      else console.log("Tenant registration confirmed:", userId);
+      else {
+        console.log("Tenant registration confirmed:", userId);
+        await sendPaymentSms(userId, amountPaid, "Tenant registration fee", reference);
+      }
 
     } else if (reference.startsWith("lreg_")) {
       const userId = reference.split("_")[1];
@@ -104,7 +143,10 @@ Deno.serve(async (req) => {
         .eq("user_id", userId);
 
       if (error) console.error("Landlord reg update error:", error.message);
-      else console.log("Landlord registration confirmed:", userId);
+      else {
+        console.log("Landlord registration confirmed:", userId);
+        await sendPaymentSms(userId, amountPaid, "Landlord registration fee", reference);
+      }
 
     } else if (reference.startsWith("comp_")) {
       const complaintId = reference.replace("comp_", "");
