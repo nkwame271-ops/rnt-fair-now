@@ -327,7 +327,26 @@ const RegisterLandlord = () => {
                          Your Rent Card will be available at the Rent Control Department within 5 days. You can also request delivery below.
                        </li>
                       <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Register properties and add tenants</li>
-                    </ul>
+                     </ul>
+                  </div>
+                  {/* Rent Card Delivery Option */}
+                  <div className="bg-card rounded-xl border border-border p-5 text-left max-w-sm mx-auto">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <Checkbox
+                        checked={requestDelivery}
+                        onCheckedChange={(checked) => {
+                          setRequestDelivery(!!checked);
+                          if (checked) {
+                            supabase.from("landlords").update({ rent_card_delivery_requested: true }).eq("landlord_id", generatedId).then(() => {});
+                          }
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground flex items-center gap-1.5"><Truck className="h-4 w-4 text-primary" /> Request Physical Rent Card Delivery</p>
+                        <p className="text-xs text-muted-foreground mt-1">We'll deliver your rent card to your registered address. Delivery details will be confirmed separately.</p>
+                      </div>
+                    </label>
                   </div>
                 </div>
               )}

@@ -146,7 +146,7 @@ const ProfilePage = () => {
       </div>
 
       {/* ID Card */}
-      <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-background">
+      <Card id="id-card-container" className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-background">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
