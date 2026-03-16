@@ -143,7 +143,10 @@ Deno.serve(async (req) => {
         .eq("user_id", userId);
 
       if (error) console.error("Landlord reg update error:", error.message);
-      else console.log("Landlord registration confirmed:", userId);
+      else {
+        console.log("Landlord registration confirmed:", userId);
+        await sendPaymentSms(userId, amountPaid, "Landlord registration fee", reference);
+      }
 
     } else if (reference.startsWith("comp_")) {
       const complaintId = reference.replace("comp_", "");
