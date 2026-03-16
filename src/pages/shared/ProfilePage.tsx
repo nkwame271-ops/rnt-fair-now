@@ -181,9 +181,33 @@ const ProfilePage = () => {
                   {expiryDate && ` • Expires: ${new Date(expiryDate).toLocaleDateString()}`}
                 </p>
               )}
-              <p className="text-xs text-muted-foreground flex items-center gap-1 justify-center sm:justify-start">
-                <QrCode className="h-3.5 w-3.5" /> Scan QR code to verify registration status
-              </p>
+              <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <QrCode className="h-3.5 w-3.5" /> Scan QR code to verify registration status
+                </p>
+                {registrationFeePaid && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7"
+                    onClick={() => {
+                      const cardEl = document.getElementById("id-card-container");
+                      if (!cardEl) return;
+                      import("html-to-image").then(({ toPng }) => {
+                        toPng(cardEl, { quality: 1, pixelRatio: 2 }).then((dataUrl) => {
+                          const link = document.createElement("a");
+                          link.download = `${registrationId}-card.png`;
+                          link.href = dataUrl;
+                          link.click();
+                          toast.success("Registration card downloaded!");
+                        });
+                      });
+                    }}
+                  >
+                    <Download className="h-3 w-3 mr-1" /> Download Card
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
