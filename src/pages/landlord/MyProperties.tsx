@@ -181,15 +181,18 @@ const MyProperties = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs capitalize bg-primary-foreground/10 text-primary-foreground border-primary-foreground/20">
+                      {p.property_category || "residential"}
+                    </Badge>
                     {p.listed_on_marketplace && (
                       <Badge className="bg-success/80 text-success-foreground text-xs">Listed</Badge>
                     )}
                     <Badge variant="outline" className={`text-xs ${
-                      (p as any).assessment_status === "approved"
+                      p.assessment_status === "approved"
                         ? "bg-success/10 text-success border-success/20"
                         : "text-warning border-warning/30"
                     }`}>
-                      {(p as any).assessment_status === "approved" ? "Assessed ✓" : "Pending Assessment"}
+                      {p.assessment_status === "approved" ? "Fully Assessed ✓" : "Processing — Under Assessment"}
                     </Badge>
                     <span className="text-xs bg-primary-foreground/20 px-2.5 py-1 rounded-full font-semibold">
                       {p.property_code}
