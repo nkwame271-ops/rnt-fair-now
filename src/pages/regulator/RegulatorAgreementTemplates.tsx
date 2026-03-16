@@ -180,9 +180,14 @@ const RegulatorAgreementTemplates = () => {
             <p className="text-xs text-muted-foreground">Act 220 mandates a maximum of 6 months advance rent</p>
           </div>
           <div className="space-y-2">
-            <Label>Government Tax Rate (%)</Label>
-            <Input type="number" min={0} max={50} step={0.1} value={config.tax_rate} onChange={e => updateField("tax_rate", parseFloat(e.target.value) || 8)} />
-            <p className="text-xs text-muted-foreground">Statutory tax collected on monthly rent</p>
+            <Label>Default Tax Rate — Residential (%)</Label>
+            <Input type="number" min={0} max={50} step={0.1} value={config.tax_rates.residential ?? config.tax_rate} onChange={e => updateField("tax_rates", { ...config.tax_rates, residential: parseFloat(e.target.value) || 8 })} />
+            <p className="text-xs text-muted-foreground">Tax rate applied to residential properties</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Tax Rate — Commercial (%)</Label>
+            <Input type="number" min={0} max={50} step={0.1} value={config.tax_rates.commercial ?? 15} onChange={e => updateField("tax_rates", { ...config.tax_rates, commercial: parseFloat(e.target.value) || 15 })} />
+            <p className="text-xs text-muted-foreground">Tax rate applied to commercial properties</p>
           </div>
           <div className="space-y-2">
             <Label>Minimum Lease Duration (months)</Label>

@@ -119,6 +119,8 @@ const App = () => (
               <Route path="feedback" element={<RegulatorFeedback />} />
               <Route path="support-chats" element={<RegulatorSupportChats />} />
               <Route path="api-keys" element={<AgencyApiKeys />} />
+              <Route path="engine-room" element={<EngineRoom />} />
+              <Route path="rent-assessments" element={<RegulatorRentAssessments />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

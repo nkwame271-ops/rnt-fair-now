@@ -116,8 +116,19 @@ const AddTenant = () => {
     return d.toISOString().split("T")[0];
   })();
 
-  const registrationCode = `RC-GR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
-  const taxRate = (templateConfig?.tax_rate ?? 8) / 100;
+  // Resolve tax rate by unit type from tax_rates JSONB, fallback to flat tax_rate
+  const resolveTaxRate = () => {
+    const taxRates = (templateConfig as any)?.tax_rates;
+    if (taxRates && unit) {
+      const unitType = unit.unit_type?.toLowerCase() || "";
+      // Check if unit type contains "commercial", "shop", "office" etc.
+      const isCommercial = ["commercial", "shop", "office", "store", "warehouse"].some(t => unitType.includes(t));
+      if (isCommercial && taxRates.commercial != null) return taxRates.commercial / 100;
+      if (taxRates.residential != null) return taxRates.residential / 100;
+    }
+    return (templateConfig?.tax_rate ?? 8) / 100;
+  };
+  const taxRate = resolveTaxRate();
   const monthlyRent = parseFloat(rent) || 0;
   const tax = monthlyRent * taxRate;
   const toLandlord = monthlyRent * (1 - taxRate);

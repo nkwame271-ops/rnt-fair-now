@@ -5,6 +5,7 @@ export interface TemplateConfig {
   min_lease_duration: number;
   max_lease_duration: number;
   tax_rate: number;
+  tax_rates?: Record<string, number>;
   registration_deadline_days: number;
   terms: string[];
 }
