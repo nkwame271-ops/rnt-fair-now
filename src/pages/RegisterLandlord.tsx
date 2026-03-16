@@ -31,6 +31,7 @@ const RegisterLandlord = () => {
   const [region, setRegion] = useState("");
   const [generatedId, setGeneratedId] = useState("");
   const [payingRegistration, setPayingRegistration] = useState(false);
+  const [requestDelivery, setRequestDelivery] = useState(false);
 
   const handlePayRegistration = async () => {
     setPayingRegistration(true);
