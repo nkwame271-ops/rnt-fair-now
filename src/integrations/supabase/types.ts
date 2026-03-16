@@ -251,6 +251,96 @@ export type Database = {
         }
         Relationships: []
       }
+      landlord_applications: {
+        Row: {
+          application_type: string
+          audio_url: string | null
+          created_at: string
+          description: string
+          evidence_urls: string[] | null
+          id: string
+          landlord_user_id: string
+          reviewed_at: string | null
+          reviewer_notes: string | null
+          reviewer_user_id: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          application_type: string
+          audio_url?: string | null
+          created_at?: string
+          description: string
+          evidence_urls?: string[] | null
+          id?: string
+          landlord_user_id: string
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          application_type?: string
+          audio_url?: string | null
+          created_at?: string
+          description?: string
+          evidence_urls?: string[] | null
+          id?: string
+          landlord_user_id?: string
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
+      landlord_complaints: {
+        Row: {
+          complaint_code: string
+          complaint_type: string
+          created_at: string
+          description: string
+          evidence_urls: string[] | null
+          id: string
+          landlord_user_id: string
+          property_address: string
+          region: string
+          status: string
+          tenant_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          complaint_code: string
+          complaint_type: string
+          created_at?: string
+          description: string
+          evidence_urls?: string[] | null
+          id?: string
+          landlord_user_id: string
+          property_address: string
+          region: string
+          status?: string
+          tenant_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          complaint_code?: string
+          complaint_type?: string
+          created_at?: string
+          description?: string
+          evidence_urls?: string[] | null
+          id?: string
+          landlord_user_id?: string
+          property_address?: string
+          region?: string
+          status?: string
+          tenant_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       landlords: {
         Row: {
           created_at: string
@@ -436,6 +526,7 @@ export type Database = {
           location_locked: boolean
           location_locked_at: string | null
           location_locked_by: string | null
+          property_category: string
           property_code: string
           property_condition: string | null
           property_name: string | null
@@ -459,6 +550,7 @@ export type Database = {
           location_locked?: boolean
           location_locked_at?: string | null
           location_locked_by?: string | null
+          property_category?: string
           property_code: string
           property_condition?: string | null
           property_name?: string | null
@@ -482,6 +574,7 @@ export type Database = {
           location_locked?: boolean
           location_locked_at?: string | null
           location_locked_by?: string | null
+          property_category?: string
           property_code?: string
           property_condition?: string | null
           property_name?: string | null
