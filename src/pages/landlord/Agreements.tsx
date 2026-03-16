@@ -199,11 +199,21 @@ const Agreements = () => {
                   </div>
                 )}
 
-                {/* Payment summary */}
-                <div className="flex gap-3 text-xs">
+                {/* Payment summary + rent increase */}
+                <div className="flex items-center gap-3 text-xs">
                   <span className="flex items-center gap-1 text-success"><CheckCircle2 className="h-3 w-3" /> {t.payments.filter(p => p.landlord_confirmed || p.status === "confirmed").length} confirmed</span>
                   <span className="flex items-center gap-1 text-info"><Clock className="h-3 w-3" /> {awaitingConfirm.length} awaiting</span>
                   <span className="flex items-center gap-1 text-muted-foreground"><XCircle className="h-3 w-3" /> {t.payments.filter(p => !p.tenant_marked_paid && !p.landlord_confirmed).length} unpaid</span>
+                  {rentAssessmentEnabled && t.status === "active" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto text-xs gap-1"
+                      onClick={() => { setIncreaseDialog({ tenancyId: t.id, currentRent: t.agreed_rent }); setProposedRent(""); setIncreaseReason(""); }}
+                    >
+                      <TrendingUp className="h-3 w-3" /> Request Rent Increase
+                    </Button>
+                  )}
                 </div>
               </div>
             );
