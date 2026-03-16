@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Shield, User, Phone, Mail, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Building2, Lock, Globe, Building } from "lucide-react";
+import { Shield, User, Phone, Mail, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Building2, Lock, Globe, Building, Truck } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
