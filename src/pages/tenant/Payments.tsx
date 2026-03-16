@@ -185,8 +185,7 @@ const Payments = () => {
         <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p className="font-semibold text-foreground text-sm">How rent payment works</p>
-          <p>Your advance rent of <strong>GH₵ {totalAdvanceRent.toLocaleString()}</strong> for {advanceMonths} months includes an 8% government tax of <strong>GH₵ {totalAdvanceTax.toLocaleString()}</strong>.</p>
-          <p>You pay the full tax through this app in one transaction. This validates your tenancy. The remaining <strong>GH₵ {totalAdvanceToLandlord.toLocaleString()}</strong> goes directly to your landlord.</p>
+          <p>Your advance rent of <strong>GH₵ {totalAdvanceRent.toLocaleString()}</strong> for {advanceMonths} months includes a government tax processed through this app. Pay the tax online to validate your tenancy. The remaining amount goes directly to your landlord.</p>
         </div>
       </div>
 
