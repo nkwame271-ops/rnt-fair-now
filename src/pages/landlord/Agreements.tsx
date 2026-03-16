@@ -41,10 +41,16 @@ interface TenancyView {
 
 const Agreements = () => {
   const { user } = useAuth();
+  const { enabled: rentAssessmentEnabled } = useFeatureFlag("rent_assessment");
   const [tenancies, setTenancies] = useState<TenancyView[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
+  // Rent increase dialog
+  const [increaseDialog, setIncreaseDialog] = useState<{ tenancyId: string; currentRent: number } | null>(null);
+  const [proposedRent, setProposedRent] = useState("");
+  const [increaseReason, setIncreaseReason] = useState("");
+  const [submittingIncrease, setSubmittingIncrease] = useState(false);
 
   useEffect(() => {
     if (!user) return;
