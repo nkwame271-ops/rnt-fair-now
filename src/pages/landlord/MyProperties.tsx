@@ -182,6 +182,13 @@ const MyProperties = () => {
                     {p.listed_on_marketplace && (
                       <Badge className="bg-success/80 text-success-foreground text-xs">Listed</Badge>
                     )}
+                    <Badge variant="outline" className={`text-xs ${
+                      (p as any).assessment_status === "approved"
+                        ? "bg-success/10 text-success border-success/20"
+                        : "text-warning border-warning/30"
+                    }`}>
+                      {(p as any).assessment_status === "approved" ? "Assessed ✓" : "Pending Assessment"}
+                    </Badge>
                     <span className="text-xs bg-primary-foreground/20 px-2.5 py-1 rounded-full font-semibold">
                       {p.property_code}
                     </span>

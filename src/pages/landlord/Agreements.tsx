@@ -114,6 +114,29 @@ const Agreements = () => {
     }
   };
 
+  const handleSubmitRentIncrease = async () => {
+    if (!user || !increaseDialog) return;
+    setSubmittingIncrease(true);
+    try {
+      const { error } = await supabase.from("rent_assessments").insert({
+        tenancy_id: increaseDialog.tenancyId,
+        landlord_user_id: user.id,
+        current_rent: increaseDialog.currentRent,
+        proposed_rent: parseFloat(proposedRent),
+        reason: increaseReason || null,
+      } as any);
+      if (error) throw error;
+      toast.success("Rent increase application submitted for review");
+      setIncreaseDialog(null);
+      setProposedRent("");
+      setIncreaseReason("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit");
+    } finally {
+      setSubmittingIncrease(false);
+    }
+  };
+
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
