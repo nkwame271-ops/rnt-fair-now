@@ -34,6 +34,8 @@ import RegulatorLayout from "./components/RegulatorLayout";
 import LandlordViewingRequests from "./pages/landlord/ViewingRequests";
 import LandlordFeedback from "./pages/landlord/LandlordFeedback";
 import LandlordMessages from "./pages/landlord/Messages";
+import LandlordApplications from "./pages/landlord/LandlordApplications";
+import LandlordComplaints from "./pages/landlord/LandlordComplaints";
 import RentalApplications from "./pages/landlord/RentalApplications";
 import RegulatorDashboard from "./pages/regulator/RegulatorDashboard";
 import RegulatorTenants from "./pages/regulator/RegulatorTenants";
