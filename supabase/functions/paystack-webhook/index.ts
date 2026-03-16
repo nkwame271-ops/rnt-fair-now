@@ -41,6 +41,31 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Helper to send SMS via edge function
+    const sendPaymentSms = async (userId: string, amount: number, description: string, ref: string) => {
+      try {
+        const { data: profile } = await supabase.from("profiles").select("phone").eq("user_id", userId).single();
+        if (profile?.phone) {
+          let normalizedPhone = profile.phone.replace(/\s/g, "").replace(/^0/, "233");
+          if (!normalizedPhone.startsWith("233")) normalizedPhone = "233" + normalizedPhone;
+          
+          const ARKESEL_API_KEY = Deno.env.get("ARKESEL_API_KEY");
+          if (ARKESEL_API_KEY) {
+            const params = new URLSearchParams({
+              action: "send-sms",
+              api_key: ARKESEL_API_KEY,
+              to: normalizedPhone,
+              from: "RentGhana",
+              sms: `RentGhana: Your payment of GH₵ ${amount.toFixed(2)} for ${description} has been confirmed. Reference: ${ref}. Thank you!`,
+            });
+            await fetch(`https://sms.arkesel.com/sms/api?${params.toString()}`);
+          }
+        }
+      } catch (e) {
+        console.error("SMS send error:", e);
+      }
+    };
+
     if (reference.startsWith("rentbulk_")) {
       // Bulk advance tax payment: reference = rentbulk_<tenancyId>_<timestamp>
       const parts = reference.split("_");
