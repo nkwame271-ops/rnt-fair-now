@@ -52,6 +52,7 @@ import RegulatorSupportChats from "./pages/regulator/RegulatorSupportChats";
 import AgencyApiKeys from "./pages/regulator/AgencyApiKeys";
 import EngineRoom from "./pages/regulator/EngineRoom";
 import RegulatorRentAssessments from "./pages/regulator/RegulatorRentAssessments";
+import RegulatorApplications from "./pages/regulator/RegulatorApplications";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import NotFound from "./pages/NotFound";
