@@ -66,6 +66,7 @@ const Marketplace = () => {
   const [messageText, setMessageText] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const [confirmedViewings, setConfirmedViewings] = useState<Set<string>>(new Set());
+  const [viewingRequestsByUnit, setViewingRequestsByUnit] = useState<Record<string, string>>({});
   const [applyingRent, setApplyingRent] = useState(false);
 
   useEffect(() => {
