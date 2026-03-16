@@ -60,6 +60,7 @@ const RegulatorAgreementTemplates = () => {
         setConfig({
           ...data,
           custom_fields: (data as any).custom_fields || [],
+          tax_rates: (data as any).tax_rates || { residential: data.tax_rate || 8, commercial: 15 },
         } as TemplateConfig);
       }
       if (error) toast.error("Failed to load template config");
