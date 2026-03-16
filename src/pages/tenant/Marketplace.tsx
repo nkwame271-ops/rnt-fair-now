@@ -529,10 +529,10 @@ const Marketplace = () => {
                     return (
                       <div className="space-y-3">
                         {/* Map + Street View toggle */}
-                        <TabsRoot defaultValue="map">
+                        <Tabs defaultValue="map">
                           <TabsList className="w-full">
-                            <TabsTrig value="map" className="flex-1"><MapPin className="h-3.5 w-3.5 mr-1" /> Map</TabsTrig>
-                            <TabsTrig value="street" className="flex-1"><Eye className="h-3.5 w-3.5 mr-1" /> Street View</TabsTrig>
+                            <TabsTrigger value="map" className="flex-1"><MapPin className="h-3.5 w-3.5 mr-1" /> Map</TabsTrigger>
+                            <TabsTrigger value="street" className="flex-1"><Eye className="h-3.5 w-3.5 mr-1" /> Street View</TabsTrigger>
                           </TabsList>
                           <TabsContent value="map">
                             <div className="rounded-lg overflow-hidden border border-border">
@@ -548,7 +548,7 @@ const Marketplace = () => {
                           <TabsContent value="street">
                             <StreetViewEmbed lat={lat} lng={lng} height="200px" />
                           </TabsContent>
-                        </TabsRoot>
+                        </Tabs>
 
                         {/* Nearby amenities with distances */}
                         <NearbyAmenities lat={lat} lng={lng} />
