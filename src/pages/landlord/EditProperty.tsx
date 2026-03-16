@@ -45,6 +45,7 @@ const EditProperty = () => {
       setArea(data.area);
       setCondition(data.property_condition || "");
       setGhanaPostGps(data.ghana_post_gps || "");
+      setPropertyCategory(((data as any).property_category as "residential" | "commercial") || "residential");
       setLoading(false);
     };
     fetch();
