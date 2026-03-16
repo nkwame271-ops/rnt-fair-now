@@ -66,7 +66,8 @@ const EditProperty = () => {
         area,
         property_condition: condition || null,
         ghana_post_gps: ghanaPostGps || null,
-      })
+        property_category: propertyCategory,
+      } as any)
       .eq("id", id!)
       .eq("landlord_user_id", user!.id);
 
