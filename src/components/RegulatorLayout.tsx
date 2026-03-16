@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Settings,
   TrendingUp,
+  ClipboardList,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
