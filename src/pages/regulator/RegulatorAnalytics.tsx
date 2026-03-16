@@ -168,14 +168,25 @@ const RegulatorAnalytics = () => {
         </div>
       </div>
 
-      {/* Geographic Map */}
+      {/* Geographic Map with Heatmap toggle */}
       <div className="bg-card rounded-xl p-6 shadow-card border border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <MapPin className="h-5 w-5 text-primary" /> Regional Distribution Map
+          <MapPin className="h-5 w-5 text-primary" /> Regional Distribution
         </h2>
-        {regionMarkers.length > 0 ? (
+        {regionMarkers.length > 0 || (data.heatmapPoints || []).length > 0 ? (
           <>
-            <PropertyMap markers={regionMarkers} height="400px" zoom={7} />
+            <Tabs defaultValue="markers">
+              <TabsList className="mb-3">
+                <TabsTrigger value="markers"><MapPin className="h-3.5 w-3.5 mr-1" /> Markers</TabsTrigger>
+                <TabsTrigger value="heatmap"><Flame className="h-3.5 w-3.5 mr-1" /> Density Heatmap</TabsTrigger>
+              </TabsList>
+              <TabsContent value="markers">
+                <PropertyMap markers={regionMarkers} height="400px" zoom={7} />
+              </TabsContent>
+              <TabsContent value="heatmap">
+                <PropertyHeatmap points={data.heatmapPoints || []} height="400px" />
+              </TabsContent>
+            </Tabs>
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {data.regionBreakdown.map((r: any) => (
                 <div key={r.region} className="text-sm bg-muted/50 rounded-lg px-3 py-2 flex justify-between items-center">
