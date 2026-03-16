@@ -4,7 +4,9 @@ type SmsEvent =
   | "registration_success"
   | "complaint_filed"
   | "agreement_signed"
-  | "viewing_scheduled";
+  | "viewing_scheduled"
+  | "payment_confirmed"
+  | "application_updated";
 
 const SMS_TEMPLATES: Record<SmsEvent, (data: Record<string, string>) => string> = {
   registration_success: (d) =>
