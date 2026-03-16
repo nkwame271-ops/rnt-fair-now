@@ -175,10 +175,7 @@ const Payments = () => {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-card rounded-xl p-6 shadow-card border border-border">
         <h2 className="text-lg font-semibold text-card-foreground mb-4">Advance Rent Summary ({advanceMonths} months)</h2>
         <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
-          <div className="flex justify-between"><span className="text-muted-foreground">Total Rent ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
-          <div className="flex justify-between text-primary"><span>Total Tax (8%)</span><span className="font-semibold">GH₵ {totalAdvanceTax.toLocaleString()}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Total to Landlord</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceToLandlord.toLocaleString()}</span></div>
-          <div className="border-t border-border pt-2 flex justify-between font-bold text-base"><span>Grand Total</span><span>GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
+          <div className="flex justify-between font-bold text-base"><span>Total Charges ({advanceMonths} months)</span><span>GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
           <div className="flex justify-between text-xs text-muted-foreground"><span>Advance months paid</span><span>{advancePaidCount}/{advanceMonths}</span></div>
         </div>
       </motion.div>
