@@ -100,17 +100,9 @@ const RegisterProperty = () => {
     setSubmitting(true);
 
     try {
-      if (listOnMarketplace && images.length === 0) {
-        toast.error("Please upload at least one image to list on the marketplace");
-        setSubmitting(false);
-        return;
-      }
-
       const regionCode = region.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
       const areaCode = effectiveArea.slice(0, 2).toUpperCase();
       const propertyCode = `${regionCode}-${areaCode}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999)).padStart(3, "0")}`;
-
-      const shouldList = listOnMarketplace;
 
       const { data: prop, error: propErr } = await supabase.from("properties").insert({
         landlord_user_id: user.id,
@@ -124,6 +116,7 @@ const RegisterProperty = () => {
         gps_confirmed_at: new Date().toISOString(),
         ghana_post_gps: ghanaPostGps || null,
         property_condition: propertyCondition || null,
+        property_category: propertyCategory,
         listed_on_marketplace: false,
       } as any).select().single();
 
