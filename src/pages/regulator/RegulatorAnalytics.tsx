@@ -58,11 +58,16 @@ const RegulatorAnalytics = () => {
         .map(([region, d]) => ({ region, ...d }))
         .sort((a, b) => b.total - a.total);
 
-      // Properties by region
-      const { data: properties } = await supabase.from("properties").select("region");
+      // Properties by region + GPS data for heatmap
+      const { data: properties } = await supabase.from("properties").select("region, gps_location");
       const propRegionMap: Record<string, number> = {};
+      const heatmapPoints: { lat: number; lng: number; weight: number }[] = [];
       (properties || []).forEach((p: any) => {
         propRegionMap[p.region] = (propRegionMap[p.region] || 0) + 1;
+        const coords = parseGPS(p.gps_location);
+        if (coords) {
+          heatmapPoints.push({ lat: coords.lat, lng: coords.lng, weight: 1 });
+        }
       });
 
       // Complaints by type
