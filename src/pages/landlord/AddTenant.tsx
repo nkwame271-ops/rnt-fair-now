@@ -50,7 +50,7 @@ const AddTenant = () => {
     if (!user) return;
     const fetchData = async () => {
       const [propsRes, profileRes, configRes] = await Promise.all([
-        supabase.from("properties").select("id, property_name, address, region, units(id, unit_name, unit_type, monthly_rent, status)").eq("landlord_user_id", user.id),
+        supabase.from("properties").select("id, property_name, address, region, property_category, units(id, unit_name, unit_type, monthly_rent, status)").eq("landlord_user_id", user.id),
         supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
         supabase.from("agreement_template_config").select("*").limit(1).single(),
       ]);

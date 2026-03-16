@@ -260,11 +260,7 @@ const RegisterProperty = () => {
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1">
                     <Upload className="h-3.5 w-3.5" /> Property Images (up to 6)
-                    {listOnMarketplace && <span className="text-destructive ml-1">*</span>}
                   </Label>
-                  {listOnMarketplace && images.length === 0 && (
-                    <p className="text-xs text-destructive">At least one image is required for marketplace listings</p>
-                  )}
                   <input type="file" accept="image/*" multiple onChange={handleImageChange} className="text-sm" />
                   {images.length > 0 && (
                     <div className="flex gap-2 flex-wrap mt-2">
