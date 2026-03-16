@@ -198,9 +198,8 @@ const Payments = () => {
           </div>
           <div className="bg-muted rounded-lg p-4 space-y-3 mb-5">
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Advance Rent ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
-            <div className="border-t border-border pt-2 space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-primary font-medium">→ 8% Tax (pay via Rent Control)</span><span className="text-xl font-bold text-primary">GH₵ {unpaidAdvanceTax.toLocaleString()}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">→ Remaining (pay landlord directly)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceToLandlord.toLocaleString()}</span></div>
+            <div className="border-t border-border pt-2">
+              <div className="flex justify-between text-sm"><span className="text-primary font-medium">→ Total Charges (pay via Rent Control)</span><span className="text-xl font-bold text-primary">GH₵ {unpaidAdvanceTax.toLocaleString()}</span></div>
             </div>
           </div>
           <Button className="w-full" size="lg" onClick={handlePayBulkTax} disabled={paying}>
