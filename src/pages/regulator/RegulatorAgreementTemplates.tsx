@@ -140,6 +140,7 @@ const RegulatorAgreementTemplates = () => {
         min_lease_duration: config.min_lease_duration,
         max_lease_duration: config.max_lease_duration,
         tax_rate: config.tax_rate,
+        tax_rates: config.tax_rates as any,
         registration_deadline_days: config.registration_deadline_days,
         terms: config.terms,
         custom_fields: config.custom_fields as any,
