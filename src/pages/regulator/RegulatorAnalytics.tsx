@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { BarChart3, Users, Building2, TrendingUp, CreditCard, MapPin } from "lucide-react";
+import { BarChart3, Users, Building2, TrendingUp, CreditCard, MapPin, Flame } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import LogoLoader from "@/components/LogoLoader";
 import PropertyMap, { MapMarker } from "@/components/PropertyMap";
+import PropertyHeatmap from "@/components/PropertyHeatmap";
 import { GHANA_REGIONS } from "@/lib/gpsUtils";
+import { parseGPS } from "@/lib/gpsUtils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const COLORS = ["hsl(152,55%,38%)", "hsl(43,85%,55%)", "hsl(210,60%,50%)", "hsl(0,72%,50%)", "hsl(152,55%,28%)"];
 
