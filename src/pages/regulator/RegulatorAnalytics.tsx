@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { BarChart3, Users, Building2, TrendingUp, CreditCard, MapPin } from "lucide-react";
+import { BarChart3, Users, Building2, TrendingUp, CreditCard, MapPin, Flame } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import LogoLoader from "@/components/LogoLoader";
 import PropertyMap, { MapMarker } from "@/components/PropertyMap";
+import PropertyHeatmap from "@/components/PropertyHeatmap";
 import { GHANA_REGIONS } from "@/lib/gpsUtils";
+import { parseGPS } from "@/lib/gpsUtils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const COLORS = ["hsl(152,55%,38%)", "hsl(43,85%,55%)", "hsl(210,60%,50%)", "hsl(0,72%,50%)", "hsl(152,55%,28%)"];
 
@@ -55,11 +58,16 @@ const RegulatorAnalytics = () => {
         .map(([region, d]) => ({ region, ...d }))
         .sort((a, b) => b.total - a.total);
 
-      // Properties by region
-      const { data: properties } = await supabase.from("properties").select("region");
+      // Properties by region + GPS data for heatmap
+      const { data: properties } = await supabase.from("properties").select("region, gps_location");
       const propRegionMap: Record<string, number> = {};
+      const heatmapPoints: { lat: number; lng: number; weight: number }[] = [];
       (properties || []).forEach((p: any) => {
         propRegionMap[p.region] = (propRegionMap[p.region] || 0) + 1;
+        const coords = parseGPS(p.gps_location);
+        if (coords) {
+          heatmapPoints.push({ lat: coords.lat, lng: coords.lng, weight: 1 });
+        }
       });
 
       // Complaints by type
@@ -93,6 +101,7 @@ const RegulatorAnalytics = () => {
         totalTaxCollected,
         regionBreakdown,
         propRegionMap,
+        heatmapPoints,
       });
       setLoading(false);
     };
@@ -159,14 +168,25 @@ const RegulatorAnalytics = () => {
         </div>
       </div>
 
-      {/* Geographic Map */}
+      {/* Geographic Map with Heatmap toggle */}
       <div className="bg-card rounded-xl p-6 shadow-card border border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <MapPin className="h-5 w-5 text-primary" /> Regional Distribution Map
+          <MapPin className="h-5 w-5 text-primary" /> Regional Distribution
         </h2>
-        {regionMarkers.length > 0 ? (
+        {regionMarkers.length > 0 || (data.heatmapPoints || []).length > 0 ? (
           <>
-            <PropertyMap markers={regionMarkers} height="400px" zoom={7} />
+            <Tabs defaultValue="markers">
+              <TabsList className="mb-3">
+                <TabsTrigger value="markers"><MapPin className="h-3.5 w-3.5 mr-1" /> Markers</TabsTrigger>
+                <TabsTrigger value="heatmap"><Flame className="h-3.5 w-3.5 mr-1" /> Density Heatmap</TabsTrigger>
+              </TabsList>
+              <TabsContent value="markers">
+                <PropertyMap markers={regionMarkers} height="400px" zoom={7} />
+              </TabsContent>
+              <TabsContent value="heatmap">
+                <PropertyHeatmap points={data.heatmapPoints || []} height="400px" />
+              </TabsContent>
+            </Tabs>
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {data.regionBreakdown.map((r: any) => (
                 <div key={r.region} className="text-sm bg-muted/50 rounded-lg px-3 py-2 flex justify-between items-center">

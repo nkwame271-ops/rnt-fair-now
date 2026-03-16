@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle, Lock, CheckCircle2 } from "lucide-react";
+import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle, Lock, CheckCircle2, Eye } from "lucide-react";
+import StreetViewEmbed from "@/components/StreetViewEmbed";
+import NearbyAmenities from "@/components/NearbyAmenities";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -521,20 +523,38 @@ const Marketplace = () => {
                     <CheckCircle2 className="h-4 w-4" />
                     <span>Viewing confirmed — you can now apply to rent this property</span>
                   </div>
-                  {selectedUnit.property.gps_location && (
-                    <div className="rounded-lg overflow-hidden border border-border">
-                      <iframe
-                        width="100%"
-                        height="200"
-                        style={{ border: 0 }}
-                        loading="lazy"
-                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${(() => {
-                          const [lat, lng] = selectedUnit.property.gps_location!.split(',').map(s => parseFloat(s.trim()));
-                          return `${lng - 0.005},${lat - 0.005},${lng + 0.005},${lat + 0.005}&layer=mapnik&marker=${lat},${lng}`;
-                        })()}`}
-                      />
-                    </div>
-                  )}
+                  {selectedUnit.property.gps_location && (() => {
+                    const [lat, lng] = selectedUnit.property.gps_location!.split(',').map(s => parseFloat(s.trim()));
+                    if (isNaN(lat) || isNaN(lng)) return null;
+                    return (
+                      <div className="space-y-3">
+                        {/* Map + Street View toggle */}
+                        <Tabs defaultValue="map">
+                          <TabsList className="w-full">
+                            <TabsTrigger value="map" className="flex-1"><MapPin className="h-3.5 w-3.5 mr-1" /> Map</TabsTrigger>
+                            <TabsTrigger value="street" className="flex-1"><Eye className="h-3.5 w-3.5 mr-1" /> Street View</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="map">
+                            <div className="rounded-lg overflow-hidden border border-border">
+                              <iframe
+                                width="100%"
+                                height="200"
+                                style={{ border: 0 }}
+                                loading="lazy"
+                                src={`https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`}
+                              />
+                            </div>
+                          </TabsContent>
+                          <TabsContent value="street">
+                            <StreetViewEmbed lat={lat} lng={lng} height="200px" />
+                          </TabsContent>
+                        </Tabs>
+
+                        {/* Nearby amenities with distances */}
+                        <NearbyAmenities lat={lat} lng={lng} />
+                      </div>
+                    );
+                  })()}
                   <Button
                     className="w-full"
                     onClick={async () => {
