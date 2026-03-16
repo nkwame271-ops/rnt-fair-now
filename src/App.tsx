@@ -48,6 +48,8 @@ import RegulatorKyc from "./pages/regulator/RegulatorKyc";
 import RegulatorFeedback from "./pages/regulator/RegulatorFeedback";
 import RegulatorSupportChats from "./pages/regulator/RegulatorSupportChats";
 import AgencyApiKeys from "./pages/regulator/AgencyApiKeys";
+import EngineRoom from "./pages/regulator/EngineRoom";
+import RegulatorRentAssessments from "./pages/regulator/RegulatorRentAssessments";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import NotFound from "./pages/NotFound";
@@ -117,6 +119,8 @@ const App = () => (
               <Route path="feedback" element={<RegulatorFeedback />} />
               <Route path="support-chats" element={<RegulatorSupportChats />} />
               <Route path="api-keys" element={<AgencyApiKeys />} />
+              <Route path="engine-room" element={<EngineRoom />} />
+              <Route path="rent-assessments" element={<RegulatorRentAssessments />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

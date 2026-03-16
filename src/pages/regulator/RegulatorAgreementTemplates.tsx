@@ -21,6 +21,7 @@ interface TemplateConfig {
   min_lease_duration: number;
   max_lease_duration: number;
   tax_rate: number;
+  tax_rates: Record<string, number>;
   registration_deadline_days: number;
   terms: string[];
   custom_fields: CustomField[];
@@ -59,6 +60,7 @@ const RegulatorAgreementTemplates = () => {
         setConfig({
           ...data,
           custom_fields: (data as any).custom_fields || [],
+          tax_rates: (data as any).tax_rates || { residential: data.tax_rate || 8, commercial: 15 },
         } as TemplateConfig);
       }
       if (error) toast.error("Failed to load template config");
@@ -138,6 +140,7 @@ const RegulatorAgreementTemplates = () => {
         min_lease_duration: config.min_lease_duration,
         max_lease_duration: config.max_lease_duration,
         tax_rate: config.tax_rate,
+        tax_rates: config.tax_rates as any,
         registration_deadline_days: config.registration_deadline_days,
         terms: config.terms,
         custom_fields: config.custom_fields as any,
@@ -177,9 +180,14 @@ const RegulatorAgreementTemplates = () => {
             <p className="text-xs text-muted-foreground">Act 220 mandates a maximum of 6 months advance rent</p>
           </div>
           <div className="space-y-2">
-            <Label>Government Tax Rate (%)</Label>
-            <Input type="number" min={0} max={50} step={0.1} value={config.tax_rate} onChange={e => updateField("tax_rate", parseFloat(e.target.value) || 8)} />
-            <p className="text-xs text-muted-foreground">Statutory tax collected on monthly rent</p>
+            <Label>Default Tax Rate — Residential (%)</Label>
+            <Input type="number" min={0} max={50} step={0.1} value={config.tax_rates.residential ?? config.tax_rate} onChange={e => updateField("tax_rates", { ...config.tax_rates, residential: parseFloat(e.target.value) || 8 })} />
+            <p className="text-xs text-muted-foreground">Tax rate applied to residential properties</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Tax Rate — Commercial (%)</Label>
+            <Input type="number" min={0} max={50} step={0.1} value={config.tax_rates.commercial ?? 15} onChange={e => updateField("tax_rates", { ...config.tax_rates, commercial: parseFloat(e.target.value) || 15 })} />
+            <p className="text-xs text-muted-foreground">Tax rate applied to commercial properties</p>
           </div>
           <div className="space-y-2">
             <Label>Minimum Lease Duration (months)</Label>

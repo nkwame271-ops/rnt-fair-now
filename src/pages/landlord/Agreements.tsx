@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { FileCheck, CheckCircle2, Info, Loader2, XCircle, Clock } from "lucide-react";
+import { FileCheck, CheckCircle2, Info, Loader2, XCircle, Clock, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 
 interface CustomFieldDef {
   label: string;
@@ -36,10 +41,16 @@ interface TenancyView {
 
 const Agreements = () => {
   const { user } = useAuth();
+  const { enabled: rentAssessmentEnabled } = useFeatureFlag("rent_assessment");
   const [tenancies, setTenancies] = useState<TenancyView[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
+  // Rent increase dialog
+  const [increaseDialog, setIncreaseDialog] = useState<{ tenancyId: string; currentRent: number } | null>(null);
+  const [proposedRent, setProposedRent] = useState("");
+  const [increaseReason, setIncreaseReason] = useState("");
+  const [submittingIncrease, setSubmittingIncrease] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -100,6 +111,29 @@ const Agreements = () => {
       toast.error(err.message || "Failed to confirm");
     } finally {
       setConfirming(null);
+    }
+  };
+
+  const handleSubmitRentIncrease = async () => {
+    if (!user || !increaseDialog) return;
+    setSubmittingIncrease(true);
+    try {
+      const { error } = await supabase.from("rent_assessments").insert({
+        tenancy_id: increaseDialog.tenancyId,
+        landlord_user_id: user.id,
+        current_rent: increaseDialog.currentRent,
+        proposed_rent: parseFloat(proposedRent),
+        reason: increaseReason || null,
+      } as any);
+      if (error) throw error;
+      toast.success("Rent increase application submitted for review");
+      setIncreaseDialog(null);
+      setProposedRent("");
+      setIncreaseReason("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit");
+    } finally {
+      setSubmittingIncrease(false);
     }
   };
 
@@ -165,17 +199,77 @@ const Agreements = () => {
                   </div>
                 )}
 
-                {/* Payment summary */}
-                <div className="flex gap-3 text-xs">
+                {/* Payment summary + rent increase */}
+                <div className="flex items-center gap-3 text-xs">
                   <span className="flex items-center gap-1 text-success"><CheckCircle2 className="h-3 w-3" /> {t.payments.filter(p => p.landlord_confirmed || p.status === "confirmed").length} confirmed</span>
                   <span className="flex items-center gap-1 text-info"><Clock className="h-3 w-3" /> {awaitingConfirm.length} awaiting</span>
                   <span className="flex items-center gap-1 text-muted-foreground"><XCircle className="h-3 w-3" /> {t.payments.filter(p => !p.tenant_marked_paid && !p.landlord_confirmed).length} unpaid</span>
+                  {rentAssessmentEnabled && t.status === "active" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto text-xs gap-1"
+                      onClick={() => { setIncreaseDialog({ tenancyId: t.id, currentRent: t.agreed_rent }); setProposedRent(""); setIncreaseReason(""); }}
+                    >
+                      <TrendingUp className="h-3 w-3" /> Request Rent Increase
+                    </Button>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Rent Increase Dialog */}
+      <Dialog open={!!increaseDialog} onOpenChange={(open) => !open && setIncreaseDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" /> Request Rent Increase
+            </DialogTitle>
+          </DialogHeader>
+          {increaseDialog && (
+            <div className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                <span className="text-muted-foreground">Current Rent:</span>
+                <span className="ml-2 font-bold">GH₵ {increaseDialog.currentRent.toLocaleString()}/mo</span>
+              </div>
+              <div className="space-y-2">
+                <Label>Proposed New Rent (GH₵)</Label>
+                <Input
+                  type="number"
+                  value={proposedRent}
+                  onChange={(e) => setProposedRent(e.target.value)}
+                  placeholder="Enter new monthly rent"
+                  min={increaseDialog.currentRent + 1}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Reason for Increase</Label>
+                <Textarea
+                  value={increaseReason}
+                  onChange={(e) => setIncreaseReason(e.target.value)}
+                  placeholder="e.g. Property improvements, market rate adjustment..."
+                  className="min-h-[80px]"
+                />
+              </div>
+              <div className="text-xs text-muted-foreground bg-info/5 p-3 rounded-lg border border-info/20">
+                <Info className="h-3.5 w-3.5 inline mr-1 text-info" />
+                Per the Rent Act 220, rent increases must be assessed and approved by Rent Control before taking effect.
+              </div>
+              <Button
+                onClick={handleSubmitRentIncrease}
+                disabled={submittingIncrease || !proposedRent || parseFloat(proposedRent) <= increaseDialog.currentRent}
+                className="w-full"
+              >
+                {submittingIncrease ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <TrendingUp className="h-4 w-4 mr-2" />}
+                Submit for Assessment
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

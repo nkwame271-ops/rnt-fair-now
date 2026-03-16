@@ -23,6 +23,7 @@ export type Database = {
           min_lease_duration: number
           registration_deadline_days: number
           tax_rate: number
+          tax_rates: Json
           terms: string[]
           updated_at: string
           updated_by: string | null
@@ -35,6 +36,7 @@ export type Database = {
           min_lease_duration?: number
           registration_deadline_days?: number
           tax_rate?: number
+          tax_rates?: Json
           terms?: string[]
           updated_at?: string
           updated_by?: string | null
@@ -47,6 +49,7 @@ export type Database = {
           min_lease_duration?: number
           registration_deadline_days?: number
           tax_rate?: number
+          tax_rates?: Json
           terms?: string[]
           updated_at?: string
           updated_by?: string | null
@@ -164,6 +167,36 @@ export type Database = {
           status?: string
           tenant_user_id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      feature_flags: {
+        Row: {
+          description: string | null
+          feature_key: string
+          id: string
+          is_enabled: boolean
+          label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          description?: string | null
+          feature_key: string
+          id?: string
+          is_enabled?: boolean
+          label: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          description?: string | null
+          feature_key?: string
+          id?: string
+          is_enabled?: boolean
+          label?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -389,6 +422,9 @@ export type Database = {
         Row: {
           address: string
           area: string
+          assessed_at: string | null
+          assessed_by: string | null
+          assessment_status: string
           created_at: string
           ghana_post_gps: string | null
           gps_confirmed: boolean
@@ -409,6 +445,9 @@ export type Database = {
         Insert: {
           address: string
           area: string
+          assessed_at?: string | null
+          assessed_by?: string | null
+          assessment_status?: string
           created_at?: string
           ghana_post_gps?: string | null
           gps_confirmed?: boolean
@@ -429,6 +468,9 @@ export type Database = {
         Update: {
           address?: string
           area?: string
+          assessed_at?: string | null
+          assessed_by?: string | null
+          assessment_status?: string
           created_at?: string
           ghana_post_gps?: string | null
           gps_confirmed?: boolean
@@ -549,6 +591,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ratings_tenancy_id_fkey"
+            columns: ["tenancy_id"]
+            isOneToOne: false
+            referencedRelation: "tenancies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rent_assessments: {
+        Row: {
+          created_at: string
+          current_rent: number
+          id: string
+          landlord_user_id: string
+          proposed_rent: number
+          reason: string | null
+          reviewed_at: string | null
+          reviewer_notes: string | null
+          reviewer_user_id: string | null
+          status: string
+          tenancy_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_rent: number
+          id?: string
+          landlord_user_id: string
+          proposed_rent: number
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          status?: string
+          tenancy_id: string
+        }
+        Update: {
+          created_at?: string
+          current_rent?: number
+          id?: string
+          landlord_user_id?: string
+          proposed_rent?: number
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          status?: string
+          tenancy_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_assessments_tenancy_id_fkey"
             columns: ["tenancy_id"]
             isOneToOne: false
             referencedRelation: "tenancies"
