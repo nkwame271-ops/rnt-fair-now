@@ -126,7 +126,10 @@ Deno.serve(async (req) => {
         .eq("user_id", userId);
 
       if (error) console.error("Tenant reg update error:", error.message);
-      else console.log("Tenant registration confirmed:", userId);
+      else {
+        console.log("Tenant registration confirmed:", userId);
+        await sendPaymentSms(userId, amountPaid, "Tenant registration fee", reference);
+      }
 
     } else if (reference.startsWith("lreg_")) {
       const userId = reference.split("_")[1];
