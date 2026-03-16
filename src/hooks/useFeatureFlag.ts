@@ -14,14 +14,14 @@ let fetchPromise: Promise<FeatureFlag[]> | null = null;
 const fetchFlags = async (): Promise<FeatureFlag[]> => {
   if (cachedFlags) return cachedFlags;
   if (fetchPromise) return fetchPromise;
-  fetchPromise = supabase
-    .from("feature_flags")
-    .select("feature_key, label, description, is_enabled")
-    .then(({ data }) => {
-      cachedFlags = (data as FeatureFlag[]) || [];
-      fetchPromise = null;
-      return cachedFlags;
-    });
+  fetchPromise = (async () => {
+    const { data } = await supabase
+      .from("feature_flags")
+      .select("feature_key, label, description, is_enabled");
+    cachedFlags = (data as FeatureFlag[]) || [];
+    fetchPromise = null;
+    return cachedFlags;
+  })();
   return fetchPromise;
 };
 
