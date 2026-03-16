@@ -524,20 +524,38 @@ const Marketplace = () => {
                     <CheckCircle2 className="h-4 w-4" />
                     <span>Viewing confirmed — you can now apply to rent this property</span>
                   </div>
-                  {selectedUnit.property.gps_location && (
-                    <div className="rounded-lg overflow-hidden border border-border">
-                      <iframe
-                        width="100%"
-                        height="200"
-                        style={{ border: 0 }}
-                        loading="lazy"
-                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${(() => {
-                          const [lat, lng] = selectedUnit.property.gps_location!.split(',').map(s => parseFloat(s.trim()));
-                          return `${lng - 0.005},${lat - 0.005},${lng + 0.005},${lat + 0.005}&layer=mapnik&marker=${lat},${lng}`;
-                        })()}`}
-                      />
-                    </div>
-                  )}
+                  {selectedUnit.property.gps_location && (() => {
+                    const [lat, lng] = selectedUnit.property.gps_location!.split(',').map(s => parseFloat(s.trim()));
+                    if (isNaN(lat) || isNaN(lng)) return null;
+                    return (
+                      <div className="space-y-3">
+                        {/* Map + Street View toggle */}
+                        <TabsRoot defaultValue="map">
+                          <TabsList className="w-full">
+                            <TabsTrig value="map" className="flex-1"><MapPin className="h-3.5 w-3.5 mr-1" /> Map</TabsTrig>
+                            <TabsTrig value="street" className="flex-1"><Eye className="h-3.5 w-3.5 mr-1" /> Street View</TabsTrig>
+                          </TabsList>
+                          <TabsContent value="map">
+                            <div className="rounded-lg overflow-hidden border border-border">
+                              <iframe
+                                width="100%"
+                                height="200"
+                                style={{ border: 0 }}
+                                loading="lazy"
+                                src={`https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`}
+                              />
+                            </div>
+                          </TabsContent>
+                          <TabsContent value="street">
+                            <StreetViewEmbed lat={lat} lng={lng} height="200px" />
+                          </TabsContent>
+                        </TabsRoot>
+
+                        {/* Nearby amenities with distances */}
+                        <NearbyAmenities lat={lat} lng={lng} />
+                      </div>
+                    );
+                  })()}
                   <Button
                     className="w-full"
                     onClick={async () => {

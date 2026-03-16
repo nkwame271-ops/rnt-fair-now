@@ -221,6 +221,10 @@ const RegisterProperty = () => {
                   ghanaPostGps={ghanaPostGps}
                   onLocationChange={(loc) => {
                     setGpsLocation(loc ? `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}` : "");
+                    // Auto-fill address from reverse geocoding if available
+                    if (loc?.address && !address) {
+                      setAddress(loc.address);
+                    }
                   }}
                   onConfirmChange={(next) => setGpsConfirmed(!!next)}
                   onGhanaPostGpsChange={setGhanaPostGps}
