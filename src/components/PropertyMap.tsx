@@ -1,8 +1,6 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from "@react-google-maps/api";
-import { useState } from "react";
-
-const GOOGLE_MAPS_API_KEY = "AIzaSyBbj3EaLVeMViYbbn8Zrzgqu1qg4OMSLQ4";
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
 
 export interface MapMarker {
   lat: number;
@@ -29,7 +27,7 @@ const MARKER_COLORS: Record<string, string> = {
 };
 
 const PropertyMap = ({ markers, height = "400px", center, zoom = 7 }: PropertyMapProps) => {
-  const { isLoaded } = useJsApiLoader({ googleMapsApiKey: GOOGLE_MAPS_API_KEY });
+  const { isLoaded } = useJsApiLoader({ googleMapsApiKey: GOOGLE_MAPS_API_KEY, libraries: GOOGLE_MAPS_LIBRARIES });
   const [activeMarker, setActiveMarker] = useState<number | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
 

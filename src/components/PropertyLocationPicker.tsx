@@ -8,9 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { MapPin, Navigation, ChevronDown, Check, AlertTriangle, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { GHANA_REGIONS } from "@/lib/gpsUtils";
-
-const GOOGLE_MAPS_API_KEY = "AIzaSyBbj3EaLVeMViYbbn8Zrzgqu1qg4OMSLQ4";
-const libraries: ("places")[] = ["places"];
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
 
 interface LocationData {
   lat: number;
@@ -42,14 +40,16 @@ const PropertyLocationPicker = ({
   confirmed = false,
   required = false,
 }: Props) => {
-  const { isLoaded } = useJsApiLoader({ googleMapsApiKey: GOOGLE_MAPS_API_KEY, libraries });
+  const { isLoaded } = useJsApiLoader({ googleMapsApiKey: GOOGLE_MAPS_API_KEY, libraries: GOOGLE_MAPS_LIBRARIES });
 
   const [markerPos, setMarkerPos] = useState<{ lat: number; lng: number } | null>(null);
   const [manualLat, setManualLat] = useState("");
   const [manualLng, setManualLng] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
+  const [resolvedAddress, setResolvedAddress] = useState("");
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const geocoderRef = useRef<google.maps.Geocoder | null>(null);
 
   // Parse initial value
   useEffect(() => {
@@ -61,6 +61,19 @@ const PropertyLocationPicker = ({
         setManualLng(parts[1].toFixed(6));
       }
     }
+  }, []);
+
+  const reverseGeocode = useCallback((lat: number, lng: number) => {
+    if (!geocoderRef.current) {
+      geocoderRef.current = new google.maps.Geocoder();
+    }
+    geocoderRef.current.geocode({ location: { lat, lng } }, (results, status) => {
+      if (status === "OK" && results && results[0]) {
+        setResolvedAddress(results[0].formatted_address);
+      } else {
+        setResolvedAddress("");
+      }
+    });
   }, []);
 
   const getCenter = useCallback(() => {
@@ -84,7 +97,13 @@ const PropertyLocationPicker = ({
     setManualLng(lng.toFixed(6));
     onLocationChange({ lat, lng, address });
     if (onConfirmChange) onConfirmChange(false);
-  }, [onLocationChange, onConfirmChange]);
+    // Reverse geocode if no address provided
+    if (!address) {
+      reverseGeocode(lat, lng);
+    } else {
+      setResolvedAddress(address);
+    }
+  }, [onLocationChange, onConfirmChange, reverseGeocode]);
 
   const handleMapClick = useCallback((e: google.maps.MapMouseEvent) => {
     if (e.latLng) {
@@ -237,13 +256,18 @@ const PropertyLocationPicker = ({
         </div>
       )}
 
-      {/* Selected coordinates display + confirmation */}
+      {/* Selected coordinates display + resolved address + confirmation */}
       {markerPos ? (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
             <Check className="h-4 w-4" />
             <span>Pin placed: {markerPos.lat.toFixed(6)}, {markerPos.lng.toFixed(6)}</span>
           </div>
+          {resolvedAddress && (
+            <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+              📍 Resolved address: <strong>{resolvedAddress}</strong>
+            </div>
+          )}
           {onConfirmChange && (
             <label className="flex items-start gap-2.5 cursor-pointer bg-muted rounded-lg px-3 py-2.5 border border-border">
               <Checkbox checked={confirmed} onCheckedChange={(v) => onConfirmChange(!!v)} className="mt-0.5" />
