@@ -60,6 +60,10 @@ import EngineRoom from "./pages/regulator/EngineRoom";
 import RegulatorRentAssessments from "./pages/regulator/RegulatorRentAssessments";
 import RegulatorApplications from "./pages/regulator/RegulatorApplications";
 import RegulatorTerminations from "./pages/regulator/RegulatorTerminations";
+import TenantReceipts from "./pages/tenant/Receipts";
+import LandlordPaymentSettings from "./pages/landlord/PaymentSettings";
+import LandlordReceipts from "./pages/landlord/Receipts";
+import EscrowDashboard from "./pages/regulator/EscrowDashboard";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import NotFound from "./pages/NotFound";
@@ -97,6 +101,7 @@ const App = () => (
               <Route path="renewal" element={<RequestRenewal />} />
               <Route path="termination" element={<TenantTerminationRequest />} />
               <Route path="report-side-payment" element={<ReportSidePayment />} />
+              <Route path="receipts" element={<TenantReceipts />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
@@ -117,6 +122,8 @@ const App = () => (
               <Route path="complaints" element={<LandlordComplaints />} />
               <Route path="renewal-requests" element={<RenewalRequests />} />
               <Route path="termination" element={<LandlordTerminationRequest />} />
+              <Route path="payment-settings" element={<LandlordPaymentSettings />} />
+              <Route path="receipts" element={<LandlordReceipts />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="feedback" element={<LandlordFeedback />} />
             </Route>
@@ -133,6 +140,7 @@ const App = () => (
               <Route path="applications" element={<RegulatorApplications />} />
               <Route path="agreement-templates" element={<RegulatorAgreementTemplates />} />
               <Route path="analytics" element={<RegulatorAnalytics />} />
+              <Route path="escrow" element={<EscrowDashboard />} />
               <Route path="invite-staff" element={<InviteStaff />} />
               <Route path="kyc" element={<RegulatorKyc />} />
               <Route path="feedback" element={<RegulatorFeedback />} />

@@ -176,6 +176,95 @@ export type Database = {
         }
         Relationships: []
       }
+      escrow_splits: {
+        Row: {
+          amount: number
+          description: string | null
+          disbursement_status: string
+          escrow_transaction_id: string
+          id: string
+          recipient: string
+          released_at: string | null
+        }
+        Insert: {
+          amount: number
+          description?: string | null
+          disbursement_status?: string
+          escrow_transaction_id: string
+          id?: string
+          recipient: string
+          released_at?: string | null
+        }
+        Update: {
+          amount?: number
+          description?: string | null
+          disbursement_status?: string
+          escrow_transaction_id?: string
+          id?: string
+          recipient?: string
+          released_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "escrow_splits_escrow_transaction_id_fkey"
+            columns: ["escrow_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "escrow_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      escrow_transactions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          currency: string
+          id: string
+          metadata: Json | null
+          payment_type: string
+          paystack_transaction_id: string | null
+          reference: string | null
+          related_complaint_id: string | null
+          related_property_id: string | null
+          related_tenancy_id: string | null
+          status: string
+          total_amount: number
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          payment_type: string
+          paystack_transaction_id?: string | null
+          reference?: string | null
+          related_complaint_id?: string | null
+          related_property_id?: string | null
+          related_tenancy_id?: string | null
+          status?: string
+          total_amount: number
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          payment_type?: string
+          paystack_transaction_id?: string | null
+          reference?: string | null
+          related_complaint_id?: string | null
+          related_property_id?: string | null
+          related_tenancy_id?: string | null
+          status?: string
+          total_amount?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       feature_flags: {
         Row: {
           description: string | null
@@ -377,6 +466,48 @@ export type Database = {
         }
         Relationships: []
       }
+      landlord_payment_settings: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          bank_branch: string | null
+          bank_name: string | null
+          created_at: string
+          id: string
+          landlord_user_id: string
+          momo_number: string | null
+          momo_provider: string | null
+          payment_method: string
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          bank_branch?: string | null
+          bank_name?: string | null
+          created_at?: string
+          id?: string
+          landlord_user_id: string
+          momo_number?: string | null
+          momo_provider?: string | null
+          payment_method?: string
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          bank_branch?: string | null
+          bank_name?: string | null
+          created_at?: string
+          id?: string
+          landlord_user_id?: string
+          momo_number?: string | null
+          momo_provider?: string | null
+          payment_method?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       landlords: {
         Row: {
           compliance_score: number
@@ -483,6 +614,65 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      payment_receipts: {
+        Row: {
+          created_at: string
+          description: string | null
+          escrow_transaction_id: string | null
+          id: string
+          payer_email: string | null
+          payer_name: string | null
+          payment_type: string
+          qr_code_data: string | null
+          receipt_number: string
+          split_breakdown: Json | null
+          status: string
+          tenancy_id: string | null
+          total_amount: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          escrow_transaction_id?: string | null
+          id?: string
+          payer_email?: string | null
+          payer_name?: string | null
+          payment_type: string
+          qr_code_data?: string | null
+          receipt_number?: string
+          split_breakdown?: Json | null
+          status?: string
+          tenancy_id?: string | null
+          total_amount: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          escrow_transaction_id?: string | null
+          id?: string
+          payer_email?: string | null
+          payer_name?: string | null
+          payment_type?: string
+          qr_code_data?: string | null
+          receipt_number?: string
+          split_breakdown?: Json | null
+          status?: string
+          tenancy_id?: string | null
+          total_amount?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_receipts_escrow_transaction_id_fkey"
+            columns: ["escrow_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "escrow_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1464,6 +1654,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_receipt_number: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

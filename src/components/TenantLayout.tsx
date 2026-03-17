@@ -31,6 +31,7 @@ const navItems = [
   { to: "/tenant/file-complaint", label: "File Complaint", icon: FileText },
   { to: "/tenant/my-cases", label: "My Cases", icon: Briefcase },
   { to: "/tenant/payments", label: "Payments", icon: CreditCard },
+  { to: "/tenant/receipts", label: "Receipts", icon: FileText },
   { to: "/tenant/my-agreements", label: "Agreements", icon: FileText },
   { to: "/tenant/legal-assistant", label: "Legal Assistant", icon: MessageSquare },
   { to: "/tenant/renewal", label: "Renewal", icon: RefreshCw },
