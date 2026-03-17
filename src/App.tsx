@@ -116,6 +116,7 @@ const App = () => (
               <Route path="applications" element={<LandlordApplications />} />
               <Route path="complaints" element={<LandlordComplaints />} />
               <Route path="renewal-requests" element={<RenewalRequests />} />
+              <Route path="termination" element={<LandlordTerminationRequest />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="feedback" element={<LandlordFeedback />} />
             </Route>
