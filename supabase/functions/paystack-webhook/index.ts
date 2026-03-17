@@ -179,6 +179,102 @@ Deno.serve(async (req) => {
       if (error) console.error("Viewing fee update error:", error.message);
       else console.log("Viewing request activated:", viewingRequestId);
 
+    } else if (reference.startsWith("renew_")) {
+      // Renewal payment: reference = renew_<tenancyId>_<timestamp>
+      const parts = reference.split("_");
+      const tenancyId = parts[1];
+
+      // Get old tenancy
+      const { data: oldTenancy } = await supabase
+        .from("tenancies")
+        .select("*")
+        .eq("id", tenancyId)
+        .single();
+
+      if (oldTenancy) {
+        const rent = Number(oldTenancy.proposed_rent ?? oldTenancy.agreed_rent);
+        const months = oldTenancy.renewal_duration_months ?? 12;
+        const advanceMonths = Math.min(oldTenancy.advance_months ?? 6, 6);
+
+        const newStart = new Date(oldTenancy.end_date);
+        const newEnd = new Date(newStart);
+        newEnd.setMonth(newEnd.getMonth() + months);
+
+        // Create new tenancy
+        const { data: newTenancy, error: insertErr } = await supabase
+          .from("tenancies")
+          .insert({
+            tenant_user_id: oldTenancy.tenant_user_id,
+            landlord_user_id: oldTenancy.landlord_user_id,
+            unit_id: oldTenancy.unit_id,
+            agreed_rent: rent,
+            advance_months: advanceMonths,
+            start_date: newStart.toISOString().split("T")[0],
+            end_date: newEnd.toISOString().split("T")[0],
+            move_in_date: newStart.toISOString().split("T")[0],
+            tenant_id_code: oldTenancy.tenant_id_code,
+            registration_code: `REN-${oldTenancy.registration_code}`,
+            status: "active",
+            tenancy_type: "renewal",
+            previous_tenancy_id: tenancyId,
+            tenant_accepted: true,
+            landlord_accepted: true,
+          })
+          .select("id")
+          .single();
+
+        if (insertErr) {
+          console.error("Renewal tenancy creation error:", insertErr.message);
+        } else {
+          // Mark old tenancy as expired
+          await supabase
+            .from("tenancies")
+            .update({ status: "expired" })
+            .eq("id", tenancyId);
+
+          // Generate rent payment schedule for new tenancy
+          const payments = [];
+          for (let i = 0; i < months; i++) {
+            const dueDate = new Date(newStart);
+            dueDate.setMonth(dueDate.getMonth() + i);
+            const taxAmount = rent * 0.08;
+            payments.push({
+              tenancy_id: newTenancy!.id,
+              due_date: dueDate.toISOString().split("T")[0],
+              month_label: dueDate.toLocaleString("en-GB", { month: "long", year: "numeric" }),
+              monthly_rent: rent,
+              tax_amount: taxAmount,
+              amount_to_landlord: rent,
+              status: i < advanceMonths ? "tenant_paid" : "pending",
+              tenant_marked_paid: i < advanceMonths,
+            });
+          }
+
+          if (payments.length > 0) {
+            await supabase.from("rent_payments").insert(payments);
+          }
+
+          // Notify both parties
+          await supabase.from("notifications").insert([
+            {
+              user_id: oldTenancy.tenant_user_id,
+              title: "Tenancy Renewed!",
+              body: `Your tenancy has been renewed at GH₵ ${rent.toLocaleString()}/month for ${months} months.`,
+              link: "/tenant/dashboard",
+            },
+            {
+              user_id: oldTenancy.landlord_user_id,
+              title: "Tenancy Renewed",
+              body: `Tenancy ${oldTenancy.registration_code} has been renewed for ${months} months.`,
+              link: "/landlord/dashboard",
+            },
+          ]);
+
+          console.log("Renewal completed. New tenancy:", newTenancy!.id);
+          await sendPaymentSms(oldTenancy.tenant_user_id, amountPaid, "Tenancy renewal", reference);
+        }
+      }
+
     } else {
       console.log("Unknown reference format:", reference);
     }

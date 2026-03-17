@@ -190,6 +190,29 @@ Deno.serve(async (req) => {
       reference = `view_${viewingRequestId}`;
       callbackPath = "/tenant/marketplace?status=viewing_paid";
 
+    } else if (type === "renewal_payment") {
+      const { tenancyId } = body;
+      if (!tenancyId) throw new Error("tenancyId is required");
+
+      const { data: tenancy, error: tErr } = await supabase
+        .from("tenancies")
+        .select("id, tenant_user_id, registration_code, proposed_rent, agreed_rent, renewal_duration_months, advance_months")
+        .eq("id", tenancyId)
+        .single();
+
+      if (tErr || !tenancy) throw new Error("Tenancy not found");
+      if ((tenancy as any).tenant_user_id !== userId) throw new Error("Unauthorized");
+
+      const rent = Number((tenancy as any).proposed_rent ?? (tenancy as any).agreed_rent);
+      const months = (tenancy as any).renewal_duration_months ?? 12;
+      const advanceMonths = Math.min((tenancy as any).advance_months ?? 6, 6);
+
+      // Tax on advance
+      totalAmount = rent * advanceMonths * 0.08;
+      description = `Renewal tax (${advanceMonths} months advance) - ${(tenancy as any).registration_code}`;
+      reference = `renew_${tenancyId}_${Date.now()}`;
+      callbackPath = "/tenant/renewal?status=success";
+
     } else {
       throw new Error("Invalid payment type");
     }

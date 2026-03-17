@@ -12,6 +12,7 @@ import {
   UserCircle,
   MessageSquare,
   MessageCircle,
+  RefreshCw,
   ClipboardList,
   AlertTriangle,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const navItems = [
   { to: "/landlord/complaints", label: "Complaints", icon: AlertTriangle },
   { to: "/landlord/viewing-requests", label: "Viewing Requests", icon: Eye },
   { to: "/landlord/rental-applications", label: "Rental Applications", icon: FileText },
+  { to: "/landlord/renewal-requests", label: "Renewal Requests", icon: RefreshCw },
   { to: "/landlord/messages", label: "Messages", icon: MessageCircle },
   { to: "/landlord/profile", label: "My Profile", icon: UserCircle },
   { to: "/landlord/feedback", label: "Beta Feedback", icon: MessageSquare },

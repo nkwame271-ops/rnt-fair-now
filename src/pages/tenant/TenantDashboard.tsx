@@ -175,16 +175,13 @@ const TenantDashboard = () => {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold text-foreground">Your Tenancy Card</h2>
-              <div className="flex gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="outline" disabled>
-                      <RefreshCw className="h-3.5 w-3.5 mr-1" /> Request Renewal
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Renewal requests coming in Phase 2</TooltipContent>
-                </Tooltip>
-              </div>
+               <div className="flex gap-2">
+                 <Link to="/tenant/renewal">
+                   <Button size="sm" variant="outline">
+                     <RefreshCw className="h-3.5 w-3.5 mr-1" /> Request Renewal
+                   </Button>
+                 </Link>
+               </div>
             </div>
             <TenancyCard data={tenancyCardData} />
           </div>

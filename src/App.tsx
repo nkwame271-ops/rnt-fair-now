@@ -23,6 +23,7 @@ import LegalAssistant from "./pages/tenant/LegalAssistant";
 import MyAgreements from "./pages/tenant/MyAgreements";
 import TenantPreferences from "./pages/tenant/Preferences";
 import TenantMessages from "./pages/tenant/Messages";
+import RequestRenewal from "./pages/tenant/RequestRenewal";
 import LandlordLayout from "./components/LandlordLayout";
 import LandlordDashboard from "./pages/landlord/LandlordDashboard";
 import MyProperties from "./pages/landlord/MyProperties";
@@ -38,6 +39,7 @@ import LandlordApplications from "./pages/landlord/LandlordApplications";
 import LandlordComplaints from "./pages/landlord/LandlordComplaints";
 import RentalApplications from "./pages/landlord/RentalApplications";
 import DeclareExistingTenancy from "./pages/landlord/DeclareExistingTenancy";
+import RenewalRequests from "./pages/landlord/RenewalRequests";
 import RegulatorDashboard from "./pages/regulator/RegulatorDashboard";
 import RegulatorTenants from "./pages/regulator/RegulatorTenants";
 import RegulatorLandlords from "./pages/regulator/RegulatorLandlords";
@@ -88,6 +90,7 @@ const App = () => (
               <Route path="legal-assistant" element={<LegalAssistant />} />
               <Route path="preferences" element={<TenantPreferences />} />
               <Route path="messages" element={<TenantMessages />} />
+              <Route path="renewal" element={<RequestRenewal />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
@@ -106,6 +109,7 @@ const App = () => (
               <Route path="rental-applications" element={<RentalApplications />} />
               <Route path="applications" element={<LandlordApplications />} />
               <Route path="complaints" element={<LandlordComplaints />} />
+              <Route path="renewal-requests" element={<RenewalRequests />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="feedback" element={<LandlordFeedback />} />
             </Route>
