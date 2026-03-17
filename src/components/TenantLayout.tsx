@@ -8,6 +8,7 @@ import {
   CreditCard,
   MessageSquare,
   MessageCircle,
+  RefreshCw,
   LogOut,
   Shield,
   Menu,
