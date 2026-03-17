@@ -1,6 +1,39 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createHmac } from "node:crypto";
 
+// Split rules (must match checkout)
+const SPLIT_RULES: Record<string, { splits: { recipient: string; amount: number; description: string }[] }> = {
+  tenant_registration: {
+    splits: [
+      { recipient: "rent_control", amount: 15, description: "Rent Control registration fee" },
+      { recipient: "admin", amount: 15, description: "Admin registration fee" },
+      { recipient: "platform", amount: 10, description: "Platform fee" },
+    ],
+  },
+  landlord_registration: {
+    splits: [
+      { recipient: "rent_control", amount: 13, description: "Rent Control registration fee" },
+      { recipient: "admin", amount: 7, description: "Admin registration fee" },
+      { recipient: "platform", amount: 10, description: "Platform fee" },
+    ],
+  },
+  rent_card: {
+    splits: [
+      { recipient: "rent_control", amount: 15, description: "Rent Control - Rent Card" },
+      { recipient: "admin", amount: 10, description: "Admin - Rent Card" },
+    ],
+  },
+  agreement_sale: {
+    splits: [
+      { recipient: "rent_control", amount: 10, description: "Rent Control - Agreement" },
+      { recipient: "admin", amount: 20, description: "Admin - Agreement" },
+    ],
+  },
+  complaint_fee: { splits: [{ recipient: "platform", amount: 2, description: "Complaint filing fee" }] },
+  listing_fee: { splits: [{ recipient: "platform", amount: 2, description: "Listing fee" }] },
+  viewing_fee: { splits: [{ recipient: "platform", amount: 2, description: "Viewing fee" }] },
+};
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return new Response("OK", { status: 200 });
@@ -14,7 +47,6 @@ Deno.serve(async (req) => {
     }
 
     const rawBody = await req.text();
-
     const signature = req.headers.get("x-paystack-signature");
     const hash = createHmac("sha512", PAYSTACK_SECRET_KEY).update(rawBody).digest("hex");
 
@@ -27,7 +59,6 @@ Deno.serve(async (req) => {
     console.log("Paystack webhook event:", body.event);
 
     if (body.event !== "charge.success") {
-      console.log("Ignoring event:", body.event);
       return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
     }
 
@@ -41,35 +72,91 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Helper to send SMS via edge function
-    const sendPaymentSms = async (userId: string, amount: number, description: string, ref: string) => {
+    // ── Helper: Complete escrow + create splits + generate receipt ──
+    const completeEscrow = async (ref: string, userId: string, paymentType: string, totalAmt: number, splits: { recipient: string; amount: number; description: string }[], tenancyId?: string) => {
       try {
-        const { data: profile } = await supabase.from("profiles").select("phone").eq("user_id", userId).single();
-        if (profile?.phone) {
-          let normalizedPhone = profile.phone.replace(/\s/g, "").replace(/^0/, "233");
-          if (!normalizedPhone.startsWith("233")) normalizedPhone = "233" + normalizedPhone;
-          
-          const ARKESEL_API_KEY = Deno.env.get("ARKESEL_API_KEY");
-          if (ARKESEL_API_KEY) {
-            const params = new URLSearchParams({
-              action: "send-sms",
-              api_key: ARKESEL_API_KEY,
-              to: normalizedPhone,
-              from: "RentGhana",
-              sms: `RentGhana: Your payment of GH₵ ${amount.toFixed(2)} for ${description} has been confirmed. Reference: ${ref}. Thank you!`,
-            });
-            await fetch(`https://sms.arkesel.com/sms/api?${params.toString()}`);
-          }
+        // Update escrow transaction
+        const { data: escrowTx } = await supabase
+          .from("escrow_transactions")
+          .update({ status: "completed", completed_at: new Date().toISOString(), paystack_transaction_id: transactionId })
+          .eq("reference", ref)
+          .select("id")
+          .maybeSingle();
+
+        const escrowId = escrowTx?.id;
+
+        // Insert splits
+        if (escrowId && splits.length > 0) {
+          await supabase.from("escrow_splits").insert(
+            splits.map(s => ({
+              escrow_transaction_id: escrowId,
+              recipient: s.recipient,
+              amount: s.amount,
+              description: s.description,
+              disbursement_status: s.recipient === "landlord" ? "held" : "released",
+              released_at: s.recipient !== "landlord" ? new Date().toISOString() : null,
+            }))
+          );
         }
+
+        // Get payer info
+        const { data: profile } = await supabase.from("profiles").select("full_name, email").eq("user_id", userId).single();
+
+        // Generate receipt
+        const splitBreakdown = splits.map(s => ({ recipient: s.recipient, amount: s.amount }));
+        const receiptData = {
+          escrow_transaction_id: escrowId,
+          user_id: userId,
+          payer_name: profile?.full_name || "Customer",
+          payer_email: profile?.email || "",
+          total_amount: totalAmt,
+          payment_type: paymentType,
+          description: `Payment for ${paymentType.replace(/_/g, " ")}`,
+          split_breakdown: splitBreakdown,
+          tenancy_id: tenancyId || null,
+          qr_code_data: `${Deno.env.get("SUPABASE_URL")}/verify-receipt?ref=${ref}`,
+          status: "active",
+        };
+
+        const { data: receipt } = await supabase.from("payment_receipts").insert(receiptData).select("receipt_number").single();
+        return receipt?.receipt_number || ref;
       } catch (e) {
-        console.error("SMS send error:", e);
+        console.error("Escrow completion error:", e);
+        return ref;
       }
     };
 
+    // ── Helper: Send SMS ──
+    const sendPaymentSms = async (userId: string, amount: number, description: string, receiptNo: string) => {
+      try {
+        const { data: profile } = await supabase.from("profiles").select("phone").eq("user_id", userId).single();
+        if (profile?.phone) {
+          let phone = profile.phone.replace(/\s/g, "").replace(/^0/, "233");
+          if (!phone.startsWith("233")) phone = "233" + phone;
+
+          const ARKESEL_API_KEY = Deno.env.get("ARKESEL_API_KEY");
+          if (ARKESEL_API_KEY) {
+            await fetch("https://api.arkesel.com/api/v2/sms/send", {
+              method: "POST",
+              headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sender: "RentGhana",
+                message: `RentGhana: Payment of GH₵ ${amount.toFixed(2)} for ${description} confirmed. Receipt: ${receiptNo}. Thank you!`,
+                recipients: [phone],
+              }),
+            });
+          }
+        }
+      } catch (e) {
+        console.error("SMS error:", e);
+      }
+    };
+
+    // ── Determine payment type from reference and process ──
+    const metadataType = data.metadata?.type || "";
+
     if (reference.startsWith("rentbulk_")) {
-      // Bulk advance tax payment: reference = rentbulk_<tenancyId>_<timestamp>
-      const parts = reference.split("_");
-      const tenancyId = parts[1];
+      const tenancyId = reference.split("_")[1];
 
       const { error } = await supabase
         .from("rent_payments")
@@ -84,11 +171,12 @@ Deno.serve(async (req) => {
         .eq("tenant_marked_paid", false);
 
       if (error) console.error("Bulk rent payment update error:", error.message);
-      else {
-        console.log("Bulk rent payments confirmed for tenancy:", tenancyId);
-        const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", tenancyId).single();
-        if (tenancy) await sendPaymentSms(tenancy.tenant_user_id, amountPaid, "Bulk advance rent tax", reference);
-      }
+
+      const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", tenancyId).single();
+      const userId = tenancy?.tenant_user_id || data.metadata?.userId;
+      const splits = [{ recipient: "rent_control", amount: amountPaid, description: "Rent tax (bulk advance)" }];
+      const receiptNo = await completeEscrow(reference, userId, "rent_tax_bulk", amountPaid, splits, tenancyId);
+      if (userId) await sendPaymentSms(userId, amountPaid, "Bulk advance rent tax", receiptNo);
 
     } else if (reference.startsWith("rent_")) {
       const paymentId = reference.replace("rent_", "");
@@ -105,18 +193,39 @@ Deno.serve(async (req) => {
         .eq("id", paymentId);
 
       if (error) console.error("Rent payment update error:", error.message);
-      else {
-        console.log("Rent payment confirmed:", paymentId);
-        const { data: payment } = await supabase.from("rent_payments").select("tenancy_id").eq("id", paymentId).single();
-        if (payment) {
-          const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", payment.tenancy_id).single();
-          if (tenancy) await sendPaymentSms(tenancy.tenant_user_id, amountPaid, "Rent tax payment", reference);
-        }
+
+      const { data: payment } = await supabase.from("rent_payments").select("tenancy_id").eq("id", paymentId).single();
+      const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", payment?.tenancy_id).single();
+      const userId = tenancy?.tenant_user_id || data.metadata?.userId;
+      const splits = [{ recipient: "rent_control", amount: amountPaid, description: "Rent tax" }];
+      const receiptNo = await completeEscrow(reference, userId, "rent_tax", amountPaid, splits, payment?.tenancy_id);
+      if (userId) await sendPaymentSms(userId, amountPaid, "Rent tax payment", receiptNo);
+
+    } else if (reference.startsWith("rentpay_")) {
+      const tenancyId = reference.split("_")[1];
+      const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", tenancyId).single();
+      const userId = tenancy?.tenant_user_id || data.metadata?.userId;
+      const splits = [{ recipient: "landlord", amount: amountPaid, description: "Monthly rent (held in escrow)" }];
+      const receiptNo = await completeEscrow(reference, userId, "rent_payment", amountPaid, splits, tenancyId);
+      if (userId) await sendPaymentSms(userId, amountPaid, "Monthly rent", receiptNo);
+
+    } else if (reference.startsWith("rentcombo_")) {
+      const tenancyId = reference.split("_")[1];
+      const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id, agreed_rent, unit_id").eq("id", tenancyId).single();
+      const userId = tenancy?.tenant_user_id || data.metadata?.userId;
+
+      // Determine tax from escrow metadata
+      const { data: escrowTx } = await supabase.from("escrow_transactions").select("metadata").eq("reference", reference).single();
+      const splitPlan = (escrowTx?.metadata as any)?.split_plan || [];
+
+      if (splitPlan.length > 0) {
+        const receiptNo = await completeEscrow(reference, userId, "rent_combined", amountPaid, splitPlan, tenancyId);
+        if (userId) await sendPaymentSms(userId, amountPaid, "Rent + Tax combined", receiptNo);
       }
 
     } else if (reference.startsWith("treg_")) {
       const userId = reference.split("_")[1];
-      const { error } = await supabase
+      await supabase
         .from("tenants")
         .update({
           registration_fee_paid: true,
@@ -125,15 +234,12 @@ Deno.serve(async (req) => {
         })
         .eq("user_id", userId);
 
-      if (error) console.error("Tenant reg update error:", error.message);
-      else {
-        console.log("Tenant registration confirmed:", userId);
-        await sendPaymentSms(userId, amountPaid, "Tenant registration fee", reference);
-      }
+      const receiptNo = await completeEscrow(reference, userId, "tenant_registration", amountPaid, SPLIT_RULES.tenant_registration.splits);
+      await sendPaymentSms(userId, amountPaid, "Tenant registration", receiptNo);
 
     } else if (reference.startsWith("lreg_")) {
       const userId = reference.split("_")[1];
-      const { error } = await supabase
+      await supabase
         .from("landlords")
         .update({
           registration_fee_paid: true,
@@ -142,54 +248,42 @@ Deno.serve(async (req) => {
         })
         .eq("user_id", userId);
 
-      if (error) console.error("Landlord reg update error:", error.message);
-      else {
-        console.log("Landlord registration confirmed:", userId);
-        await sendPaymentSms(userId, amountPaid, "Landlord registration fee", reference);
-      }
+      const receiptNo = await completeEscrow(reference, userId, "landlord_registration", amountPaid, SPLIT_RULES.landlord_registration.splits);
+      await sendPaymentSms(userId, amountPaid, "Landlord registration", receiptNo);
+
+    } else if (reference.startsWith("rcard_")) {
+      const userId = reference.split("_")[1];
+      await supabase.from("landlords").update({ rent_card_delivery_requested: true }).eq("user_id", userId);
+      const receiptNo = await completeEscrow(reference, userId, "rent_card", amountPaid, SPLIT_RULES.rent_card.splits);
+      await sendPaymentSms(userId, amountPaid, "Rent Card purchase", receiptNo);
+
+    } else if (reference.startsWith("agrsale_")) {
+      const userId = data.metadata?.userId || "";
+      const receiptNo = await completeEscrow(reference, userId, "agreement_sale", amountPaid, SPLIT_RULES.agreement_sale.splits);
+      await sendPaymentSms(userId, amountPaid, "Agreement form purchase", receiptNo);
 
     } else if (reference.startsWith("comp_")) {
       const complaintId = reference.replace("comp_", "");
-      const { error } = await supabase
-        .from("complaints")
-        .update({ status: "submitted" })
-        .eq("id", complaintId);
-
-      if (error) console.error("Complaint update error:", error.message);
-      else console.log("Complaint fee confirmed:", complaintId);
+      await supabase.from("complaints").update({ status: "submitted" }).eq("id", complaintId);
+      const userId = data.metadata?.userId || "";
+      const receiptNo = await completeEscrow(reference, userId, "complaint_fee", amountPaid, SPLIT_RULES.complaint_fee.splits);
 
     } else if (reference.startsWith("list_")) {
       const propertyId = reference.split("_")[1];
-      const { error } = await supabase
-        .from("properties")
-        .update({ listed_on_marketplace: true })
-        .eq("id", propertyId);
-
-      if (error) console.error("Listing fee update error:", error.message);
-      else console.log("Property listed on marketplace:", propertyId);
+      await supabase.from("properties").update({ listed_on_marketplace: true }).eq("id", propertyId);
+      const userId = data.metadata?.userId || "";
+      const receiptNo = await completeEscrow(reference, userId, "listing_fee", amountPaid, SPLIT_RULES.listing_fee.splits);
 
     } else if (reference.startsWith("view_")) {
       const viewingRequestId = reference.replace("view_", "");
-      const { error } = await supabase
-        .from("viewing_requests")
-        .update({ status: "pending" })
-        .eq("id", viewingRequestId)
-        .eq("status", "awaiting_payment");
-
-      if (error) console.error("Viewing fee update error:", error.message);
-      else console.log("Viewing request activated:", viewingRequestId);
+      await supabase.from("viewing_requests").update({ status: "pending" }).eq("id", viewingRequestId).eq("status", "awaiting_payment");
+      const userId = data.metadata?.userId || "";
+      const receiptNo = await completeEscrow(reference, userId, "viewing_fee", amountPaid, SPLIT_RULES.viewing_fee.splits);
 
     } else if (reference.startsWith("renew_")) {
-      // Renewal payment: reference = renew_<tenancyId>_<timestamp>
-      const parts = reference.split("_");
-      const tenancyId = parts[1];
+      const tenancyId = reference.split("_")[1];
 
-      // Get old tenancy
-      const { data: oldTenancy } = await supabase
-        .from("tenancies")
-        .select("*")
-        .eq("id", tenancyId)
-        .single();
+      const { data: oldTenancy } = await supabase.from("tenancies").select("*").eq("id", tenancyId).single();
 
       if (oldTenancy) {
         const rent = Number(oldTenancy.proposed_rent ?? oldTenancy.agreed_rent);
@@ -200,7 +294,6 @@ Deno.serve(async (req) => {
         const newEnd = new Date(newStart);
         newEnd.setMonth(newEnd.getMonth() + months);
 
-        // Create new tenancy
         const { data: newTenancy, error: insertErr } = await supabase
           .from("tenancies")
           .insert({
@@ -223,23 +316,16 @@ Deno.serve(async (req) => {
           .select("id")
           .single();
 
-        if (insertErr) {
-          console.error("Renewal tenancy creation error:", insertErr.message);
-        } else {
-          // Mark old tenancy as expired
-          await supabase
-            .from("tenancies")
-            .update({ status: "expired" })
-            .eq("id", tenancyId);
+        if (!insertErr && newTenancy) {
+          await supabase.from("tenancies").update({ status: "expired" }).eq("id", tenancyId);
 
-          // Generate rent payment schedule for new tenancy
           const payments = [];
           for (let i = 0; i < months; i++) {
             const dueDate = new Date(newStart);
             dueDate.setMonth(dueDate.getMonth() + i);
             const taxAmount = rent * 0.08;
             payments.push({
-              tenancy_id: newTenancy!.id,
+              tenancy_id: newTenancy.id,
               due_date: dueDate.toISOString().split("T")[0],
               month_label: dueDate.toLocaleString("en-GB", { month: "long", year: "numeric" }),
               monthly_rent: rent,
@@ -250,39 +336,24 @@ Deno.serve(async (req) => {
             });
           }
 
-          if (payments.length > 0) {
-            await supabase.from("rent_payments").insert(payments);
-          }
+          if (payments.length > 0) await supabase.from("rent_payments").insert(payments);
 
-          // Notify both parties
           await supabase.from("notifications").insert([
-            {
-              user_id: oldTenancy.tenant_user_id,
-              title: "Tenancy Renewed!",
-              body: `Your tenancy has been renewed at GH₵ ${rent.toLocaleString()}/month for ${months} months.`,
-              link: "/tenant/dashboard",
-            },
-            {
-              user_id: oldTenancy.landlord_user_id,
-              title: "Tenancy Renewed",
-              body: `Tenancy ${oldTenancy.registration_code} has been renewed for ${months} months.`,
-              link: "/landlord/dashboard",
-            },
+            { user_id: oldTenancy.tenant_user_id, title: "Tenancy Renewed!", body: `Your tenancy has been renewed at GH₵ ${rent.toLocaleString()}/month for ${months} months.`, link: "/tenant/dashboard" },
+            { user_id: oldTenancy.landlord_user_id, title: "Tenancy Renewed", body: `Tenancy ${oldTenancy.registration_code} has been renewed for ${months} months.`, link: "/landlord/dashboard" },
           ]);
-
-          console.log("Renewal completed. New tenancy:", newTenancy!.id);
-          await sendPaymentSms(oldTenancy.tenant_user_id, amountPaid, "Tenancy renewal", reference);
         }
+
+        const splits = [{ recipient: "rent_control", amount: amountPaid, description: `Renewal tax (${advanceMonths} months)` }];
+        const receiptNo = await completeEscrow(reference, oldTenancy.tenant_user_id, "renewal_payment", amountPaid, splits, tenancyId);
+        await sendPaymentSms(oldTenancy.tenant_user_id, amountPaid, "Tenancy renewal", receiptNo);
       }
 
     } else {
       console.log("Unknown reference format:", reference);
     }
 
-    return new Response(JSON.stringify({ status: "ok" }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (error: any) {
     console.error("Webhook error:", error.message);
     return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
