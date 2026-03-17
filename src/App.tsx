@@ -23,6 +23,7 @@ import LegalAssistant from "./pages/tenant/LegalAssistant";
 import MyAgreements from "./pages/tenant/MyAgreements";
 import TenantPreferences from "./pages/tenant/Preferences";
 import TenantMessages from "./pages/tenant/Messages";
+import RequestRenewal from "./pages/tenant/RequestRenewal";
 import LandlordLayout from "./components/LandlordLayout";
 import LandlordDashboard from "./pages/landlord/LandlordDashboard";
 import MyProperties from "./pages/landlord/MyProperties";
