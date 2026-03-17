@@ -121,10 +121,12 @@ export type Database = {
       }
       complaints: {
         Row: {
+          audio_url: string | null
           complaint_code: string
           complaint_type: string
           created_at: string
           description: string
+          evidence_urls: string[] | null
           gps_confirmed: boolean
           gps_confirmed_at: string | null
           gps_location: string | null
@@ -137,10 +139,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audio_url?: string | null
           complaint_code: string
           complaint_type: string
           created_at?: string
           description: string
+          evidence_urls?: string[] | null
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
@@ -153,10 +157,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audio_url?: string | null
           complaint_code?: string
           complaint_type?: string
           created_at?: string
           description?: string
+          evidence_urls?: string[] | null
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null

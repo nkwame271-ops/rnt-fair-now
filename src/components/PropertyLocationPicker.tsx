@@ -163,6 +163,74 @@ const PropertyLocationPicker = ({
     );
   }
 
+  // Check for Google Maps load errors by wrapping the map with an error boundary fallback
+  const mapLoadError = typeof google === "undefined" || !google?.maps;
+
+  if (mapLoadError) {
+    return (
+      <div className="space-y-3">
+        <Label className="flex items-center gap-1.5">
+          <MapPin className="h-3.5 w-3.5" /> Property Location
+          {required && <span className="text-destructive">*</span>}
+        </Label>
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 space-y-3">
+          <div className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Google Maps could not load</p>
+              <p className="text-xs mt-1">This may be due to network issues or API configuration. You can still set the property location using manual coordinates below.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Manual coordinate entry as fallback */}
+        <div className="space-y-3">
+          <div className="flex gap-2 items-end">
+            <div className="space-y-1 flex-1">
+              <Label className="text-xs">Latitude</Label>
+              <Input type="number" step="any" value={manualLat} onChange={(e) => setManualLat(e.target.value)} placeholder="e.g. 5.614818" />
+            </div>
+            <div className="space-y-1 flex-1">
+              <Label className="text-xs">Longitude</Label>
+              <Input type="number" step="any" value={manualLng} onChange={(e) => setManualLng(e.target.value)} placeholder="e.g. -0.205874" />
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={handleManualApply}>Apply</Button>
+          </div>
+        </div>
+
+        {/* GhanaPost GPS Code */}
+        {onGhanaPostGpsChange && (
+          <div className="space-y-1">
+            <Label className="text-xs flex items-center gap-1.5">
+              <Globe className="h-3.5 w-3.5" /> GhanaPost GPS Code (optional)
+            </Label>
+            <Input
+              value={ghanaPostGps}
+              onChange={(e) => onGhanaPostGpsChange(e.target.value.toUpperCase())}
+              placeholder="e.g. GA-123-4567"
+              className="text-sm font-mono"
+              maxLength={20}
+            />
+          </div>
+        )}
+
+        {markerPos && (
+          <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+            <Check className="h-4 w-4" />
+            <span>Coordinates set: {markerPos.lat.toFixed(6)}, {markerPos.lng.toFixed(6)}</span>
+          </div>
+        )}
+
+        {onConfirmChange && markerPos && (
+          <label className="flex items-start gap-2.5 cursor-pointer bg-muted rounded-lg px-3 py-2.5 border border-border">
+            <Checkbox checked={confirmed} onCheckedChange={(v) => onConfirmChange(!!v)} className="mt-0.5" />
+            <span className="text-sm">I confirm these coordinates represent the <strong>property's physical location</strong>.</span>
+          </label>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <Label className="flex items-center gap-1.5">

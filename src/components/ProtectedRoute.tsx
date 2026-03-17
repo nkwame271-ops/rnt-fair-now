@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, CreditCard, Shield, FileText, Store, AlertTriangle, CheckCircle2, IdCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,7 @@ interface ProtectedRouteProps {
 }
 
 const registrationBenefits = [
-  { icon: Store, label: "Marketplace access" },
   { icon: IdCard, label: "Tenant or Landlord ID card" },
-  { icon: CreditCard, label: "Rent card" },
-  { icon: AlertTriangle, label: "Complaint system" },
-  { icon: FileText, label: "Tenancy agreement management" },
   { icon: Shield, label: "12-month platform access" },
 ];
 
@@ -25,6 +21,17 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [checkingFee, setCheckingFee] = useState(true);
   const [feePaid, setFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
+  const [paymentPending, setPaymentPending] = useState(false);
+
+  const checkRegistration = useCallback(async (userId: string, userRole: string) => {
+    const table = userRole === "tenant" ? "tenants" : "landlords";
+    const { data } = await supabase
+      .from(table)
+      .select("registration_fee_paid")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return data?.registration_fee_paid ?? false;
+  }, []);
 
   useEffect(() => {
     if (!user || !role || role === "regulator") {
@@ -32,29 +39,54 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
       return;
     }
 
-    const checkRegistration = async () => {
-      const table = role === "tenant" ? "tenants" : "landlords";
-      const { data } = await supabase
-        .from(table)
-        .select("registration_fee_paid")
-        .eq("user_id", user.id)
-        .maybeSingle();
+    const params = new URLSearchParams(window.location.search);
+    const isPaymentReturn = params.has("trxref") || params.has("reference") || params.get("status") === "success";
 
-      setFeePaid(data?.registration_fee_paid ?? false);
+    const run = async () => {
+      const paid = await checkRegistration(user.id, role);
+
+      if (paid) {
+        setFeePaid(true);
+        setCheckingFee(false);
+        if (isPaymentReturn) {
+          toast.success("Payment confirmed! Welcome.");
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+        return;
+      }
+
+      // If returning from payment, poll for confirmation
+      if (isPaymentReturn) {
+        setPaymentPending(true);
+        setCheckingFee(false);
+        window.history.replaceState({}, "", window.location.pathname);
+
+        let attempts = 0;
+        const maxAttempts = 10;
+        const interval = setInterval(async () => {
+          attempts++;
+          const nowPaid = await checkRegistration(user.id, role);
+          if (nowPaid) {
+            clearInterval(interval);
+            setFeePaid(true);
+            setPaymentPending(false);
+            toast.success("Payment confirmed! Welcome.");
+          } else if (attempts >= maxAttempts) {
+            clearInterval(interval);
+            setPaymentPending(false);
+            setFeePaid(false);
+          }
+        }, 3000);
+
+        return () => clearInterval(interval);
+      }
+
+      setFeePaid(false);
       setCheckingFee(false);
     };
 
-    checkRegistration();
-
-    // Check on return from payment
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("status") === "success") {
-      toast.success("Payment processing! It may take a moment to confirm.");
-      window.history.replaceState({}, "", window.location.pathname);
-      // Re-check after delay
-      setTimeout(() => checkRegistration(), 3000);
-    }
-  }, [user, role]);
+    run();
+  }, [user, role, checkRegistration]);
 
   if (loading || checkingFee) {
     return (
@@ -70,6 +102,26 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
 
   if (requiredRole && role !== requiredRole) {
     return <Navigate to="/" replace />;
+  }
+
+  // Show "confirming payment" screen while polling
+  if (paymentPending) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="max-w-md w-full text-center space-y-6">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">Confirming Your Payment</h1>
+          <p className="text-muted-foreground">
+            We're verifying your registration payment. This usually takes a few seconds...
+          </p>
+          <div className="h-2 bg-muted rounded-full overflow-hidden max-w-xs mx-auto">
+            <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: "60%" }} />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Block dashboard access if registration fee not paid (except regulators)
@@ -113,7 +165,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
             <div className="text-center">
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Registration Fee</p>
               <p className="text-3xl font-extrabold text-primary">{role === "tenant" ? "GH₵ 10.00" : "GH₵ 35.00"}</p>
-              <p className="text-xs text-muted-foreground">Per year{role === "landlord" ? " · Includes Rent Card" : ""}</p>
+              <p className="text-xs text-muted-foreground">Per year</p>
             </div>
 
             <div className="border-t border-border pt-4">
