@@ -30,6 +30,7 @@ const navItems = [
   { to: "/tenant/payments", label: "Payments", icon: CreditCard },
   { to: "/tenant/my-agreements", label: "Agreements", icon: FileText },
   { to: "/tenant/legal-assistant", label: "Legal Assistant", icon: MessageSquare },
+  { to: "/tenant/renewal", label: "Renewal", icon: RefreshCw },
   { to: "/tenant/preferences", label: "Preferences", icon: Bell },
   { to: "/tenant/messages", label: "Messages", icon: MessageCircle },
   { to: "/tenant/profile", label: "My Profile", icon: UserCircle },
