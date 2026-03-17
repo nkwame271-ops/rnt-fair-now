@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, FileText, MapPin, Info, ArrowRight, ArrowLeft, Navigation, AlertTriangle, Check } from "lucide-react";
+import { CheckCircle2, FileText, MapPin, Info, ArrowRight, ArrowLeft, Navigation, AlertTriangle, Check, Mic, Square, Play, Trash2, ImagePlus, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { complaintTypes, regions, areasByRegion } from "@/data/dummyData";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { sendSms } from "@/lib/smsService";
 
-const steps = ["Complaint Type", "Property Details", "Location", "Description", "Review & Submit"];
+const steps = ["Complaint Type", "Property Details", "Location", "Description & Evidence", "Review & Submit"];
 
 const FileComplaint = () => {
   const navigate = useNavigate();
@@ -36,8 +36,76 @@ const FileComplaint = () => {
     gpsConfirmed: false,
   });
 
+  // Audio recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  // Image upload state
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
   const update = (key: string, value: string | boolean) => setForm({ ...form, [key]: value });
   const areas = form.region ? areasByRegion[form.region] || [] : [];
+
+  // Audio recording handlers
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach((t) => t.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch {
+      toast.error("Could not access microphone. Please allow microphone access.");
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+  };
+
+  const deleteRecording = () => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioBlob(null);
+    setAudioUrl(null);
+  };
+
+  // Image handlers
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (imageFiles.length + files.length > 5) {
+      toast.error("Maximum 5 images allowed");
+      return;
+    }
+    const newFiles = [...imageFiles, ...files].slice(0, 5);
+    setImageFiles(newFiles);
+    setImagePreviews(newFiles.map((f) => URL.createObjectURL(f)));
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  const removeImage = (index: number) => {
+    URL.revokeObjectURL(imagePreviews[index]);
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleCaptureGps = () => {
     if (!navigator.geolocation) {
@@ -52,12 +120,41 @@ const FileComplaint = () => {
         setGettingLocation(false);
         toast.success("Location captured! Please confirm it matches the complaint property.");
       },
-      (err) => {
+      () => {
         setGettingLocation(false);
         toast.error("Could not get your location. Please enable location access.");
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const uploadFiles = async (complaintId: string) => {
+    const evidenceUrls: string[] = [];
+    let uploadedAudioUrl: string | null = null;
+
+    // Upload images
+    for (let i = 0; i < imageFiles.length; i++) {
+      const file = imageFiles[i];
+      const ext = file.name.split(".").pop();
+      const path = `complaints/${complaintId}/evidence-${i}.${ext}`;
+      const { error } = await supabase.storage.from("application-evidence").upload(path, file);
+      if (!error) {
+        const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(path);
+        evidenceUrls.push(urlData.publicUrl);
+      }
+    }
+
+    // Upload audio
+    if (audioBlob) {
+      const path = `complaints/${complaintId}/audio.webm`;
+      const { error } = await supabase.storage.from("application-evidence").upload(path, audioBlob, { contentType: "audio/webm" });
+      if (!error) {
+        const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(path);
+        uploadedAudioUrl = urlData.publicUrl;
+      }
+    }
+
+    return { evidenceUrls, uploadedAudioUrl };
   };
 
   const handleSubmit = async () => {
@@ -87,36 +184,34 @@ const FileComplaint = () => {
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
       }).select("id").single();
 
-      if (error) {
-        console.error("Complaint insert error:", error);
-        throw error;
+      if (error) throw error;
+      if (!complaint?.id) throw new Error("Complaint was not created properly");
+
+      // Upload evidence files
+      if (imageFiles.length > 0 || audioBlob) {
+        const { evidenceUrls, uploadedAudioUrl } = await uploadFiles(complaint.id);
+        await supabase.from("complaints").update({
+          evidence_urls: evidenceUrls.length > 0 ? evidenceUrls : undefined,
+          audio_url: uploadedAudioUrl || undefined,
+        } as any).eq("id", complaint.id);
       }
 
-      if (!complaint?.id) {
-        throw new Error("Complaint was not created properly");
-      }
-
-      // Send SMS notification for complaint filed (non-blocking)
+      // Send SMS notification (non-blocking)
       const { data: profile } = await supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle();
       if (profile?.phone) {
         sendSms(profile.phone, "complaint_filed", { code: complaintCode });
       }
 
-      console.log("Invoking paystack-checkout for complaint:", complaint.id);
       const { data: rawData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "complaint_fee", complaintId: complaint.id },
       });
 
-      // Handle response - may come as string or object
       let data = rawData;
       if (typeof rawData === "string") {
         try { data = JSON.parse(rawData); } catch { data = rawData; }
       }
 
-      console.log("Paystack response - data:", JSON.stringify(data), "error:", payErr);
-
       if (payErr) {
-        console.error("Paystack invoke error:", payErr);
         let errorMsg = payErr.message || "Payment initiation failed";
         try {
           if ((payErr as any).context) {
@@ -126,20 +221,14 @@ const FileComplaint = () => {
         } catch (_) {}
         throw new Error(errorMsg);
       }
-      if (data?.error) {
-        console.error("Paystack data error:", data.error);
-        throw new Error(data.error);
-      }
+      if (data?.error) throw new Error(data.error);
 
       if (data?.authorization_url) {
-        console.log("Redirecting to Paystack:", data.authorization_url);
         window.location.href = data.authorization_url;
       } else {
-        console.error("Paystack response missing URL:", data);
         throw new Error("No checkout URL received. Please try again.");
       }
     } catch (err: any) {
-      console.error("FileComplaint handleSubmit error:", err);
       toast.error(err.message || "Failed to submit complaint");
     } finally {
       setSubmitting(false);
@@ -281,6 +370,85 @@ const FileComplaint = () => {
               <Label>Describe the incident in detail</Label>
               <Textarea rows={5} value={form.description} onChange={(e) => update("description", e.target.value)} placeholder="What happened? Include dates, amounts, and any relevant context..." />
             </div>
+
+            {/* Audio Recording */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <Mic className="h-3.5 w-3.5" /> Voice Recording (optional)
+              </Label>
+              <p className="text-xs text-muted-foreground">Can't type? Record a voice message describing your complaint.</p>
+
+              {!audioUrl ? (
+                <Button
+                  type="button"
+                  variant={isRecording ? "destructive" : "outline"}
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className="w-full"
+                >
+                  {isRecording ? (
+                    <>
+                      <Square className="h-4 w-4 mr-2" />
+                      <span className="animate-pulse">Recording... Tap to stop</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="h-4 w-4 mr-2" /> Start Recording
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 bg-muted rounded-lg p-3 border border-border">
+                  <Play className="h-4 w-4 text-primary shrink-0" />
+                  <audio src={audioUrl} controls className="flex-1 h-8" />
+                  <Button type="button" variant="ghost" size="icon" onClick={deleteRecording} className="shrink-0">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Image Upload */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <ImagePlus className="h-3.5 w-3.5" /> Supporting Images (optional, max 5)
+              </Label>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageSelect}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={imageFiles.length >= 5}
+                className="w-full"
+              >
+                <ImagePlus className="h-4 w-4 mr-2" />
+                {imageFiles.length > 0 ? `${imageFiles.length}/5 images selected — Add more` : "Upload Images"}
+              </Button>
+
+              {imagePreviews.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {imagePreviews.map((src, i) => (
+                    <div key={i} className="relative group aspect-square rounded-lg overflow-hidden border border-border">
+                      <img src={src} alt={`Evidence ${i + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(i)}
+                        className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Amount involved (GH₵)</Label>
@@ -306,6 +474,12 @@ const FileComplaint = () => {
               )}
               <div><span className="text-muted-foreground">Description:</span> <span className="font-semibold text-card-foreground">{form.description || "—"}</span></div>
               <div><span className="text-muted-foreground">Amount:</span> <span className="font-semibold text-card-foreground">GH₵ {form.amount || "—"}</span></div>
+              {audioBlob && (
+                <div><span className="text-muted-foreground">Voice Recording:</span> <span className="font-semibold text-success">✓ Attached</span></div>
+              )}
+              {imageFiles.length > 0 && (
+                <div><span className="text-muted-foreground">Evidence Images:</span> <span className="font-semibold text-success">✓ {imageFiles.length} image(s)</span></div>
+              )}
             </div>
             <div className="bg-card rounded-lg border border-border p-4 space-y-2">
               <div className="flex justify-between text-sm"><span className="text-muted-foreground">Complaint Filing Fee</span><span className="font-semibold text-primary">GH₵ 2.00</span></div>
@@ -325,7 +499,6 @@ const FileComplaint = () => {
         </Button>
       {step < 4 ? (
           <Button onClick={() => {
-            // Per-step validation
             if (step === 0 && !form.type) {
               toast.error("Please select a complaint type before proceeding");
               return;
@@ -335,8 +508,8 @@ const FileComplaint = () => {
               if (!form.address.trim()) { toast.error("Property Address is required"); return; }
               if (!form.region) { toast.error("Region is required"); return; }
             }
-            if (step === 3 && !form.description.trim()) {
-              toast.error("Please describe the incident before proceeding");
+            if (step === 3 && !form.description.trim() && !audioBlob) {
+              toast.error("Please describe the incident or record a voice message before proceeding");
               return;
             }
             setStep(step + 1);
