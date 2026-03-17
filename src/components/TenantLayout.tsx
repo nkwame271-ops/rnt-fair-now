@@ -14,6 +14,8 @@ import {
   Menu,
   UserCircle,
   Bell,
+  AlertTriangle,
+  ShieldAlert,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,6 +34,8 @@ const navItems = [
   { to: "/tenant/my-agreements", label: "Agreements", icon: FileText },
   { to: "/tenant/legal-assistant", label: "Legal Assistant", icon: MessageSquare },
   { to: "/tenant/renewal", label: "Renewal", icon: RefreshCw },
+  { to: "/tenant/termination", label: "Termination", icon: AlertTriangle },
+  { to: "/tenant/report-side-payment", label: "Report Side Payment", icon: ShieldAlert },
   { to: "/tenant/preferences", label: "Preferences", icon: Bell },
   { to: "/tenant/messages", label: "Messages", icon: MessageCircle },
   { to: "/tenant/profile", label: "My Profile", icon: UserCircle },

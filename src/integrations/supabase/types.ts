@@ -965,6 +965,42 @@ export type Database = {
           },
         ]
       }
+      side_payment_declarations: {
+        Row: {
+          amount: number
+          created_at: string
+          declared_by: string
+          description: string | null
+          evidence_urls: string[] | null
+          id: string
+          payment_type: string
+          status: string
+          tenancy_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          declared_by: string
+          description?: string | null
+          evidence_urls?: string[] | null
+          id?: string
+          payment_type: string
+          status?: string
+          tenancy_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          declared_by?: string
+          description?: string | null
+          evidence_urls?: string[] | null
+          id?: string
+          payment_type?: string
+          status?: string
+          tenancy_id?: string
+        }
+        Relationships: []
+      }
       support_conversations: {
         Row: {
           created_at: string
@@ -1209,6 +1245,54 @@ export type Database = {
         }
         Relationships: []
       }
+      termination_applications: {
+        Row: {
+          applicant_role: string
+          applicant_user_id: string
+          audio_url: string | null
+          created_at: string
+          description: string | null
+          evidence_urls: string[] | null
+          id: string
+          reason: string
+          reviewed_at: string | null
+          reviewer_notes: string | null
+          reviewer_user_id: string | null
+          status: string
+          tenancy_id: string
+        }
+        Insert: {
+          applicant_role: string
+          applicant_user_id: string
+          audio_url?: string | null
+          created_at?: string
+          description?: string | null
+          evidence_urls?: string[] | null
+          id?: string
+          reason: string
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          status?: string
+          tenancy_id: string
+        }
+        Update: {
+          applicant_role?: string
+          applicant_user_id?: string
+          audio_url?: string | null
+          created_at?: string
+          description?: string | null
+          evidence_urls?: string[] | null
+          id?: string
+          reason?: string
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          status?: string
+          tenancy_id?: string
+        }
+        Relationships: []
+      }
       units: {
         Row: {
           amenities: string[] | null
@@ -1386,6 +1470,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      recalculate_compliance_score: {
+        Args: { p_landlord_user_id: string }
+        Returns: undefined
       }
     }
     Enums: {

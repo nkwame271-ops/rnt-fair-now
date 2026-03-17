@@ -15,6 +15,7 @@ import {
   RefreshCw,
   ClipboardList,
   AlertTriangle,
+  Gavel,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,6 +36,7 @@ const navItems = [
   { to: "/landlord/viewing-requests", label: "Viewing Requests", icon: Eye },
   { to: "/landlord/rental-applications", label: "Rental Applications", icon: FileText },
   { to: "/landlord/renewal-requests", label: "Renewal Requests", icon: RefreshCw },
+  { to: "/landlord/termination", label: "Ejection Application", icon: Gavel },
   { to: "/landlord/messages", label: "Messages", icon: MessageCircle },
   { to: "/landlord/profile", label: "My Profile", icon: UserCircle },
   { to: "/landlord/feedback", label: "Beta Feedback", icon: MessageSquare },

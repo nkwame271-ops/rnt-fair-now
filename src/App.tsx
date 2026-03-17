@@ -24,6 +24,8 @@ import MyAgreements from "./pages/tenant/MyAgreements";
 import TenantPreferences from "./pages/tenant/Preferences";
 import TenantMessages from "./pages/tenant/Messages";
 import RequestRenewal from "./pages/tenant/RequestRenewal";
+import TenantTerminationRequest from "./pages/tenant/TerminationRequest";
+import ReportSidePayment from "./pages/tenant/ReportSidePayment";
 import LandlordLayout from "./components/LandlordLayout";
 import LandlordDashboard from "./pages/landlord/LandlordDashboard";
 import MyProperties from "./pages/landlord/MyProperties";
@@ -40,6 +42,7 @@ import LandlordComplaints from "./pages/landlord/LandlordComplaints";
 import RentalApplications from "./pages/landlord/RentalApplications";
 import DeclareExistingTenancy from "./pages/landlord/DeclareExistingTenancy";
 import RenewalRequests from "./pages/landlord/RenewalRequests";
+import LandlordTerminationRequest from "./pages/landlord/TerminationRequest";
 import RegulatorDashboard from "./pages/regulator/RegulatorDashboard";
 import RegulatorTenants from "./pages/regulator/RegulatorTenants";
 import RegulatorLandlords from "./pages/regulator/RegulatorLandlords";
@@ -56,6 +59,7 @@ import AgencyApiKeys from "./pages/regulator/AgencyApiKeys";
 import EngineRoom from "./pages/regulator/EngineRoom";
 import RegulatorRentAssessments from "./pages/regulator/RegulatorRentAssessments";
 import RegulatorApplications from "./pages/regulator/RegulatorApplications";
+import RegulatorTerminations from "./pages/regulator/RegulatorTerminations";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import NotFound from "./pages/NotFound";
@@ -91,6 +95,8 @@ const App = () => (
               <Route path="preferences" element={<TenantPreferences />} />
               <Route path="messages" element={<TenantMessages />} />
               <Route path="renewal" element={<RequestRenewal />} />
+              <Route path="termination" element={<TenantTerminationRequest />} />
+              <Route path="report-side-payment" element={<ReportSidePayment />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
@@ -110,6 +116,7 @@ const App = () => (
               <Route path="applications" element={<LandlordApplications />} />
               <Route path="complaints" element={<LandlordComplaints />} />
               <Route path="renewal-requests" element={<RenewalRequests />} />
+              <Route path="termination" element={<LandlordTerminationRequest />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="feedback" element={<LandlordFeedback />} />
             </Route>
@@ -133,6 +140,7 @@ const App = () => (
               <Route path="api-keys" element={<AgencyApiKeys />} />
               <Route path="engine-room" element={<EngineRoom />} />
               <Route path="rent-assessments" element={<RegulatorRentAssessments />} />
+              <Route path="terminations" element={<RegulatorTerminations />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, Building2, FileText, AlertTriangle, TrendingUp, Shield } from "lucide-react";
+import { Users, Building2, FileText, AlertTriangle, TrendingUp, Shield, Gavel, ShieldAlert } from "lucide-react";
 import LogoLoader from "@/components/LogoLoader";
 import { supabase } from "@/integrations/supabase/client";
 import PageTransition from "@/components/PageTransition";
@@ -10,6 +10,7 @@ const RegulatorDashboard = () => {
   const [stats, setStats] = useState({
     totalTenants: 0, totalLandlords: 0, totalProperties: 0,
     totalComplaints: 0, activeTenancies: 0, pendingComplaints: 0,
+    pendingTerminations: 0, reportedSidePayments: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -23,15 +24,17 @@ const RegulatorDashboard = () => {
         supabase.from("tenancies").select("id", { count: "exact", head: true }).eq("status", "active"),
       ]);
 
-      const pendingComplaints = await supabase
-        .from("complaints")
-        .select("id", { count: "exact", head: true })
-        .in("status", ["submitted", "under_review"]);
+      const [pendingComplaints, pendingTerminations, reportedSidePayments] = await Promise.all([
+        supabase.from("complaints").select("id", { count: "exact", head: true }).in("status", ["submitted", "under_review"]),
+        supabase.from("termination_applications").select("id", { count: "exact", head: true }).in("status", ["pending", "under_review", "mediation"]),
+        supabase.from("side_payment_declarations").select("id", { count: "exact", head: true }).in("status", ["reported", "under_investigation"]),
+      ]);
 
       setStats({
         totalTenants: tenants.count || 0, totalLandlords: landlords.count || 0,
         totalProperties: properties.count || 0, totalComplaints: complaints.count || 0,
         activeTenancies: tenancies.count || 0, pendingComplaints: pendingComplaints.count || 0,
+        pendingTerminations: pendingTerminations.count || 0, reportedSidePayments: reportedSidePayments.count || 0,
       });
       setLoading(false);
     };
@@ -45,6 +48,8 @@ const RegulatorDashboard = () => {
     { label: "Active Tenancies", value: stats.activeTenancies, icon: FileText, color: "text-success" },
     { label: "Total Complaints", value: stats.totalComplaints, icon: AlertTriangle, color: "text-warning" },
     { label: "Pending Complaints", value: stats.pendingComplaints, icon: AlertTriangle, color: "text-destructive" },
+    { label: "Pending Terminations", value: stats.pendingTerminations, icon: Gavel, color: "text-primary" },
+    { label: "Side Payment Reports", value: stats.reportedSidePayments, icon: ShieldAlert, color: "text-warning" },
   ];
 
   if (loading) return <LogoLoader message="Loading dashboard..." />;
