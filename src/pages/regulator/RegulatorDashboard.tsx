@@ -48,6 +48,8 @@ const RegulatorDashboard = () => {
     { label: "Active Tenancies", value: stats.activeTenancies, icon: FileText, color: "text-success" },
     { label: "Total Complaints", value: stats.totalComplaints, icon: AlertTriangle, color: "text-warning" },
     { label: "Pending Complaints", value: stats.pendingComplaints, icon: AlertTriangle, color: "text-destructive" },
+    { label: "Pending Terminations", value: stats.pendingTerminations, icon: Gavel, color: "text-primary" },
+    { label: "Side Payment Reports", value: stats.reportedSidePayments, icon: ShieldAlert, color: "text-warning" },
   ];
 
   if (loading) return <LogoLoader message="Loading dashboard..." />;

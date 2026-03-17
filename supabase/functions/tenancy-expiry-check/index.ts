@@ -98,7 +98,37 @@ Deno.serve(async (req) => {
 
     console.log(`Updated ${updated} tenancies to renewal_window`);
 
-    return new Response(JSON.stringify({ ok: true, updated }), {
+    // Auto-expire tenancies past end_date with no renewal
+    const { data: expired, error: expError } = await supabase
+      .from("tenancies")
+      .select("id, tenant_user_id, landlord_user_id, unit_id, registration_code")
+      .in("status", ["active", "renewal_window"])
+      .lt("end_date", now.toISOString().split("T")[0]);
+
+    if (expError) {
+      console.error("Expiry query error:", expError.message);
+    }
+
+    let expiredCount = 0;
+    for (const t of expired || []) {
+      const { error: ue } = await supabase
+        .from("tenancies")
+        .update({ status: "expired", terminated_at: now.toISOString(), termination_reason: "auto_expired" })
+        .eq("id", t.id);
+      if (ue) { console.error(`Failed to expire ${t.id}:`, ue.message); continue; }
+
+      await supabase.from("units").update({ status: "vacant" }).eq("id", t.unit_id);
+
+      await supabase.from("notifications").insert([
+        { user_id: t.tenant_user_id, title: "Tenancy Expired", body: `Your tenancy ${t.registration_code} has expired. The unit is now unlocked.`, link: "/tenant/my-agreements" },
+        { user_id: t.landlord_user_id, title: "Tenancy Expired", body: `Tenancy ${t.registration_code} has expired. The unit is now vacant.`, link: "/landlord/agreements" },
+      ]);
+      expiredCount++;
+    }
+
+    console.log(`Auto-expired ${expiredCount} tenancies`);
+
+    return new Response(JSON.stringify({ ok: true, updated, expired: expiredCount }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {

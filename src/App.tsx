@@ -140,6 +140,7 @@ const App = () => (
               <Route path="api-keys" element={<AgencyApiKeys />} />
               <Route path="engine-room" element={<EngineRoom />} />
               <Route path="rent-assessments" element={<RegulatorRentAssessments />} />
+              <Route path="terminations" element={<RegulatorTerminations />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
