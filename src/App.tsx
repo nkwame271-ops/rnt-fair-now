@@ -95,6 +95,8 @@ const App = () => (
               <Route path="preferences" element={<TenantPreferences />} />
               <Route path="messages" element={<TenantMessages />} />
               <Route path="renewal" element={<RequestRenewal />} />
+              <Route path="termination" element={<TenantTerminationRequest />} />
+              <Route path="report-side-payment" element={<ReportSidePayment />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
