@@ -24,15 +24,17 @@ const RegulatorDashboard = () => {
         supabase.from("tenancies").select("id", { count: "exact", head: true }).eq("status", "active"),
       ]);
 
-      const pendingComplaints = await supabase
-        .from("complaints")
-        .select("id", { count: "exact", head: true })
-        .in("status", ["submitted", "under_review"]);
+      const [pendingComplaints, pendingTerminations, reportedSidePayments] = await Promise.all([
+        supabase.from("complaints").select("id", { count: "exact", head: true }).in("status", ["submitted", "under_review"]),
+        supabase.from("termination_applications").select("id", { count: "exact", head: true }).in("status", ["pending", "under_review", "mediation"]),
+        supabase.from("side_payment_declarations").select("id", { count: "exact", head: true }).in("status", ["reported", "under_investigation"]),
+      ]);
 
       setStats({
         totalTenants: tenants.count || 0, totalLandlords: landlords.count || 0,
         totalProperties: properties.count || 0, totalComplaints: complaints.count || 0,
         activeTenancies: tenancies.count || 0, pendingComplaints: pendingComplaints.count || 0,
+        pendingTerminations: pendingTerminations.count || 0, reportedSidePayments: reportedSidePayments.count || 0,
       });
       setLoading(false);
     };
