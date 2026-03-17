@@ -101,6 +101,7 @@ const App = () => (
               <Route path="renewal" element={<RequestRenewal />} />
               <Route path="termination" element={<TenantTerminationRequest />} />
               <Route path="report-side-payment" element={<ReportSidePayment />} />
+              <Route path="receipts" element={<TenantReceipts />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
