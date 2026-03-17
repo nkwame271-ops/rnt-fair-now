@@ -1045,7 +1045,9 @@ export type Database = {
           landlord_user_id: string
           move_in_date: string
           previous_tenancy_id: string | null
+          proposed_rent: number | null
           registration_code: string
+          renewal_duration_months: number | null
           renewal_requested_at: string | null
           renewal_requested_by: string | null
           start_date: string
@@ -1076,7 +1078,9 @@ export type Database = {
           landlord_user_id: string
           move_in_date: string
           previous_tenancy_id?: string | null
+          proposed_rent?: number | null
           registration_code: string
+          renewal_duration_months?: number | null
           renewal_requested_at?: string | null
           renewal_requested_by?: string | null
           start_date: string
@@ -1107,7 +1111,9 @@ export type Database = {
           landlord_user_id?: string
           move_in_date?: string
           previous_tenancy_id?: string | null
+          proposed_rent?: number | null
           registration_code?: string
+          renewal_duration_months?: number | null
           renewal_requested_at?: string | null
           renewal_requested_by?: string | null
           start_date?: string
