@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import LogoLoader from "@/components/LogoLoader";
-import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, CreditCard } from "lucide-react";
+import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, CreditCard, Award } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,6 +11,7 @@ import PageTransition from "@/components/PageTransition";
 import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import { getTimeGreeting } from "@/lib/greeting";
+import { Badge } from "@/components/ui/badge";
 
 const LandlordDashboard = () => {
   const { user } = useAuth();
@@ -18,6 +19,8 @@ const LandlordDashboard = () => {
   const [profileName, setProfileName] = useState("");
   const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
+  const [complianceScore, setComplianceScore] = useState(100);
+  const [tenancyBreakdown, setTenancyBreakdown] = useState({ active: 0, pending: 0, expired: 0, existing: 0 });
   const [stats, setStats] = useState({ properties: 0, totalUnits: 0, occupiedUnits: 0, pendingTenancies: 0, validMonths: 0, pendingMonths: 0 });
 
   useEffect(() => {
@@ -26,8 +29,9 @@ const LandlordDashboard = () => {
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
       setProfileName(profile?.full_name || "Landlord");
 
-      const { data: landlordRecord } = await supabase.from("landlords").select("registration_fee_paid").eq("user_id", user.id).maybeSingle();
+      const { data: landlordRecord } = await supabase.from("landlords").select("registration_fee_paid, compliance_score").eq("user_id", user.id).maybeSingle();
       setRegistrationFeePaid(landlordRecord?.registration_fee_paid ?? true);
+      setComplianceScore((landlordRecord as any)?.compliance_score ?? 100);
 
       const { data: props } = await supabase.from("properties").select("id").eq("landlord_user_id", user.id);
       const propIds = (props || []).map(p => p.id);
@@ -42,6 +46,12 @@ const LandlordDashboard = () => {
       const { data: tenancies } = await supabase.from("tenancies").select("id, status").eq("landlord_user_id", user.id);
       const pendingTenancies = (tenancies || []).filter(t => t.status === "pending").length;
       const tenancyIds = (tenancies || []).map(t => t.id);
+
+      // Tenancy breakdown
+      const active = (tenancies || []).filter(t => t.status === "active").length;
+      const expired = (tenancies || []).filter(t => t.status === "expired" || t.status === "terminated").length;
+      const existing = (tenancies || []).filter(t => ["existing_declared", "awaiting_verification", "verified_existing"].includes(t.status)).length;
+      setTenancyBreakdown({ active, pending: pendingTenancies, expired, existing });
 
       let validMonths = 0, pendingMonths = 0;
       if (tenancyIds.length > 0) {
@@ -94,9 +104,16 @@ const LandlordDashboard = () => {
           </Alert>
         )}
 
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">{getTimeGreeting(profileName)}</h1>
-          <p className="text-muted-foreground mt-1">Manage your properties and stay compliant</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">{getTimeGreeting(profileName)}</h1>
+            <p className="text-muted-foreground mt-1">Manage your properties and stay compliant</p>
+          </div>
+          <div className="bg-card rounded-xl p-4 shadow-card border border-border text-center">
+            <Award className={`h-6 w-6 mx-auto mb-1 ${complianceScore >= 80 ? "text-success" : complianceScore >= 50 ? "text-warning" : "text-destructive"}`} />
+            <div className={`text-2xl font-bold ${complianceScore >= 80 ? "text-success" : complianceScore >= 50 ? "text-warning" : "text-destructive"}`}>{complianceScore}%</div>
+            <div className="text-xs text-muted-foreground">Compliance Score</div>
+          </div>
         </div>
 
         <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -118,6 +135,29 @@ const LandlordDashboard = () => {
           ))}
         </StaggeredGrid>
 
+        {/* Tenancy Status Breakdown */}
+        <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Tenancy Status Breakdown</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-success/5 border border-success/20 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-success">{tenancyBreakdown.active}</div>
+              <div className="text-xs text-muted-foreground">Active</div>
+            </div>
+            <div className="bg-warning/5 border border-warning/20 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-warning">{tenancyBreakdown.pending}</div>
+              <div className="text-xs text-muted-foreground">Pending</div>
+            </div>
+            <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-destructive">{tenancyBreakdown.expired}</div>
+              <div className="text-xs text-muted-foreground">Expired/Terminated</div>
+            </div>
+            <div className="bg-info/5 border border-info/20 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-info">{tenancyBreakdown.existing}</div>
+              <div className="text-xs text-muted-foreground">Existing Migration</div>
+            </div>
+          </div>
+        </div>
+
         <StaggeredGrid className="grid sm:grid-cols-2 gap-4">
           <StaggeredItem>
             <Link to="/landlord/register-property" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
@@ -127,10 +167,10 @@ const LandlordDashboard = () => {
             </Link>
           </StaggeredItem>
           <StaggeredItem>
-            <Link to="/landlord/my-properties" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
-              <Building2 className="h-6 w-6 text-primary mb-3" />
-              <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">View Properties</h3>
-              <p className="text-sm text-muted-foreground mt-1">Manage existing properties and tenants</p>
+            <Link to="/landlord/declare-existing-tenancy" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
+              <Building2 className="h-6 w-6 text-info mb-3" />
+              <h3 className="font-semibold text-card-foreground group-hover:text-info transition-colors">Declare Existing Tenancy</h3>
+              <p className="text-sm text-muted-foreground mt-1">Migrate a tenancy that started before the platform</p>
             </Link>
           </StaggeredItem>
         </StaggeredGrid>

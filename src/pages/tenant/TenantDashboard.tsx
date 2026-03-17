@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, Calculator, Store, CreditCard, AlertTriangle, CheckCircle2, Clock, ArrowRight, Shield, Loader2 } from "lucide-react";
+import { FileText, Calculator, Store, CreditCard, AlertTriangle, CheckCircle2, Clock, ArrowRight, Shield, Loader2, Download, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,9 @@ import PageTransition from "@/components/PageTransition";
 import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import { getTimeGreeting } from "@/lib/greeting";
+import TenancyCard, { TenancyCardData } from "@/components/TenancyCard";
+import { differenceInDays } from "date-fns";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const quickActions = [
   { to: "/tenant/file-complaint", label: "File Complaint", icon: FileText, color: "bg-destructive/10 text-destructive" },
@@ -26,6 +29,7 @@ const TenantDashboard = () => {
   const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
   const [tenancy, setTenancy] = useState<{ propertyAddress: string; monthlyRent: number; landlordName: string; paidMonths: number; totalMonths: number; nextTax: number } | null>(null);
+  const [tenancyCardData, setTenancyCardData] = useState<TenancyCardData | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -43,12 +47,12 @@ const TenantDashboard = () => {
         .from("tenancies")
         .select("*, unit:units(unit_name, unit_type, property_id)")
         .eq("tenant_user_id", user.id)
-        .in("status", ["active", "pending"])
+        .in("status", ["active", "pending", "renewal_window", "existing_declared", "awaiting_verification", "verified_existing"])
         .limit(1);
 
       if (ts && ts.length > 0) {
         const t = ts[0] as any;
-        const { data: prop } = await supabase.from("properties").select("address").eq("id", t.unit.property_id).single();
+        const { data: prop } = await supabase.from("properties").select("address, id, ghana_post_gps").eq("id", t.unit.property_id).single();
         const { data: landlord } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
         const { data: payments } = await supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed, tax_amount").eq("tenancy_id", t.id).order("due_date");
 
@@ -62,6 +66,22 @@ const TenantDashboard = () => {
           paidMonths: paid,
           totalMonths: (payments || []).length,
           nextTax: nextP ? nextP.tax_amount : 0,
+        });
+
+        setTenancyCardData({
+          tenancyId: t.id,
+          registrationCode: t.registration_code,
+          propertyId: prop?.id || "",
+          digitalAddress: prop?.ghana_post_gps || "",
+          landlordName: landlord?.full_name || "Unknown",
+          tenantName: profile?.full_name || "Tenant",
+          monthlyRent: t.agreed_rent,
+          maxLawfulAdvance: t.agreed_rent * 6,
+          advancePaid: t.advance_months,
+          startDate: t.start_date,
+          expiryDate: t.end_date,
+          complianceStatus: t.compliance_status || "compliant",
+          status: t.status,
         });
       }
       setLoading(false);
@@ -87,6 +107,9 @@ const TenantDashboard = () => {
       setPayingFee(false);
     }
   };
+
+  const daysRemaining = tenancyCardData ? differenceInDays(new Date(tenancyCardData.expiryDate), new Date()) : 0;
+  const tenancyStatus = tenancyCardData?.status || "pending";
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -115,8 +138,8 @@ const TenantDashboard = () => {
         <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: "Active Cases", value: activeCases, icon: AlertTriangle, color: "text-destructive" },
-            { label: "Months Valid", value: tenancy?.paidMonths ?? 0, icon: Shield, color: "text-success", displayText: tenancy ? `${tenancy.paidMonths}/${tenancy.totalMonths}` : "—" },
-            { label: "Months Pending", value: tenancy ? tenancy.totalMonths - tenancy.paidMonths : 0, icon: Clock, color: "text-warning", displayText: tenancy ? String(tenancy.totalMonths - tenancy.paidMonths) : "—" },
+            { label: "Tenancy Status", value: 0, icon: Shield, color: daysRemaining > 90 ? "text-success" : daysRemaining > 0 ? "text-warning" : "text-destructive", displayText: tenancyCardData ? (tenancyStatus === "active" ? "Active" : tenancyStatus === "renewal_window" ? "Renewal" : tenancyStatus === "expired" ? "Expired" : tenancyStatus.replace(/_/g, " ")) : "—" },
+            { label: "Days Remaining", value: daysRemaining > 0 ? daysRemaining : 0, icon: Clock, color: daysRemaining > 90 ? "text-success" : daysRemaining > 0 ? "text-warning" : "text-destructive", displayText: tenancyCardData ? (daysRemaining > 0 ? `${daysRemaining} days` : "Expired") : "—" },
             { label: "Next Tax Due", value: tenancy?.nextTax ?? 0, icon: CreditCard, color: "text-info", displayText: tenancy?.nextTax ? `GH₵ ${tenancy.nextTax.toLocaleString()}` : "—" },
           ].map((stat) => (
             <StaggeredItem key={stat.label}>
@@ -147,7 +170,27 @@ const TenantDashboard = () => {
           </StaggeredGrid>
         </div>
 
-        {tenancy && (
+        {/* Tenancy Card */}
+        {tenancyCardData && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-foreground">Your Tenancy Card</h2>
+              <div className="flex gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="outline" disabled>
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" /> Request Renewal
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Renewal requests coming in Phase 2</TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+            <TenancyCard data={tenancyCardData} />
+          </div>
+        )}
+
+        {tenancy && !tenancyCardData && (
           <div className="bg-card rounded-xl p-6 shadow-card border border-border">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-foreground">Your Tenancy Agreement</h2>
@@ -165,12 +208,6 @@ const TenantDashboard = () => {
                 <div className="h-full bg-success rounded-full transition-all duration-1000 ease-out" style={{ width: `${tenancy.totalMonths > 0 ? (tenancy.paidMonths / tenancy.totalMonths) * 100 : 0}%` }} />
               </div>
             </div>
-            {tenancy.totalMonths - tenancy.paidMonths > 0 && (
-              <div className="mt-3 flex items-center gap-2 text-xs text-warning">
-                <Clock className="h-3.5 w-3.5" />
-                <span>{tenancy.totalMonths - tenancy.paidMonths} month(s) pending — pay the 8% tax to validate</span>
-              </div>
-            )}
           </div>
         )}
       </div>
