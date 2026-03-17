@@ -89,7 +89,7 @@ const RegulatorDashboard = () => {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Registration Revenue (est.)</span>
                 <span className="font-semibold text-foreground">
-                  GH₵ <AnimatedCounter value={(stats.totalTenants + stats.totalLandlords) * 50} />
+                  GH₵ <AnimatedCounter value={(stats.totalTenants * 40) + (stats.totalLandlords * 30)} />
                 </span>
               </div>
               <div className="flex justify-between">

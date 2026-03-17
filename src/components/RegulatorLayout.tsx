@@ -35,6 +35,7 @@ const navItems = [
   { to: "/regulator/agreement-templates", label: "Templates", icon: FileText },
   { to: "/regulator/rent-assessments", label: "Rent Assessments", icon: TrendingUp },
   { to: "/regulator/terminations", label: "Terminations", icon: Gavel },
+  { to: "/regulator/escrow", label: "Escrow & Revenue", icon: BarChart3 },
   { to: "/regulator/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/regulator/kyc", label: "KYC Verification", icon: IdCard },
   { to: "/regulator/engine-room", label: "Engine Room", icon: Settings },

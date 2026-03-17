@@ -140,6 +140,7 @@ const App = () => (
               <Route path="applications" element={<RegulatorApplications />} />
               <Route path="agreement-templates" element={<RegulatorAgreementTemplates />} />
               <Route path="analytics" element={<RegulatorAnalytics />} />
+              <Route path="escrow" element={<EscrowDashboard />} />
               <Route path="invite-staff" element={<InviteStaff />} />
               <Route path="kyc" element={<RegulatorKyc />} />
               <Route path="feedback" element={<RegulatorFeedback />} />

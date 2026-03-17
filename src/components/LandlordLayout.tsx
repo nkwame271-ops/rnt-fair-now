@@ -38,6 +38,8 @@ const navItems = [
   { to: "/landlord/renewal-requests", label: "Renewal Requests", icon: RefreshCw },
   { to: "/landlord/termination", label: "Ejection Application", icon: Gavel },
   { to: "/landlord/messages", label: "Messages", icon: MessageCircle },
+  { to: "/landlord/payment-settings", label: "Payment Settings", icon: CreditCard },
+  { to: "/landlord/receipts", label: "Receipts", icon: FileText },
   { to: "/landlord/profile", label: "My Profile", icon: UserCircle },
   { to: "/landlord/feedback", label: "Beta Feedback", icon: MessageSquare },
 ];
