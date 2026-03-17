@@ -200,6 +200,36 @@ export type Database = {
         }
         Relationships: []
       }
+      illegal_payment_attempts: {
+        Row: {
+          attempted_amount: number
+          created_at: string
+          description: string | null
+          id: string
+          max_lawful_amount: number
+          tenancy_id: string
+          user_id: string
+        }
+        Insert: {
+          attempted_amount: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          max_lawful_amount: number
+          tenancy_id: string
+          user_id: string
+        }
+        Update: {
+          attempted_amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          max_lawful_amount?: number
+          tenancy_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       kyc_verifications: {
         Row: {
           ai_match_result: string | null
@@ -343,6 +373,7 @@ export type Database = {
       }
       landlords: {
         Row: {
+          compliance_score: number
           created_at: string
           expiry_date: string | null
           id: string
@@ -354,6 +385,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          compliance_score?: number
           created_at?: string
           expiry_date?: string | null
           id?: string
@@ -365,6 +397,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          compliance_score?: number
           created_at?: string
           expiry_date?: string | null
           id?: string
@@ -514,6 +547,7 @@ export type Database = {
       properties: {
         Row: {
           address: string
+          approved_rent: number | null
           area: string
           assessed_at: string | null
           assessed_by: string | null
@@ -525,6 +559,7 @@ export type Database = {
           gps_location: string | null
           id: string
           landlord_user_id: string
+          last_assessment_id: string | null
           listed_on_marketplace: boolean
           location_locked: boolean
           location_locked_at: string | null
@@ -538,6 +573,7 @@ export type Database = {
         }
         Insert: {
           address: string
+          approved_rent?: number | null
           area: string
           assessed_at?: string | null
           assessed_by?: string | null
@@ -549,6 +585,7 @@ export type Database = {
           gps_location?: string | null
           id?: string
           landlord_user_id: string
+          last_assessment_id?: string | null
           listed_on_marketplace?: boolean
           location_locked?: boolean
           location_locked_at?: string | null
@@ -562,6 +599,7 @@ export type Database = {
         }
         Update: {
           address?: string
+          approved_rent?: number | null
           area?: string
           assessed_at?: string | null
           assessed_by?: string | null
@@ -573,6 +611,7 @@ export type Database = {
           gps_location?: string | null
           id?: string
           landlord_user_id?: string
+          last_assessment_id?: string | null
           listed_on_marketplace?: boolean
           location_locked?: boolean
           location_locked_at?: string | null
@@ -585,6 +624,62 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      property_assessments: {
+        Row: {
+          amenities: Json | null
+          approved_at: string | null
+          approved_by: string | null
+          approved_rent: number | null
+          created_at: string
+          gps_location: string | null
+          id: string
+          inspector_user_id: string | null
+          photos: string[] | null
+          property_condition: string | null
+          property_id: string
+          recommended_rent: number | null
+          status: string
+        }
+        Insert: {
+          amenities?: Json | null
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_rent?: number | null
+          created_at?: string
+          gps_location?: string | null
+          id?: string
+          inspector_user_id?: string | null
+          photos?: string[] | null
+          property_condition?: string | null
+          property_id: string
+          recommended_rent?: number | null
+          status?: string
+        }
+        Update: {
+          amenities?: Json | null
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_rent?: number | null
+          created_at?: string
+          gps_location?: string | null
+          id?: string
+          inspector_user_id?: string | null
+          photos?: string[] | null
+          property_condition?: string | null
+          property_id?: string
+          recommended_rent?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_assessments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       property_images: {
         Row: {
@@ -931,19 +1026,30 @@ export type Database = {
           advance_months: number
           agreed_rent: number
           agreement_pdf_url: string | null
+          compliance_status: string
           created_at: string
           custom_field_values: Json | null
           end_date: string
+          existing_advance_paid: number | null
+          existing_agreement_url: string | null
+          existing_start_date: string | null
+          existing_voice_url: string | null
           id: string
           landlord_accepted: boolean | null
           landlord_user_id: string
           move_in_date: string
+          previous_tenancy_id: string | null
           registration_code: string
+          renewal_requested_at: string | null
+          renewal_requested_by: string | null
           start_date: string
           status: string
+          tenancy_type: string
           tenant_accepted: boolean | null
           tenant_id_code: string
           tenant_user_id: string
+          terminated_at: string | null
+          termination_reason: string | null
           unit_id: string
           updated_at: string
         }
@@ -951,19 +1057,30 @@ export type Database = {
           advance_months?: number
           agreed_rent: number
           agreement_pdf_url?: string | null
+          compliance_status?: string
           created_at?: string
           custom_field_values?: Json | null
           end_date: string
+          existing_advance_paid?: number | null
+          existing_agreement_url?: string | null
+          existing_start_date?: string | null
+          existing_voice_url?: string | null
           id?: string
           landlord_accepted?: boolean | null
           landlord_user_id: string
           move_in_date: string
+          previous_tenancy_id?: string | null
           registration_code: string
+          renewal_requested_at?: string | null
+          renewal_requested_by?: string | null
           start_date: string
           status?: string
+          tenancy_type?: string
           tenant_accepted?: boolean | null
           tenant_id_code: string
           tenant_user_id: string
+          terminated_at?: string | null
+          termination_reason?: string | null
           unit_id: string
           updated_at?: string
         }
@@ -971,19 +1088,30 @@ export type Database = {
           advance_months?: number
           agreed_rent?: number
           agreement_pdf_url?: string | null
+          compliance_status?: string
           created_at?: string
           custom_field_values?: Json | null
           end_date?: string
+          existing_advance_paid?: number | null
+          existing_agreement_url?: string | null
+          existing_start_date?: string | null
+          existing_voice_url?: string | null
           id?: string
           landlord_accepted?: boolean | null
           landlord_user_id?: string
           move_in_date?: string
+          previous_tenancy_id?: string | null
           registration_code?: string
+          renewal_requested_at?: string | null
+          renewal_requested_by?: string | null
           start_date?: string
           status?: string
+          tenancy_type?: string
           tenant_accepted?: boolean | null
           tenant_id_code?: string
           tenant_user_id?: string
+          terminated_at?: string | null
+          termination_reason?: string | null
           unit_id?: string
           updated_at?: string
         }
