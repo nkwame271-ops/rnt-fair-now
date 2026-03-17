@@ -27,6 +27,7 @@ const navItems = [
   { to: "/landlord/my-properties", label: "My Properties", icon: Building2 },
   { to: "/landlord/register-property", label: "Register Property", icon: PlusCircle },
   { to: "/landlord/add-tenant", label: "Add Tenant", icon: PlusCircle },
+  { to: "/landlord/declare-existing-tenancy", label: "Existing Tenancy", icon: FileCheck },
   { to: "/landlord/agreements", label: "Agreements", icon: FileCheck },
   { to: "/landlord/applications", label: "Applications", icon: ClipboardList },
   { to: "/landlord/complaints", label: "Complaints", icon: AlertTriangle },

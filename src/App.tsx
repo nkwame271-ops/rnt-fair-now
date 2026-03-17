@@ -100,6 +100,7 @@ const App = () => (
               <Route path="edit-property/:id" element={<EditProperty />} />
               <Route path="agreements" element={<Agreements />} />
               <Route path="add-tenant" element={<KycGate action="add a tenant"><AddTenant /></KycGate>} />
+              <Route path="declare-existing-tenancy" element={<KycGate action="declare an existing tenancy"><DeclareExistingTenancy /></KycGate>} />
               <Route path="viewing-requests" element={<LandlordViewingRequests />} />
               <Route path="messages" element={<LandlordMessages />} />
               <Route path="rental-applications" element={<RentalApplications />} />
