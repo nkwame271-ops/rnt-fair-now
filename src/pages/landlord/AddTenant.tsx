@@ -398,11 +398,24 @@ const AddTenant = () => {
               <div className="flex justify-between"><span className="text-muted-foreground">Monthly Rent</span><span className="font-semibold">GH₵ {monthlyRent.toLocaleString()}</span></div>
               <div className="flex justify-between text-primary"><span>{(taxRate * 100).toFixed(0)}% Govt. Tax (via Rent Control)</span><span className="font-semibold">GH₵ {tax.toLocaleString()}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">To Landlord ({((1 - taxRate) * 100).toFixed(0)}%)</span><span className="font-semibold">GH₵ {toLandlord.toLocaleString()}</span></div>
+              <div className="flex justify-between border-t border-border pt-2 mt-2 font-bold text-primary">
+                <span>Maximum Lawful Advance (6 months)</span>
+                <span>GH₵ {(monthlyRent * 6).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Selected Advance ({advanceMonths} months)</span>
+                <span className="font-semibold">GH₵ {(monthlyRent * parseInt(advanceMonths)).toLocaleString()}</span>
+              </div>
+              {parseInt(advanceMonths) > 6 && (
+                <div className="bg-destructive/10 border border-destructive/20 rounded p-2 text-destructive text-xs font-semibold">
+                  ⚠ Advance exceeds 6-month legal limit under Act 220. This will be blocked.
+                </div>
+              )}
             </div>
           )}
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("find-tenant")}>Back</Button>
-            <Button disabled={!rent || monthlyRent <= 0 || customFields.some(f => f.required && !customFieldValues[f.label]?.trim())} onClick={() => setStep("review")}>Next: Review</Button>
+            <Button disabled={!rent || monthlyRent <= 0 || parseInt(advanceMonths) > 6 || customFields.some(f => f.required && !customFieldValues[f.label]?.trim())} onClick={() => setStep("review")}>Next: Review</Button>
           </div>
         </motion.div>
       )}

@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, X, Loader2 } from "lucide-react";
+import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import LogoLoader from "@/components/LogoLoader";
 import PropertyMap, { MapMarker } from "@/components/PropertyMap";
 import { parseGPS } from "@/lib/gpsUtils";
@@ -22,6 +25,15 @@ const RegulatorProperties = () => {
   const [detailImages, setDetailImages] = useState<any[]>([]);
   const [approving, setApproving] = useState(false);
 
+  // Assessment form state
+  const [showAssessment, setShowAssessment] = useState(false);
+  const [assessmentPropertyId, setAssessmentPropertyId] = useState("");
+  const [assessCondition, setAssessCondition] = useState("good");
+  const [assessRecommendedRent, setAssessRecommendedRent] = useState("");
+  const [assessAmenities, setAssessAmenities] = useState("");
+  const [assessNotes, setAssessNotes] = useState("");
+  const [submittingAssessment, setSubmittingAssessment] = useState(false);
+
   useEffect(() => {
     const fetch = async () => {
       const { data } = await supabase
@@ -36,10 +48,7 @@ const RegulatorProperties = () => {
 
   const openDetail = async (p: any) => {
     setDetailProperty(p);
-    const { data } = await supabase
-      .from("property_images")
-      .select("*")
-      .eq("property_id", p.id);
+    const { data } = await supabase.from("property_images").select("*").eq("property_id", p.id);
     setDetailImages(data || []);
   };
 
@@ -68,6 +77,72 @@ const RegulatorProperties = () => {
     setApproving(false);
   };
 
+  const openAssessmentForm = (propertyId: string) => {
+    setAssessmentPropertyId(propertyId);
+    setAssessCondition("good");
+    setAssessRecommendedRent("");
+    setAssessAmenities("");
+    setAssessNotes("");
+    setShowAssessment(true);
+  };
+
+  const handleSubmitAssessment = async () => {
+    if (!user) return;
+    setSubmittingAssessment(true);
+    try {
+      const prop = properties.find(p => p.id === assessmentPropertyId);
+      const { data: assessment, error } = await supabase.from("property_assessments").insert({
+        property_id: assessmentPropertyId,
+        inspector_user_id: user.id,
+        gps_location: prop?.gps_location || null,
+        amenities: assessAmenities ? assessAmenities.split(",").map((a: string) => a.trim()) : [],
+        property_condition: assessCondition,
+        recommended_rent: parseFloat(assessRecommendedRent) || null,
+        status: "completed",
+      } as any).select().single();
+
+      if (error) throw error;
+
+      toast.success("Property assessment recorded!");
+      setShowAssessment(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit assessment");
+    } finally {
+      setSubmittingAssessment(false);
+    }
+  };
+
+  const handleApproveAssessment = async (propertyId: string, approvedRent: number, assessmentId: string) => {
+    setApproving(true);
+    try {
+      await supabase.from("property_assessments").update({
+        approved_rent: approvedRent,
+        approved_by: user?.id,
+        approved_at: new Date().toISOString(),
+        status: "approved",
+      } as any).eq("id", assessmentId);
+
+      await supabase.from("properties").update({
+        assessment_status: "approved",
+        assessed_at: new Date().toISOString(),
+        assessed_by: user?.id,
+        approved_rent: approvedRent,
+        last_assessment_id: assessmentId,
+      } as any).eq("id", propertyId);
+
+      toast.success(`Property approved with rent GH₵ ${approvedRent.toLocaleString()}`);
+      setProperties((prev) =>
+        prev.map((p) => p.id === propertyId ? { ...p, assessment_status: "approved", approved_rent: approvedRent } : p)
+      );
+      if (detailProperty?.id === propertyId) {
+        setDetailProperty({ ...detailProperty, assessment_status: "approved", approved_rent: approvedRent });
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+    setApproving(false);
+  };
+
   const filtered = properties.filter((p) => {
     if (!search) return true;
     const s = search.toLowerCase();
@@ -81,8 +156,7 @@ const RegulatorProperties = () => {
       const occupied = p.units?.filter((u: any) => u.status === "occupied").length || 0;
       const total = p.units?.length || 0;
       return {
-        lat: gps.lat,
-        lng: gps.lng,
+        lat: gps.lat, lng: gps.lng,
         label: p.property_name || p.property_code,
         detail: `${p.address}, ${p.region} • ${occupied}/${total} occupied`,
         color: occupied === total && total > 0 ? "green" as const : occupied > 0 ? "blue" as const : "gold" as const,
@@ -91,9 +165,9 @@ const RegulatorProperties = () => {
     .filter(Boolean) as MapMarker[];
 
   const exportCSV = () => {
-    const headers = ["Property Code", "Name", "Address", "Region", "Area", "Units", "Assessment", "GPS"];
+    const headers = ["Property Code", "Name", "Address", "Region", "Area", "Units", "Assessment", "GPS", "Approved Rent"];
     const rows = filtered.map((p: any) => [
-      p.property_code, p.property_name || "", p.address, p.region, p.area, p.units?.length || 0, p.assessment_status || "pending", p.gps_location || "",
+      p.property_code, p.property_name || "", p.address, p.region, p.area, p.units?.length || 0, p.assessment_status || "pending", p.gps_location || "", p.approved_rent || "",
     ]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -180,9 +254,16 @@ const RegulatorProperties = () => {
                     </TableCell>
                     <TableCell>{assessmentBadge(p.assessment_status || "pending")}</TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => openDetail(p)} className="gap-1">
-                        <Eye className="h-3.5 w-3.5" /> View
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openDetail(p)} className="gap-1">
+                          <Eye className="h-3.5 w-3.5" /> View
+                        </Button>
+                        {(p.assessment_status || "pending") !== "approved" && (
+                          <Button size="sm" variant="ghost" onClick={() => openAssessmentForm(p.id)} className="gap-1 text-primary">
+                            <ClipboardCheck className="h-3.5 w-3.5" /> Assess
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -205,7 +286,6 @@ const RegulatorProperties = () => {
               </DialogHeader>
 
               <div className="space-y-4">
-                {/* Images */}
                 {detailImages.length > 0 && (
                   <div className="grid grid-cols-2 gap-2">
                     {detailImages.map((img: any) => (
@@ -214,7 +294,6 @@ const RegulatorProperties = () => {
                   </div>
                 )}
 
-                {/* Info */}
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div><span className="text-muted-foreground">Code:</span> <span className="font-semibold">{detailProperty.property_code}</span></div>
                   <div><span className="text-muted-foreground">Category:</span> <span className="font-semibold capitalize">{(detailProperty as any).property_category || "residential"}</span></div>
@@ -223,9 +302,11 @@ const RegulatorProperties = () => {
                   <div><span className="text-muted-foreground">Condition:</span> <span className="font-semibold">{detailProperty.property_condition || "—"}</span></div>
                   <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold">{detailProperty.gps_location || "—"}</span></div>
                   <div><span className="text-muted-foreground">Status:</span> {assessmentBadge(detailProperty.assessment_status || "pending")}</div>
+                  {(detailProperty as any).approved_rent && (
+                    <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold text-success">GH₵ {Number((detailProperty as any).approved_rent).toLocaleString()}</span></div>
+                  )}
                 </div>
 
-                {/* Units */}
                 <div>
                   <h3 className="font-semibold text-card-foreground mb-2">Units ({detailProperty.units?.length || 0})</h3>
                   <div className="space-y-2">
@@ -254,25 +335,109 @@ const RegulatorProperties = () => {
                   </div>
                 </div>
 
-                {/* Approve button */}
                 {(detailProperty.assessment_status || "pending") !== "approved" && (
-                  <Button
-                    className="w-full bg-success hover:bg-success/90 text-success-foreground"
-                    onClick={() => handleApprove(detailProperty.id)}
-                    disabled={approving}
-                  >
-                    {approving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                    Approve Assessment — Fully Assessed / Tenantable
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => { setDetailProperty(null); openAssessmentForm(detailProperty.id); }}>
+                      <ClipboardCheck className="h-4 w-4 mr-2" /> Assess Property
+                    </Button>
+                    <Button
+                      className="bg-success hover:bg-success/90 text-success-foreground flex-1"
+                      onClick={() => handleApprove(detailProperty.id)}
+                      disabled={approving}
+                    >
+                      {approving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                      Quick Approve
+                    </Button>
+                  </div>
                 )}
                 {detailProperty.assessment_status === "approved" && (
                   <div className="bg-success/5 border border-success/20 rounded-lg p-3 flex items-center gap-2 text-success text-sm font-medium">
-                    <CheckCircle2 className="h-4 w-4" /> This property has been assessed and approved as tenantable.
+                    <CheckCircle2 className="h-4 w-4" /> This property has been assessed and approved.
+                    {(detailProperty as any).approved_rent && <span className="ml-auto font-bold">GH₵ {Number((detailProperty as any).approved_rent).toLocaleString()}/mo</span>}
                   </div>
                 )}
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Assessment Dialog */}
+      <Dialog open={showAssessment} onOpenChange={setShowAssessment}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-primary" /> Property Assessment
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Property Condition</Label>
+              <Select value={assessCondition} onValueChange={setAssessCondition}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="excellent">Excellent</SelectItem>
+                  <SelectItem value="good">Good</SelectItem>
+                  <SelectItem value="fair">Fair</SelectItem>
+                  <SelectItem value="poor">Poor</SelectItem>
+                  <SelectItem value="dilapidated">Dilapidated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Recommended Monthly Rent (GH₵)</Label>
+              <Input type="number" value={assessRecommendedRent} onChange={(e) => setAssessRecommendedRent(e.target.value)} placeholder="e.g. 500" />
+            </div>
+            <div className="space-y-2">
+              <Label>Amenities (comma-separated)</Label>
+              <Input value={assessAmenities} onChange={(e) => setAssessAmenities(e.target.value)} placeholder="e.g. Water, Electricity, Kitchen" />
+            </div>
+            <div className="space-y-2">
+              <Label>Inspector Notes</Label>
+              <Textarea value={assessNotes} onChange={(e) => setAssessNotes(e.target.value)} placeholder="Additional observations..." />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setShowAssessment(false)}>Cancel</Button>
+              <Button onClick={handleSubmitAssessment} disabled={submittingAssessment}>
+                {submittingAssessment ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-1" />}
+                Submit Assessment
+              </Button>
+              {assessRecommendedRent && (
+                <Button
+                  className="bg-success hover:bg-success/90 text-success-foreground"
+                  onClick={async () => {
+                    setSubmittingAssessment(true);
+                    try {
+                      const prop = properties.find(p => p.id === assessmentPropertyId);
+                      const { data: assessment } = await supabase.from("property_assessments").insert({
+                        property_id: assessmentPropertyId,
+                        inspector_user_id: user?.id,
+                        gps_location: prop?.gps_location || null,
+                        amenities: assessAmenities ? assessAmenities.split(",").map((a: string) => a.trim()) : [],
+                        property_condition: assessCondition,
+                        recommended_rent: parseFloat(assessRecommendedRent),
+                        approved_rent: parseFloat(assessRecommendedRent),
+                        approved_by: user?.id,
+                        approved_at: new Date().toISOString(),
+                        status: "approved",
+                      } as any).select().single();
+
+                      if (assessment) {
+                        await handleApproveAssessment(assessmentPropertyId, parseFloat(assessRecommendedRent), assessment.id);
+                      }
+                      setShowAssessment(false);
+                    } catch (err: any) {
+                      toast.error(err.message);
+                    }
+                    setSubmittingAssessment(false);
+                  }}
+                  disabled={submittingAssessment}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> Assess & Approve
+                </Button>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

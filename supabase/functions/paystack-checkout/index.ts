@@ -44,17 +44,18 @@ Deno.serve(async (req) => {
       const { tenancyId } = body;
       if (!tenancyId) throw new Error("tenancyId is required");
 
-      // Verify tenancy belongs to user
       const { data: tenancy, error: tErr } = await supabase
         .from("tenancies")
-        .select("id, tenant_user_id, registration_code, advance_months")
+        .select("id, tenant_user_id, registration_code, advance_months, agreed_rent")
         .eq("id", tenancyId)
         .single();
 
       if (tErr || !tenancy) throw new Error("Tenancy not found");
       if ((tenancy as any).tenant_user_id !== userId) throw new Error("Unauthorized");
 
-      // Get all unpaid advance payments (dedup by id)
+      // Check advance limit enforcement (6 months max)
+      const maxLawful = Number((tenancy as any).agreed_rent) * 6;
+
       const { data: unpaidPayments, error: pErr } = await supabase
         .from("rent_payments")
         .select("id, tax_amount, tenant_marked_paid")
@@ -65,7 +66,6 @@ Deno.serve(async (req) => {
       if (pErr) throw new Error("Failed to fetch payments");
       if (!unpaidPayments || unpaidPayments.length === 0) throw new Error("No unpaid payments found");
 
-      // Deduplicate by payment id to prevent double-counting
       const seenIds = new Set<string>();
       const dedupedPayments = unpaidPayments.filter((p: any) => {
         if (seenIds.has(p.id)) return false;
@@ -74,6 +74,21 @@ Deno.serve(async (req) => {
       });
 
       totalAmount = dedupedPayments.reduce((sum: number, p: any) => sum + Number(p.tax_amount), 0);
+
+      // Advance limit check: total advance months * rent should not exceed 6 * rent
+      const totalAdvanceAmount = Number((tenancy as any).agreed_rent) * (tenancy as any).advance_months;
+      if (totalAdvanceAmount > maxLawful) {
+        // Log illegal attempt
+        await supabase.from("illegal_payment_attempts").insert({
+          tenancy_id: tenancyId,
+          user_id: userId,
+          attempted_amount: totalAdvanceAmount,
+          max_lawful_amount: maxLawful,
+          description: `Bulk tax payment attempted for advance exceeding 6-month limit. Advance months: ${(tenancy as any).advance_months}, Rent: ${(tenancy as any).agreed_rent}`,
+        });
+        throw new Error(`Advance exceeds the maximum lawful limit of GH₵ ${maxLawful.toLocaleString()} (6 months × GH₵ ${Number((tenancy as any).agreed_rent).toLocaleString()})`);
+      }
+
       console.log(`Bulk tax: ${dedupedPayments.length} payments, total=${totalAmount}`);
       description = `Bulk advance rent tax (${unpaidPayments.length} months) - ${(tenancy as any).registration_code}`;
       reference = `rentbulk_${tenancyId}_${Date.now()}`;
