@@ -156,11 +156,7 @@ const RegisterLandlord = () => {
             <div className="border-t border-primary-foreground/20 pt-3">
               <p className="text-sm font-semibold mb-2">Registration Fee Covers:</p>
               <ul className="space-y-1.5 text-sm text-primary-foreground/80">
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Marketplace access</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Landlord ID card</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Rent card</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Complaint system</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Tenancy agreement management</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />12-month platform access</li>
               </ul>
             </div>

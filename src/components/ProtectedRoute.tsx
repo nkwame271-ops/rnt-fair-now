@@ -12,11 +12,7 @@ interface ProtectedRouteProps {
 }
 
 const registrationBenefits = [
-  { icon: Store, label: "Marketplace access" },
   { icon: IdCard, label: "Tenant or Landlord ID card" },
-  { icon: CreditCard, label: "Rent card" },
-  { icon: AlertTriangle, label: "Complaint system" },
-  { icon: FileText, label: "Tenancy agreement management" },
   { icon: Shield, label: "12-month platform access" },
 ];
 
