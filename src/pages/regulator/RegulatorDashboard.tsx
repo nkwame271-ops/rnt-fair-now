@@ -10,6 +10,7 @@ const RegulatorDashboard = () => {
   const [stats, setStats] = useState({
     totalTenants: 0, totalLandlords: 0, totalProperties: 0,
     totalComplaints: 0, activeTenancies: 0, pendingComplaints: 0,
+    pendingTerminations: 0, reportedSidePayments: 0,
   });
   const [loading, setLoading] = useState(true);
 
