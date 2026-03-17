@@ -42,6 +42,7 @@ import LandlordComplaints from "./pages/landlord/LandlordComplaints";
 import RentalApplications from "./pages/landlord/RentalApplications";
 import DeclareExistingTenancy from "./pages/landlord/DeclareExistingTenancy";
 import RenewalRequests from "./pages/landlord/RenewalRequests";
+import LandlordTerminationRequest from "./pages/landlord/TerminationRequest";
 import RegulatorDashboard from "./pages/regulator/RegulatorDashboard";
 import RegulatorTenants from "./pages/regulator/RegulatorTenants";
 import RegulatorLandlords from "./pages/regulator/RegulatorLandlords";
