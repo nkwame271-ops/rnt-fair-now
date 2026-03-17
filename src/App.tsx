@@ -90,6 +90,7 @@ const App = () => (
               <Route path="legal-assistant" element={<LegalAssistant />} />
               <Route path="preferences" element={<TenantPreferences />} />
               <Route path="messages" element={<TenantMessages />} />
+              <Route path="renewal" element={<RequestRenewal />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
