@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, Building2, FileText, AlertTriangle, TrendingUp, Shield } from "lucide-react";
+import { Users, Building2, FileText, AlertTriangle, TrendingUp, Shield, Gavel, ShieldAlert } from "lucide-react";
 import LogoLoader from "@/components/LogoLoader";
 import { supabase } from "@/integrations/supabase/client";
 import PageTransition from "@/components/PageTransition";
