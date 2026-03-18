@@ -48,6 +48,8 @@ const NOTIFICATION_MESSAGES: Record<string, { title: string; body: (amt: number,
   rent_payment: { title: "Rent Payment Received", body: (amt) => `Monthly rent payment of GH₵ ${amt.toFixed(2)} confirmed.`, link: "/tenant/payments" },
   rent_combined: { title: "Rent + Tax Payment Confirmed", body: (amt) => `Combined rent and tax payment of GH₵ ${amt.toFixed(2)} confirmed.`, link: "/tenant/payments" },
   renewal_payment: { title: "Renewal Payment Confirmed", body: (amt) => `Tenancy renewal payment of GH₵ ${amt.toFixed(2)} confirmed.`, link: "/tenant/dashboard" },
+  add_tenant_fee: { title: "Add Tenant Fee Paid", body: (amt) => `Add tenant fee of GH₵ ${amt.toFixed(2)} confirmed.`, link: "/landlord/add-tenant" },
+  termination_fee: { title: "Termination Fee Paid", body: (amt) => `Termination request fee of GH₵ ${amt.toFixed(2)} confirmed.`, link: "/tenant/termination" },
 };
 
 Deno.serve(async (req) => {
@@ -433,6 +435,20 @@ Deno.serve(async (req) => {
         const receiptNo = await completeEscrow(reference, oldTenancy.tenant_user_id, "renewal_payment", amountPaid, splits, tenancyId);
         await sendPaymentSms(oldTenancy.tenant_user_id, amountPaid, "Tenancy renewal", receiptNo);
       }
+
+    } else if (reference.startsWith("addten_")) {
+      const userId = reference.split("_")[1];
+      const splits = [{ recipient: "platform", amount: amountPaid, description: "Add tenant fee" }];
+      const receiptNo = await completeEscrow(reference, userId, "add_tenant_fee", amountPaid, splits);
+      await sendPaymentSms(userId, amountPaid, "Add tenant fee", receiptNo);
+      await sendNotification(userId, "add_tenant_fee", amountPaid);
+
+    } else if (reference.startsWith("term_")) {
+      const userId = reference.split("_")[1];
+      const splits = [{ recipient: "platform", amount: amountPaid, description: "Termination request fee" }];
+      const receiptNo = await completeEscrow(reference, userId, "termination_fee", amountPaid, splits);
+      await sendPaymentSms(userId, amountPaid, "Termination request fee", receiptNo);
+      await sendNotification(userId, "termination_fee", amountPaid);
 
     } else {
       console.log("Unknown reference format:", reference);

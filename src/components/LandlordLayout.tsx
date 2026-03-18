@@ -25,32 +25,41 @@ import TourGuide from "@/components/TourGuide";
 import { landlordTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
+import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 
 const navItems = [
   { to: "/landlord/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/landlord/my-properties", label: "My Properties", icon: Building2 },
-  { to: "/landlord/register-property", label: "Register Property", icon: PlusCircle },
-  { to: "/landlord/add-tenant", label: "Add Tenant", icon: PlusCircle },
-  { to: "/landlord/declare-existing-tenancy", label: "Existing Tenancy", icon: FileCheck },
-  { to: "/landlord/agreements", label: "Agreements", icon: FileCheck },
-  { to: "/landlord/applications", label: "Applications", icon: ClipboardList },
-  { to: "/landlord/complaints", label: "Complaints", icon: AlertTriangle },
-  { to: "/landlord/viewing-requests", label: "Viewing Requests", icon: Eye },
-  { to: "/landlord/rental-applications", label: "Rental Applications", icon: FileText },
-  { to: "/landlord/renewal-requests", label: "Renewal Requests", icon: RefreshCw },
-  { to: "/landlord/termination", label: "Ejection Application", icon: Gavel },
-  { to: "/landlord/messages", label: "Messages", icon: MessageCircle },
-  { to: "/landlord/rent-cards", label: "Manage Rent Cards", icon: Wallet },
-  { to: "/landlord/payment-settings", label: "Payment Settings", icon: CreditCard },
-  { to: "/landlord/receipts", label: "Receipts", icon: FileText },
+  { to: "/landlord/register-property", label: "Register Property", icon: PlusCircle, featureKey: "register_property" },
+  { to: "/landlord/add-tenant", label: "Add Tenant", icon: PlusCircle, featureKey: "add_tenant" },
+  { to: "/landlord/declare-existing-tenancy", label: "Existing Tenancy", icon: FileCheck, featureKey: "declare_existing_tenancy" },
+  { to: "/landlord/agreements", label: "Agreements", icon: FileCheck, featureKey: "agreements" },
+  { to: "/landlord/applications", label: "Applications", icon: ClipboardList, featureKey: "landlord_applications" },
+  { to: "/landlord/complaints", label: "Complaints", icon: AlertTriangle, featureKey: "landlord_complaints" },
+  { to: "/landlord/viewing-requests", label: "Viewing Requests", icon: Eye, featureKey: "viewing_requests" },
+  { to: "/landlord/rental-applications", label: "Rental Applications", icon: FileText, featureKey: "rental_applications" },
+  { to: "/landlord/renewal-requests", label: "Renewal Requests", icon: RefreshCw, featureKey: "renewal_requests" },
+  { to: "/landlord/termination", label: "Ejection Application", icon: Gavel, featureKey: "landlord_ejection" },
+  { to: "/landlord/messages", label: "Messages", icon: MessageCircle, featureKey: "landlord_messages" },
+  { to: "/landlord/rent-cards", label: "Manage Rent Cards", icon: Wallet, featureKey: "rent_cards" },
+  { to: "/landlord/payment-settings", label: "Payment Settings", icon: CreditCard, featureKey: "payment_settings" },
+  { to: "/landlord/receipts", label: "Receipts", icon: FileText, featureKey: "landlord_receipts" },
   { to: "/landlord/profile", label: "My Profile", icon: UserCircle },
-  { to: "/landlord/feedback", label: "Beta Feedback", icon: MessageSquare },
+  { to: "/landlord/feedback", label: "Beta Feedback", icon: MessageSquare, featureKey: "landlord_feedback" },
 ];
 
 const LandlordLayout = () => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { flags } = useAllFeatureFlags();
+
+  const filteredNav = navItems.filter((item) => {
+    if (!item.featureKey) return true;
+    const flag = flags.find((f) => f.feature_key === item.featureKey);
+    if (!flag) return true;
+    return flag.is_enabled;
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -72,7 +81,7 @@ const LandlordLayout = () => {
           </span>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
+          {filteredNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

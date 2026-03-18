@@ -1,16 +1,17 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { UserPlus, Search, CheckCircle2, FileText, Download, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
+import { UserPlus, Search, CheckCircle2, FileText, Download, ArrowLeft, Loader2, AlertTriangle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateAgreementPdf, TemplateConfig, CustomFieldDef } from "@/lib/generateAgreementPdf";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { sendSms } from "@/lib/smsService";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 
 type Step = "select-unit" | "find-tenant" | "set-terms" | "review" | "done";
 
@@ -24,6 +25,10 @@ interface PropertyWithUnits {
 
 const AddTenant = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const feeConfig = useFeeConfig("add_tenant_fee");
+  const [feePaid, setFeePaid] = useState(false);
+  const [payingFee, setPayingFee] = useState(false);
   const [step, setStep] = useState<Step>("select-unit");
   const [properties, setProperties] = useState<PropertyWithUnits[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +75,43 @@ const AddTenant = () => {
     };
     fetchData();
   }, [user]);
+
+  // Check if fee was paid via callback
+  useEffect(() => {
+    if (searchParams.get("status") === "fee_paid") {
+      setFeePaid(true);
+    }
+  }, [searchParams]);
+
+  // If fee is not required or disabled, auto-skip
+  useEffect(() => {
+    if (!feeConfig.loading && (!feeConfig.enabled || feeConfig.amount <= 0)) {
+      setFeePaid(true);
+    }
+  }, [feeConfig]);
+
+  const handlePayFee = async () => {
+    if (!user) return;
+    setPayingFee(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("paystack-checkout", {
+        body: { type: "add_tenant_fee" },
+      });
+      if (error) throw error;
+      if (data?.skipped) {
+        setFeePaid(true);
+        toast.success(data.message || "Fee waived");
+        return;
+      }
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Payment failed");
+    } finally {
+      setPayingFee(false);
+    }
+  };
 
   const handleSearch = async () => {
     setSearching(true);
@@ -287,8 +329,26 @@ const AddTenant = () => {
         })}
       </div>
 
+      {/* Fee Gate */}
+      {!feePaid && !feeConfig.loading && feeConfig.enabled && feeConfig.amount > 0 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
+          <div className="flex items-start gap-3">
+            <CreditCard className="h-6 w-6 text-primary shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-lg font-semibold text-card-foreground">Payment Required</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                A fee of <span className="font-semibold text-foreground">GH₵ {feeConfig.amount.toFixed(2)}</span> is required to add a tenant to your property.
+              </p>
+            </div>
+          </div>
+          <Button onClick={handlePayFee} disabled={payingFee} className="w-full">
+            {payingFee ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Processing...</> : `Pay GH₵ ${feeConfig.amount.toFixed(2)} to Continue`}
+          </Button>
+        </motion.div>
+      )}
+
       {/* Step 1 */}
-      {step === "select-unit" && (
+      {feePaid && step === "select-unit" && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
           <h2 className="text-lg font-semibold text-card-foreground">Select Property & Unit</h2>
           {properties.length === 0 ? (

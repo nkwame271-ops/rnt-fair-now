@@ -5,8 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Fee structure & split rules
-const SPLIT_RULES: Record<string, { total: number; splits: { recipient: string; amount: number; description: string }[] }> = {
+// Default fee structure & split rules (used as fallback if DB lookup fails)
+const DEFAULT_SPLIT_RULES: Record<string, { total: number; splits: { recipient: string; amount: number; description: string }[] }> = {
   tenant_registration: {
     total: 40,
     splits: [
@@ -49,6 +49,40 @@ const SPLIT_RULES: Record<string, { total: number; splits: { recipient: string; 
     total: 2,
     splits: [{ recipient: "platform", amount: 2, description: "Viewing fee" }],
   },
+  add_tenant_fee: {
+    total: 5,
+    splits: [{ recipient: "platform", amount: 5, description: "Add tenant fee" }],
+  },
+  termination_fee: {
+    total: 5,
+    splits: [{ recipient: "platform", amount: 5, description: "Termination request fee" }],
+  },
+};
+
+// Helper to get dynamic fee from DB, falling back to defaults
+const getDynamicFee = async (supabaseAdmin: any, feeKey: string): Promise<{ total: number; enabled: boolean; splits: { recipient: string; amount: number; description: string }[] }> => {
+  try {
+    const { data } = await supabaseAdmin
+      .from("feature_flags")
+      .select("fee_amount, fee_enabled")
+      .eq("feature_key", feeKey)
+      .single();
+
+    const defaultRule = DEFAULT_SPLIT_RULES[feeKey];
+    if (!data || data.fee_amount === null) {
+      return { total: defaultRule?.total ?? 0, enabled: true, splits: defaultRule?.splits ?? [] };
+    }
+
+    const ratio = defaultRule ? data.fee_amount / defaultRule.total : 1;
+    const splits = defaultRule
+      ? defaultRule.splits.map(s => ({ ...s, amount: Math.round(s.amount * ratio * 100) / 100 }))
+      : [{ recipient: "platform", amount: data.fee_amount, description: feeKey.replace(/_/g, " ") }];
+
+    return { total: data.fee_amount, enabled: data.fee_enabled, splits };
+  } catch {
+    const defaultRule = DEFAULT_SPLIT_RULES[feeKey];
+    return { total: defaultRule?.total ?? 0, enabled: true, splits: defaultRule?.splits ?? [] };
+  }
 };
 
 Deno.serve(async (req) => {
@@ -236,28 +270,31 @@ Deno.serve(async (req) => {
     } else if (type === "rent_card_bulk") {
       const { quantity: qty } = body;
       const cardQty = Math.min(Math.max(parseInt(qty) || 1, 1), 50);
-      const rule = SPLIT_RULES.rent_card;
-      totalAmount = rule.total * cardQty;
-      splitPlan = rule.splits.map(s => ({ ...s, amount: s.amount * cardQty }));
-      description = `Rent Card Purchase (${cardQty} cards × GH₵ 25)`;
+      const fee = await getDynamicFee(supabaseAdmin, "rent_card_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Rent card fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total * cardQty;
+      splitPlan = fee.splits.map(s => ({ ...s, amount: s.amount * cardQty }));
+      description = `Rent Card Purchase (${cardQty} cards × GH₵ ${fee.total})`;
       reference = `rcard_${userId}_${Date.now()}`;
       callbackPath = "/landlord/rent-cards?status=success";
       metadata = { quantity: cardQty };
 
     } else if (type === "rent_card") {
-      const rule = SPLIT_RULES.rent_card;
-      totalAmount = rule.total;
-      splitPlan = rule.splits;
-      description = "Rent Card Purchase (GH₵ 25)";
+      const fee = await getDynamicFee(supabaseAdmin, "rent_card_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Rent card fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total;
+      splitPlan = fee.splits;
+      description = `Rent Card Purchase (GH₵ ${fee.total})`;
       reference = `rcard_${userId}_${Date.now()}`;
       callbackPath = "/landlord/rent-cards?status=success";
 
     } else if (type === "agreement_sale") {
       const { tenancyId } = body;
-      const rule = SPLIT_RULES.agreement_sale;
-      totalAmount = rule.total;
-      splitPlan = rule.splits;
-      description = "Tenancy Agreement Form (GH₵ 30)";
+      const fee = await getDynamicFee(supabaseAdmin, "agreement_sale_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Agreement fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total;
+      splitPlan = fee.splits;
+      description = `Tenancy Agreement Form (GH₵ ${fee.total})`;
       reference = `agrsale_${tenancyId || userId}_${Date.now()}`;
       callbackPath = "/landlord/agreements?status=success";
       relatedTenancyId = tenancyId || null;
@@ -272,10 +309,11 @@ Deno.serve(async (req) => {
       if (!tenant) throw new Error("Tenant record not found");
       if (tenant.registration_fee_paid) throw new Error("Registration fee already paid");
 
-      const rule = SPLIT_RULES.tenant_registration;
-      totalAmount = rule.total;
-      splitPlan = rule.splits;
-      description = "Tenant Registration Fee (GH₵ 40)";
+      const fee = await getDynamicFee(supabaseAdmin, "tenant_registration_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total;
+      splitPlan = fee.splits;
+      description = `Tenant Registration Fee (GH₵ ${fee.total})`;
       reference = `treg_${userId}_${Date.now()}`;
       callbackPath = "/tenant/dashboard?status=success";
 
@@ -289,10 +327,11 @@ Deno.serve(async (req) => {
       if (!landlord) throw new Error("Landlord record not found");
       if (landlord.registration_fee_paid) throw new Error("Registration fee already paid");
 
-      const rule = SPLIT_RULES.landlord_registration;
-      totalAmount = rule.total;
-      splitPlan = rule.splits;
-      description = "Landlord Registration Fee (GH₵ 30)";
+      const fee = await getDynamicFee(supabaseAdmin, "landlord_registration_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total;
+      splitPlan = fee.splits;
+      description = `Landlord Registration Fee (GH₵ ${fee.total})`;
       reference = `lreg_${userId}_${Date.now()}`;
       callbackPath = "/landlord/dashboard?status=success";
 
@@ -310,10 +349,11 @@ Deno.serve(async (req) => {
       if (complaint.tenant_user_id !== userId) throw new Error("Unauthorized");
       if (complaint.status !== "pending_payment") throw new Error("Complaint not awaiting payment");
 
-      const rule = SPLIT_RULES.complaint_fee;
-      totalAmount = rule.total;
-      splitPlan = rule.splits;
-      description = "Complaint Filing Fee (GH₵ 2)";
+      const fee = await getDynamicFee(supabaseAdmin, "complaint_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Complaint fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total;
+      splitPlan = fee.splits;
+      description = `Complaint Filing Fee (GH₵ ${fee.total})`;
       reference = `comp_${complaintId}`;
       callbackPath = "/tenant/my-cases?status=success";
       relatedComplaintId = complaintId;
@@ -332,10 +372,11 @@ Deno.serve(async (req) => {
       if (prop.landlord_user_id !== userId) throw new Error("Unauthorized");
       if (prop.listed_on_marketplace) throw new Error("Already listed");
 
-      const rule = SPLIT_RULES.listing_fee;
-      totalAmount = rule.total;
-      splitPlan = rule.splits;
-      description = "Property Listing Fee (GH₵ 2)";
+      const fee = await getDynamicFee(supabaseAdmin, "listing_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Listing fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total;
+      splitPlan = fee.splits;
+      description = `Property Listing Fee (GH₵ ${fee.total})`;
       reference = `list_${propertyId}_${Date.now()}`;
       callbackPath = "/landlord/my-properties?status=listed";
       relatedPropertyId = propertyId;
@@ -344,12 +385,31 @@ Deno.serve(async (req) => {
       const { viewingRequestId } = body;
       if (!viewingRequestId) throw new Error("viewingRequestId is required");
 
-      const rule = SPLIT_RULES.viewing_fee;
-      totalAmount = rule.total;
-      splitPlan = rule.splits;
-      description = "Property Viewing Request Fee (GH₵ 2)";
+      const fee = await getDynamicFee(supabaseAdmin, "viewing_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Viewing fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total;
+      splitPlan = fee.splits;
+      description = `Property Viewing Request Fee (GH₵ ${fee.total})`;
       reference = `view_${viewingRequestId}`;
       callbackPath = "/tenant/marketplace?status=viewing_paid";
+
+    } else if (type === "add_tenant_fee") {
+      const fee = await getDynamicFee(supabaseAdmin, "add_tenant_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Add tenant fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total;
+      splitPlan = fee.splits;
+      description = `Add Tenant Fee (GH₵ ${fee.total})`;
+      reference = `addten_${userId}_${Date.now()}`;
+      callbackPath = "/landlord/add-tenant?status=fee_paid";
+
+    } else if (type === "termination_fee") {
+      const fee = await getDynamicFee(supabaseAdmin, "termination_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Termination fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total;
+      splitPlan = fee.splits;
+      description = `Termination Request Fee (GH₵ ${fee.total})`;
+      reference = `term_${userId}_${Date.now()}`;
+      callbackPath = "/tenant/termination?status=fee_paid";
 
     } else if (type === "renewal_payment") {
       const { tenancyId } = body;

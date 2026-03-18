@@ -23,22 +23,23 @@ import TourGuide from "@/components/TourGuide";
 import { tenantTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
+import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 
 const navItems = [
   { to: "/tenant/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/tenant/marketplace", label: "Marketplace", icon: Store },
-  { to: "/tenant/rent-checker", label: "Rent Checker", icon: Calculator },
-  { to: "/tenant/file-complaint", label: "File Complaint", icon: FileText },
-  { to: "/tenant/my-cases", label: "My Cases", icon: Briefcase },
-  { to: "/tenant/payments", label: "Payments", icon: CreditCard },
-  { to: "/tenant/receipts", label: "Receipts", icon: FileText },
-  { to: "/tenant/my-agreements", label: "Agreements", icon: FileText },
-  { to: "/tenant/legal-assistant", label: "Legal Assistant", icon: MessageSquare },
-  { to: "/tenant/renewal", label: "Renewal", icon: RefreshCw },
-  { to: "/tenant/termination", label: "Termination", icon: AlertTriangle },
-  { to: "/tenant/report-side-payment", label: "Report Side Payment", icon: ShieldAlert },
-  { to: "/tenant/preferences", label: "Preferences", icon: Bell },
-  { to: "/tenant/messages", label: "Messages", icon: MessageCircle },
+  { to: "/tenant/marketplace", label: "Marketplace", icon: Store, featureKey: "marketplace" },
+  { to: "/tenant/rent-checker", label: "Rent Checker", icon: Calculator, featureKey: "rent_checker" },
+  { to: "/tenant/file-complaint", label: "File Complaint", icon: FileText, featureKey: "complaint_filing" },
+  { to: "/tenant/my-cases", label: "My Cases", icon: Briefcase, featureKey: "tenant_cases" },
+  { to: "/tenant/payments", label: "Payments", icon: CreditCard, featureKey: "payments" },
+  { to: "/tenant/receipts", label: "Receipts", icon: FileText, featureKey: "tenant_receipts" },
+  { to: "/tenant/my-agreements", label: "Agreements", icon: FileText, featureKey: "tenant_agreements" },
+  { to: "/tenant/legal-assistant", label: "Legal Assistant", icon: MessageSquare, featureKey: "legal_assistant" },
+  { to: "/tenant/renewal", label: "Renewal", icon: RefreshCw, featureKey: "renewal" },
+  { to: "/tenant/termination", label: "Termination", icon: AlertTriangle, featureKey: "termination" },
+  { to: "/tenant/report-side-payment", label: "Report Side Payment", icon: ShieldAlert, featureKey: "report_side_payment" },
+  { to: "/tenant/preferences", label: "Preferences", icon: Bell, featureKey: "preferences" },
+  { to: "/tenant/messages", label: "Messages", icon: MessageCircle, featureKey: "tenant_messages" },
   { to: "/tenant/profile", label: "My Profile", icon: UserCircle },
 ];
 
@@ -46,6 +47,14 @@ const TenantLayout = () => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { flags } = useAllFeatureFlags();
+
+  const filteredNav = navItems.filter((item) => {
+    if (!item.featureKey) return true;
+    const flag = flags.find((f) => f.feature_key === item.featureKey);
+    if (!flag) return true; // no flag = always show
+    return flag.is_enabled;
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -54,7 +63,6 @@ const TenantLayout = () => {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -65,7 +73,7 @@ const TenantLayout = () => {
           <span className="font-bold text-lg">Rent Control</span>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
+          {filteredNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -94,7 +102,6 @@ const TenantLayout = () => {
         </div>
       </aside>
 
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-foreground/30 lg:hidden"
@@ -102,7 +109,6 @@ const TenantLayout = () => {
         />
       )}
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-4">
           <button onClick={() => setMobileOpen(true)} className="lg:hidden">
