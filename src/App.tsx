@@ -67,6 +67,7 @@ import ManageRentCards from "./pages/landlord/ManageRentCards";
 import EscrowDashboard from "./pages/regulator/EscrowDashboard";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
+import VerifyTenancy from "./pages/shared/VerifyTenancy";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,7 @@ const App = () => (
             <Route path="/regulator/login" element={<RegulatorLogin />} />
             <Route path="/verify/:role/:id" element={<VerifyRegistration />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-tenancy/:tenancyId" element={<VerifyTenancy />} />
 
             {/* Tenant Routes */}
             <Route path="/tenant" element={<ProtectedRoute requiredRole="tenant"><TenantLayout /></ProtectedRoute>}>

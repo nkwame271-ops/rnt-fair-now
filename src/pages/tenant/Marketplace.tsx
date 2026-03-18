@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle, Lock, CheckCircle2, Eye } from "lucide-react";
+import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle, Lock, CheckCircle2, Eye, X, ArrowLeft } from "lucide-react";
 import StreetViewEmbed from "@/components/StreetViewEmbed";
 import NearbyAmenities from "@/components/NearbyAmenities";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { useKycStatus } from "@/hooks/useKycStatus";
 import { toast } from "sonner";
 import { sendSms } from "@/lib/smsService";
 import { format, addDays } from "date-fns";
+import { useSearchParams } from "react-router-dom";
 
 import listing1 from "@/assets/listing-1.jpg";
 import listing2 from "@/assets/listing-2.jpg";
@@ -51,6 +52,7 @@ interface MarketUnit {
 const Marketplace = () => {
   const { user } = useAuth();
   const { isVerified: kycVerified } = useKycStatus();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState("all");
   const [type, setType] = useState("all");
@@ -138,6 +140,14 @@ const Marketplace = () => {
     };
     fetchUnits();
   }, []);
+
+  // Handle viewing payment callback
+  useEffect(() => {
+    if (searchParams.get("status") === "viewing_paid") {
+      toast.success("Viewing fee paid successfully! Your request has been sent to the landlord.");
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Fetch watchlist + all viewing requests
   useEffect(() => {
@@ -382,7 +392,21 @@ const Marketplace = () => {
             className="bg-card rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-elevated"
             onClick={(e) => e.stopPropagation()}
           >
-            <img src={selectedUnit.imageUrl} alt="" className="w-full h-56 object-cover rounded-t-2xl" />
+            <div className="relative">
+              <img src={selectedUnit.imageUrl} alt="" className="w-full h-56 object-cover rounded-t-2xl" />
+              <button
+                onClick={() => setSelectedUnit(null)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors"
+              >
+                <X className="h-4 w-4 text-foreground" />
+              </button>
+              <button
+                onClick={() => setSelectedUnit(null)}
+                className="absolute top-3 left-3 flex items-center gap-1 bg-card/80 backdrop-blur px-3 py-1.5 rounded-full text-xs font-medium text-foreground hover:bg-card transition-colors"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Back to listings
+              </button>
+            </div>
             <div className="p-6 space-y-4">
               <div className="flex items-start justify-between">
                 <div>

@@ -56,6 +56,15 @@ const PropertyMap = ({ markers, height = "400px", center, zoom = 7 }: PropertyMa
     );
   }
 
+  // Catch Google Maps loading errors gracefully
+  if (typeof google === "undefined" || !google.maps) {
+    return (
+      <div style={{ height }} className="rounded-xl border border-border overflow-hidden bg-muted flex items-center justify-center text-sm text-muted-foreground p-4 text-center">
+        Map unavailable — please check your Google Maps API key configuration.
+      </div>
+    );
+  }
+
   return (
     <div style={{ height }} className="rounded-xl border border-border overflow-hidden">
       <GoogleMap
