@@ -76,6 +76,43 @@ const AddTenant = () => {
     fetchData();
   }, [user]);
 
+  // Check if fee was paid via callback
+  useEffect(() => {
+    if (searchParams.get("status") === "fee_paid") {
+      setFeePaid(true);
+    }
+  }, [searchParams]);
+
+  // If fee is not required or disabled, auto-skip
+  useEffect(() => {
+    if (!feeConfig.loading && (!feeConfig.enabled || feeConfig.amount <= 0)) {
+      setFeePaid(true);
+    }
+  }, [feeConfig]);
+
+  const handlePayFee = async () => {
+    if (!user) return;
+    setPayingFee(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("paystack-checkout", {
+        body: { type: "add_tenant_fee" },
+      });
+      if (error) throw error;
+      if (data?.skipped) {
+        setFeePaid(true);
+        toast.success(data.message || "Fee waived");
+        return;
+      }
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Payment failed");
+    } finally {
+      setPayingFee(false);
+    }
+  };
+
   const handleSearch = async () => {
     setSearching(true);
     setFoundTenant(null);
