@@ -67,6 +67,7 @@ import ManageRentCards from "./pages/landlord/ManageRentCards";
 import EscrowDashboard from "./pages/regulator/EscrowDashboard";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
+import VerifyTenancy from "./pages/shared/VerifyTenancy";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
