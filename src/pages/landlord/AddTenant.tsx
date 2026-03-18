@@ -170,7 +170,7 @@ const AddTenant = () => {
       const moveIn = startDate;
 
       // Generate registration code with retry on collision
-      let registrationCode = generateRegistrationCode();
+      let regCode = generateRegistrationCode();
       let tenancy: any = null;
       let attempts = 0;
       while (attempts < 5) {
