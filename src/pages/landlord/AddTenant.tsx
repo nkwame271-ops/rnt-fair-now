@@ -74,10 +74,11 @@ const AddTenant = () => {
     fetchData();
   }, [user]);
 
-  // Check if fee was paid via callback — auto-submit tenancy
+  const [autoSubmitPending, setAutoSubmitPending] = useState(false);
+
+  // Check if fee was paid via callback — restore form and auto-submit
   useEffect(() => {
     if (searchParams.get("status") === "fee_paid") {
-      // Restore form data from sessionStorage
       const saved = sessionStorage.getItem("addTenantFormData");
       if (saved) {
         try {
@@ -92,14 +93,23 @@ const AddTenant = () => {
           setCustomFieldValues(data.customFieldValues || {});
           setSelectedRentCardId(data.selectedRentCardId || "");
           setStep("review");
+          setAutoSubmitPending(true);
           sessionStorage.removeItem("addTenantFormData");
           toast.success("Fee paid! Submitting your tenancy...");
-          // Auto-submit will happen via another effect
         } catch { /* ignore parse errors */ }
       }
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [searchParams]);
+
+  // Auto-submit after restoring form data from fee payment return
+  useEffect(() => {
+    if (autoSubmitPending && foundTenant && selectedUnitId && selectedRentCardId && !loading) {
+      setAutoSubmitPending(false);
+      // Small delay to let state settle
+      setTimeout(() => handleSubmit(), 500);
+    }
+  }, [autoSubmitPending, foundTenant, selectedUnitId, selectedRentCardId, loading]);
 
   const handlePayFee = async () => {
     if (!user) return;
