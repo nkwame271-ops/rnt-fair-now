@@ -13,15 +13,19 @@ interface FeatureFlag {
 
 let cachedFlags: FeatureFlag[] | null = null;
 let fetchPromise: Promise<FeatureFlag[]> | null = null;
+let cachedAt = 0;
+const CACHE_TTL = 30_000; // 30 seconds
 
 const fetchFlags = async (): Promise<FeatureFlag[]> => {
-  if (cachedFlags) return cachedFlags;
+  const now = Date.now();
+  if (cachedFlags && now - cachedAt < CACHE_TTL) return cachedFlags;
   if (fetchPromise) return fetchPromise;
   fetchPromise = (async () => {
     const { data } = await supabase
       .from("feature_flags")
       .select("feature_key, label, description, is_enabled, category, fee_amount, fee_enabled");
     cachedFlags = (data as FeatureFlag[]) || [];
+    cachedAt = Date.now();
     fetchPromise = null;
     return cachedFlags;
   })();
@@ -31,6 +35,7 @@ const fetchFlags = async (): Promise<FeatureFlag[]> => {
 export const invalidateFeatureFlags = () => {
   cachedFlags = null;
   fetchPromise = null;
+  cachedAt = 0;
 };
 
 export const useFeatureFlag = (key: string): { enabled: boolean; loading: boolean } => {
@@ -81,6 +86,8 @@ export const useFeeConfig = (key: string): { amount: number; enabled: boolean; l
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Always fetch fresh for fee checks — bypass stale cache
+    invalidateFeatureFlags();
     fetchFlags().then((flags) => {
       const flag = flags.find((f) => f.feature_key === key);
       setAmount(flag?.fee_amount ?? 0);
