@@ -74,40 +74,58 @@ const AddTenant = () => {
     fetchData();
   }, [user]);
 
-  // Check if fee was paid via callback
+  // Check if fee was paid via callback — auto-submit tenancy
   useEffect(() => {
     if (searchParams.get("status") === "fee_paid") {
-      setFeePaid(true);
+      // Restore form data from sessionStorage
+      const saved = sessionStorage.getItem("addTenantFormData");
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          setSelectedPropertyId(data.selectedPropertyId || "");
+          setSelectedUnitId(data.selectedUnitId || "");
+          setFoundTenant(data.foundTenant || null);
+          setRent(data.rent || "");
+          setAdvanceMonths(data.advanceMonths || "6");
+          setLeaseDurationMonths(data.leaseDurationMonths || "12");
+          setStartDate(data.startDate || "2026-03-01");
+          setCustomFieldValues(data.customFieldValues || {});
+          setSelectedRentCardId(data.selectedRentCardId || "");
+          setStep("review");
+          sessionStorage.removeItem("addTenantFormData");
+          toast.success("Fee paid! Submitting your tenancy...");
+          // Auto-submit will happen via another effect
+        } catch { /* ignore parse errors */ }
+      }
+      window.history.replaceState({}, "", window.location.pathname);
     }
   }, [searchParams]);
 
-  // If fee is not required or disabled, auto-skip
-  useEffect(() => {
-    if (!feeConfig.loading && (!feeConfig.enabled || feeConfig.amount <= 0)) {
-      setFeePaid(true);
-    }
-  }, [feeConfig]);
-
   const handlePayFee = async () => {
     if (!user) return;
-    setPayingFee(true);
+    // Save form data to sessionStorage before redirect
+    sessionStorage.setItem("addTenantFormData", JSON.stringify({
+      selectedPropertyId, selectedUnitId, foundTenant, rent, advanceMonths,
+      leaseDurationMonths, startDate, customFieldValues, selectedRentCardId,
+    }));
     try {
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "add_tenant_fee" },
       });
       if (error) throw error;
       if (data?.skipped) {
-        setFeePaid(true);
+        sessionStorage.removeItem("addTenantFormData");
         toast.success(data.message || "Fee waived");
+        // Proceed directly to submit
+        handleSubmit();
         return;
       }
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
       }
     } catch (err: any) {
+      sessionStorage.removeItem("addTenantFormData");
       toast.error(err.message || "Payment failed");
-    } finally {
-      setPayingFee(false);
     }
   };
 
