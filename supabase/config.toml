@@ -23,3 +23,12 @@ verify_jwt = false
 
 [functions.agency-api]
 verify_jwt = false
+
+[functions.verify-payment]
+verify_jwt = false
+
+[functions.verify-rent-card]
+verify_jwt = false
+
+[functions.verify-receipt]
+verify_jwt = false

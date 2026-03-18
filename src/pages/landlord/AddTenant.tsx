@@ -275,12 +275,22 @@ const AddTenant = () => {
       if (!tenancy) throw new Error("Failed to create tenancy after multiple attempts");
       setRegistrationCode(regCode);
 
-      // Activate the rent card
+      // Activate the rent card with full tenancy details
       await supabase.from("rent_cards").update({
         status: "active",
         tenancy_id: tenancy.id,
         activated_at: new Date().toISOString(),
-      }).eq("id", selectedRentCardId);
+        tenant_user_id: foundTenant.userId,
+        property_id: property.id,
+        unit_id: unit.id,
+        start_date: startDate,
+        expiry_date: endDate,
+        current_rent: monthlyRent,
+        previous_rent: 0,
+        max_advance: maxAdvance,
+        advance_paid: parseInt(advanceMonths),
+        last_payment_status: "pending",
+      } as any).eq("id", selectedRentCardId);
 
       // Generate rent payment schedule — batch insert
       const totalMonths = parseInt(leaseDurationMonths);
