@@ -1,34 +1,25 @@
 
 
-## Fix: Arkesel SMS Edge Function — Wrong API Format
+# Property Database: Clickable Address & Ghana Post GPS
 
-**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
+## Changes
 
-**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
+### 1. Make Address clickable (links to Google Maps)
+In the detail dialog (line 301) and table view (line 250), wrap the address in an anchor tag that opens Google Maps at the property's GPS coordinates. If GPS is available, link to `https://www.google.com/maps?q={lat},{lng}`. If not, fall back to a Google Maps search for the text address.
 
-### Changes
+### 2. Show Ghana Post GPS in detail dialog
+Add a new field row after the GPS line (line 303) that displays `detailProperty.ghana_post_gps` when it exists. The `ghana_post_gps` column already exists in the `properties` table and is already being saved during registration -- it just isn't rendered in the detail view.
 
-**1. Update `supabase/functions/send-sms/index.ts`**
+## File: `src/pages/regulator/RegulatorProperties.tsx`
 
-- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
-- Move API key from request body to `api-key` header
-- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
-- Remove `action` from body
-- Update success check from `data.code !== "ok"` to `data.status !== "success"`
-- Add response text logging before JSON parse to aid debugging
+**Table view (line 250):** Wrap address text in an `<a>` tag that opens Google Maps using the property's `gps_location` or address as fallback.
 
-### Technical Details
+**Detail dialog (line 301):** Same -- make address a clickable link styled with underline and primary color.
 
-```text
-Current (broken V1 format):
-  POST https://sms.arkesel.com/sms/api?action=send-sms
-  Body: { action, api_key, to, from, sms }
-
-Fixed (V2 format):
-  POST https://api.arkesel.com/api/v2/sms/send
-  Headers: { api-key: ARKESEL_API_KEY }
-  Body: { sender, message, recipients: ["233..."] }
+**Detail dialog (after line 303):** Add a new row:
+```
+Ghana Post GPS: {detailProperty.ghana_post_gps || "—"}
 ```
 
-After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
+No database changes needed -- `ghana_post_gps` is already stored.
 
