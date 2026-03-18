@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { sendSms } from "@/lib/smsService";
 import { format, addDays } from "date-fns";
 import { useSearchParams } from "react-router-dom";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 
 import listing1 from "@/assets/listing-1.jpg";
 import listing2 from "@/assets/listing-2.jpg";
@@ -52,6 +53,7 @@ interface MarketUnit {
 const Marketplace = () => {
   const { user } = useAuth();
   const { isVerified: kycVerified } = useKycStatus();
+  const viewingFeeConfig = useFeeConfig("viewing_fee");
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState("all");
@@ -284,6 +286,12 @@ const Marketplace = () => {
 
       if (payData?.authorization_url) {
         window.location.href = payData.authorization_url;
+      } else if (payData?.skipped || (payData && !payData.error)) {
+        // Fee waived — update viewing request to pending directly
+        await supabase.from("viewing_requests").update({ status: "pending" }).eq("id", vr.id);
+        toast.success("Viewing request sent to landlord!");
+        setViewingRequestsByUnit(prev => ({ ...prev, [selectedUnit.id]: "pending" }));
+        setSelectedUnit(null);
       } else {
         throw new Error("No checkout URL received");
       }
@@ -555,9 +563,9 @@ const Marketplace = () => {
                     <Textarea value={viewingMessage} onChange={(e) => setViewingMessage(e.target.value)} placeholder="Optional message to landlord..." rows={2} />
                     <Button className="w-full" onClick={handleRequestViewing} disabled={submittingRequest}>
                       <Send className="h-4 w-4 mr-2" />
-                      {submittingRequest ? "Processing..." : "Pay GH₵ 2 & Send Viewing Request"}
+                      {submittingRequest ? "Processing..." : `Pay GH₵ ${viewingFeeConfig.amount.toFixed(2)} & Send Viewing Request`}
                     </Button>
-                    <p className="text-xs text-muted-foreground text-center">A GH₵ 2 viewing fee is required to send this request</p>
+                    <p className="text-xs text-muted-foreground text-center">A GH₵ {viewingFeeConfig.amount.toFixed(2)} viewing fee is required to send this request</p>
                   </div>
                 );
               })()}

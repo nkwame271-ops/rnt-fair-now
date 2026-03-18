@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
-import { FileText, Clock, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { FileText, Clock, CheckCircle2, AlertTriangle, Loader2, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 
 const statusIcon: Record<string, React.ReactNode> = {
+  pending_payment: <CreditCard className="h-4 w-4 text-warning" />,
   submitted: <Clock className="h-4 w-4 text-info" />,
   under_review: <AlertTriangle className="h-4 w-4 text-warning" />,
   in_progress: <Clock className="h-4 w-4 text-primary" />,
@@ -12,6 +15,7 @@ const statusIcon: Record<string, React.ReactNode> = {
 };
 
 const statusColors: Record<string, string> = {
+  pending_payment: "bg-warning/10 text-warning",
   submitted: "bg-info/10 text-info",
   under_review: "bg-warning/10 text-warning",
   in_progress: "bg-primary/10 text-primary",
@@ -19,23 +23,53 @@ const statusColors: Record<string, string> = {
   closed: "bg-muted text-muted-foreground",
 };
 
+const statusLabel: Record<string, string> = {
+  pending_payment: "Awaiting Payment",
+  submitted: "Submitted",
+  under_review: "Under Review",
+  in_progress: "In Progress",
+  resolved: "Resolved",
+  closed: "Closed",
+};
+
 const MyCases = () => {
   const { user } = useAuth();
   const [complaints, setComplaints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
 
+  const fetchComplaints = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("complaints")
+      .select("*")
+      .eq("tenant_user_id", user.id)
+      .order("created_at", { ascending: false });
+    setComplaints(data || []);
+    setLoading(false);
+  };
+
+  // Auto-verify payment on return from Paystack
   useEffect(() => {
     if (!user) return;
-    const fetchComplaints = async () => {
-      const { data } = await supabase
-        .from("complaints")
-        .select("*")
-        .eq("tenant_user_id", user.id)
-        .order("created_at", { ascending: false });
-      setComplaints(data || []);
-      setLoading(false);
-    };
-    fetchComplaints();
+    const reference = searchParams.get("reference") || searchParams.get("trxref");
+    if (reference) {
+      const verifyPayment = async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke("verify-payment", {
+            body: { reference },
+          });
+          if (data?.verified) {
+            toast.success("Payment confirmed! Your complaint has been submitted.");
+          }
+        } catch (_) {}
+        setSearchParams({}, { replace: true });
+        fetchComplaints();
+      };
+      verifyPayment();
+    } else {
+      fetchComplaints();
+    }
   }, [user]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -69,7 +103,7 @@ const MyCases = () => {
                   className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full ${statusColors[c.status] || "bg-muted text-muted-foreground"}`}
                 >
                   {statusIcon[c.status]}
-                  {c.status.replace("_", " ")}
+                  {statusLabel[c.status] || c.status.replace("_", " ")}
                 </span>
               </div>
               <div className="grid sm:grid-cols-2 gap-2 text-sm text-muted-foreground">

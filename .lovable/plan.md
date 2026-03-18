@@ -1,57 +1,34 @@
 
 
-# Fix Tenant Portal: Complaint Fee, Viewing Fee, and Receipt Issues
+## Fix: Arkesel SMS Edge Function — Wrong API Format
 
-## Issues Summary
+**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
 
-1. **Complaint fee off → "No checkout URL received"** — `FileComplaint.tsx` line 226-229 doesn't handle `{ skipped: true }` from paystack-checkout when fee is disabled.
-2. **Complaint fee on → case shows "pending_payment"** — The complaint is inserted with `status: "pending_payment"` (line 181). After payment, `verify-payment` doesn't update the complaint status to `"submitted"`. The webhook does (line 345), but there's a race condition — user returns before webhook fires.
-3. **Hardcoded "GH₵ 2.00"** — FileComplaint line 485 and button line 521 show hardcoded amounts instead of using `useFeeConfig`.
-4. **Complaint receipts missing** — `verify-payment` creates receipts generically (line 149-170) but doesn't update complaint status to `submitted`, so if webhook hasn't fired, the complaint stays in `pending_payment` and the receipt `payment_type` = `complaint_fee` may not match the tenant's receipt query filters.
-5. **Viewing fee hardcoded** — Marketplace.tsx lines 558 and 560 show hardcoded "GH₵ 2" instead of dynamic fee. Also line 285-288 doesn't handle `{ skipped: true }`.
+**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
 
-## Plan
+### Changes
 
-### 1. FileComplaint.tsx — handle skipped + dynamic fee + verify on return
+**1. Update `supabase/functions/send-sms/index.ts`**
 
-- Import `useFeeConfig` hook
-- When `data?.skipped`, update complaint status to `"submitted"` directly, show success, navigate to My Cases
-- On the review step, show `feeConfig.amount.toFixed(2)` instead of hardcoded "2.00"
-- Button text: `Pay GH₵ ${feeConfig.amount.toFixed(2)} & Submit` instead of `Pay GH₵ 2 & Submit`
+- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
+- Move API key from request body to `api-key` header
+- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
+- Remove `action` from body
+- Update success check from `data.code !== "ok"` to `data.status !== "success"`
+- Add response text logging before JSON parse to aid debugging
 
-### 2. verify-payment — handle complaint_fee type
+### Technical Details
 
-Add `complaint_fee` handler in verify-payment (after line 140, before receipt creation):
+```text
+Current (broken V1 format):
+  POST https://sms.arkesel.com/sms/api?action=send-sms
+  Body: { action, api_key, to, from, sms }
+
+Fixed (V2 format):
+  POST https://api.arkesel.com/api/v2/sms/send
+  Headers: { api-key: ARKESEL_API_KEY }
+  Body: { sender, message, recipients: ["233..."] }
 ```
-else if (paymentType === "complaint_fee") {
-  // Update complaint status from pending_payment to submitted
-  const complaintId = meta?.complaintId || reference.replace("comp_", "");
-  await supabaseAdmin.from("complaints").update({ status: "submitted" }).eq("id", complaintId);
-}
-```
 
-Also add `viewing_fee` handler to update viewing request status.
-
-### 3. MyCases.tsx — add pending_payment status display + verify on load
-
-- Add `pending_payment` to `statusIcon` and `statusColors` maps
-- On page load, check for `?status=success` or `trxref`/`reference` params → call `verify-payment` with the reference to finalize the complaint, then refetch
-- Show a human-readable label for `pending_payment` (e.g., "Awaiting Payment")
-
-### 4. Marketplace.tsx — handle skipped + dynamic fee
-
-- Import `useFeeConfig` for `viewing_fee`
-- When `payData?.skipped`, update the viewing request status to `"pending"` (approved free), show success toast
-- Replace hardcoded "GH₵ 2" with dynamic `feeConfig.amount.toFixed(2)` in button and helper text
-
-### 5. Receipts — complaint fee receipts already work
-
-The receipt is created by `verify-payment` with `payment_type: "complaint_fee"`. The tenant Receipts page queries by `user_id` and already includes `complaint_fee` in the filter. This should work once `verify-payment` properly finalizes complaint payments. No change needed in Receipts.tsx.
-
-## Files to modify
-
-- `src/pages/tenant/FileComplaint.tsx` — handle skipped, dynamic fee, verify on return
-- `src/pages/tenant/MyCases.tsx` — pending_payment status, verify on load
-- `src/pages/tenant/Marketplace.tsx` — handle skipped, dynamic viewing fee
-- `supabase/functions/verify-payment/index.ts` — handle complaint_fee + viewing_fee types
+After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
 

@@ -122,6 +122,26 @@ Deno.serve(async (req) => {
           .update({ listed_on_marketplace: true })
           .eq("id", propertyId);
       }
+    } else if (paymentType === "complaint_fee") {
+      // Update complaint status from pending_payment to submitted
+      const complaintId = meta?.complaintId;
+      if (complaintId) {
+        await supabaseAdmin
+          .from("complaints")
+          .update({ status: "submitted" })
+          .eq("id", complaintId)
+          .eq("status", "pending_payment");
+      }
+    } else if (paymentType === "viewing_fee") {
+      // Update viewing request status from awaiting_payment to pending
+      const viewingRequestId = meta?.viewingRequestId;
+      if (viewingRequestId) {
+        await supabaseAdmin
+          .from("viewing_requests")
+          .update({ status: "pending" })
+          .eq("id", viewingRequestId)
+          .eq("status", "awaiting_payment");
+      }
     } else if (paymentType === "rent_card_bulk" || paymentType === "rent_card") {
       // Create rent cards if not already created
       const qty = meta?.quantity || 1;
@@ -186,6 +206,8 @@ Deno.serve(async (req) => {
         rent_card_bulk: { title: "Rent Cards Purchased", body: `${meta?.quantity || 1} Rent Card(s) purchased successfully for GH₵ ${amountPaid.toFixed(2)}.`, link: "/landlord/rent-cards" },
         rent_card: { title: "Rent Card Purchased", body: `Rent Card purchased for GH₵ ${amountPaid.toFixed(2)}.`, link: "/landlord/rent-cards" },
         add_tenant_fee: { title: "Add Tenant Fee Paid", body: `Add tenant fee of GH₵ ${amountPaid.toFixed(2)} confirmed.`, link: "/landlord/add-tenant" },
+        complaint_fee: { title: "Complaint Filed", body: `Your complaint filing fee of GH₵ ${amountPaid.toFixed(2)} has been confirmed. Your case is now under review.`, link: "/tenant/my-cases" },
+        viewing_fee: { title: "Viewing Request Sent", body: `Your viewing fee of GH₵ ${amountPaid.toFixed(2)} has been confirmed. The landlord will respond to your request.`, link: "/tenant/marketplace" },
       };
       const notif = notifMap[paymentType];
       if (notif) {
