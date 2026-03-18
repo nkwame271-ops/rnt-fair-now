@@ -43,6 +43,7 @@ const AddTenant = () => {
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [availableRentCards, setAvailableRentCards] = useState<{ id: string; serial_number: string }[]>([]);
   const [selectedRentCardId, setSelectedRentCardId] = useState("");
+  const [registrationCode, setRegistrationCode] = useState("");
 
   const property = properties.find(p => p.id === selectedPropertyId);
   const unit = property?.units.find(u => u.id === selectedUnitId);
