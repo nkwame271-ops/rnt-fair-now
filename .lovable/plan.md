@@ -1,34 +1,101 @@
 
 
-## Fix: Arkesel SMS Edge Function — Wrong API Format
+# Phone-Based Registration & Login Overhaul
 
-**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
+## Overview
 
-**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
+Switch authentication from email-based to phone-based. Phone becomes required, email becomes optional. Users get a temporary password (last 6 digits of phone). SMS and email welcome messages updated to match the provided templates.
 
-### Changes
+---
 
-**1. Update `supabase/functions/send-sms/index.ts`**
+## Strategy: Phone as Primary Auth Identifier
 
-- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
-- Move API key from request body to `api-key` header
-- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
-- Remove `action` from body
-- Update success check from `data.code !== "ok"` to `data.status !== "success"`
-- Add response text logging before JSON parse to aid debugging
+Supabase requires an email for `signUp`. We will generate a synthetic email from the phone number: `{normalized_phone}@rentcontrolghana.local`. The actual email (if provided) is stored in the `profiles` table for correspondence only. Password defaults to the last 6 digits of the phone number.
 
-### Technical Details
+---
 
-```text
-Current (broken V1 format):
-  POST https://sms.arkesel.com/sms/api?action=send-sms
-  Body: { action, api_key, to, from, sms }
+## 1. Registration Pages
 
-Fixed (V2 format):
-  POST https://api.arkesel.com/api/v2/sms/send
-  Headers: { api-key: ARKESEL_API_KEY }
-  Body: { sender, message, recipients: ["233..."] }
+### `RegisterTenant.tsx` — Restructure Steps
+
+**Step 0 "Account"**: Remove email and password fields. Keep Full Name. Add Phone Number (required). Add Email (optional).
+
+**Step 1 "Identity"**: Keep as-is (citizenship, Ghana Card, region).
+
+**Step 2 "Contact"**: Keep occupation, work address, emergency contact fields.
+
+**Account creation logic**:
+- Generate synthetic email: `{phone_digits}@rentcontrolghana.local`
+- Auto-generate password: last 6 digits of phone number
+- Store real email (if provided) in profiles table
+- Sign up with synthetic email + auto-password
+- Enable auto-confirm since there's no email verification needed
+
+**Success screen updates**:
+- Remove "Check your email to verify" instruction
+- Show login details: phone number + "your temporary password is the last 6 digits of your phone number"
+- Update fee display to GH₵ 40
+
+### `RegisterLandlord.tsx` — Same pattern
+
+**Step 0**: Full Name, Business Name (optional), Phone (required), Email (optional). Remove password field.
+
+**Step 1**: Identity & region (keep as-is).
+
+**Account creation**: Same synthetic email + auto-password approach.
+
+**Success screen**: Same login details display. Update fee to GH₵ 30.
+
+---
+
+## 2. Login Page
+
+### `Login.tsx` — Phone-based login
+
+- **Password mode**: Change from email input to phone number input. Construct synthetic email from phone, sign in with auto-password or user-set password.
+- **Magic Link mode**: Only available if user has a real email on file. Otherwise hide/disable this option.
+- **Forgot password**: Replace with "Reset via SMS" or keep email-based for users who provided email.
+- Update placeholder text and labels from "Email" to "Phone Number".
+
+---
+
+## 3. SMS Welcome Template
+
+Update `smsService.ts` `registration_success` template:
+
+```
+Hello {name}, your RentControlGhana account has been successfully created. Name: {name}, ID: {id}. Please keep your ID safe. Login: Phone: {phone}, Temp Password: last 6 digits of your phone. Login: {link}. Change your password immediately. Do not share it.
 ```
 
-After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
+---
+
+## 4. Email Welcome (Optional - if email provided)
+
+Create a new SMS event or send via edge function when email is provided during registration. The email contains the full formatted welcome message as specified by the user.
+
+---
+
+## 5. Auth Configuration
+
+- Enable auto-confirm for email signups (since we use synthetic emails, verification is meaningless)
+- The `handle_new_user` trigger already stores phone in profiles — no DB changes needed
+
+---
+
+## 6. Existing User Handling
+
+- Login page: phone number uniquely maps to a synthetic email, so duplicate detection works
+- Registration: check if `{phone}@rentcontrolghana.local` already exists before signup
+
+---
+
+## Files Summary
+
+| File | Action |
+|------|--------|
+| `src/pages/RegisterTenant.tsx` | Rewrite — phone required, email optional, no password field, auto-password from phone, updated success screen |
+| `src/pages/RegisterLandlord.tsx` | Rewrite — same phone-first approach, updated success screen |
+| `src/pages/Login.tsx` | Rewrite — phone number input instead of email, construct synthetic email for auth |
+| `src/lib/smsService.ts` | Update — new `registration_success` template matching provided SMS format |
+| Auth config | Enable auto-confirm (synthetic emails don't need verification) |
 
