@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Shield, Phone, Lock, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Shield, Phone, Lock, ArrowLeft, CheckCircle2, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,9 @@ const Login = () => {
   const role = searchParams.get("role") || "tenant";
   const navigate = useNavigate();
 
+  const [loginMode, setLoginMode] = useState<"phone" | "email">("phone");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
@@ -48,20 +50,34 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const phoneDigits = phone.replace(/\s/g, "");
-    if (phoneDigits.length !== 10) {
-      toast.error("Please enter a valid 10-digit phone number");
-      return;
-    }
     setLoading(true);
-    const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
+
+    let loginEmail: string;
+
+    if (loginMode === "phone") {
+      const phoneDigits = phone.replace(/\s/g, "");
+      if (phoneDigits.length !== 10) {
+        toast.error("Please enter a valid 10-digit phone number");
+        setLoading(false);
+        return;
+      }
+      loginEmail = `${phoneDigits}@rentcontrolghana.local`;
+    } else {
+      if (!email.trim()) {
+        toast.error("Please enter your email address");
+        setLoading(false);
+        return;
+      }
+      loginEmail = email.trim();
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: syntheticEmail,
+      email: loginEmail,
       password,
     });
     if (error) {
       toast.error(error.message === "Invalid login credentials"
-        ? "Invalid phone number or password"
+        ? "Invalid credentials. Please try again."
         : error.message);
       setLoading(false);
       return;
@@ -98,25 +114,65 @@ const Login = () => {
               {role}
             </div>
             <h1 className="text-3xl font-bold text-foreground">Welcome Back</h1>
-            <p className="text-muted-foreground mt-1">Sign in with your phone number</p>
+            <p className="text-muted-foreground mt-1">Sign in with your {loginMode === "phone" ? "phone number" : "email address"}</p>
+          </div>
+
+          <div className="flex gap-2 mb-4">
+            <Button
+              type="button"
+              variant={loginMode === "phone" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLoginMode("phone")}
+              className="flex-1"
+            >
+              <Phone className="h-4 w-4 mr-1.5" />
+              Phone
+            </Button>
+            <Button
+              type="button"
+              variant={loginMode === "email" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLoginMode("email")}
+              className="flex-1"
+            >
+              <Mail className="h-4 w-4 mr-1.5" />
+              Email
+            </Button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Phone Number</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="tel"
-                  placeholder="024 555 1234"
-                  className="pl-10"
-                  value={phone}
-                  onChange={(e) => setPhone(formatPhone(e.target.value))}
-                  maxLength={12}
-                  required
-                />
+            {loginMode === "phone" ? (
+              <div className="space-y-2">
+                <Label>Phone Number</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="tel"
+                    placeholder="024 555 1234"
+                    className="pl-10"
+                    value={phone}
+                    onChange={(e) => setPhone(formatPhone(e.target.value))}
+                    maxLength={12}
+                    required
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="you@example.com"
+                    className="pl-10"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Password</Label>

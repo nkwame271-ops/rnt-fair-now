@@ -175,7 +175,7 @@ const RegisterTenant = () => {
               <span className="font-semibold">Annual Registration</span>
             </div>
             <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ 40.00</div>
-            <p className="text-primary-foreground/70 text-sm mb-3">Per year · Includes physical ID card delivery</p>
+            <p className="text-primary-foreground/70 text-sm mb-3">Per year</p>
             <div className="border-t border-primary-foreground/20 pt-3">
               <p className="text-sm font-semibold mb-2">Registration Fee Covers:</p>
               <ul className="space-y-1.5 text-sm text-primary-foreground/80">

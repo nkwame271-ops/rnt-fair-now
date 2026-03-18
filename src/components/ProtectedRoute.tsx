@@ -22,6 +22,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [feePaid, setFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
   const [paymentPending, setPaymentPending] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   const checkRegistration = useCallback(async (userId: string, userRole: string) => {
     const table = userRole === "tenant" ? "tenants" : "landlords";
@@ -75,7 +76,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
             clearInterval(interval);
             setPaymentPending(false);
             setFeePaid(false);
-            toast.error("Payment could not be confirmed. If you completed payment, it may take a moment to process. Please try again.");
+            setPaymentProcessing(true);
           }
         }, 3000);
 
@@ -120,6 +121,29 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
           <div className="h-2 bg-muted rounded-full overflow-hidden max-w-xs mx-auto">
             <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: "60%" }} />
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show "payment processing" screen after polling exhausted (prevent double charge)
+  if (paymentProcessing) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="max-w-md w-full text-center space-y-6">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+            <Shield className="h-8 w-8 text-primary" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">Payment Is Being Processed</h1>
+          <p className="text-muted-foreground">
+            Your payment was received and is being confirmed. This may take a moment.
+          </p>
+          <Button onClick={() => window.location.reload()} className="w-full h-12 text-base font-semibold">
+            Refresh Status
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            If the issue persists, please contact support via live chat.
+          </p>
         </div>
       </div>
     );
