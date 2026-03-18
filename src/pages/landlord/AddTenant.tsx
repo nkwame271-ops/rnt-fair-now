@@ -194,7 +194,7 @@ const AddTenant = () => {
 
         if (error) {
           if (error.message?.includes("tenancies_registration_code_unique") && attempts < 4) {
-            registrationCode = generateRegistrationCode();
+            regCode = generateRegistrationCode();
             attempts++;
             continue;
           }
