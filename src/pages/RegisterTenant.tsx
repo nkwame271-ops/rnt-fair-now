@@ -111,7 +111,7 @@ const RegisterTenant = () => {
 
       const tenantId = "TN-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
 
-      await supabase.from("profiles").update({
+      const { error: profileError } = await supabase.from("profiles").update({
         email: email || null,
         nationality: isCitizen ? "Ghanaian" : "Non-Ghanaian",
         is_citizen: isCitizen,
@@ -122,11 +122,21 @@ const RegisterTenant = () => {
         emergency_contact_phone: emergencyPhone.replace(/\s/g, ""),
       }).eq("user_id", userId);
 
-      await supabase.from("tenants").insert({
+      if (profileError) {
+        console.error("Profile update failed:", profileError);
+        toast.error("Account created but profile update failed. Please update your profile after logging in.");
+      }
+
+      const { error: tenantError } = await supabase.from("tenants").insert({
         user_id: userId,
         tenant_id: tenantId,
         registration_fee_paid: false,
       });
+
+      if (tenantError) {
+        await supabase.auth.signOut();
+        throw new Error("Failed to create tenant record. Please try registering again.");
+      }
 
       setGeneratedId(tenantId);
 

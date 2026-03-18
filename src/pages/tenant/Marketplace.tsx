@@ -146,8 +146,26 @@ const Marketplace = () => {
     if (searchParams.get("status") === "viewing_paid") {
       toast.success("Viewing fee paid successfully! Your request has been sent to the landlord.");
       setSearchParams({}, { replace: true });
+      // Re-fetch viewing requests after payment
+      if (user) {
+        supabase.from("viewing_requests").select("unit_id, status").eq("tenant_user_id", user.id).then(({ data: vr }) => {
+          if (vr) {
+            const confirmed = new Set<string>();
+            const byUnit: Record<string, string> = {};
+            vr.forEach(v => {
+              if (v.status === "declined" || v.status === "cancelled") return;
+              if (v.status === "accepted" || v.status === "confirmed") confirmed.add(v.unit_id);
+              if (!byUnit[v.unit_id] || v.status === "accepted" || v.status === "confirmed") {
+                byUnit[v.unit_id] = v.status;
+              }
+            });
+            setConfirmedViewings(confirmed);
+            setViewingRequestsByUnit(byUnit);
+          }
+        });
+      }
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, user]);
 
   // Fetch watchlist + all viewing requests
   useEffect(() => {

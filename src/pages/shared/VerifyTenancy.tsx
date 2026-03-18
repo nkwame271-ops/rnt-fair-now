@@ -24,39 +24,27 @@ const VerifyTenancy = () => {
   const [tenancy, setTenancy] = useState<TenancyInfo | null>(null);
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchTenancy = async () => {
       if (!tenancyId) { setLoading(false); return; }
 
-      const { data: t } = await supabase
-        .from("tenancies")
-        .select("registration_code, status, compliance_status, agreed_rent, start_date, end_date, landlord_user_id, tenant_user_id, rent_card_id")
-        .eq("id", tenancyId)
-        .maybeSingle();
+      try {
+        const { data, error } = await supabase.functions.invoke("verify-tenancy", {
+          body: { tenancyId },
+        });
 
-      if (!t) { setLoading(false); return; }
+        if (error || data?.error) {
+          setLoading(false);
+          return;
+        }
 
-      const [{ data: landlordProfile }, { data: tenantProfile }, rentCardResult] = await Promise.all([
-        supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).maybeSingle(),
-        supabase.from("profiles").select("full_name").eq("user_id", t.tenant_user_id).maybeSingle(),
-        t.rent_card_id
-          ? supabase.from("rent_cards").select("serial_number").eq("id", t.rent_card_id).maybeSingle()
-          : Promise.resolve({ data: null }),
-      ]);
-
-      setTenancy({
-        registration_code: t.registration_code,
-        status: t.status,
-        compliance_status: t.compliance_status,
-        agreed_rent: t.agreed_rent,
-        start_date: t.start_date,
-        end_date: t.end_date,
-        landlord_name: landlordProfile?.full_name || "Unknown",
-        tenant_name: tenantProfile?.full_name || "Unknown",
-        rent_card_serial: rentCardResult?.data?.serial_number || null,
-      });
-      setLoading(false);
+        setTenancy(data as TenancyInfo);
+      } catch {
+        // Tenancy not found or network error
+      } finally {
+        setLoading(false);
+      }
     };
-    fetch();
+    fetchTenancy();
   }, [tenancyId]);
 
   if (loading) {

@@ -43,6 +43,7 @@ const AddTenant = () => {
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [availableRentCards, setAvailableRentCards] = useState<{ id: string; serial_number: string }[]>([]);
   const [selectedRentCardId, setSelectedRentCardId] = useState("");
+  const [registrationCode, setRegistrationCode] = useState("");
 
   const property = properties.find(p => p.id === selectedPropertyId);
   const unit = property?.units.find(u => u.id === selectedUnitId);
@@ -120,7 +121,7 @@ const AddTenant = () => {
     return d.toISOString().split("T")[0];
   })();
 
-  const registrationCode = `RC-GR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
+  const generateRegistrationCode = () => `RC-GR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
   // Resolve tax rate by property category from tax_rates JSONB, fallback to flat tax_rate
   const resolveTaxRate = () => {
     const taxRates = (templateConfig as any)?.tax_rates;
@@ -168,26 +169,43 @@ const AddTenant = () => {
       const months = parseInt(advanceMonths);
       const moveIn = startDate;
 
-      // Create tenancy with rent card
-      const { data: tenancy, error } = await supabase.from("tenancies").insert({
-        tenant_user_id: foundTenant.userId,
-        landlord_user_id: user.id,
-        unit_id: unit.id,
-        tenant_id_code: foundTenant.tenantIdCode,
-        registration_code: registrationCode,
-        agreed_rent: monthlyRent,
-        advance_months: months,
-        start_date: startDate,
-        end_date: endDate,
-        move_in_date: moveIn,
-        status: "pending",
-        landlord_accepted: true,
-        tenant_accepted: false,
-        custom_field_values: customFieldValues,
-        rent_card_id: selectedRentCardId,
-      } as any).select().single();
+      // Generate registration code with retry on collision
+      let regCode = generateRegistrationCode();
+      let tenancy: any = null;
+      let attempts = 0;
+      while (attempts < 5) {
+        const { data, error } = await supabase.from("tenancies").insert({
+          tenant_user_id: foundTenant.userId,
+          landlord_user_id: user.id,
+          unit_id: unit.id,
+          tenant_id_code: foundTenant.tenantIdCode,
+          registration_code: regCode,
+          agreed_rent: monthlyRent,
+          advance_months: months,
+          start_date: startDate,
+          end_date: endDate,
+          move_in_date: moveIn,
+          status: "pending",
+          landlord_accepted: true,
+          tenant_accepted: false,
+          custom_field_values: customFieldValues,
+          rent_card_id: selectedRentCardId,
+        } as any).select().single();
 
-      if (error) throw error;
+        if (error) {
+          if (error.message?.includes("tenancies_registration_code_unique") && attempts < 4) {
+            regCode = generateRegistrationCode();
+            attempts++;
+            continue;
+          }
+          throw error;
+        }
+        tenancy = data;
+        break;
+      }
+
+      if (!tenancy) throw new Error("Failed to create tenancy after multiple attempts");
+      setRegistrationCode(regCode);
 
       // Activate the rent card
       await supabase.from("rent_cards").update({
@@ -196,24 +214,24 @@ const AddTenant = () => {
         activated_at: new Date().toISOString(),
       }).eq("id", selectedRentCardId);
 
-      // Generate rent payment schedule for full lease duration
+      // Generate rent payment schedule — batch insert
       const totalMonths = parseInt(leaseDurationMonths);
+      const payments = [];
       for (let i = 0; i < totalMonths; i++) {
         const d = new Date(startDate);
         d.setMonth(d.getMonth() + i);
-        const monthLabel = d.toLocaleString("en-US", { month: "long", year: "numeric" });
-        const dueDate = d.toISOString().split("T")[0];
-
-        await supabase.from("rent_payments").insert({
+        payments.push({
           tenancy_id: tenancy.id,
-          month_label: monthLabel,
-          due_date: dueDate,
+          month_label: d.toLocaleString("en-US", { month: "long", year: "numeric" }),
+          due_date: d.toISOString().split("T")[0],
           monthly_rent: monthlyRent,
           tax_amount: tax,
           amount_to_landlord: toLandlord,
-          status: i < months ? "pending" : "pending",
+          status: "pending",
         });
       }
+      const { error: paymentsError } = await supabase.from("rent_payments").insert(payments);
+      if (paymentsError) throw paymentsError;
 
       // Mark unit as occupied
       await supabase.from("units").update({ status: "occupied" }).eq("id", unit.id);
@@ -223,10 +241,10 @@ const AddTenant = () => {
       const { data: landlordProfile } = await supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle();
       const propName = property?.property_name || property?.address || "Property";
       if (tenantProfile?.phone) {
-        sendSms(tenantProfile.phone, "agreement_signed", { code: registrationCode, action: "created", property: propName });
+        sendSms(tenantProfile.phone, "agreement_signed", { code: regCode, action: "created", property: propName });
       }
       if (landlordProfile?.phone) {
-        sendSms(landlordProfile.phone, "agreement_signed", { code: registrationCode, action: "created", property: propName });
+        sendSms(landlordProfile.phone, "agreement_signed", { code: regCode, action: "created", property: propName });
       }
 
       setStep("done");
