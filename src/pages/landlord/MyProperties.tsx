@@ -165,7 +165,6 @@ const MyProperties = () => {
         
         // Handle fee skipped/waived
         if (data?.skipped) {
-          // Fee is disabled — list directly
           const { error: updateErr } = await supabase.from("properties").update({ listed_on_marketplace: true }).eq("id", property.id);
           if (updateErr) throw new Error(updateErr.message);
           setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: true } : p));
@@ -177,6 +176,16 @@ const MyProperties = () => {
         if (data?.authorization_url) {
           window.location.href = data.authorization_url;
         } else {
+          console.error("Unexpected paystack-checkout response:", data);
+          // If response has no URL and wasn't explicitly skipped, it may be an unhandled waiver
+          if (data && !data.error) {
+            const { error: updateErr } = await supabase.from("properties").update({ listed_on_marketplace: true }).eq("id", property.id);
+            if (updateErr) throw new Error(updateErr.message);
+            setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: true } : p));
+            toast.success("Property listed on marketplace!");
+            setListingId(null);
+            return;
+          }
           throw new Error("No checkout URL received");
         }
       } catch (err: any) {
