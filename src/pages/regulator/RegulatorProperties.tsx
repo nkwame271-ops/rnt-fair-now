@@ -247,7 +247,17 @@ const RegulatorProperties = () => {
                   <TableRow key={p.id}>
                     <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
                     <TableCell className="font-medium">{p.property_name || "—"}</TableCell>
-                    <TableCell className="flex items-center gap-1 text-sm"><MapPin className="h-3 w-3 text-muted-foreground" />{p.address}</TableCell>
+                    <TableCell className="flex items-center gap-1 text-sm">
+                      <MapPin className="h-3 w-3 text-muted-foreground" />
+                      <a
+                        href={(() => { const gps = parseGPS(p.gps_location); return gps ? `https://www.google.com/maps?q=${gps.lat},${gps.lng}` : `https://www.google.com/maps/search/${encodeURIComponent(p.address)}`; })()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline hover:text-primary/80"
+                      >
+                        {p.address}
+                      </a>
+                    </TableCell>
                     <TableCell>{p.region}, {p.area}</TableCell>
                     <TableCell>
                       <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">{p.units?.length || 0}</span>
@@ -298,9 +308,19 @@ const RegulatorProperties = () => {
                   <div><span className="text-muted-foreground">Code:</span> <span className="font-semibold">{detailProperty.property_code}</span></div>
                   <div><span className="text-muted-foreground">Category:</span> <span className="font-semibold capitalize">{(detailProperty as any).property_category || "residential"}</span></div>
                   <div><span className="text-muted-foreground">Region:</span> <span className="font-semibold">{detailProperty.region}, {detailProperty.area}</span></div>
-                  <div><span className="text-muted-foreground">Address:</span> <span className="font-semibold">{detailProperty.address}</span></div>
+                  <div><span className="text-muted-foreground">Address:</span>{" "}
+                    <a
+                      href={(() => { const gps = parseGPS(detailProperty.gps_location); return gps ? `https://www.google.com/maps?q=${gps.lat},${gps.lng}` : `https://www.google.com/maps/search/${encodeURIComponent(detailProperty.address)}`; })()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-primary underline hover:text-primary/80"
+                    >
+                      {detailProperty.address}
+                    </a>
+                  </div>
                   <div><span className="text-muted-foreground">Condition:</span> <span className="font-semibold">{detailProperty.property_condition || "—"}</span></div>
                   <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold">{detailProperty.gps_location || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Ghana Post GPS:</span> <span className="font-semibold">{detailProperty.ghana_post_gps || "—"}</span></div>
                   <div><span className="text-muted-foreground">Status:</span> {assessmentBadge(detailProperty.assessment_status || "pending")}</div>
                   {(detailProperty as any).approved_rent && (
                     <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold text-success">GH₵ {Number((detailProperty as any).approved_rent).toLocaleString()}</span></div>
