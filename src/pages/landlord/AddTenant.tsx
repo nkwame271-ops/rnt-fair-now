@@ -205,6 +205,7 @@ const AddTenant = () => {
       }
 
       if (!tenancy) throw new Error("Failed to create tenancy after multiple attempts");
+      setRegistrationCode(regCode);
 
       // Activate the rent card
       await supabase.from("rent_cards").update({
