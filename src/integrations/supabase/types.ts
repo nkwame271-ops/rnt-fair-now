@@ -1047,36 +1047,69 @@ export type Database = {
       rent_cards: {
         Row: {
           activated_at: string | null
+          advance_paid: number | null
           created_at: string
+          current_rent: number | null
           escrow_transaction_id: string | null
+          expiry_date: string | null
           id: string
           landlord_user_id: string
+          last_payment_status: string | null
+          max_advance: number | null
+          previous_rent: number | null
+          property_id: string | null
           purchased_at: string
+          qr_token: string | null
           serial_number: string
+          start_date: string | null
           status: string
           tenancy_id: string | null
+          tenant_user_id: string | null
+          unit_id: string | null
         }
         Insert: {
           activated_at?: string | null
+          advance_paid?: number | null
           created_at?: string
+          current_rent?: number | null
           escrow_transaction_id?: string | null
+          expiry_date?: string | null
           id?: string
           landlord_user_id: string
+          last_payment_status?: string | null
+          max_advance?: number | null
+          previous_rent?: number | null
+          property_id?: string | null
           purchased_at?: string
+          qr_token?: string | null
           serial_number?: string
+          start_date?: string | null
           status?: string
           tenancy_id?: string | null
+          tenant_user_id?: string | null
+          unit_id?: string | null
         }
         Update: {
           activated_at?: string | null
+          advance_paid?: number | null
           created_at?: string
+          current_rent?: number | null
           escrow_transaction_id?: string | null
+          expiry_date?: string | null
           id?: string
           landlord_user_id?: string
+          last_payment_status?: string | null
+          max_advance?: number | null
+          previous_rent?: number | null
+          property_id?: string | null
           purchased_at?: string
+          qr_token?: string | null
           serial_number?: string
+          start_date?: string | null
           status?: string
           tenancy_id?: string | null
+          tenant_user_id?: string | null
+          unit_id?: string | null
         }
         Relationships: [
           {
