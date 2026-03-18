@@ -436,6 +436,20 @@ Deno.serve(async (req) => {
         await sendPaymentSms(oldTenancy.tenant_user_id, amountPaid, "Tenancy renewal", receiptNo);
       }
 
+    } else if (reference.startsWith("addten_")) {
+      const userId = reference.split("_")[1];
+      const splits = [{ recipient: "platform", amount: amountPaid, description: "Add tenant fee" }];
+      const receiptNo = await completeEscrow(reference, userId, "add_tenant_fee", amountPaid, splits);
+      await sendPaymentSms(userId, amountPaid, "Add tenant fee", receiptNo);
+      await sendNotification(userId, "add_tenant_fee", amountPaid);
+
+    } else if (reference.startsWith("term_")) {
+      const userId = reference.split("_")[1];
+      const splits = [{ recipient: "platform", amount: amountPaid, description: "Termination request fee" }];
+      const receiptNo = await completeEscrow(reference, userId, "termination_fee", amountPaid, splits);
+      await sendPaymentSms(userId, amountPaid, "Termination request fee", receiptNo);
+      await sendNotification(userId, "termination_fee", amountPaid);
+
     } else {
       console.log("Unknown reference format:", reference);
     }
