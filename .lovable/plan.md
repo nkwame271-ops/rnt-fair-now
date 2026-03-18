@@ -1,34 +1,24 @@
 
 
-## Fix: Arkesel SMS Edge Function — Wrong API Format
+# Remaining Work: Arkesel SMS V2 Fix
 
-**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
+Everything from the approved plans has been implemented **except** the Arkesel SMS edge function fix documented in `.lovable/plan.md`.
 
-**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
+## Problem
 
-### Changes
+`supabase/functions/send-sms/index.ts` still uses the **V1 API** (`sms.arkesel.com/sms/api?action=send-sms`) with query parameters. This returns HTML instead of JSON, causing parse errors. SMS messages (welcome messages, notifications) will fail.
 
-**1. Update `supabase/functions/send-sms/index.ts`**
+## Fix
 
-- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
-- Move API key from request body to `api-key` header
-- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
-- Remove `action` from body
+**File**: `supabase/functions/send-sms/index.ts`
+
+- Change URL from `https://sms.arkesel.com/sms/api?...` → `https://api.arkesel.com/api/v2/sms/send`
+- Move API key from query params to `api-key` header
+- Use JSON POST body: `{ sender, message, recipients: [normalizedPhone] }`
 - Update success check from `data.code !== "ok"` to `data.status !== "success"`
-- Add response text logging before JSON parse to aid debugging
+- Remove the `URLSearchParams` approach entirely
 
-### Technical Details
+## Also Note (Non-Code)
 
-```text
-Current (broken V1 format):
-  POST https://sms.arkesel.com/sms/api?action=send-sms
-  Body: { action, api_key, to, from, sms }
-
-Fixed (V2 format):
-  POST https://api.arkesel.com/api/v2/sms/send
-  Headers: { api-key: ARKESEL_API_KEY }
-  Body: { sender, message, recipients: ["233..."] }
-```
-
-After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
+**Google Maps**: The API key needs configuration in the Google Cloud Console — enable Maps JavaScript API, ensure billing is active, and add `*.lovable.app/*` and `*.lovableproject.com/*` to HTTP referrer restrictions. This can't be fixed in code.
 
