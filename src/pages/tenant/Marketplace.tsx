@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { sendSms } from "@/lib/smsService";
 import { format, addDays } from "date-fns";
 import { useSearchParams } from "react-router-dom";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 
 import listing1 from "@/assets/listing-1.jpg";
 import listing2 from "@/assets/listing-2.jpg";
