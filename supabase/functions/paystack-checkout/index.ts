@@ -462,8 +462,15 @@ Deno.serve(async (req) => {
     const callbackUrl = `${origin}${callbackPath}`;
     const amountInPesewas = Math.round(totalAmount * 100);
 
+    // Build a valid email for Paystack — reject .local synthetic emails
+    const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && !e.endsWith(".local");
+    const paystackEmail =
+      (profile?.email && isValidEmail(profile.email)) ? profile.email
+      : (authUser.email && isValidEmail(authUser.email)) ? authUser.email
+      : `user-${userId.slice(0, 8)}@rentcontrolghana.com`;
+
     const payload = {
-      email: profile?.email || authUser.email || "customer@rentcontrol.app",
+      email: paystackEmail,
       amount: amountInPesewas,
       currency: "GHS",
       reference,

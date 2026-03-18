@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
-import { Loader2, CreditCard, Shield, FileText, Store, AlertTriangle, CheckCircle2, IdCard } from "lucide-react";
+import { Loader2, CreditCard, Shield, CheckCircle2, IdCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -24,8 +24,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [checkingFee, setCheckingFee] = useState(true);
   const [feePaid, setFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
-  const [paymentPending, setPaymentPending] = useState(false);
-  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const checkRegistration = useCallback(async (userId: string, userRole: string) => {
     const table = userRole === "tenant" ? "tenants" : "landlords";
@@ -44,11 +43,12 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     }
 
     const params = new URLSearchParams(window.location.search);
-    const isPaymentReturn = params.has("trxref") || params.has("reference") || params.get("status") === "success";
+    const ref = params.get("trxref") || params.get("reference");
+    const isPaymentReturn = !!ref || params.get("status") === "success";
 
     const run = async () => {
+      // Quick check first
       const paid = await checkRegistration(user.id, role);
-
       if (paid) {
         setFeePaid(true);
         setCheckingFee(false);
@@ -59,33 +59,51 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
         return;
       }
 
-      // If returning from payment, poll for confirmation
-      if (isPaymentReturn) {
-        setPaymentPending(true);
+      // If returning from payment with a reference, verify server-side
+      if (ref) {
+        setVerifying(true);
         setCheckingFee(false);
         window.history.replaceState({}, "", window.location.pathname);
 
+        try {
+          const { data: verifyResult } = await supabase.functions.invoke("verify-payment", {
+            body: { reference: ref },
+          });
+
+          if (verifyResult?.verified) {
+            setFeePaid(true);
+            setVerifying(false);
+            toast.success("Payment confirmed! Welcome.");
+            return;
+          }
+        } catch (e) {
+          console.error("Verify payment error:", e);
+        }
+
+        // Fallback: poll DB a few times in case webhook arrives
         let attempts = 0;
-        const maxAttempts = 10;
         const interval = setInterval(async () => {
           attempts++;
           const nowPaid = await checkRegistration(user.id, role);
           if (nowPaid) {
             clearInterval(interval);
             setFeePaid(true);
-            setPaymentPending(false);
+            setVerifying(false);
             toast.success("Payment confirmed! Welcome.");
-      } else if (attempts >= maxAttempts) {
+          } else if (attempts >= 6) {
             clearInterval(interval);
-            setPaymentPending(false);
+            setVerifying(false);
             setFeePaid(false);
-            setPaymentProcessing(true);
           }
         }, 3000);
 
         return () => clearInterval(interval);
       }
 
+      // No payment return — just show paywall
+      if (isPaymentReturn) {
+        window.history.replaceState({}, "", window.location.pathname);
+      }
       setFeePaid(false);
       setCheckingFee(false);
     };
@@ -101,25 +119,20 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     );
   }
 
-  if (!user) {
-    return <Navigate to="/" replace />;
-  }
+  if (!user) return <Navigate to="/" replace />;
+  if (requiredRole && role !== requiredRole) return <Navigate to="/" replace />;
 
-  if (requiredRole && role !== requiredRole) {
-    return <Navigate to="/" replace />;
-  }
-
-  // Show "confirming payment" screen while polling
-  if (paymentPending) {
+  // Verifying payment with server
+  if (verifying) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center space-y-6">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
             <Loader2 className="h-8 w-8 text-primary animate-spin" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Confirming Your Payment</h1>
+          <h1 className="text-2xl font-bold text-foreground">Verifying Your Payment</h1>
           <p className="text-muted-foreground">
-            We're verifying your registration payment. This usually takes a few seconds...
+            We're confirming your registration payment with the payment provider. This usually takes a few seconds...
           </p>
           <div className="h-2 bg-muted rounded-full overflow-hidden max-w-xs mx-auto">
             <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: "60%" }} />
@@ -129,30 +142,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     );
   }
 
-  // Show "payment processing" screen after polling exhausted (prevent double charge)
-  if (paymentProcessing) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="max-w-md w-full text-center space-y-6">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-            <Shield className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">Payment Is Being Processed</h1>
-          <p className="text-muted-foreground">
-            Your payment was received and is being confirmed. This may take a moment.
-          </p>
-          <Button onClick={() => window.location.reload()} className="w-full h-12 text-base font-semibold">
-            Refresh Status
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            If the issue persists, please contact support via live chat.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Block dashboard access if registration fee not paid (except regulators)
+  // Block dashboard if fee not paid
   if (role !== "regulator" && !feePaid) {
     const paymentType = role === "tenant" ? "tenant_registration" : "landlord_registration";
     const roleLabel = role === "tenant" ? "Tenant" : "Landlord";
