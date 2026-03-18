@@ -5,8 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Fee structure & split rules
-const SPLIT_RULES: Record<string, { total: number; splits: { recipient: string; amount: number; description: string }[] }> = {
+// Default fee structure & split rules (used as fallback if DB lookup fails)
+const DEFAULT_SPLIT_RULES: Record<string, { total: number; splits: { recipient: string; amount: number; description: string }[] }> = {
   tenant_registration: {
     total: 40,
     splits: [
@@ -49,6 +49,40 @@ const SPLIT_RULES: Record<string, { total: number; splits: { recipient: string; 
     total: 2,
     splits: [{ recipient: "platform", amount: 2, description: "Viewing fee" }],
   },
+  add_tenant_fee: {
+    total: 5,
+    splits: [{ recipient: "platform", amount: 5, description: "Add tenant fee" }],
+  },
+  termination_fee: {
+    total: 5,
+    splits: [{ recipient: "platform", amount: 5, description: "Termination request fee" }],
+  },
+};
+
+// Helper to get dynamic fee from DB, falling back to defaults
+const getDynamicFee = async (supabaseAdmin: any, feeKey: string): Promise<{ total: number; enabled: boolean; splits: { recipient: string; amount: number; description: string }[] }> => {
+  try {
+    const { data } = await supabaseAdmin
+      .from("feature_flags")
+      .select("fee_amount, fee_enabled")
+      .eq("feature_key", feeKey)
+      .single();
+
+    const defaultRule = DEFAULT_SPLIT_RULES[feeKey];
+    if (!data || data.fee_amount === null) {
+      return { total: defaultRule?.total ?? 0, enabled: true, splits: defaultRule?.splits ?? [] };
+    }
+
+    const ratio = defaultRule ? data.fee_amount / defaultRule.total : 1;
+    const splits = defaultRule
+      ? defaultRule.splits.map(s => ({ ...s, amount: Math.round(s.amount * ratio * 100) / 100 }))
+      : [{ recipient: "platform", amount: data.fee_amount, description: feeKey.replace(/_/g, " ") }];
+
+    return { total: data.fee_amount, enabled: data.fee_enabled, splits };
+  } catch {
+    const defaultRule = DEFAULT_SPLIT_RULES[feeKey];
+    return { total: defaultRule?.total ?? 0, enabled: true, splits: defaultRule?.splits ?? [] };
+  }
 };
 
 Deno.serve(async (req) => {
