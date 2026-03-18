@@ -1,53 +1,34 @@
 
 
-# Payment Error Handling, Success Notifications & SMS/Notification Alerts
+## Fix: Arkesel SMS Edge Function — Wrong API Format
 
-## Current State
+**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
 
-- **Webhook** (`paystack-webhook`): Handles `charge.success` events only. No handling for `charge.failed`. SMS is sent on success but no in-app notification for most payment types (only renewal creates notifications).
-- **Checkout** (`paystack-checkout`): Returns errors to the client but no escrow status update on failure.
-- **Client-side**: Only `Payments.tsx` checks for `?status=cancelled`. Other pages (ProtectedRoute for registration, ManageRentCards, Marketplace, etc.) don't handle failure callbacks. No unified payment callback handling.
-- **No `charge.failed` webhook handler**: If Paystack sends a failure event, it's silently ignored.
+**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
 
-## Plan
+### Changes
 
-### 1. Webhook: Handle `charge.failed` event
-**File**: `supabase/functions/paystack-webhook/index.ts`
+**1. Update `supabase/functions/send-sms/index.ts`**
 
-- Add handling for `body.event === "charge.failed"` alongside `charge.success`
-- On failure: update the matching `escrow_transactions` record to `status: "failed"`
-- Insert a notification into the `notifications` table so the user sees "Payment failed" in-app
-- Send an SMS to the user: "Your payment of GH₵ X for Y failed. Please try again."
+- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
+- Move API key from request body to `api-key` header
+- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
+- Remove `action` from body
+- Update success check from `data.code !== "ok"` to `data.status !== "success"`
+- Add response text logging before JSON parse to aid debugging
 
-### 2. Webhook: Add in-app notifications on success for all payment types
-**File**: `supabase/functions/paystack-webhook/index.ts`
+### Technical Details
 
-Currently only renewal creates notifications. Add `notifications` inserts for:
-- Registration (tenant/landlord): "Registration payment confirmed! Your account is now active."
-- Rent tax (single/bulk): "Rent tax payment of GH₵ X confirmed."
-- Rent card purchase: "X Rent Card(s) purchased successfully."
-- Agreement sale, complaint fee, listing fee, viewing fee: appropriate success messages
+```text
+Current (broken V1 format):
+  POST https://sms.arkesel.com/sms/api?action=send-sms
+  Body: { action, api_key, to, from, sms }
 
-### 3. Client-side: Unified payment callback handling on all return pages
-Add `?status=cancelled` / `?status=failed` query param handling to pages that initiate payments but don't currently handle failure returns:
+Fixed (V2 format):
+  POST https://api.arkesel.com/api/v2/sms/send
+  Headers: { api-key: ARKESEL_API_KEY }
+  Body: { sender, message, recipients: ["233..."] }
+```
 
-- **`src/components/ProtectedRoute.tsx`**: After polling fails (max attempts reached), show a "Payment could not be confirmed" message with a retry button instead of silently falling back to the paywall.
-- **`src/pages/landlord/ManageRentCards.tsx`**: Handle `?status=success` and `?status=cancelled` callbacks.
-- **`src/pages/tenant/Marketplace.tsx`**: Already handles `viewing_paid` — add `cancelled` handling.
-- **`src/pages/landlord/MyProperties.tsx`**: Handle listing fee callback.
-- **`src/pages/tenant/MyCases.tsx`**: Handle complaint fee callback.
-
-### 4. Webhook: Send SMS on all successful payments (already partially done)
-Verify all branches call `sendPaymentSms`. Currently missing for: `complaint_fee`, `listing_fee`, `viewing_fee`. Add SMS for those.
-
-## Files to Change
-
-| File | Change |
-|------|--------|
-| `supabase/functions/paystack-webhook/index.ts` | Add `charge.failed` handler, add notifications on all success paths, add SMS for complaint/listing/viewing |
-| `src/components/ProtectedRoute.tsx` | Better failure messaging when polling exhausted |
-| `src/pages/landlord/ManageRentCards.tsx` | Add payment callback handling |
-| `src/pages/tenant/Marketplace.tsx` | Add cancelled callback |
-| `src/pages/landlord/MyProperties.tsx` | Add listing fee callback |
-| `src/pages/tenant/MyCases.tsx` | Add complaint fee callback |
+After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
 

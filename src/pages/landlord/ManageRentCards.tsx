@@ -56,8 +56,12 @@ const ManageRentCards = () => {
 
     // Handle return from payment
     const params = new URLSearchParams(window.location.search);
-    if (params.get("status") === "success") {
+    const payStatus = params.get("status");
+    if (payStatus === "success" || params.has("trxref") || params.has("reference")) {
       toast.success("Rent cards purchased successfully!");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (payStatus === "cancelled" || payStatus === "failed") {
+      toast.error("Payment was not completed. Your rent cards were not purchased.");
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [user]);
