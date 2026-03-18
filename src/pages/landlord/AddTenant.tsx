@@ -329,8 +329,26 @@ const AddTenant = () => {
         })}
       </div>
 
+      {/* Fee Gate */}
+      {!feePaid && !feeConfig.loading && feeConfig.enabled && feeConfig.amount > 0 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
+          <div className="flex items-start gap-3">
+            <CreditCard className="h-6 w-6 text-primary shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-lg font-semibold text-card-foreground">Payment Required</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                A fee of <span className="font-semibold text-foreground">GH₵ {feeConfig.amount.toFixed(2)}</span> is required to add a tenant to your property.
+              </p>
+            </div>
+          </div>
+          <Button onClick={handlePayFee} disabled={payingFee} className="w-full">
+            {payingFee ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Processing...</> : `Pay GH₵ ${feeConfig.amount.toFixed(2)} to Continue`}
+          </Button>
+        </motion.div>
+      )}
+
       {/* Step 1 */}
-      {step === "select-unit" && (
+      {feePaid && step === "select-unit" && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
           <h2 className="text-lg font-semibold text-card-foreground">Select Property & Unit</h2>
           {properties.length === 0 ? (
