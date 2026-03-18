@@ -569,9 +569,15 @@ const AddTenant = () => {
             <Button variant="outline" onClick={handleDownloadPdf}>
               <Download className="h-4 w-4 mr-1" /> Download PDF
             </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              <UserPlus className="h-4 w-4 mr-1" /> {submitting ? "Creating..." : "Generate & Send to Tenant"}
-            </Button>
+            {feeConfig.enabled && feeConfig.amount > 0 ? (
+              <Button onClick={handlePayFee} disabled={submitting}>
+                <CreditCard className="h-4 w-4 mr-1" /> {submitting ? "Processing..." : `Pay GH₵ ${feeConfig.amount.toFixed(2)} & Submit`}
+              </Button>
+            ) : (
+              <Button onClick={handleSubmit} disabled={submitting}>
+                <UserPlus className="h-4 w-4 mr-1" /> {submitting ? "Creating..." : "Generate & Send to Tenant"}
+              </Button>
+            )}
           </div>
         </motion.div>
       )}
