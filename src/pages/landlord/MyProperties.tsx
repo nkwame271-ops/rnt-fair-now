@@ -67,32 +67,41 @@ const MyProperties = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [listingId, setListingId] = useState<string | null>(null);
 
+  const fetchProps = async () => {
+    if (!user) return;
+    const { data: props } = await supabase
+      .from("properties")
+      .select("*, units(*)")
+      .eq("landlord_user_id", user.id);
+
+    if (!props) { setLoading(false); return; }
+
+    const { data: tenancies } = await supabase
+      .from("tenancies")
+      .select("unit_id")
+      .eq("landlord_user_id", user.id)
+      .in("status", ["active", "pending"]);
+
+    const tenancyUnitIds = new Set((tenancies || []).map(t => t.unit_id));
+
+    setProperties(props.map(p => ({
+      ...p,
+      units: (p.units || []) as Unit[],
+      tenancyCount: (p.units || []).filter((u: any) => tenancyUnitIds.has(u.id)).length,
+    })));
+    setLoading(false);
+  };
+
   useEffect(() => {
     if (!user) return;
-    const fetchProps = async () => {
-      const { data: props } = await supabase
-        .from("properties")
-        .select("*, units(*)")
-        .eq("landlord_user_id", user.id);
-
-      if (!props) { setLoading(false); return; }
-
-      const { data: tenancies } = await supabase
-        .from("tenancies")
-        .select("unit_id")
-        .eq("landlord_user_id", user.id)
-        .in("status", ["active", "pending"]);
-
-      const tenancyUnitIds = new Set((tenancies || []).map(t => t.unit_id));
-
-      setProperties(props.map(p => ({
-        ...p,
-        units: (p.units || []) as Unit[],
-        tenancyCount: (p.units || []).filter((u: any) => tenancyUnitIds.has(u.id)).length,
-      })));
-      setLoading(false);
-    };
     fetchProps();
+
+    // Handle return from Paystack listing payment
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("status") === "listed") {
+      toast.success("Property listed on marketplace successfully!");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, [user]);
 
   const handleDelete = async (propertyId: string) => {
