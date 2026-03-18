@@ -75,7 +75,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
             clearInterval(interval);
             setPaymentPending(false);
             setFeePaid(false);
-            toast.error("Payment could not be confirmed. If you completed payment, it may take a moment to process. Please try again.");
+            setPaymentProcessing(true);
           }
         }, 3000);
 
