@@ -71,10 +71,11 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
             setFeePaid(true);
             setPaymentPending(false);
             toast.success("Payment confirmed! Welcome.");
-          } else if (attempts >= maxAttempts) {
+      } else if (attempts >= maxAttempts) {
             clearInterval(interval);
             setPaymentPending(false);
             setFeePaid(false);
+            toast.error("Payment could not be confirmed. If you completed payment, it may take a moment to process. Please try again.");
           }
         }, 3000);
 

@@ -98,8 +98,13 @@ const MyProperties = () => {
 
     // Handle return from Paystack listing payment
     const params = new URLSearchParams(window.location.search);
-    if (params.get("status") === "listed") {
+    const payStatus = params.get("status");
+    if (payStatus === "listed" || params.has("trxref") || params.has("reference")) {
       toast.success("Property listed on marketplace successfully!");
+      window.history.replaceState({}, "", window.location.pathname);
+      fetchProps();
+    } else if (payStatus === "cancelled" || payStatus === "failed") {
+      toast.error("Listing payment was not completed. Your property was not listed.");
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [user]);

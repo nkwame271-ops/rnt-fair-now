@@ -165,6 +165,9 @@ const Marketplace = () => {
           }
         });
       }
+    } else if (status === "cancelled" || status === "failed") {
+      toast.error("Viewing payment was not completed. Please try again.");
+      setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams, user]);
 
