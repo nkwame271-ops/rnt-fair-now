@@ -53,6 +53,7 @@ interface MarketUnit {
 const Marketplace = () => {
   const { user } = useAuth();
   const { isVerified: kycVerified } = useKycStatus();
+  const viewingFeeConfig = useFeeConfig("viewing_fee");
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState("all");
