@@ -20,6 +20,7 @@ const steps = ["Complaint Type", "Property Details", "Location", "Description & 
 const FileComplaint = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const feeConfig = useFeeConfig("complaint_fee");
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
