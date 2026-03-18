@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import { FileText, Calculator, Store, CreditCard, AlertTriangle, CheckCircle2, Clock, ArrowRight, Shield, Loader2, Download, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";

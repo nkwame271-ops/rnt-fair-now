@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Globe, Briefcase, UserPlus, Building, Lock } from "lucide-react";
