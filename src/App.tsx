@@ -68,6 +68,8 @@ import EscrowDashboard from "./pages/regulator/EscrowDashboard";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import VerifyTenancy from "./pages/shared/VerifyTenancy";
+import VerifyRentCard from "./pages/shared/VerifyRentCard";
+import VerifyReceipt from "./pages/shared/VerifyReceipt";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
