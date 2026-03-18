@@ -162,13 +162,13 @@ const AddTenant = () => {
   };
 
   const handleSubmit = async () => {
-    if (!user || !foundTenant || !property || !unit) return;
+    if (!user || !foundTenant || !property || !unit || !selectedRentCardId) return;
     setSubmitting(true);
     try {
       const months = parseInt(advanceMonths);
       const moveIn = startDate;
 
-      // Create tenancy
+      // Create tenancy with rent card
       const { data: tenancy, error } = await supabase.from("tenancies").insert({
         tenant_user_id: foundTenant.userId,
         landlord_user_id: user.id,
@@ -184,9 +184,17 @@ const AddTenant = () => {
         landlord_accepted: true,
         tenant_accepted: false,
         custom_field_values: customFieldValues,
+        rent_card_id: selectedRentCardId,
       } as any).select().single();
 
       if (error) throw error;
+
+      // Activate the rent card
+      await supabase.from("rent_cards").update({
+        status: "active",
+        tenancy_id: tenancy.id,
+        activated_at: new Date().toISOString(),
+      }).eq("id", selectedRentCardId);
 
       // Generate rent payment schedule for full lease duration
       const totalMonths = parseInt(leaseDurationMonths);
