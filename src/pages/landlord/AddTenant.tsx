@@ -179,7 +179,7 @@ const AddTenant = () => {
           landlord_user_id: user.id,
           unit_id: unit.id,
           tenant_id_code: foundTenant.tenantIdCode,
-          registration_code: registrationCode,
+          registration_code: regCode,
           agreed_rent: monthlyRent,
           advance_months: months,
           start_date: startDate,
