@@ -51,10 +51,11 @@ const AddTenant = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const [propsRes, profileRes, configRes] = await Promise.all([
+      const [propsRes, profileRes, configRes, rentCardsRes] = await Promise.all([
         supabase.from("properties").select("id, property_name, address, region, property_category, units(id, unit_name, unit_type, monthly_rent, status)").eq("landlord_user_id", user.id),
         supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
         supabase.from("agreement_template_config").select("*").limit(1).single(),
+        supabase.from("rent_cards").select("id, serial_number").eq("landlord_user_id", user.id).eq("status", "valid"),
       ]);
       setProperties((propsRes.data || []) as PropertyWithUnits[]);
       setLandlordName(profileRes.data?.full_name || "");
@@ -63,6 +64,7 @@ const AddTenant = () => {
         const cf = (configRes.data as any).custom_fields || [];
         setCustomFields(cf);
       }
+      setAvailableRentCards((rentCardsRes.data || []) as { id: string; serial_number: string }[]);
       setLoading(false);
     };
     fetchData();
