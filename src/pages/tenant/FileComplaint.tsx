@@ -525,7 +525,7 @@ const FileComplaint = () => {
           </Button>
         ) : (
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Processing..." : "Pay GH₵ 2 & Submit"} <FileText className="h-4 w-4 ml-1" />
+            {submitting ? "Processing..." : `Pay GH₵ ${feeConfig.amount.toFixed(2)} & Submit`} <FileText className="h-4 w-4 ml-1" />
           </Button>
         )}
       </div>

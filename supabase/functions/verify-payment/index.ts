@@ -122,6 +122,26 @@ Deno.serve(async (req) => {
           .update({ listed_on_marketplace: true })
           .eq("id", propertyId);
       }
+    } else if (paymentType === "complaint_fee") {
+      // Update complaint status from pending_payment to submitted
+      const complaintId = meta?.complaintId;
+      if (complaintId) {
+        await supabaseAdmin
+          .from("complaints")
+          .update({ status: "submitted" })
+          .eq("id", complaintId)
+          .eq("status", "pending_payment");
+      }
+    } else if (paymentType === "viewing_fee") {
+      // Update viewing request status from awaiting_payment to pending
+      const viewingRequestId = meta?.viewingRequestId;
+      if (viewingRequestId) {
+        await supabaseAdmin
+          .from("viewing_requests")
+          .update({ status: "pending" })
+          .eq("id", viewingRequestId)
+          .eq("status", "awaiting_payment");
+      }
     } else if (paymentType === "rent_card_bulk" || paymentType === "rent_card") {
       // Create rent cards if not already created
       const qty = meta?.quantity || 1;
