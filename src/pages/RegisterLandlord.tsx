@@ -73,6 +73,33 @@ const RegisterLandlord = () => {
       const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
       const tempPassword = phoneDigits.slice(-6);
 
+      // Pre-check: email uniqueness
+      if (email && email.trim()) {
+        const { data: emailMatch } = await supabase.from("profiles").select("id").eq("email", email.trim()).maybeSingle();
+        if (emailMatch) {
+          toast.error("This email is already in use by another account. Please use a different email or log in.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Pre-check: Ghana Card uniqueness for landlord role
+      if (isCitizen && ghanaCardNo) {
+        const { data: cardMatches } = await supabase.from("profiles").select("user_id, ghana_card_no").eq("ghana_card_no", ghanaCardNo);
+        if (cardMatches && cardMatches.length > 0) {
+          for (const match of cardMatches) {
+            const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", match.user_id);
+            if (roles?.some(r => r.role === "landlord")) {
+              toast.error("This Ghana Card is already registered as a Landlord. Please log in or recover your account.", {
+                action: { label: "Go to Login", onClick: () => navigate("/login?role=landlord") },
+              });
+              setLoading(false);
+              return;
+            }
+          }
+        }
+      }
+
       let userId: string;
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: syntheticEmail,
@@ -84,23 +111,11 @@ const RegisterLandlord = () => {
 
       if (authError) {
         if (authError.message?.includes("already registered") || authError.message?.includes("already exists")) {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: syntheticEmail, password: tempPassword,
+          toast.error("This phone number is already registered. Please log in or recover your account.", {
+            action: { label: "Go to Login", onClick: () => navigate("/login?role=landlord") },
           });
-          if (signInError) {
-            toast.error("This phone number is already registered. Please sign in instead.", {
-              action: { label: "Go to Login", onClick: () => navigate("/login?role=landlord") },
-            });
-            setLoading(false);
-            return;
-          }
-          userId = signInData.user.id;
-          const { data: existingLandlord } = await supabase.from("landlords").select("landlord_id, registration_fee_paid").eq("user_id", userId).maybeSingle();
-          if (existingLandlord) {
-            toast.success("Welcome back! Redirecting to dashboard...");
-            navigate("/landlord/dashboard");
-            return;
-          }
+          setLoading(false);
+          return;
         } else {
           throw authError;
         }
