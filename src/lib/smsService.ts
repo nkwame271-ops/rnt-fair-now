@@ -10,7 +10,7 @@ type SmsEvent =
 
 const SMS_TEMPLATES: Record<SmsEvent, (data: Record<string, string>) => string> = {
   registration_success: (d) =>
-    `Welcome to RentGhana, ${d.name}! Your ${d.role} registration (ID: ${d.id}) is successful. You are now compliant with the Rent Act, 1963 (Act 220). Visit your dashboard to get started.`,
+    `Hello ${d.name}, your RentControlGhana account has been successfully created. Name: ${d.name}. ID: ${d.id}. Please keep your ID safe. You will need it anytime you visit the Rent Control Department or make any official request. Login: Phone: ${d.phone}, Temp Password: last 6 digits of your phone. Login here: ${d.link}. Change your password immediately. Do not share it.`,
 
   complaint_filed: (d) =>
     `RentGhana: Your complaint (${d.code}) has been submitted to the Rent Control Department. We will review and update you on the progress. Reference: ${d.code}`,
