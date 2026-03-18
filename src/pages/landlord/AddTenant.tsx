@@ -1,16 +1,17 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { UserPlus, Search, CheckCircle2, FileText, Download, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
+import { UserPlus, Search, CheckCircle2, FileText, Download, ArrowLeft, Loader2, AlertTriangle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateAgreementPdf, TemplateConfig, CustomFieldDef } from "@/lib/generateAgreementPdf";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { sendSms } from "@/lib/smsService";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 
 type Step = "select-unit" | "find-tenant" | "set-terms" | "review" | "done";
 
