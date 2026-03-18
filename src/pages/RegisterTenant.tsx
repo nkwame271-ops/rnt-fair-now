@@ -17,6 +17,7 @@ const steps = ["Account", "Identity", "Contact", "Your ID"];
 
 const RegisterTenant = () => {
   const navigate = useNavigate();
+  const { amount: regFee } = useFeeConfig("tenant_registration");
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
