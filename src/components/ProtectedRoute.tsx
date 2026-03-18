@@ -22,6 +22,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [feePaid, setFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
   const [paymentPending, setPaymentPending] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   const checkRegistration = useCallback(async (userId: string, userRole: string) => {
     const table = userRole === "tenant" ? "tenants" : "landlords";
