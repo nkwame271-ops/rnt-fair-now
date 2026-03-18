@@ -20,6 +20,7 @@ export interface TenancyCardData {
   assessmentId?: string;
   complianceStatus: string;
   status: string;
+  rentCardSerial?: string;
 }
 
 const statusColor = (status: string) => {
