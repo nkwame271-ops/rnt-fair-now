@@ -1035,6 +1035,57 @@ export type Database = {
           },
         ]
       }
+      rent_cards: {
+        Row: {
+          activated_at: string | null
+          created_at: string
+          escrow_transaction_id: string | null
+          id: string
+          landlord_user_id: string
+          purchased_at: string
+          serial_number: string
+          status: string
+          tenancy_id: string | null
+        }
+        Insert: {
+          activated_at?: string | null
+          created_at?: string
+          escrow_transaction_id?: string | null
+          id?: string
+          landlord_user_id: string
+          purchased_at?: string
+          serial_number?: string
+          status?: string
+          tenancy_id?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          created_at?: string
+          escrow_transaction_id?: string | null
+          id?: string
+          landlord_user_id?: string
+          purchased_at?: string
+          serial_number?: string
+          status?: string
+          tenancy_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_cards_escrow_transaction_id_fkey"
+            columns: ["escrow_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "escrow_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_cards_tenancy_id_fkey"
+            columns: ["tenancy_id"]
+            isOneToOne: false
+            referencedRelation: "tenancies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rent_payments: {
         Row: {
           amount_paid: number | null
@@ -1276,6 +1327,7 @@ export type Database = {
           renewal_duration_months: number | null
           renewal_requested_at: string | null
           renewal_requested_by: string | null
+          rent_card_id: string | null
           start_date: string
           status: string
           tenancy_type: string
@@ -1309,6 +1361,7 @@ export type Database = {
           renewal_duration_months?: number | null
           renewal_requested_at?: string | null
           renewal_requested_by?: string | null
+          rent_card_id?: string | null
           start_date: string
           status?: string
           tenancy_type?: string
@@ -1342,6 +1395,7 @@ export type Database = {
           renewal_duration_months?: number | null
           renewal_requested_at?: string | null
           renewal_requested_by?: string | null
+          rent_card_id?: string | null
           start_date?: string
           status?: string
           tenancy_type?: string
@@ -1354,6 +1408,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tenancies_rent_card_id_fkey"
+            columns: ["rent_card_id"]
+            isOneToOne: false
+            referencedRelation: "rent_cards"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tenancies_unit_id_fkey"
             columns: ["unit_id"]
@@ -1655,6 +1716,7 @@ export type Database = {
     }
     Functions: {
       generate_receipt_number: { Args: never; Returns: string }
+      generate_rent_card_serial: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
