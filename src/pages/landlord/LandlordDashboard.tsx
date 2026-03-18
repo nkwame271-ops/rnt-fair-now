@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import LogoLoader from "@/components/LogoLoader";
 import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, CreditCard, Award } from "lucide-react";
 import { Link } from "react-router-dom";
