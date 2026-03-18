@@ -241,10 +241,10 @@ const AddTenant = () => {
       const { data: landlordProfile } = await supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle();
       const propName = property?.property_name || property?.address || "Property";
       if (tenantProfile?.phone) {
-        sendSms(tenantProfile.phone, "agreement_signed", { code: registrationCode, action: "created", property: propName });
+        sendSms(tenantProfile.phone, "agreement_signed", { code: regCode, action: "created", property: propName });
       }
       if (landlordProfile?.phone) {
-        sendSms(landlordProfile.phone, "agreement_signed", { code: registrationCode, action: "created", property: propName });
+        sendSms(landlordProfile.phone, "agreement_signed", { code: regCode, action: "created", property: propName });
       }
 
       setStep("done");
