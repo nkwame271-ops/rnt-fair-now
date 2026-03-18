@@ -247,7 +247,17 @@ const RegulatorProperties = () => {
                   <TableRow key={p.id}>
                     <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
                     <TableCell className="font-medium">{p.property_name || "—"}</TableCell>
-                    <TableCell className="flex items-center gap-1 text-sm"><MapPin className="h-3 w-3 text-muted-foreground" />{p.address}</TableCell>
+                    <TableCell className="flex items-center gap-1 text-sm">
+                      <MapPin className="h-3 w-3 text-muted-foreground" />
+                      <a
+                        href={(() => { const gps = parseGPS(p.gps_location); return gps ? `https://www.google.com/maps?q=${gps.lat},${gps.lng}` : `https://www.google.com/maps/search/${encodeURIComponent(p.address)}`; })()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline hover:text-primary/80"
+                      >
+                        {p.address}
+                      </a>
+                    </TableCell>
                     <TableCell>{p.region}, {p.area}</TableCell>
                     <TableCell>
                       <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">{p.units?.length || 0}</span>
