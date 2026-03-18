@@ -267,8 +267,11 @@ export type Database = {
       }
       feature_flags: {
         Row: {
+          category: string
           description: string | null
           feature_key: string
+          fee_amount: number | null
+          fee_enabled: boolean
           id: string
           is_enabled: boolean
           label: string
@@ -276,8 +279,11 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          category?: string
           description?: string | null
           feature_key: string
+          fee_amount?: number | null
+          fee_enabled?: boolean
           id?: string
           is_enabled?: boolean
           label: string
@@ -285,8 +291,11 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          category?: string
           description?: string | null
           feature_key?: string
+          fee_amount?: number | null
+          fee_enabled?: boolean
           id?: string
           is_enabled?: boolean
           label?: string
