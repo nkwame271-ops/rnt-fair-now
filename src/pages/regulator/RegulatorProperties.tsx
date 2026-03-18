@@ -308,9 +308,19 @@ const RegulatorProperties = () => {
                   <div><span className="text-muted-foreground">Code:</span> <span className="font-semibold">{detailProperty.property_code}</span></div>
                   <div><span className="text-muted-foreground">Category:</span> <span className="font-semibold capitalize">{(detailProperty as any).property_category || "residential"}</span></div>
                   <div><span className="text-muted-foreground">Region:</span> <span className="font-semibold">{detailProperty.region}, {detailProperty.area}</span></div>
-                  <div><span className="text-muted-foreground">Address:</span> <span className="font-semibold">{detailProperty.address}</span></div>
+                  <div><span className="text-muted-foreground">Address:</span>{" "}
+                    <a
+                      href={(() => { const gps = parseGPS(detailProperty.gps_location); return gps ? `https://www.google.com/maps?q=${gps.lat},${gps.lng}` : `https://www.google.com/maps/search/${encodeURIComponent(detailProperty.address)}`; })()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-primary underline hover:text-primary/80"
+                    >
+                      {detailProperty.address}
+                    </a>
+                  </div>
                   <div><span className="text-muted-foreground">Condition:</span> <span className="font-semibold">{detailProperty.property_condition || "—"}</span></div>
                   <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold">{detailProperty.gps_location || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Ghana Post GPS:</span> <span className="font-semibold">{detailProperty.ghana_post_gps || "—"}</span></div>
                   <div><span className="text-muted-foreground">Status:</span> {assessmentBadge(detailProperty.assessment_status || "pending")}</div>
                   {(detailProperty as any).approved_rent && (
                     <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold text-success">GH₵ {Number((detailProperty as any).approved_rent).toLocaleString()}</span></div>
