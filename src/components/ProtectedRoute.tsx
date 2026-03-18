@@ -126,6 +126,29 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     );
   }
 
+  // Show "payment processing" screen after polling exhausted (prevent double charge)
+  if (paymentProcessing) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="max-w-md w-full text-center space-y-6">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+            <Shield className="h-8 w-8 text-primary" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">Payment Is Being Processed</h1>
+          <p className="text-muted-foreground">
+            Your payment was received and is being confirmed. This may take a moment.
+          </p>
+          <Button onClick={() => window.location.reload()} className="w-full h-12 text-base font-semibold">
+            Refresh Status
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            If the issue persists, please contact support via live chat.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Block dashboard access if registration fee not paid (except regulators)
   if (role !== "regulator" && !feePaid) {
     const paymentType = role === "tenant" ? "tenant_registration" : "landlord_registration";

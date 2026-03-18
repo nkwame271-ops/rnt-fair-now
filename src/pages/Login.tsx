@@ -50,20 +50,34 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const phoneDigits = phone.replace(/\s/g, "");
-    if (phoneDigits.length !== 10) {
-      toast.error("Please enter a valid 10-digit phone number");
-      return;
-    }
     setLoading(true);
-    const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
+
+    let loginEmail: string;
+
+    if (loginMode === "phone") {
+      const phoneDigits = phone.replace(/\s/g, "");
+      if (phoneDigits.length !== 10) {
+        toast.error("Please enter a valid 10-digit phone number");
+        setLoading(false);
+        return;
+      }
+      loginEmail = `${phoneDigits}@rentcontrolghana.local`;
+    } else {
+      if (!email.trim()) {
+        toast.error("Please enter your email address");
+        setLoading(false);
+        return;
+      }
+      loginEmail = email.trim();
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: syntheticEmail,
+      email: loginEmail,
       password,
     });
     if (error) {
       toast.error(error.message === "Invalid login credentials"
-        ? "Invalid phone number or password"
+        ? "Invalid credentials. Please try again."
         : error.message);
       setLoading(false);
       return;
