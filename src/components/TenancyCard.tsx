@@ -50,7 +50,7 @@ const statusLabel = (status: string) => {
 
 const TenancyCard = ({ data }: { data: TenancyCardData }) => {
   const daysRemaining = differenceInDays(new Date(data.expiryDate), new Date());
-  const qrValue = `RENT-CONTROL|${data.registrationCode}|${data.tenancyId}`;
+  const qrValue = `https://rentghanapilot.lovable.app/verify-tenancy/${data.tenancyId}`;
 
   const handleDownload = () => {
     const doc = generateTenancyCardPdf(data);

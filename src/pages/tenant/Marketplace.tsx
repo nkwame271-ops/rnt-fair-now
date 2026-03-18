@@ -392,7 +392,21 @@ const Marketplace = () => {
             className="bg-card rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-elevated"
             onClick={(e) => e.stopPropagation()}
           >
-            <img src={selectedUnit.imageUrl} alt="" className="w-full h-56 object-cover rounded-t-2xl" />
+            <div className="relative">
+              <img src={selectedUnit.imageUrl} alt="" className="w-full h-56 object-cover rounded-t-2xl" />
+              <button
+                onClick={() => setSelectedUnit(null)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors"
+              >
+                <X className="h-4 w-4 text-foreground" />
+              </button>
+              <button
+                onClick={() => setSelectedUnit(null)}
+                className="absolute top-3 left-3 flex items-center gap-1 bg-card/80 backdrop-blur px-3 py-1.5 rounded-full text-xs font-medium text-foreground hover:bg-card transition-colors"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Back to listings
+              </button>
+            </div>
             <div className="p-6 space-y-4">
               <div className="flex items-start justify-between">
                 <div>

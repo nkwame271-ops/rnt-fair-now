@@ -86,6 +86,7 @@ const App = () => (
             <Route path="/regulator/login" element={<RegulatorLogin />} />
             <Route path="/verify/:role/:id" element={<VerifyRegistration />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-tenancy/:tenancyId" element={<VerifyTenancy />} />
 
             {/* Tenant Routes */}
             <Route path="/tenant" element={<ProtectedRoute requiredRole="tenant"><TenantLayout /></ProtectedRoute>}>
