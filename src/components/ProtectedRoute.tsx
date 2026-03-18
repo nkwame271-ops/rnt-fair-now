@@ -2,6 +2,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import { Loader2, CreditCard, Shield, FileText, Store, AlertTriangle, CheckCircle2, IdCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
