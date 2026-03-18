@@ -120,7 +120,7 @@ const AddTenant = () => {
     return d.toISOString().split("T")[0];
   })();
 
-  const registrationCode = `RC-GR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
+  const generateRegistrationCode = () => `RC-GR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
   // Resolve tax rate by property category from tax_rates JSONB, fallback to flat tax_rate
   const resolveTaxRate = () => {
     const taxRates = (templateConfig as any)?.tax_rates;
