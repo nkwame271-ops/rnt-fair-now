@@ -286,6 +286,12 @@ const Marketplace = () => {
 
       if (payData?.authorization_url) {
         window.location.href = payData.authorization_url;
+      } else if (payData?.skipped || (payData && !payData.error)) {
+        // Fee waived — update viewing request to pending directly
+        await supabase.from("viewing_requests").update({ status: "pending" }).eq("id", vr.id);
+        toast.success("Viewing request sent to landlord!");
+        setViewingRequestsByUnit(prev => ({ ...prev, [selectedUnit.id]: "pending" }));
+        setSelectedUnit(null);
       } else {
         throw new Error("No checkout URL received");
       }
