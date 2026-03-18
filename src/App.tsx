@@ -89,6 +89,8 @@ const App = () => (
             <Route path="/verify/:role/:id" element={<VerifyRegistration />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/verify-tenancy/:tenancyId" element={<VerifyTenancy />} />
+            <Route path="/verify/rent-card/:token" element={<VerifyRentCard />} />
+            <Route path="/verify/receipt/:receiptNumber" element={<VerifyReceipt />} />
 
             {/* Tenant Routes */}
             <Route path="/tenant" element={<ProtectedRoute requiredRole="tenant"><TenantLayout /></ProtectedRoute>}>
