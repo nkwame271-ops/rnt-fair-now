@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Globe, Lock, Briefcase, UserPlus, Building } from "lucide-react";
+import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Globe, Briefcase, UserPlus, Building, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { sendSms } from "@/lib/smsService";
 import FormField from "@/components/FormField";
-import { formatPhone, formatGhanaCard, isValidEmail, isValidPhone, isValidGhanaCard, isValidPassword } from "@/lib/formatters";
+import { formatPhone, formatGhanaCard, isValidPhone, isValidGhanaCard } from "@/lib/formatters";
 
 const steps = ["Account", "Identity", "Contact", "Your ID"];
 
@@ -21,11 +21,10 @@ const RegisterTenant = () => {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [isCitizen, setIsCitizen] = useState(true);
   const [ghanaCardNo, setGhanaCardNo] = useState("");
   const [residencePermitNo, setResidencePermitNo] = useState("");
-  const [phone, setPhone] = useState("");
   const [region, setRegion] = useState("");
   const [occupation, setOccupation] = useState("");
   const [workAddress, setWorkAddress] = useState("");
@@ -55,9 +54,9 @@ const RegisterTenant = () => {
 
   const canProceed = () => {
     switch (step) {
-      case 0: return fullName && isValidEmail(email) && isValidPassword(password);
+      case 0: return fullName.length > 2 && isValidPhone(phone);
       case 1: return (isCitizen ? isValidGhanaCard(ghanaCardNo) : true) && region;
-      case 2: return isValidPhone(phone);
+      case 2: return true; // contact step is all optional
       default: return true;
     }
   };
@@ -70,20 +69,26 @@ const RegisterTenant = () => {
   const handleCreateAccount = async () => {
     setLoading(true);
     try {
+      const phoneDigits = phone.replace(/\s/g, "");
+      const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
+      const tempPassword = phoneDigits.slice(-6);
+
       let userId: string;
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email, password,
+        email: syntheticEmail,
+        password: tempPassword,
         options: {
-          data: { full_name: fullName, phone: phone.replace(/\s/g, ""), role: "tenant" },
-          emailRedirectTo: window.location.origin,
+          data: { full_name: fullName, phone: phoneDigits, role: "tenant" },
         },
       });
 
       if (authError) {
         if (authError.message?.includes("already registered") || authError.message?.includes("already exists")) {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: syntheticEmail, password: tempPassword,
+          });
           if (signInError) {
-            toast.error("This email is already registered. Please sign in instead.", {
+            toast.error("This phone number is already registered. Please sign in instead.", {
               action: { label: "Go to Login", onClick: () => navigate("/login?role=tenant") },
             });
             setLoading(false);
@@ -107,6 +112,7 @@ const RegisterTenant = () => {
       const tenantId = "TN-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
 
       await supabase.from("profiles").update({
+        email: email || null,
         nationality: isCitizen ? "Ghanaian" : "Non-Ghanaian",
         is_citizen: isCitizen,
         ghana_card_no: isCitizen ? ghanaCardNo : null,
@@ -123,14 +129,16 @@ const RegisterTenant = () => {
       });
 
       setGeneratedId(tenantId);
-      
+
       // Send registration success SMS (non-blocking)
       sendSms(phone, "registration_success", {
         name: fullName,
         role: "Tenant",
         id: tenantId,
+        phone: phoneDigits,
+        link: `${window.location.origin}/login?role=tenant`,
       });
-      
+
       setStep(3);
     } catch (err: any) {
       toast.error(err.message || "Registration failed");
@@ -156,7 +164,7 @@ const RegisterTenant = () => {
               <IdCard className="h-5 w-5 text-secondary" />
               <span className="font-semibold">Annual Registration</span>
             </div>
-            <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ 10.00</div>
+            <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ 40.00</div>
             <p className="text-primary-foreground/70 text-sm mb-3">Per year · Includes physical ID card delivery</p>
             <div className="border-t border-primary-foreground/20 pt-3">
               <p className="text-sm font-semibold mb-2">Registration Fee Covers:</p>
@@ -221,7 +229,7 @@ const RegisterTenant = () => {
                 <div className="space-y-5">
                   <div>
                     <h1 className="text-2xl font-bold text-foreground">Create Your Account</h1>
-                    <p className="text-muted-foreground mt-1">Just 3 fields to get started</p>
+                    <p className="text-muted-foreground mt-1">Your name and phone number to get started</p>
                   </div>
                   <div className="space-y-4">
                     <FormField label="Full Name" valid={fullName.length > 2}>
@@ -230,16 +238,16 @@ const RegisterTenant = () => {
                         <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Kwame Mensah" className="pl-10" />
                       </div>
                     </FormField>
-                    <FormField label="Email" valid={isValidEmail(email)} error={email && !isValidEmail(email) ? "Enter a valid email" : undefined}>
+                    <FormField label="Phone Number" valid={isValidPhone(phone)} hint="10 digits, e.g. 024 555 1234">
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="024 555 1234" className="pl-10" maxLength={12} />
+                      </div>
+                    </FormField>
+                    <FormField label="Email (Optional)" optional error={email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "Enter a valid email" : undefined}>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="kwame@example.com" className="pl-10" type="email" />
-                      </div>
-                    </FormField>
-                    <FormField label="Password" valid={isValidPassword(password)} hint="Minimum 6 characters">
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••" className="pl-10" type="password" />
                       </div>
                     </FormField>
                   </div>
@@ -300,15 +308,9 @@ const RegisterTenant = () => {
                 <div className="space-y-5">
                   <div>
                     <h1 className="text-2xl font-bold text-foreground">Contact Details</h1>
-                    <p className="text-muted-foreground mt-1">Phone and optional work/emergency info</p>
+                    <p className="text-muted-foreground mt-1">Optional work and emergency info</p>
                   </div>
                   <div className="space-y-4">
-                    <FormField label="Phone Number" valid={isValidPhone(phone)} hint="10 digits, e.g. 024 555 1234">
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="024 555 1234" className="pl-10" maxLength={12} />
-                      </div>
-                    </FormField>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <FormField label="Occupation" optional>
                         <div className="relative">
@@ -354,13 +356,31 @@ const RegisterTenant = () => {
                   <div className="bg-card rounded-xl border-2 border-primary/30 p-6 inline-block mx-auto">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Your Tenant ID</p>
                     <p className="text-3xl font-extrabold text-primary tracking-wider">{generatedId}</p>
-                    <p className="text-xs text-muted-foreground mt-2">Pay registration fee on your dashboard to activate</p>
+                    <p className="text-xs text-muted-foreground mt-2">Keep this ID safe — you'll need it for all official requests</p>
                   </div>
+
+                  {/* Login Details */}
+                  <div className="bg-card rounded-xl border border-border p-5 text-left space-y-3 max-w-sm mx-auto">
+                    <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+                      <Lock className="h-4 w-4 text-primary" /> Your Login Details
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Phone Number:</span>
+                        <span className="font-medium text-foreground">{phone}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Temp Password:</span>
+                        <span className="font-medium text-foreground">Last 6 digits of your phone</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-destructive font-medium">⚠️ Change your password immediately after logging in. Do not share it with anyone.</p>
+                  </div>
+
                   <div className="bg-muted rounded-xl p-5 text-left space-y-3 max-w-sm mx-auto">
                     <h3 className="font-semibold text-foreground text-sm">What's next?</h3>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Check your email to verify your account</li>
-                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 10 registration fee from your dashboard</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 40 registration fee to activate your account</li>
                       <li className="flex items-start gap-2">
                         <Building className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                         Your Rent Card will be available at the Rent Control Department within 5 days. You can opt for delivery later within the app.
@@ -379,7 +399,7 @@ const RegisterTenant = () => {
               </Button>
             ) : (
               <Button onClick={handlePayRegistration} disabled={payingRegistration} className="w-full h-12 text-base font-semibold bg-success hover:bg-success/90">
-                {payingRegistration ? "Redirecting to payment..." : "Pay GH₵ 10 Registration Fee"} <ArrowRight className="ml-2 h-4 w-4" />
+                {payingRegistration ? "Redirecting to payment..." : "Pay GH₵ 40 Registration Fee"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>
