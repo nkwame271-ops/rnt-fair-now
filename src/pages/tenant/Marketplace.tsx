@@ -141,6 +141,14 @@ const Marketplace = () => {
     fetchUnits();
   }, []);
 
+  // Handle viewing payment callback
+  useEffect(() => {
+    if (searchParams.get("status") === "viewing_paid") {
+      toast.success("Viewing fee paid successfully! Your request has been sent to the landlord.");
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   // Fetch watchlist + all viewing requests
   useEffect(() => {
     if (!user) return;
