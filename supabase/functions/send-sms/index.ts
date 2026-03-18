@@ -36,15 +36,18 @@ serve(async (req) => {
 
     const senderID = sender || "RentGhana";
 
-    const params = new URLSearchParams({
-      action: "send-sms",
-      api_key: ARKESEL_API_KEY,
-      to: normalizedPhone,
-      from: senderID,
-      sms: message,
+    const response = await fetch(ARKESEL_API_URL, {
+      method: "POST",
+      headers: {
+        "api-key": ARKESEL_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sender: senderID,
+        message,
+        recipients: [normalizedPhone],
+      }),
     });
-
-    const response = await fetch(`https://sms.arkesel.com/sms/api?${params.toString()}`);
 
     const responseText = await response.text();
     console.log("Arkesel raw response:", responseText);
@@ -56,7 +59,7 @@ serve(async (req) => {
       throw new Error("Arkesel returned non-JSON: " + responseText.substring(0, 200));
     }
 
-    if (data.code !== "ok") {
+    if (data.status !== "success") {
       throw new Error(data.message || "SMS sending failed");
     }
 
