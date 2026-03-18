@@ -25,8 +25,9 @@ const VerifyReceipt = () => {
     const fetchReceipt = async () => {
       if (!receiptNumber) { setLoading(false); return; }
       try {
+        // receiptNumber could be an actual receipt number or a payment reference
         const { data, error } = await supabase.functions.invoke("verify-receipt", {
-          body: { receiptNumber },
+          body: receiptNumber?.startsWith("RCT-") ? { receiptNumber } : { reference: receiptNumber },
         });
         if (error || data?.error) { setLoading(false); return; }
         setReceipt(data as ReceiptInfo);

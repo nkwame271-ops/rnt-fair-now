@@ -11,19 +11,37 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { receiptNumber } = await req.json();
-    if (!receiptNumber) throw new Error("receiptNumber is required");
+    const { receiptNumber, reference } = await req.json();
+    if (!receiptNumber && !reference) throw new Error("receiptNumber or reference is required");
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: receipt, error } = await supabase
+    let query = supabase
       .from("payment_receipts")
-      .select("receipt_number, payer_name, total_amount, payment_type, status, created_at, description")
-      .eq("receipt_number", receiptNumber)
-      .maybeSingle();
+      .select("receipt_number, payer_name, total_amount, payment_type, status, created_at, description");
+
+    if (receiptNumber) {
+      query = query.eq("receipt_number", receiptNumber);
+    } else {
+      // Look up by escrow reference
+      const { data: escrow } = await supabase
+        .from("escrow_transactions")
+        .select("id")
+        .eq("reference", reference)
+        .maybeSingle();
+      if (!escrow) {
+        return new Response(JSON.stringify({ error: "Receipt not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      query = query.eq("escrow_transaction_id", escrow.id);
+    }
+
+    const { data: receipt, error } = await query.maybeSingle();
 
     if (error || !receipt) {
       return new Response(JSON.stringify({ error: "Receipt not found" }), {
