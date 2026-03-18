@@ -1,0 +1,1 @@
+CREATE POLICY "Public can read feature flags" ON public.feature_flags FOR SELECT TO anon USING (true);
