@@ -227,6 +227,11 @@ const FileComplaint = () => {
 
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
+      } else if (data?.skipped || (data && !data.error)) {
+        // Fee waived — update complaint to submitted directly
+        await supabase.from("complaints").update({ status: "submitted" }).eq("id", complaint.id);
+        toast.success("Complaint filed successfully!");
+        navigate("/tenant/my-cases");
       } else {
         throw new Error("No checkout URL received. Please try again.");
       }
