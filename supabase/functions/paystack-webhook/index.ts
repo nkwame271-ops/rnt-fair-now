@@ -48,6 +48,8 @@ const NOTIFICATION_MESSAGES: Record<string, { title: string; body: (amt: number,
   rent_payment: { title: "Rent Payment Received", body: (amt) => `Monthly rent payment of GH₵ ${amt.toFixed(2)} confirmed.`, link: "/tenant/payments" },
   rent_combined: { title: "Rent + Tax Payment Confirmed", body: (amt) => `Combined rent and tax payment of GH₵ ${amt.toFixed(2)} confirmed.`, link: "/tenant/payments" },
   renewal_payment: { title: "Renewal Payment Confirmed", body: (amt) => `Tenancy renewal payment of GH₵ ${amt.toFixed(2)} confirmed.`, link: "/tenant/dashboard" },
+  add_tenant_fee: { title: "Add Tenant Fee Paid", body: (amt) => `Add tenant fee of GH₵ ${amt.toFixed(2)} confirmed.`, link: "/landlord/add-tenant" },
+  termination_fee: { title: "Termination Fee Paid", body: (amt) => `Termination request fee of GH₵ ${amt.toFixed(2)} confirmed.`, link: "/tenant/termination" },
 };
 
 Deno.serve(async (req) => {
