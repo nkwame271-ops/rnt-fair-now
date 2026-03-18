@@ -305,7 +305,33 @@ const AddTenant = () => {
                   )}
                 </div>
               )}
-              <Button disabled={!selectedUnitId} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
+              {availableRentCards.length === 0 && (
+                <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-sm text-card-foreground">No Rent Cards Available</p>
+                    <p className="text-xs text-muted-foreground mt-1">You need at least one rent card to create a tenancy. Each tenancy requires a rent card.</p>
+                    <Link to="/landlord/rent-cards">
+                      <Button size="sm" variant="outline" className="mt-2">Buy Rent Cards</Button>
+                    </Link>
+                  </div>
+                </div>
+              )}
+              {availableRentCards.length > 0 && (
+                <div className="space-y-3">
+                  <Label>Assign Rent Card</Label>
+                  <Select value={selectedRentCardId} onValueChange={setSelectedRentCardId}>
+                    <SelectTrigger><SelectValue placeholder="Select a rent card" /></SelectTrigger>
+                    <SelectContent>
+                      {availableRentCards.map((rc) => (
+                        <SelectItem key={rc.id} value={rc.id}>{rc.serial_number}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">{availableRentCards.length} card(s) available</p>
+                </div>
+              )}
+              <Button disabled={!selectedUnitId || !selectedRentCardId} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
                 Next: Find Tenant
               </Button>
             </>

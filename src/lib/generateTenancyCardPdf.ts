@@ -29,6 +29,7 @@ export const generateTenancyCardPdf = (data: TenancyCardData): jsPDF => {
     ["Advance Paid", `${data.advancePaid} month(s)`],
     ["Start Date", data.startDate],
     ["Expiry Date", data.expiryDate],
+    ["Rent Card", (data as any).rentCardSerial || "—"],
     ["Compliance", data.complianceStatus],
     ["Status", data.status],
   ];
