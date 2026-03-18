@@ -1,0 +1,1 @@
+ALTER TABLE public.tenancies ADD CONSTRAINT tenancies_registration_code_unique UNIQUE (registration_code);
