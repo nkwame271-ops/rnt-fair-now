@@ -1,34 +1,39 @@
 
 
-## Fix: Arkesel SMS Edge Function — Wrong API Format
+# Create Three Test Accounts for System Demo
 
-**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
+Since the database is clean, I'll create a backend function to seed three test accounts with registration fees pre-paid so you can log in immediately.
 
-**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
+## Accounts to Create
 
-### Changes
+| Role | Phone (Login) | Password | Synthetic Email |
+|------|--------------|----------|-----------------|
+| Regulator | admin@rentcontrol.gov.gh | Admin123! | (email login) |
+| Tenant | 024 000 1234 | 001234 | 0240001234@rentcontrolghana.local |
+| Landlord | 024 000 5678 | 005678 | 0240005678@rentcontrolghana.local |
 
-**1. Update `supabase/functions/send-sms/index.ts`**
+## What Gets Created Per Account
 
-- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
-- Move API key from request body to `api-key` header
-- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
-- Remove `action` from body
-- Update success check from `data.code !== "ok"` to `data.status !== "success"`
-- Add response text logging before JSON parse to aid debugging
+- **Auth user** (auto-confirmed)
+- **Profile** (full_name, phone, email via `handle_new_user` trigger)
+- **User role** (tenant/landlord/regulator via trigger)
+- **Tenant/Landlord record** with `registration_fee_paid = true` (so no paywall)
 
-### Technical Details
+## Implementation
 
-```text
-Current (broken V1 format):
-  POST https://sms.arkesel.com/sms/api?action=send-sms
-  Body: { action, api_key, to, from, sms }
+### New file: `supabase/functions/seed-test-users/index.ts`
+- Creates 3 users via admin API (`auth.admin.createUser`)
+- The `handle_new_user` trigger auto-creates profiles and user_roles
+- Then inserts tenant/landlord records with `registration_fee_paid = true`
+- Idempotent: skips if email already exists
 
-Fixed (V2 format):
-  POST https://api.arkesel.com/api/v2/sms/send
-  Headers: { api-key: ARKESEL_API_KEY }
-  Body: { sender, message, recipients: ["233..."] }
-```
+### Invoke
+- Call the function once after deployment to seed the accounts
+- No UI changes needed
 
-After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
+## Files
+
+| File | Action |
+|------|--------|
+| `supabase/functions/seed-test-users/index.ts` | **Create** — one-time seed function |
 
