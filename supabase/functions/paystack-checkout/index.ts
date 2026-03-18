@@ -233,13 +233,24 @@ Deno.serve(async (req) => {
       callbackPath = "/tenant/payments?status=success";
       relatedTenancyId = tenancyId;
 
+    } else if (type === "rent_card_bulk") {
+      const { quantity: qty } = body;
+      const cardQty = Math.min(Math.max(parseInt(qty) || 1, 1), 50);
+      const rule = SPLIT_RULES.rent_card;
+      totalAmount = rule.total * cardQty;
+      splitPlan = rule.splits.map(s => ({ ...s, amount: s.amount * cardQty }));
+      description = `Rent Card Purchase (${cardQty} cards × GH₵ 25)`;
+      reference = `rcard_${userId}_${Date.now()}`;
+      callbackPath = "/landlord/rent-cards?status=success";
+      metadata = { quantity: cardQty };
+
     } else if (type === "rent_card") {
       const rule = SPLIT_RULES.rent_card;
       totalAmount = rule.total;
       splitPlan = rule.splits;
       description = "Rent Card Purchase (GH₵ 25)";
       reference = `rcard_${userId}_${Date.now()}`;
-      callbackPath = "/landlord/dashboard?status=success";
+      callbackPath = "/landlord/rent-cards?status=success";
 
     } else if (type === "agreement_sale") {
       const { tenancyId } = body;

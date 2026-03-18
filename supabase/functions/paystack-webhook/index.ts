@@ -253,9 +253,27 @@ Deno.serve(async (req) => {
 
     } else if (reference.startsWith("rcard_")) {
       const userId = reference.split("_")[1];
-      await supabase.from("landlords").update({ rent_card_delivery_requested: true }).eq("user_id", userId);
-      const receiptNo = await completeEscrow(reference, userId, "rent_card", amountPaid, SPLIT_RULES.rent_card.splits);
-      await sendPaymentSms(userId, amountPaid, "Rent Card purchase", receiptNo);
+      
+      // Determine quantity from escrow metadata
+      const { data: escrowTx } = await supabase.from("escrow_transactions").select("metadata, id").eq("reference", reference).single();
+      const qty = (escrowTx?.metadata as any)?.quantity || 1;
+      const escrowId = escrowTx?.id || null;
+      
+      // Insert rent cards
+      const rentCards = [];
+      for (let i = 0; i < qty; i++) {
+        rentCards.push({
+          landlord_user_id: userId,
+          status: "valid",
+          escrow_transaction_id: escrowId,
+        });
+      }
+      await supabase.from("rent_cards").insert(rentCards);
+      
+      // Determine splits based on quantity
+      const splits = SPLIT_RULES.rent_card.splits.map(s => ({ ...s, amount: s.amount * qty }));
+      const receiptNo = await completeEscrow(reference, userId, "rent_card", amountPaid, splits);
+      await sendPaymentSms(userId, amountPaid, `Rent Card purchase (${qty} cards)`, receiptNo);
 
     } else if (reference.startsWith("agrsale_")) {
       const userId = data.metadata?.userId || "";

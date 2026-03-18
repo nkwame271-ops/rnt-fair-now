@@ -20,6 +20,7 @@ export interface TenancyCardData {
   assessmentId?: string;
   complianceStatus: string;
   status: string;
+  rentCardSerial?: string;
 }
 
 const statusColor = (status: string) => {
@@ -79,6 +80,9 @@ const TenancyCard = ({ data }: { data: TenancyCardData }) => {
           <div><p className="text-muted-foreground text-xs">Compliance</p><p className={`font-semibold ${data.complianceStatus === "compliant" ? "text-success" : "text-destructive"}`}>{data.complianceStatus}</p></div>
           <div><p className="text-muted-foreground text-xs">Start Date</p><p className="font-semibold">{format(new Date(data.startDate), "dd/MM/yyyy")}</p></div>
           <div><p className="text-muted-foreground text-xs">Expiry Date</p><p className="font-semibold">{format(new Date(data.expiryDate), "dd/MM/yyyy")}</p></div>
+          {data.rentCardSerial && (
+            <div><p className="text-muted-foreground text-xs">Rent Card</p><p className="font-mono font-semibold text-primary text-xs">{data.rentCardSerial}</p></div>
+          )}
         </div>
 
         <div className="flex items-center justify-between border-t border-border pt-3">

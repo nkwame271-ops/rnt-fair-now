@@ -63,6 +63,7 @@ import RegulatorTerminations from "./pages/regulator/RegulatorTerminations";
 import TenantReceipts from "./pages/tenant/Receipts";
 import LandlordPaymentSettings from "./pages/landlord/PaymentSettings";
 import LandlordReceipts from "./pages/landlord/Receipts";
+import ManageRentCards from "./pages/landlord/ManageRentCards";
 import EscrowDashboard from "./pages/regulator/EscrowDashboard";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
@@ -122,6 +123,7 @@ const App = () => (
               <Route path="complaints" element={<LandlordComplaints />} />
               <Route path="renewal-requests" element={<RenewalRequests />} />
               <Route path="termination" element={<LandlordTerminationRequest />} />
+              <Route path="rent-cards" element={<ManageRentCards />} />
               <Route path="payment-settings" element={<LandlordPaymentSettings />} />
               <Route path="receipts" element={<LandlordReceipts />} />
               <Route path="profile" element={<ProfilePage />} />

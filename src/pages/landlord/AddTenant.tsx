@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { UserPlus, Search, CheckCircle2, FileText, Download, ArrowLeft, Loader2 } from "lucide-react";
+import { UserPlus, Search, CheckCircle2, FileText, Download, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +41,8 @@ const AddTenant = () => {
   const [templateConfig, setTemplateConfig] = useState<TemplateConfig | null>(null);
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
+  const [availableRentCards, setAvailableRentCards] = useState<{ id: string; serial_number: string }[]>([]);
+  const [selectedRentCardId, setSelectedRentCardId] = useState("");
 
   const property = properties.find(p => p.id === selectedPropertyId);
   const unit = property?.units.find(u => u.id === selectedUnitId);
@@ -49,10 +51,11 @@ const AddTenant = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const [propsRes, profileRes, configRes] = await Promise.all([
+      const [propsRes, profileRes, configRes, rentCardsRes] = await Promise.all([
         supabase.from("properties").select("id, property_name, address, region, property_category, units(id, unit_name, unit_type, monthly_rent, status)").eq("landlord_user_id", user.id),
         supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
         supabase.from("agreement_template_config").select("*").limit(1).single(),
+        supabase.from("rent_cards").select("id, serial_number").eq("landlord_user_id", user.id).eq("status", "valid"),
       ]);
       setProperties((propsRes.data || []) as PropertyWithUnits[]);
       setLandlordName(profileRes.data?.full_name || "");
@@ -61,6 +64,7 @@ const AddTenant = () => {
         const cf = (configRes.data as any).custom_fields || [];
         setCustomFields(cf);
       }
+      setAvailableRentCards((rentCardsRes.data || []) as { id: string; serial_number: string }[]);
       setLoading(false);
     };
     fetchData();
@@ -158,13 +162,13 @@ const AddTenant = () => {
   };
 
   const handleSubmit = async () => {
-    if (!user || !foundTenant || !property || !unit) return;
+    if (!user || !foundTenant || !property || !unit || !selectedRentCardId) return;
     setSubmitting(true);
     try {
       const months = parseInt(advanceMonths);
       const moveIn = startDate;
 
-      // Create tenancy
+      // Create tenancy with rent card
       const { data: tenancy, error } = await supabase.from("tenancies").insert({
         tenant_user_id: foundTenant.userId,
         landlord_user_id: user.id,
@@ -180,9 +184,17 @@ const AddTenant = () => {
         landlord_accepted: true,
         tenant_accepted: false,
         custom_field_values: customFieldValues,
+        rent_card_id: selectedRentCardId,
       } as any).select().single();
 
       if (error) throw error;
+
+      // Activate the rent card
+      await supabase.from("rent_cards").update({
+        status: "active",
+        tenancy_id: tenancy.id,
+        activated_at: new Date().toISOString(),
+      }).eq("id", selectedRentCardId);
 
       // Generate rent payment schedule for full lease duration
       const totalMonths = parseInt(leaseDurationMonths);
@@ -293,7 +305,33 @@ const AddTenant = () => {
                   )}
                 </div>
               )}
-              <Button disabled={!selectedUnitId} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
+              {availableRentCards.length === 0 && (
+                <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-sm text-card-foreground">No Rent Cards Available</p>
+                    <p className="text-xs text-muted-foreground mt-1">You need at least one rent card to create a tenancy. Each tenancy requires a rent card.</p>
+                    <Link to="/landlord/rent-cards">
+                      <Button size="sm" variant="outline" className="mt-2">Buy Rent Cards</Button>
+                    </Link>
+                  </div>
+                </div>
+              )}
+              {availableRentCards.length > 0 && (
+                <div className="space-y-3">
+                  <Label>Assign Rent Card</Label>
+                  <Select value={selectedRentCardId} onValueChange={setSelectedRentCardId}>
+                    <SelectTrigger><SelectValue placeholder="Select a rent card" /></SelectTrigger>
+                    <SelectContent>
+                      {availableRentCards.map((rc) => (
+                        <SelectItem key={rc.id} value={rc.id}>{rc.serial_number}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">{availableRentCards.length} card(s) available</p>
+                </div>
+              )}
+              <Button disabled={!selectedUnitId || !selectedRentCardId} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
                 Next: Find Tenant
               </Button>
             </>
