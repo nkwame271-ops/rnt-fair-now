@@ -109,7 +109,7 @@ const RegisterLandlord = () => {
 
       const landlordId = "LL-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
 
-      await supabase.from("profiles").update({
+      const { error: profileError } = await supabase.from("profiles").update({
         email: email || null,
         nationality: isCitizen ? "Ghanaian" : "Non-Ghanaian",
         is_citizen: isCitizen,
@@ -117,11 +117,21 @@ const RegisterLandlord = () => {
         residence_permit_no: !isCitizen ? residencePermitNo : null,
       }).eq("user_id", userId);
 
-      await supabase.from("landlords").insert({
+      if (profileError) {
+        console.error("Profile update failed:", profileError);
+        toast.error("Account created but profile update failed. Please update your profile after logging in.");
+      }
+
+      const { error: landlordError } = await supabase.from("landlords").insert({
         user_id: userId,
         landlord_id: landlordId,
         registration_fee_paid: false,
       });
+
+      if (landlordError) {
+        await supabase.auth.signOut();
+        throw new Error("Failed to create landlord record. Please try registering again.");
+      }
 
       setGeneratedId(landlordId);
 
