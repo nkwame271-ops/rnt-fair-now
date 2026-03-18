@@ -31,10 +31,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // 1. Check if escrow is already completed
+    // 1. Check if escrow exists
     const { data: escrow } = await supabaseAdmin
       .from("escrow_transactions")
-      .select("id, status, payment_type, user_id, total_amount")
+      .select("id, status, payment_type, user_id, total_amount, related_property_id, metadata")
       .eq("reference", reference)
       .maybeSingle();
 
@@ -74,12 +74,12 @@ Deno.serve(async (req) => {
       .eq("id", escrow.id)
       .eq("status", "pending");
 
-    // 4. Handle registration-specific finalization
+    // 4. Handle payment-type-specific finalization
     const paymentType = escrow.payment_type;
     const userId = escrow.user_id;
+    const meta = (escrow.metadata as any) || {};
 
     if (paymentType === "tenant_registration") {
-      // Only update if not already paid (idempotent)
       const { data: tenant } = await supabaseAdmin
         .from("tenants")
         .select("registration_fee_paid")
@@ -113,6 +113,30 @@ Deno.serve(async (req) => {
           })
           .eq("user_id", userId);
       }
+    } else if (paymentType === "listing_fee") {
+      // Mark property as listed
+      const propertyId = escrow.related_property_id;
+      if (propertyId) {
+        await supabaseAdmin
+          .from("properties")
+          .update({ listed_on_marketplace: true })
+          .eq("id", propertyId);
+      }
+    } else if (paymentType === "rent_card_bulk" || paymentType === "rent_card") {
+      // Create rent cards if not already created
+      const qty = meta?.quantity || 1;
+      const { data: existingCards } = await supabaseAdmin
+        .from("rent_cards")
+        .select("id")
+        .eq("escrow_transaction_id", escrow.id);
+
+      if (!existingCards || existingCards.length === 0) {
+        const rentCards = [];
+        for (let i = 0; i < qty; i++) {
+          rentCards.push({ landlord_user_id: userId, status: "valid", escrow_transaction_id: escrow.id });
+        }
+        await supabaseAdmin.from("rent_cards").insert(rentCards);
+      }
     }
 
     // 5. Create receipt if not exists
@@ -129,6 +153,9 @@ Deno.serve(async (req) => {
         .eq("user_id", userId)
         .single();
 
+      const splitPlan = meta?.split_plan || [];
+      const splitBreakdown = splitPlan.map((s: any) => ({ recipient: s.recipient, amount: s.amount }));
+
       await supabaseAdmin.from("payment_receipts").insert({
         escrow_transaction_id: escrow.id,
         user_id: userId,
@@ -136,27 +163,39 @@ Deno.serve(async (req) => {
         payer_email: profile?.email || "",
         total_amount: amountPaid,
         payment_type: paymentType,
-        description: `Payment for ${paymentType.replace(/_/g, " ")}`,
+        description: meta?.description || `Payment for ${paymentType.replace(/_/g, " ")}`,
+        split_breakdown: splitBreakdown.length > 0 ? splitBreakdown : null,
+        qr_code_data: `${Deno.env.get("SUPABASE_URL")}/verify-receipt?ref=${reference}`,
         status: "active",
       });
     }
 
-    // 6. Send notification if not already sent
+    // 6. Send notification if not already sent for this escrow
     const { data: existingNotif } = await supabaseAdmin
       .from("notifications")
       .select("id")
       .eq("user_id", userId)
-      .ilike("title", "%Registration Confirmed%")
+      .ilike("body", `%${reference.slice(0, 12)}%`)
       .maybeSingle();
 
     if (!existingNotif) {
-      const roleLabel = paymentType === "tenant_registration" ? "tenant" : "landlord";
-      await supabaseAdmin.from("notifications").insert({
-        user_id: userId,
-        title: "Registration Confirmed!",
-        body: `Your ${roleLabel} registration payment has been confirmed. Your account is now active.`,
-        link: `/${roleLabel}/dashboard`,
-      });
+      const notifMap: Record<string, { title: string; body: string; link: string }> = {
+        tenant_registration: { title: "Registration Confirmed!", body: "Your tenant registration payment has been confirmed. Your account is now active.", link: "/tenant/dashboard" },
+        landlord_registration: { title: "Registration Confirmed!", body: "Your landlord registration payment has been confirmed. Your account is now active.", link: "/landlord/dashboard" },
+        listing_fee: { title: "Property Listed!", body: "Your property has been listed on the marketplace.", link: "/landlord/my-properties" },
+        rent_card_bulk: { title: "Rent Cards Purchased", body: `${meta?.quantity || 1} Rent Card(s) purchased successfully for GH₵ ${amountPaid.toFixed(2)}.`, link: "/landlord/rent-cards" },
+        rent_card: { title: "Rent Card Purchased", body: `Rent Card purchased for GH₵ ${amountPaid.toFixed(2)}.`, link: "/landlord/rent-cards" },
+        add_tenant_fee: { title: "Add Tenant Fee Paid", body: `Add tenant fee of GH₵ ${amountPaid.toFixed(2)} confirmed.`, link: "/landlord/add-tenant" },
+      };
+      const notif = notifMap[paymentType];
+      if (notif) {
+        await supabaseAdmin.from("notifications").insert({
+          user_id: userId,
+          title: notif.title,
+          body: notif.body,
+          link: notif.link,
+        });
+      }
     }
 
     return new Response(JSON.stringify({ verified: true, status: "completed" }), {

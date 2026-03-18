@@ -54,12 +54,43 @@ const ManageRentCards = () => {
     if (!user) return;
     fetchCards();
 
-    // Handle return from payment
+    // Handle return from payment — verify server-side
     const params = new URLSearchParams(window.location.search);
+    const ref = params.get("reference") || params.get("trxref");
     const payStatus = params.get("status");
-    if (payStatus === "success" || params.has("trxref") || params.has("reference")) {
+
+    if (ref) {
+      window.history.replaceState({}, "", window.location.pathname);
+      supabase.functions.invoke("verify-payment", { body: { reference: ref } })
+        .then(({ data }) => {
+          if (data?.verified) {
+            toast.success("Rent cards purchased successfully!");
+          } else {
+            toast.info("Payment is being processed. Your cards will appear shortly.");
+          }
+          // Poll for cards to appear
+          const poll = setInterval(async () => {
+            const { data: newCards } = await supabase
+              .from("rent_cards")
+              .select("*")
+              .eq("landlord_user_id", user.id)
+              .order("created_at", { ascending: false });
+            if (newCards && newCards.length > cards.length) {
+              setCards(newCards as RentCard[]);
+              clearInterval(poll);
+            }
+          }, 2000);
+          setTimeout(() => clearInterval(poll), 15000);
+          fetchCards();
+        })
+        .catch(() => {
+          toast.info("Payment is being processed. Your cards will appear shortly.");
+          fetchCards();
+        });
+    } else if (payStatus === "success") {
       toast.success("Rent cards purchased successfully!");
       window.history.replaceState({}, "", window.location.pathname);
+      fetchCards();
     } else if (payStatus === "cancelled" || payStatus === "failed") {
       toast.error("Payment was not completed. Your rent cards were not purchased.");
       window.history.replaceState({}, "", window.location.pathname);
@@ -76,6 +107,15 @@ const ManageRentCards = () => {
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
+      
+      // Handle fee skipped/waived
+      if (data?.skipped) {
+        toast.success(data.message || "Rent cards created!");
+        fetchCards();
+        setPurchasing(false);
+        return;
+      }
+      
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
