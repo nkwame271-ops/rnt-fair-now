@@ -114,25 +114,65 @@ const Login = () => {
               {role}
             </div>
             <h1 className="text-3xl font-bold text-foreground">Welcome Back</h1>
-            <p className="text-muted-foreground mt-1">Sign in with your phone number</p>
+            <p className="text-muted-foreground mt-1">Sign in with your {loginMode === "phone" ? "phone number" : "email address"}</p>
+          </div>
+
+          <div className="flex gap-2 mb-4">
+            <Button
+              type="button"
+              variant={loginMode === "phone" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLoginMode("phone")}
+              className="flex-1"
+            >
+              <Phone className="h-4 w-4 mr-1.5" />
+              Phone
+            </Button>
+            <Button
+              type="button"
+              variant={loginMode === "email" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLoginMode("email")}
+              className="flex-1"
+            >
+              <Mail className="h-4 w-4 mr-1.5" />
+              Email
+            </Button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Phone Number</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="tel"
-                  placeholder="024 555 1234"
-                  className="pl-10"
-                  value={phone}
-                  onChange={(e) => setPhone(formatPhone(e.target.value))}
-                  maxLength={12}
-                  required
-                />
+            {loginMode === "phone" ? (
+              <div className="space-y-2">
+                <Label>Phone Number</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="tel"
+                    placeholder="024 555 1234"
+                    className="pl-10"
+                    value={phone}
+                    onChange={(e) => setPhone(formatPhone(e.target.value))}
+                    maxLength={12}
+                    required
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="you@example.com"
+                    className="pl-10"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Password</Label>
