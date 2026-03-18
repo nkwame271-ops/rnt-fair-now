@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle, Lock, CheckCircle2, Eye } from "lucide-react";
+import { Search, MapPin, Bed, Bath, Shield, Calendar, Loader2, Send, Droplets, Zap, Clock, Heart, MessageCircle, Lock, CheckCircle2, Eye, X, ArrowLeft } from "lucide-react";
 import StreetViewEmbed from "@/components/StreetViewEmbed";
 import NearbyAmenities from "@/components/NearbyAmenities";
 import { Input } from "@/components/ui/input";
