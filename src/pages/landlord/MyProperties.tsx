@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, Users, MapPin, UserPlus, Loader2, Droplets, Zap, ChefHat, Bath, CircleDot, Pencil, Trash2, Store, StoreIcon } from "lucide-react";
+import { Building2, Users, MapPin, UserPlus, Loader2, Droplets, Zap, ChefHat, Bath, CircleDot, Pencil, Trash2, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -99,10 +99,29 @@ const MyProperties = () => {
     // Handle return from Paystack listing payment
     const params = new URLSearchParams(window.location.search);
     const payStatus = params.get("status");
-    if (payStatus === "listed" || params.has("trxref") || params.has("reference")) {
-      toast.success("Property listed on marketplace successfully!");
+    const ref = params.get("reference") || params.get("trxref");
+
+    if (ref || payStatus === "listed") {
+      // Verify payment server-side then refresh
       window.history.replaceState({}, "", window.location.pathname);
-      fetchProps();
+      if (ref) {
+        supabase.functions.invoke("verify-payment", { body: { reference: ref } })
+          .then(({ data }) => {
+            if (data?.verified) {
+              toast.success("Property listed on marketplace successfully!");
+            } else {
+              toast.info("Payment is being processed. Your listing will appear shortly.");
+            }
+            fetchProps();
+          })
+          .catch(() => {
+            toast.info("Payment is being processed. Your listing will appear shortly.");
+            fetchProps();
+          });
+      } else {
+        toast.success("Property listed on marketplace successfully!");
+        fetchProps();
+      }
     } else if (payStatus === "cancelled" || payStatus === "failed") {
       toast.error("Listing payment was not completed. Your property was not listed.");
       window.history.replaceState({}, "", window.location.pathname);
@@ -111,7 +130,6 @@ const MyProperties = () => {
 
   const handleDelete = async (propertyId: string) => {
     setDeletingId(propertyId);
-    // Delete units first, then property
     await supabase.from("units").delete().eq("property_id", propertyId);
     await supabase.from("property_images").delete().eq("property_id", propertyId);
     const { error } = await supabase.from("properties").delete().eq("id", propertyId).eq("landlord_user_id", user!.id);
@@ -144,6 +162,18 @@ const MyProperties = () => {
         });
         if (error) throw new Error(error.message);
         if (data?.error) throw new Error(data.error);
+        
+        // Handle fee skipped/waived
+        if (data?.skipped) {
+          // Fee is disabled — list directly
+          const { error: updateErr } = await supabase.from("properties").update({ listed_on_marketplace: true }).eq("id", property.id);
+          if (updateErr) throw new Error(updateErr.message);
+          setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: true } : p));
+          toast.success(data.message || "Property listed on marketplace!");
+          setListingId(null);
+          return;
+        }
+        
         if (data?.authorization_url) {
           window.location.href = data.authorization_url;
         } else {

@@ -1,49 +1,34 @@
 
 
-# Fix Landlord Portal Payment Issues (5 bugs)
+## Fix: Arkesel SMS Edge Function — Wrong API Format
 
-## Problem Summary
+**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
 
-1. **Listing payment succeeds but property stays unlisted** — Frontend shows success toast on return from Paystack, but the webhook hasn't updated `listed_on_marketplace` yet. No client-side verification.
-2. **Listing fee disabled = "No checkout URL received"** — `handleToggleListing` doesn't handle `{ skipped: true }` response from checkout.
-3. **Add Tenant fee at the start** — User wants payment at the end of the process (after review), not as a gate before step 1.
-4. **Rent cards don't appear after purchase** — Same timing issue: user returns from Paystack before webhook creates the cards. No verification/polling.
-5. **Rent card receipts missing** — `verify-payment` only handles registration types, not rent cards. So no receipt is created via the fallback path, and the webhook may not have fired yet.
+**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
 
-## Plan
+### Changes
 
-### 1. Fix Listing: handle `skipped` + verify on return
-**File: `src/pages/landlord/MyProperties.tsx`**
+**1. Update `supabase/functions/send-sms/index.ts`**
 
-- In `handleToggleListing`: after the checkout call, check `data?.skipped` — if true, directly update the property to `listed_on_marketplace: true` and update local state.
-- On page load with `trxref`/`reference` params: call `verify-payment` edge function with the reference, then poll the property's `listed_on_marketplace` status before showing success.
+- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
+- Move API key from request body to `api-key` header
+- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
+- Remove `action` from body
+- Update success check from `data.code !== "ok"` to `data.status !== "success"`
+- Add response text logging before JSON parse to aid debugging
 
-**File: `supabase/functions/verify-payment/index.ts`**
+### Technical Details
 
-- Extend to handle `listing_fee` payment type: update `properties.listed_on_marketplace = true` for the related property.
-- Also handle `rent_card_bulk` / `rent_card` payment types: create the rent cards (same logic as webhook).
-- This ensures the verify-payment fallback path fully finalizes these payment types.
+```text
+Current (broken V1 format):
+  POST https://sms.arkesel.com/sms/api?action=send-sms
+  Body: { action, api_key, to, from, sms }
 
-### 2. Move Add Tenant fee to end of process
-**File: `src/pages/landlord/AddTenant.tsx`**
+Fixed (V2 format):
+  POST https://api.arkesel.com/api/v2/sms/send
+  Headers: { api-key: ARKESEL_API_KEY }
+  Body: { sender, message, recipients: ["233..."] }
+```
 
-- Remove the fee gate from the beginning of the flow.
-- Move the payment step to after the "Review" step — when the user clicks "Submit", check if fee is required. If so, redirect to Paystack. On return with `status=fee_paid`, auto-submit the tenancy.
-- Store form data in state so it persists across the redirect, or use `sessionStorage`.
-
-### 3. Fix Rent Cards not showing after purchase
-**File: `src/pages/landlord/ManageRentCards.tsx`**
-
-- On page load with `trxref`/`reference` params: call `verify-payment` to trigger card creation, then poll/refetch cards.
-- The `verify-payment` function (updated in step 1) will handle creating rent cards if the webhook hasn't fired yet.
-
-### 4. Fix Rent Card receipts
-This is resolved by extending `verify-payment` (step 1) — it already creates receipts generically, but needs to also create the rent cards so the escrow is properly completed. Once verify-payment handles `rent_card_bulk`, receipts will be created.
-
-## Files to modify
-
-- `src/pages/landlord/MyProperties.tsx` — handle `skipped`, verify payment on return
-- `src/pages/landlord/ManageRentCards.tsx` — verify payment on return, poll for cards
-- `src/pages/landlord/AddTenant.tsx` — move fee to end of flow
-- `supabase/functions/verify-payment/index.ts` — handle listing_fee + rent_card payment types
+After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
 

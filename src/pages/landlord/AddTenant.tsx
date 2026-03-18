@@ -27,8 +27,6 @@ const AddTenant = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const feeConfig = useFeeConfig("add_tenant_fee");
-  const [feePaid, setFeePaid] = useState(false);
-  const [payingFee, setPayingFee] = useState(false);
   const [step, setStep] = useState<Step>("select-unit");
   const [properties, setProperties] = useState<PropertyWithUnits[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,40 +74,68 @@ const AddTenant = () => {
     fetchData();
   }, [user]);
 
-  // Check if fee was paid via callback
+  const [autoSubmitPending, setAutoSubmitPending] = useState(false);
+
+  // Check if fee was paid via callback — restore form and auto-submit
   useEffect(() => {
     if (searchParams.get("status") === "fee_paid") {
-      setFeePaid(true);
+      const saved = sessionStorage.getItem("addTenantFormData");
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          setSelectedPropertyId(data.selectedPropertyId || "");
+          setSelectedUnitId(data.selectedUnitId || "");
+          setFoundTenant(data.foundTenant || null);
+          setRent(data.rent || "");
+          setAdvanceMonths(data.advanceMonths || "6");
+          setLeaseDurationMonths(data.leaseDurationMonths || "12");
+          setStartDate(data.startDate || "2026-03-01");
+          setCustomFieldValues(data.customFieldValues || {});
+          setSelectedRentCardId(data.selectedRentCardId || "");
+          setStep("review");
+          setAutoSubmitPending(true);
+          sessionStorage.removeItem("addTenantFormData");
+          toast.success("Fee paid! Submitting your tenancy...");
+        } catch { /* ignore parse errors */ }
+      }
+      window.history.replaceState({}, "", window.location.pathname);
     }
   }, [searchParams]);
 
-  // If fee is not required or disabled, auto-skip
+  // Auto-submit after restoring form data from fee payment return
   useEffect(() => {
-    if (!feeConfig.loading && (!feeConfig.enabled || feeConfig.amount <= 0)) {
-      setFeePaid(true);
+    if (autoSubmitPending && foundTenant && selectedUnitId && selectedRentCardId && !loading) {
+      setAutoSubmitPending(false);
+      // Small delay to let state settle
+      setTimeout(() => handleSubmit(), 500);
     }
-  }, [feeConfig]);
+  }, [autoSubmitPending, foundTenant, selectedUnitId, selectedRentCardId, loading]);
 
   const handlePayFee = async () => {
     if (!user) return;
-    setPayingFee(true);
+    // Save form data to sessionStorage before redirect
+    sessionStorage.setItem("addTenantFormData", JSON.stringify({
+      selectedPropertyId, selectedUnitId, foundTenant, rent, advanceMonths,
+      leaseDurationMonths, startDate, customFieldValues, selectedRentCardId,
+    }));
     try {
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "add_tenant_fee" },
       });
       if (error) throw error;
       if (data?.skipped) {
-        setFeePaid(true);
+        sessionStorage.removeItem("addTenantFormData");
         toast.success(data.message || "Fee waived");
+        // Proceed directly to submit
+        handleSubmit();
         return;
       }
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
       }
     } catch (err: any) {
+      sessionStorage.removeItem("addTenantFormData");
       toast.error(err.message || "Payment failed");
-    } finally {
-      setPayingFee(false);
     }
   };
 
@@ -329,26 +355,8 @@ const AddTenant = () => {
         })}
       </div>
 
-      {/* Fee Gate */}
-      {!feePaid && !feeConfig.loading && feeConfig.enabled && feeConfig.amount > 0 && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
-          <div className="flex items-start gap-3">
-            <CreditCard className="h-6 w-6 text-primary shrink-0 mt-0.5" />
-            <div>
-              <h2 className="text-lg font-semibold text-card-foreground">Payment Required</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                A fee of <span className="font-semibold text-foreground">GH₵ {feeConfig.amount.toFixed(2)}</span> is required to add a tenant to your property.
-              </p>
-            </div>
-          </div>
-          <Button onClick={handlePayFee} disabled={payingFee} className="w-full">
-            {payingFee ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Processing...</> : `Pay GH₵ ${feeConfig.amount.toFixed(2)} to Continue`}
-          </Button>
-        </motion.div>
-      )}
-
       {/* Step 1 */}
-      {feePaid && step === "select-unit" && (
+      {step === "select-unit" && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
           <h2 className="text-lg font-semibold text-card-foreground">Select Property & Unit</h2>
           {properties.length === 0 ? (
@@ -571,9 +579,15 @@ const AddTenant = () => {
             <Button variant="outline" onClick={handleDownloadPdf}>
               <Download className="h-4 w-4 mr-1" /> Download PDF
             </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              <UserPlus className="h-4 w-4 mr-1" /> {submitting ? "Creating..." : "Generate & Send to Tenant"}
-            </Button>
+            {feeConfig.enabled && feeConfig.amount > 0 ? (
+              <Button onClick={handlePayFee} disabled={submitting}>
+                <CreditCard className="h-4 w-4 mr-1" /> {submitting ? "Processing..." : `Pay GH₵ ${feeConfig.amount.toFixed(2)} & Submit`}
+              </Button>
+            ) : (
+              <Button onClick={handleSubmit} disabled={submitting}>
+                <UserPlus className="h-4 w-4 mr-1" /> {submitting ? "Creating..." : "Generate & Send to Tenant"}
+              </Button>
+            )}
           </div>
         </motion.div>
       )}
