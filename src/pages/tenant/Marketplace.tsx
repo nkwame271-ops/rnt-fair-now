@@ -143,7 +143,8 @@ const Marketplace = () => {
 
   // Handle viewing payment callback
   useEffect(() => {
-    if (searchParams.get("status") === "viewing_paid") {
+    const status = searchParams.get("status");
+    if (status === "viewing_paid" || searchParams.has("trxref") || searchParams.has("reference")) {
       toast.success("Viewing fee paid successfully! Your request has been sent to the landlord.");
       setSearchParams({}, { replace: true });
       // Re-fetch viewing requests after payment
