@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import LogoLoader from "@/components/LogoLoader";
 import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, CreditCard, Award } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -15,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 
 const LandlordDashboard = () => {
   const { user } = useAuth();
+  const { amount: regFee } = useFeeConfig("landlord_registration");
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
   const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
@@ -95,10 +97,10 @@ const LandlordDashboard = () => {
             <AlertTriangle className="h-5 w-5 text-warning" />
             <AlertTitle className="text-warning font-semibold">Registration Fee Unpaid</AlertTitle>
             <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1">
-              <span className="text-muted-foreground">Your registration fee (GH₵ 30) is unpaid. Pay now to activate your Landlord ID and access all platform features.</span>
+              <span className="text-muted-foreground">Your registration fee (GH₵ {regFee.toFixed(0)}) is unpaid. Pay now to activate your Landlord ID and access all platform features.</span>
               <Button onClick={handlePayRegistrationFee} disabled={payingFee} size="sm" className="shrink-0">
                 <CreditCard className="mr-2 h-4 w-4" />
-                {payingFee ? "Redirecting..." : "Pay GH₵ 30 Now"}
+                {payingFee ? "Redirecting..." : `Pay GH₵ ${regFee.toFixed(0)} Now`}
               </Button>
             </AlertDescription>
           </Alert>

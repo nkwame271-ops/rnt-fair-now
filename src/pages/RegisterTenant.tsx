@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Globe, Briefcase, UserPlus, Building, Lock } from "lucide-react";
@@ -16,6 +17,7 @@ const steps = ["Account", "Identity", "Contact", "Your ID"];
 
 const RegisterTenant = () => {
   const navigate = useNavigate();
+  const { amount: regFee } = useFeeConfig("tenant_registration");
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -174,7 +176,7 @@ const RegisterTenant = () => {
               <IdCard className="h-5 w-5 text-secondary" />
               <span className="font-semibold">Annual Registration</span>
             </div>
-            <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ 40.00</div>
+            <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ {regFee.toFixed(2)}</div>
             <p className="text-primary-foreground/70 text-sm mb-3">Per year</p>
             <div className="border-t border-primary-foreground/20 pt-3">
               <p className="text-sm font-semibold mb-2">Registration Fee Covers:</p>
@@ -390,7 +392,7 @@ const RegisterTenant = () => {
                   <div className="bg-muted rounded-xl p-5 text-left space-y-3 max-w-sm mx-auto">
                     <h3 className="font-semibold text-foreground text-sm">What's next?</h3>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ 40 registration fee to activate your account</li>
+                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ {regFee.toFixed(0)} registration fee to activate your account</li>
                       <li className="flex items-start gap-2">
                         <Building className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                         Your Rent Card will be available at the Rent Control Department within 5 days. You can opt for delivery later within the app.
@@ -409,7 +411,7 @@ const RegisterTenant = () => {
               </Button>
             ) : (
               <Button onClick={handlePayRegistration} disabled={payingRegistration} className="w-full h-12 text-base font-semibold bg-success hover:bg-success/90">
-                {payingRegistration ? "Redirecting to payment..." : "Pay GH₵ 40 Registration Fee"} <ArrowRight className="ml-2 h-4 w-4" />
+                {payingRegistration ? "Redirecting to payment..." : `Pay GH₵ ${regFee.toFixed(0)} Registration Fee`} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>

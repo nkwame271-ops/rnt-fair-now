@@ -2,6 +2,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import { Loader2, CreditCard, Shield, FileText, Store, AlertTriangle, CheckCircle2, IdCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -18,6 +19,8 @@ const registrationBenefits = [
 
 const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const { user, loading, role } = useAuth();
+  const feeKey = role === "tenant" ? "tenant_registration" : "landlord_registration";
+  const { amount: regFee } = useFeeConfig(feeKey);
   const [checkingFee, setCheckingFee] = useState(true);
   const [feePaid, setFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
@@ -189,7 +192,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
           <div className="bg-card rounded-xl border border-border p-5 space-y-4">
             <div className="text-center">
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Registration Fee</p>
-              <p className="text-3xl font-extrabold text-primary">{role === "tenant" ? "GH₵ 40.00" : "GH₵ 30.00"}</p>
+              <p className="text-3xl font-extrabold text-primary">GH₵ {regFee.toFixed(2)}</p>
               <p className="text-xs text-muted-foreground">Per year</p>
             </div>
 
@@ -208,7 +211,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
 
           <Button onClick={handlePay} disabled={payingFee} className="w-full h-12 text-base font-semibold">
             <CreditCard className="mr-2 h-5 w-5" />
-            {payingFee ? "Redirecting to payment..." : `Pay ${role === "tenant" ? "GH₵ 40" : "GH₵ 30"} & Activate Account`}
+            {payingFee ? "Redirecting to payment..." : `Pay GH₵ ${regFee.toFixed(0)} & Activate Account`}
           </Button>
 
           <p className="text-xs text-center text-muted-foreground">
