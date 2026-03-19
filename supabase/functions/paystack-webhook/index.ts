@@ -219,6 +219,45 @@ Deno.serve(async (req) => {
       }
     };
 
+    // ── Helper: Send payment email ──
+    const sendPaymentEmail = async (userId: string, amount: number, description: string, receiptNo: string) => {
+      try {
+        const { data: profile } = await supabase.from("profiles").select("email, full_name").eq("user_id", userId).single();
+        if (profile?.email) {
+          const messageId = crypto.randomUUID();
+          await supabase.from("email_send_log").insert({
+            message_id: messageId,
+            template_name: "payment_successful",
+            recipient_email: profile.email,
+            status: "pending",
+          });
+          await supabase.rpc("enqueue_email", {
+            queue_name: "transactional_emails",
+            payload: {
+              message_id: messageId,
+              to: profile.email,
+              from: "RentControlGhana <noreply@notify.rentcontrolghana.com>",
+              sender_domain: "notify.rentcontrolghana.com",
+              subject: "Payment Successful — RentControlGhana",
+              html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background-color:#f4f4f5;font-family:'Plus Jakarta Sans',system-ui,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:32px 0;"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:100%;"><tr><td style="background-color:#2d7a4f;padding:24px 32px;text-align:center;"><h1 style="color:#ffffff;margin:0;font-size:20px;">RentControlGhana</h1></td></tr><tr><td style="padding:32px;color:#1a1a1a;font-size:15px;line-height:1.6;"><p>Hello ${profile.full_name || "User"},</p><p>Your payment has been processed successfully.</p><table style="margin:16px 0;"><tr><td style="padding:4px 12px 4px 0;color:#666;">Amount:</td><td>GHS ${amount.toFixed(2)}</td></tr><tr><td style="padding:4px 12px 4px 0;color:#666;">Description:</td><td>${description}</td></tr><tr><td style="padding:4px 12px 4px 0;color:#666;">Receipt:</td><td>${receiptNo}</td></tr></table><p>Please log in to view details.</p></td></tr><tr><td style="padding:16px 32px 24px;color:#666;font-size:13px;border-top:1px solid #e5e5e5;"><p style="margin:0;">Regards,<br/><strong>RentControlGhana</strong></p></td></tr></table></td></tr></table></body></html>`,
+              text: `Payment of GHS ${amount.toFixed(2)} for ${description} confirmed. Receipt: ${receiptNo}`,
+              purpose: "transactional",
+              label: "payment_successful",
+              queued_at: new Date().toISOString(),
+            },
+          });
+        }
+      } catch (e) {
+        console.error("Payment email error:", e);
+      }
+    };
+
+    // ── Helper: Send SMS + Email for payment (combined) ──
+    const sendPaymentNotifications = async (userId: string, amount: number, description: string, receiptNo: string) => {
+      await sendPaymentSms(userId, amount, description, receiptNo);
+      await sendPaymentEmail(userId, amount, description, receiptNo);
+    };
+
     // ── Helper: Send in-app notification ──
     const sendNotification = async (userId: string, paymentType: string, amount: number, meta?: any) => {
       const config = NOTIFICATION_MESSAGES[paymentType];
@@ -252,7 +291,7 @@ Deno.serve(async (req) => {
       const splits = [{ recipient: "rent_control", amount: amountPaid, description: "Rent tax (bulk advance)" }];
       const receiptNo = await completeEscrow(reference, userId, "rent_tax_bulk", amountPaid, splits, tenancyId);
       if (userId) {
-        await sendPaymentSms(userId, amountPaid, "Bulk advance rent tax", receiptNo);
+        await sendPaymentNotifications(userId, amountPaid, "Bulk advance rent tax", receiptNo);
         await sendNotification(userId, "rent_tax_bulk", amountPaid);
       }
 
@@ -270,7 +309,7 @@ Deno.serve(async (req) => {
       const splits = [{ recipient: "rent_control", amount: amountPaid, description: "Rent tax" }];
       const receiptNo = await completeEscrow(reference, userId, "rent_tax", amountPaid, splits, payment?.tenancy_id);
       if (userId) {
-        await sendPaymentSms(userId, amountPaid, "Rent tax payment", receiptNo);
+        await sendPaymentNotifications(userId, amountPaid, "Rent tax payment", receiptNo);
         await sendNotification(userId, "rent_tax", amountPaid);
       }
 
@@ -281,7 +320,7 @@ Deno.serve(async (req) => {
       const splits = [{ recipient: "landlord", amount: amountPaid, description: "Monthly rent (held in escrow)" }];
       const receiptNo = await completeEscrow(reference, userId, "rent_payment", amountPaid, splits, tenancyId);
       if (userId) {
-        await sendPaymentSms(userId, amountPaid, "Monthly rent", receiptNo);
+        await sendPaymentNotifications(userId, amountPaid, "Monthly rent", receiptNo);
         await sendNotification(userId, "rent_payment", amountPaid);
       }
 
@@ -294,7 +333,7 @@ Deno.serve(async (req) => {
       if (splitPlan.length > 0) {
         const receiptNo = await completeEscrow(reference, userId, "rent_combined", amountPaid, splitPlan, tenancyId);
         if (userId) {
-          await sendPaymentSms(userId, amountPaid, "Rent + Tax combined", receiptNo);
+          await sendPaymentNotifications(userId, amountPaid, "Rent + Tax combined", receiptNo);
           await sendNotification(userId, "rent_combined", amountPaid);
         }
       }
@@ -306,7 +345,7 @@ Deno.serve(async (req) => {
         .update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() })
         .eq("user_id", userId);
       const receiptNo = await completeEscrow(reference, userId, "tenant_registration", amountPaid, SPLIT_RULES.tenant_registration.splits);
-      await sendPaymentSms(userId, amountPaid, "Tenant registration", receiptNo);
+      await sendPaymentNotifications(userId, amountPaid, "Tenant registration", receiptNo);
       await sendNotification(userId, "tenant_registration", amountPaid);
 
     } else if (reference.startsWith("lreg_")) {
@@ -316,7 +355,7 @@ Deno.serve(async (req) => {
         .update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() })
         .eq("user_id", userId);
       const receiptNo = await completeEscrow(reference, userId, "landlord_registration", amountPaid, SPLIT_RULES.landlord_registration.splits);
-      await sendPaymentSms(userId, amountPaid, "Landlord registration", receiptNo);
+      await sendPaymentNotifications(userId, amountPaid, "Landlord registration", receiptNo);
       await sendNotification(userId, "landlord_registration", amountPaid);
 
     } else if (reference.startsWith("rcard_")) {
@@ -331,13 +370,13 @@ Deno.serve(async (req) => {
       await supabase.from("rent_cards").insert(rentCards);
       const splits = SPLIT_RULES.rent_card.splits.map(s => ({ ...s, amount: s.amount * qty }));
       const receiptNo = await completeEscrow(reference, userId, "rent_card", amountPaid, splits);
-      await sendPaymentSms(userId, amountPaid, `Rent Card purchase (${qty} cards)`, receiptNo);
+      await sendPaymentNotifications(userId, amountPaid, `Rent Card purchase (${qty} cards)`, receiptNo);
       await sendNotification(userId, "rent_card", amountPaid, { quantity: qty });
 
     } else if (reference.startsWith("agrsale_")) {
       const userId = data.metadata?.userId || "";
       const receiptNo = await completeEscrow(reference, userId, "agreement_sale", amountPaid, SPLIT_RULES.agreement_sale.splits);
-      await sendPaymentSms(userId, amountPaid, "Agreement form purchase", receiptNo);
+      await sendPaymentNotifications(userId, amountPaid, "Agreement form purchase", receiptNo);
       if (userId) await sendNotification(userId, "agreement_sale", amountPaid);
 
     } else if (reference.startsWith("comp_")) {
@@ -346,7 +385,7 @@ Deno.serve(async (req) => {
       const userId = data.metadata?.userId || "";
       const receiptNo = await completeEscrow(reference, userId, "complaint_fee", amountPaid, SPLIT_RULES.complaint_fee.splits);
       if (userId) {
-        await sendPaymentSms(userId, amountPaid, "Complaint filing fee", receiptNo);
+        await sendPaymentNotifications(userId, amountPaid, "Complaint filing fee", receiptNo);
         await sendNotification(userId, "complaint_fee", amountPaid);
       }
 
@@ -356,7 +395,7 @@ Deno.serve(async (req) => {
       const userId = data.metadata?.userId || "";
       const receiptNo = await completeEscrow(reference, userId, "listing_fee", amountPaid, SPLIT_RULES.listing_fee.splits);
       if (userId) {
-        await sendPaymentSms(userId, amountPaid, "Marketplace listing fee", receiptNo);
+        await sendPaymentNotifications(userId, amountPaid, "Marketplace listing fee", receiptNo);
         await sendNotification(userId, "listing_fee", amountPaid);
       }
 
@@ -366,7 +405,7 @@ Deno.serve(async (req) => {
       const userId = data.metadata?.userId || "";
       const receiptNo = await completeEscrow(reference, userId, "viewing_fee", amountPaid, SPLIT_RULES.viewing_fee.splits);
       if (userId) {
-        await sendPaymentSms(userId, amountPaid, "Property viewing fee", receiptNo);
+        await sendPaymentNotifications(userId, amountPaid, "Property viewing fee", receiptNo);
         await sendNotification(userId, "viewing_fee", amountPaid);
       }
 
@@ -433,21 +472,21 @@ Deno.serve(async (req) => {
 
         const splits = [{ recipient: "rent_control", amount: amountPaid, description: `Renewal tax (${advanceMonths} months)` }];
         const receiptNo = await completeEscrow(reference, oldTenancy.tenant_user_id, "renewal_payment", amountPaid, splits, tenancyId);
-        await sendPaymentSms(oldTenancy.tenant_user_id, amountPaid, "Tenancy renewal", receiptNo);
+        await sendPaymentNotifications(oldTenancy.tenant_user_id, amountPaid, "Tenancy renewal", receiptNo);
       }
 
     } else if (reference.startsWith("addten_")) {
       const userId = reference.split("_")[1];
       const splits = [{ recipient: "platform", amount: amountPaid, description: "Add tenant fee" }];
       const receiptNo = await completeEscrow(reference, userId, "add_tenant_fee", amountPaid, splits);
-      await sendPaymentSms(userId, amountPaid, "Add tenant fee", receiptNo);
+      await sendPaymentNotifications(userId, amountPaid, "Add tenant fee", receiptNo);
       await sendNotification(userId, "add_tenant_fee", amountPaid);
 
     } else if (reference.startsWith("term_")) {
       const userId = reference.split("_")[1];
       const splits = [{ recipient: "platform", amount: amountPaid, description: "Termination request fee" }];
       const receiptNo = await completeEscrow(reference, userId, "termination_fee", amountPaid, splits);
-      await sendPaymentSms(userId, amountPaid, "Termination request fee", receiptNo);
+      await sendPaymentNotifications(userId, amountPaid, "Termination request fee", receiptNo);
       await sendNotification(userId, "termination_fee", amountPaid);
 
     } else {

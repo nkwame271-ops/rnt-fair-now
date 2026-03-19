@@ -13,6 +13,7 @@ import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import KycVerificationCard from "@/components/KycVerificationCard";
 import UserRatings from "@/components/UserRatings";
+import { sendNotification } from "@/lib/notificationService";
 
 const ProfilePage = () => {
   const { user, role } = useAuth();
@@ -135,6 +136,13 @@ const ProfilePage = () => {
       toast.success("Password changed successfully");
       setNewPassword("");
       setConfirmPassword("");
+      // Notify user about password change (non-blocking)
+      sendNotification("password_reset", {
+        phone: phone || undefined,
+        email: email || user?.email || undefined,
+        user_id: user?.id,
+        data: { name: fullName },
+      });
     }
     setChangingPassword(false);
   };
@@ -196,6 +204,13 @@ const ProfilePage = () => {
       setPhoneDialogOpen(false);
       setNewPhone("");
       setPhoneChangePassword("");
+      // Notify about contact change (non-blocking)
+      sendNotification("contact_changed", {
+        phone: newPhone.replace(/\s/g, "") || undefined,
+        email: email || user?.email || undefined,
+        user_id: user?.id,
+        data: { name: fullName },
+      });
     } catch (err: any) {
       toast.error(err.message || "Failed to update phone number");
     } finally {

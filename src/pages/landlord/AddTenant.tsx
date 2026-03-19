@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { sendSms } from "@/lib/smsService";
+import { sendNotification } from "@/lib/notificationService";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
 
 type Step = "select-unit" | "find-tenant" | "set-terms" | "review" | "done";
@@ -314,16 +314,22 @@ const AddTenant = () => {
       // Mark unit as occupied
       await supabase.from("units").update({ status: "occupied" }).eq("id", unit.id);
 
-      // Send SMS to both tenant and landlord about the agreement
-      const { data: tenantProfile } = await supabase.from("profiles").select("phone").eq("user_id", foundTenant.userId).maybeSingle();
-      const { data: landlordProfile } = await supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle();
+      // Send multi-channel notification to both tenant and landlord
+      const { data: tenantProfile } = await supabase.from("profiles").select("phone, email, full_name").eq("user_id", foundTenant.userId).maybeSingle();
+      const { data: landlordProfile } = await supabase.from("profiles").select("phone, email, full_name").eq("user_id", user.id).maybeSingle();
       const propName = property?.property_name || property?.address || "Property";
-      if (tenantProfile?.phone) {
-        sendSms(tenantProfile.phone, "agreement_signed", { code: regCode, action: "created", property: propName });
-      }
-      if (landlordProfile?.phone) {
-        sendSms(landlordProfile.phone, "agreement_signed", { code: regCode, action: "created", property: propName });
-      }
+      sendNotification("tenancy_registered", {
+        phone: tenantProfile?.phone || undefined,
+        email: tenantProfile?.email || undefined,
+        user_id: foundTenant.userId,
+        data: { name: tenantProfile?.full_name || "", tenancy_id: regCode, property: propName },
+      });
+      sendNotification("tenancy_registered", {
+        phone: landlordProfile?.phone || undefined,
+        email: landlordProfile?.email || undefined,
+        user_id: user.id,
+        data: { name: landlordProfile?.full_name || "", tenancy_id: regCode, property: propName },
+      });
 
       setStep("done");
       toast.success("Tenancy agreement created and sent to tenant!");

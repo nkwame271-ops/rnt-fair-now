@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { regions } from "@/data/dummyData";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { sendSms } from "@/lib/smsService";
+import { sendNotification } from "@/lib/notificationService";
 import FormField from "@/components/FormField";
 import { formatPhone, formatGhanaCard, isValidPhone, isValidGhanaCard } from "@/lib/formatters";
 
@@ -169,13 +169,17 @@ const RegisterLandlord = () => {
 
       setGeneratedId(landlordId);
 
-      // Send registration success SMS (non-blocking)
-      sendSms(phone, "registration_success", {
-        name: fullName,
-        role: "Landlord",
-        id: landlordId,
+      // Send multi-channel notification (non-blocking)
+      sendNotification("account_created", {
         phone: phoneDigits,
-        link: `${window.location.origin}/login?role=landlord`,
+        email: email || undefined,
+        user_id: userId,
+        data: {
+          name: fullName,
+          role: "Landlord",
+          id: landlordId,
+          phone: phoneDigits,
+        },
       });
 
       setStep(2);
