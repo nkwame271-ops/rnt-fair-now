@@ -1,34 +1,27 @@
 project_id = "qjrvwcwmhuxygdanbxsz"
 
-[functions.paystack-checkout]
-verify_jwt = false
-
-[functions.paystack-webhook]
-verify_jwt = false
-
-[functions.invite-staff]
-verify_jwt = false
-
-[functions.legal-assistant]
-verify_jwt = false
-
-[functions.kyc-face-match]
-verify_jwt = false
-
-[functions.verify-registration]
-verify_jwt = false
-
-[functions.send-sms]
-verify_jwt = false
-
-[functions.agency-api]
-verify_jwt = false
-
-[functions.verify-payment]
-verify_jwt = false
-
-[functions.verify-rent-card]
-verify_jwt = false
-
-[functions.verify-receipt]
-verify_jwt = false
+[functions]
+  [functions.agency-api]
+    verify_jwt = false
+  [functions.auth-email-hook]
+    verify_jwt = false
+  [functions.invite-staff]
+    verify_jwt = false
+  [functions.kyc-face-match]
+    verify_jwt = false
+  [functions.legal-assistant]
+    verify_jwt = false
+  [functions.paystack-checkout]
+    verify_jwt = false
+  [functions.paystack-webhook]
+    verify_jwt = false
+  [functions.send-sms]
+    verify_jwt = false
+  [functions.verify-payment]
+    verify_jwt = false
+  [functions.verify-receipt]
+    verify_jwt = false
+  [functions.verify-registration]
+    verify_jwt = false
+  [functions.verify-rent-card]
+    verify_jwt = false
