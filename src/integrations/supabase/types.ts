@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_staff: {
+        Row: {
+          admin_type: string
+          allowed_features: string[] | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          muted_features: string[] | null
+          office_id: string | null
+          office_name: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          admin_type?: string
+          allowed_features?: string[] | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          muted_features?: string[] | null
+          office_id?: string | null
+          office_name?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          admin_type?: string
+          allowed_features?: string[] | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          muted_features?: string[] | null
+          office_id?: string | null
+          office_name?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       agreement_template_config: {
         Row: {
           custom_fields: Json | null
@@ -1808,6 +1847,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_main_admin: { Args: { _user_id: string }; Returns: boolean }
       recalculate_compliance_score: {
         Args: { p_landlord_user_id: string }
         Returns: undefined
