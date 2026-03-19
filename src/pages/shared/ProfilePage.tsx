@@ -103,7 +103,6 @@ const ProfilePage = () => {
       .from("profiles")
       .update({
         full_name: fullName,
-        phone,
         occupation,
         work_address: workAddress,
         emergency_contact_name: emergencyContactName,
