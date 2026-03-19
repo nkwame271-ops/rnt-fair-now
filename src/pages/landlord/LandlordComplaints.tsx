@@ -123,6 +123,17 @@ const LandlordComplaints = () => {
         evidenceUrls.push(publicUrl);
       }
 
+      // Upload audio if recorded
+      let uploadedAudioUrl: string | null = null;
+      if (audioBlob) {
+        const audioPath = `${user.id}/${Date.now()}_voice.webm`;
+        const { error: audioErr } = await supabase.storage.from("application-evidence").upload(audioPath, audioBlob);
+        if (!audioErr) {
+          const { data: { publicUrl } } = supabase.storage.from("application-evidence").getPublicUrl(audioPath);
+          uploadedAudioUrl = publicUrl;
+        }
+      }
+
       const code = `LC-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
 
       const { error } = await supabase.from("landlord_complaints").insert({
@@ -134,6 +145,7 @@ const LandlordComplaints = () => {
         region,
         description,
         evidence_urls: evidenceUrls,
+        audio_url: uploadedAudioUrl,
       } as any);
 
       if (error) throw error;
