@@ -219,6 +219,39 @@ Deno.serve(async (req) => {
       }
     };
 
+    // ── Helper: Send payment email ──
+    const sendPaymentEmail = async (userId: string, amount: number, description: string, receiptNo: string) => {
+      try {
+        const { data: profile } = await supabase.from("profiles").select("email, full_name").eq("user_id", userId).single();
+        if (profile?.email) {
+          const messageId = crypto.randomUUID();
+          await supabase.from("email_send_log").insert({
+            message_id: messageId,
+            template_name: "payment_successful",
+            recipient_email: profile.email,
+            status: "pending",
+          });
+          await supabase.rpc("enqueue_email", {
+            queue_name: "transactional_emails",
+            payload: {
+              message_id: messageId,
+              to: profile.email,
+              from: "RentControlGhana <noreply@notify.rentcontrolghana.com>",
+              sender_domain: "notify.rentcontrolghana.com",
+              subject: "Payment Successful — RentControlGhana",
+              html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background-color:#f4f4f5;font-family:'Plus Jakarta Sans',system-ui,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:32px 0;"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:100%;"><tr><td style="background-color:#2d7a4f;padding:24px 32px;text-align:center;"><h1 style="color:#ffffff;margin:0;font-size:20px;">RentControlGhana</h1></td></tr><tr><td style="padding:32px;color:#1a1a1a;font-size:15px;line-height:1.6;"><p>Hello ${profile.full_name || "User"},</p><p>Your payment has been processed successfully.</p><table style="margin:16px 0;"><tr><td style="padding:4px 12px 4px 0;color:#666;">Amount:</td><td>GHS ${amount.toFixed(2)}</td></tr><tr><td style="padding:4px 12px 4px 0;color:#666;">Description:</td><td>${description}</td></tr><tr><td style="padding:4px 12px 4px 0;color:#666;">Receipt:</td><td>${receiptNo}</td></tr></table><p>Please log in to view details.</p></td></tr><tr><td style="padding:16px 32px 24px;color:#666;font-size:13px;border-top:1px solid #e5e5e5;"><p style="margin:0;">Regards,<br/><strong>RentControlGhana</strong></p></td></tr></table></td></tr></table></body></html>`,
+              text: `Payment of GHS ${amount.toFixed(2)} for ${description} confirmed. Receipt: ${receiptNo}`,
+              purpose: "transactional",
+              label: "payment_successful",
+              queued_at: new Date().toISOString(),
+            },
+          });
+        }
+      } catch (e) {
+        console.error("Payment email error:", e);
+      }
+    };
+
     // ── Helper: Send in-app notification ──
     const sendNotification = async (userId: string, paymentType: string, amount: number, meta?: any) => {
       const config = NOTIFICATION_MESSAGES[paymentType];
