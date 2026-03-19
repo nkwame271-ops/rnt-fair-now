@@ -13,6 +13,7 @@ import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import KycVerificationCard from "@/components/KycVerificationCard";
 import UserRatings from "@/components/UserRatings";
+import { sendNotification } from "@/lib/notificationService";
 
 const ProfilePage = () => {
   const { user, role } = useAuth();
