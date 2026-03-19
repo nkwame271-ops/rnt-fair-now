@@ -43,6 +43,13 @@ const LandlordComplaints = () => {
   const [description, setDescription] = useState("");
   const [documents, setDocuments] = useState<File[]>([]);
 
+  // Audio recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
   useEffect(() => {
     if (!user) return;
     fetchComplaints();
