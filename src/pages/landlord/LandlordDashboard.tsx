@@ -101,7 +101,7 @@ const LandlordDashboard = () => {
   return (
     <PageTransition>
       <div className="max-w-5xl mx-auto space-y-8">
-        {!registrationFeePaid && (
+        {!registrationFeePaid && regFeeEnabled && (
           <Alert className="border-warning bg-warning/10 border-2">
             <AlertTriangle className="h-5 w-5 text-warning" />
             <AlertTitle className="text-warning font-semibold">Registration Fee Unpaid</AlertTitle>
