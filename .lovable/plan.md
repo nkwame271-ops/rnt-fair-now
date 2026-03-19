@@ -1,34 +1,33 @@
 
 
-## Fix: Arkesel SMS Edge Function — Wrong API Format
+# Plan: Landlord Voice Notes + Full Phone Number as Temp Password
 
-**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
+## Change 1: Landlord Complaints — Voice Note Recording
 
-**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
+Add voice recording capability to the landlord complaint form, matching the existing pattern in tenant FileComplaint.
 
-### Changes
+### Database
+- Add `audio_url` column (text, nullable) to `landlord_complaints` table via migration
 
-**1. Update `supabase/functions/send-sms/index.ts`**
+### Frontend (`src/pages/landlord/LandlordComplaints.tsx`)
+- Add audio recording state (isRecording, audioBlob, audioUrl, mediaRecorderRef, chunksRef)
+- Add startRecording/stopRecording/deleteRecording handlers (same pattern as FileComplaint)
+- Add voice recording UI in the dialog: record button, playback preview, delete option
+- Upload audio blob to `application-evidence` storage on submit, store URL in `audio_url` field
 
-- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
-- Move API key from request body to `api-key` header
-- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
-- Remove `action` from body
-- Update success check from `data.code !== "ok"` to `data.status !== "success"`
-- Add response text logging before JSON parse to aid debugging
+---
 
-### Technical Details
+## Change 2: Temp Password = Full Phone Number
 
-```text
-Current (broken V1 format):
-  POST https://sms.arkesel.com/sms/api?action=send-sms
-  Body: { action, api_key, to, from, sms }
+Currently the temp password is `phoneDigits.slice(-6)` (last 6 digits). Change to full 10-digit phone number.
 
-Fixed (V2 format):
-  POST https://api.arkesel.com/api/v2/sms/send
-  Headers: { api-key: ARKESEL_API_KEY }
-  Body: { sender, message, recipients: ["233..."] }
-```
+### Files to update:
+1. **`src/pages/RegisterTenant.tsx`** (line 76): Change `phoneDigits.slice(-6)` → `phoneDigits`
+2. **`src/pages/RegisterLandlord.tsx`** (line 74): Same change
+3. **`src/lib/smsService.ts`** (line 13): Update SMS template from "last 6 digits of your phone" → "your full phone number"
+4. **`src/pages/Login.tsx`** (line 187): Update hint text from "last 6 digits" → "your full phone number"
+5. **`src/pages/RegisterTenant.tsx`** (line 402): Update success screen text
+6. **`src/pages/RegisterLandlord.tsx`** (line 358): Update success screen text
 
-After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
+Note: The signup email template doesn't mention the temp password, so no email change needed.
 
