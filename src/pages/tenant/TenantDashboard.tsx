@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 const TenantDashboard = () => {
   const { user } = useAuth();
-  const { amount: regFee } = useFeeConfig("tenant_registration_fee");
+  const { amount: regFee, enabled: regFeeEnabled } = useFeeConfig("tenant_registration_fee");
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
   const [activeCases, setActiveCases] = useState(0);
@@ -116,7 +116,7 @@ const TenantDashboard = () => {
   return (
     <PageTransition>
       <div className="max-w-5xl mx-auto space-y-8">
-        {!registrationFeePaid && (
+        {!registrationFeePaid && regFeeEnabled && (
           <Alert className="border-warning bg-warning/10 border-2">
             <AlertTriangle className="h-5 w-5 text-warning" />
             <AlertTitle className="text-warning font-semibold">Registration Fee Unpaid</AlertTitle>
@@ -140,7 +140,7 @@ const TenantDashboard = () => {
             { label: "Active Cases", value: activeCases, icon: AlertTriangle, color: "text-destructive" },
             { label: "Tenancy Status", value: 0, icon: Shield, color: daysRemaining > 90 ? "text-success" : daysRemaining > 0 ? "text-warning" : "text-destructive", displayText: tenancyCardData ? (tenancyStatus === "active" ? "Active" : tenancyStatus === "renewal_window" ? "Renewal" : tenancyStatus === "expired" ? "Expired" : tenancyStatus.replace(/_/g, " ")) : "—" },
             { label: "Days Remaining", value: daysRemaining > 0 ? daysRemaining : 0, icon: Clock, color: daysRemaining > 90 ? "text-success" : daysRemaining > 0 ? "text-warning" : "text-destructive", displayText: tenancyCardData ? (daysRemaining > 0 ? `${daysRemaining} days` : "Expired") : "—" },
-            { label: "Next Tax Due", value: tenancy?.nextTax ?? 0, icon: CreditCard, color: "text-info", displayText: tenancy?.nextTax ? `GH₵ ${tenancy.nextTax.toLocaleString()}` : "—" },
+            { label: "Next Payment Due", value: tenancy?.nextTax ?? 0, icon: CreditCard, color: "text-info", displayText: tenancy?.nextTax ? `GH₵ ${tenancy.nextTax.toLocaleString()}` : "—" },
           ].map((stat) => (
             <StaggeredItem key={stat.label}>
               <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">

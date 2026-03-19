@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode, Star, Download } from "lucide-react";
+import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode, Star, Download, Pencil } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import KycVerificationCard from "@/components/KycVerificationCard";
 import UserRatings from "@/components/UserRatings";
 
@@ -39,6 +40,18 @@ const ProfilePage = () => {
   // Password
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Email change dialog
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailChangePassword, setEmailChangePassword] = useState("");
+  const [changingEmail, setChangingEmail] = useState(false);
+
+  // Phone change dialog
+  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
+  const [newPhone, setNewPhone] = useState("");
+  const [phoneChangePassword, setPhoneChangePassword] = useState("");
+  const [changingPhone, setChangingPhone] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -90,7 +103,6 @@ const ProfilePage = () => {
       .from("profiles")
       .update({
         full_name: fullName,
-        phone,
         occupation,
         work_address: workAddress,
         emergency_contact_name: emergencyContactName,
@@ -125,6 +137,70 @@ const ProfilePage = () => {
       setConfirmPassword("");
     }
     setChangingPassword(false);
+  };
+
+  const handleChangeEmail = async () => {
+    if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    if (!emailChangePassword) {
+      toast.error("Please enter your current password to confirm");
+      return;
+    }
+    setChangingEmail(true);
+    try {
+      // Re-authenticate with current password
+      const currentEmail = user?.email || "";
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: currentEmail,
+        password: emailChangePassword,
+      });
+      if (signInErr) throw new Error("Incorrect password. Please try again.");
+
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      if (error) throw error;
+      toast.success("Confirmation email sent to your new address. Please check your inbox to complete the change.");
+      setEmailDialogOpen(false);
+      setNewEmail("");
+      setEmailChangePassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update email");
+    } finally {
+      setChangingEmail(false);
+    }
+  };
+
+  const handleChangePhone = async () => {
+    if (!newPhone || newPhone.replace(/\s/g, "").length < 10) {
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+    if (!phoneChangePassword) {
+      toast.error("Please enter your current password to confirm");
+      return;
+    }
+    setChangingPhone(true);
+    try {
+      const currentEmail = user?.email || "";
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: currentEmail,
+        password: phoneChangePassword,
+      });
+      if (signInErr) throw new Error("Incorrect password. Please try again.");
+
+      const { error } = await supabase.from("profiles").update({ phone: newPhone.replace(/\s/g, "") }).eq("user_id", user!.id);
+      if (error) throw error;
+      setPhone(newPhone.replace(/\s/g, ""));
+      toast.success("Phone number updated successfully");
+      setPhoneDialogOpen(false);
+      setNewPhone("");
+      setPhoneChangePassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update phone number");
+    } finally {
+      setChangingPhone(false);
+    }
   };
 
   const baseUrl = window.location.origin;
@@ -243,11 +319,21 @@ const ProfilePage = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone"><Phone className="inline h-3.5 w-3.5 mr-1" />Phone</Label>
-              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <div className="flex gap-2">
+                <Input id="phone" value={phone} disabled className="opacity-60 flex-1" />
+                <Button type="button" variant="outline" size="icon" onClick={() => { setNewPhone(phone); setPhoneDialogOpen(true); }}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email"><Mail className="inline h-3.5 w-3.5 mr-1" />Email</Label>
-              <Input id="email" value={email} disabled className="opacity-60" />
+              <div className="flex gap-2">
+                <Input id="email" value={email} disabled className="opacity-60 flex-1" />
+                <Button type="button" variant="outline" size="icon" onClick={() => { setNewEmail(email); setEmailDialogOpen(true); }}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="nationality">Nationality</Label>
@@ -310,6 +396,60 @@ const ProfilePage = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Email Change Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Email Address</DialogTitle>
+            <DialogDescription>Enter your new email and current password to confirm the change. A verification link will be sent to your new email.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Email</Label>
+              <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="new@example.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>Current Password</Label>
+              <Input type="password" value={emailChangePassword} onChange={(e) => setEmailChangePassword(e.target.value)} placeholder="••••••••" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleChangeEmail} disabled={changingEmail}>
+              {changingEmail ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Update Email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phone Change Dialog */}
+      <Dialog open={phoneDialogOpen} onOpenChange={setPhoneDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Phone Number</DialogTitle>
+            <DialogDescription>Enter your new phone number and current password to confirm the change.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Phone Number</Label>
+              <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="024 555 1234" />
+            </div>
+            <div className="space-y-2">
+              <Label>Current Password</Label>
+              <Input type="password" value={phoneChangePassword} onChange={(e) => setPhoneChangePassword(e.target.value)} placeholder="••••••••" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPhoneDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleChangePhone} disabled={changingPhone}>
+              {changingPhone ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Update Phone
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

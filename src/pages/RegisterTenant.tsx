@@ -17,7 +17,7 @@ const steps = ["Account", "Identity", "Contact", "Your ID"];
 
 const RegisterTenant = () => {
   const navigate = useNavigate();
-  const { amount: regFee } = useFeeConfig("tenant_registration_fee");
+  const { amount: regFee, enabled: regFeeEnabled } = useFeeConfig("tenant_registration_fee");
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -36,6 +36,10 @@ const RegisterTenant = () => {
   const [payingRegistration, setPayingRegistration] = useState(false);
 
   const handlePayRegistration = async () => {
+    if (!regFeeEnabled) {
+      navigate("/login?role=tenant");
+      return;
+    }
     setPayingRegistration(true);
     try {
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
@@ -43,6 +47,11 @@ const RegisterTenant = () => {
       });
       if (error) throw new Error(error.message || "Payment initiation failed");
       if (data?.error) throw new Error(data.error);
+      if (data?.skipped) {
+        toast.success("Registration fee waived! Please log in.");
+        navigate("/login?role=tenant");
+        return;
+      }
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
@@ -408,11 +417,12 @@ const RegisterTenant = () => {
                   <div className="bg-muted rounded-xl p-5 text-left space-y-3 max-w-sm mx-auto">
                     <h3 className="font-semibold text-foreground text-sm">What's next?</h3>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ {regFee.toFixed(0)} registration fee to activate your account</li>
-                      <li className="flex items-start gap-2">
-                        <Building className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                        Your Rent Card will be available at the Rent Control Department within 5 days. You can opt for delivery later within the app.
-                      </li>
+                      {regFeeEnabled && (
+                        <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Pay GH₵ {regFee.toFixed(0)} registration fee to activate your account</li>
+                      )}
+                      {!regFeeEnabled && (
+                        <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Your account is active — proceed to login</li>
+                      )}
                     </ul>
                   </div>
                 </div>
@@ -427,7 +437,7 @@ const RegisterTenant = () => {
               </Button>
             ) : (
               <Button onClick={handlePayRegistration} disabled={payingRegistration} className="w-full h-12 text-base font-semibold bg-success hover:bg-success/90">
-                {payingRegistration ? "Redirecting to payment..." : `Pay GH₵ ${regFee.toFixed(0)} Registration Fee`} <ArrowRight className="ml-2 h-4 w-4" />
+                {payingRegistration ? "Redirecting to payment..." : regFeeEnabled ? `Pay GH₵ ${regFee.toFixed(0)} Registration Fee` : "Proceed to Login"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>

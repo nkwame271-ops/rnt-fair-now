@@ -264,7 +264,7 @@ const Marketplace = () => {
         message: viewingMessage || null,
         preferred_date: viewingDate || null,
         preferred_time: viewingTime || null,
-        status: "awaiting_payment",
+        status: viewingFeeConfig.enabled ? "awaiting_payment" : "pending",
       }).select().single();
       if (error) throw error;
 
@@ -277,6 +277,14 @@ const Marketplace = () => {
           date: viewingDate || "TBD",
           time: viewingTime || "",
         });
+      }
+
+      // If fee is disabled, skip payment
+      if (!viewingFeeConfig.enabled) {
+        toast.success("Viewing request sent to landlord!");
+        setViewingRequestsByUnit(prev => ({ ...prev, [selectedUnit.id]: "pending" }));
+        setSelectedUnit(null);
+        return;
       }
 
       const { data: payData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
@@ -572,9 +580,11 @@ const Marketplace = () => {
                     <Textarea value={viewingMessage} onChange={(e) => setViewingMessage(e.target.value)} placeholder="Optional message to landlord..." rows={2} />
                     <Button className="w-full" onClick={handleRequestViewing} disabled={submittingRequest}>
                       <Send className="h-4 w-4 mr-2" />
-                      {submittingRequest ? "Processing..." : `Pay GH₵ ${viewingFeeConfig.amount.toFixed(2)} & Send Viewing Request`}
+                      {submittingRequest ? "Processing..." : viewingFeeConfig.enabled ? `Pay GH₵ ${viewingFeeConfig.amount.toFixed(2)} & Send Viewing Request` : "Send Viewing Request"}
                     </Button>
-                    <p className="text-xs text-muted-foreground text-center">A GH₵ {viewingFeeConfig.amount.toFixed(2)} viewing fee is required to send this request</p>
+                    {viewingFeeConfig.enabled && (
+                      <p className="text-xs text-muted-foreground text-center">A GH₵ {viewingFeeConfig.amount.toFixed(2)} viewing fee is required to send this request</p>
+                    )}
                   </div>
                 );
               })()}

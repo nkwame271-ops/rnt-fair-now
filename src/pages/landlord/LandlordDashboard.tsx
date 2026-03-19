@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 
 const LandlordDashboard = () => {
   const { user } = useAuth();
-  const { amount: regFee } = useFeeConfig("landlord_registration_fee");
+  const { amount: regFee, enabled: regFeeEnabled } = useFeeConfig("landlord_registration_fee");
   const { enabled: registerPropertyEnabled } = useFeatureFlag("register_property");
   const { enabled: declareExistingEnabled } = useFeatureFlag("declare_existing_tenancy");
   const [loading, setLoading] = useState(true);
@@ -101,7 +101,7 @@ const LandlordDashboard = () => {
   return (
     <PageTransition>
       <div className="max-w-5xl mx-auto space-y-8">
-        {!registrationFeePaid && (
+        {!registrationFeePaid && regFeeEnabled && (
           <Alert className="border-warning bg-warning/10 border-2">
             <AlertTriangle className="h-5 w-5 text-warning" />
             <AlertTitle className="text-warning font-semibold">Registration Fee Unpaid</AlertTitle>

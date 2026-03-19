@@ -180,7 +180,7 @@ const FileComplaint = () => {
         property_address: form.address,
         region: form.region,
         description: form.description,
-        status: "pending_payment",
+        status: feeConfig.enabled ? "pending_payment" : "submitted",
         gps_location: form.gpsLocation || null,
         gps_confirmed: form.gpsConfirmed,
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
@@ -202,6 +202,13 @@ const FileComplaint = () => {
       const { data: profile } = await supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle();
       if (profile?.phone) {
         sendSms(profile.phone, "complaint_filed", { code: complaintCode });
+      }
+
+      // If fee is disabled, skip payment entirely
+      if (!feeConfig.enabled) {
+        toast.success("Complaint filed successfully!");
+        navigate("/tenant/my-cases");
+        return;
       }
 
       const { data: rawData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
@@ -488,10 +495,12 @@ const FileComplaint = () => {
                 <div><span className="text-muted-foreground">Evidence Images:</span> <span className="font-semibold text-success">✓ {imageFiles.length} image(s)</span></div>
               )}
             </div>
-            <div className="bg-card rounded-lg border border-border p-4 space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Complaint Filing Fee</span><span className="font-semibold text-primary">GH₵ {feeConfig.amount.toFixed(2)}</span></div>
-              <p className="text-xs text-muted-foreground">You'll be redirected to make an online payment for the filing fee. Your complaint will be submitted once payment is confirmed.</p>
-            </div>
+            {feeConfig.enabled && (
+              <div className="bg-card rounded-lg border border-border p-4 space-y-2">
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Complaint Filing Fee</span><span className="font-semibold text-primary">GH₵ {feeConfig.amount.toFixed(2)}</span></div>
+                <p className="text-xs text-muted-foreground">You'll be redirected to make an online payment for the filing fee. Your complaint will be submitted once payment is confirmed.</p>
+              </div>
+            )}
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-info/5 p-3 rounded-lg border border-info/20">
               <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
               <span>By submitting, you confirm the information provided is accurate. False complaints may result in penalties under Act 220.</span>
@@ -525,7 +534,7 @@ const FileComplaint = () => {
           </Button>
         ) : (
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Processing..." : `Pay GH₵ ${feeConfig.amount.toFixed(2)} & Submit`} <FileText className="h-4 w-4 ml-1" />
+            {submitting ? "Processing..." : feeConfig.enabled ? `Pay GH₵ ${feeConfig.amount.toFixed(2)} & Submit` : "Submit Complaint"} <FileText className="h-4 w-4 ml-1" />
           </Button>
         )}
       </div>

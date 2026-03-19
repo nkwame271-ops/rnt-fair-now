@@ -20,7 +20,7 @@ const registrationBenefits = [
 const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const { user, loading, role } = useAuth();
   const feeKey = role === "tenant" ? "tenant_registration_fee" : "landlord_registration_fee";
-  const { amount: regFee } = useFeeConfig(feeKey);
+  const { amount: regFee, enabled: regFeeEnabled } = useFeeConfig(feeKey);
   const [checkingFee, setCheckingFee] = useState(true);
   const [feePaid, setFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
@@ -142,8 +142,8 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     );
   }
 
-  // Block dashboard if fee not paid
-  if (role !== "regulator" && !feePaid) {
+  // Block dashboard if fee not paid (but skip if fee is disabled)
+  if (role !== "regulator" && !feePaid && regFeeEnabled) {
     const paymentType = role === "tenant" ? "tenant_registration" : "landlord_registration";
     const roleLabel = role === "tenant" ? "Tenant" : "Landlord";
 
@@ -155,6 +155,11 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
         });
         if (error) throw new Error(error.message || "Payment initiation failed");
         if (data?.error) throw new Error(data.error);
+        if (data?.skipped) {
+          setFeePaid(true);
+          toast.success("Registration fee waived! Welcome.");
+          return;
+        }
         if (data?.authorization_url) {
           window.location.href = data.authorization_url;
         } else {
