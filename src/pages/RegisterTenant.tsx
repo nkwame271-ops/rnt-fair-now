@@ -36,6 +36,10 @@ const RegisterTenant = () => {
   const [payingRegistration, setPayingRegistration] = useState(false);
 
   const handlePayRegistration = async () => {
+    if (!regFeeEnabled) {
+      navigate("/login?role=tenant");
+      return;
+    }
     setPayingRegistration(true);
     try {
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
@@ -43,6 +47,11 @@ const RegisterTenant = () => {
       });
       if (error) throw new Error(error.message || "Payment initiation failed");
       if (data?.error) throw new Error(data.error);
+      if (data?.skipped) {
+        toast.success("Registration fee waived! Please log in.");
+        navigate("/login?role=tenant");
+        return;
+      }
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
