@@ -397,6 +397,60 @@ const ProfilePage = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Email Change Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Email Address</DialogTitle>
+            <DialogDescription>Enter your new email and current password to confirm the change. A verification link will be sent to your new email.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Email</Label>
+              <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="new@example.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>Current Password</Label>
+              <Input type="password" value={emailChangePassword} onChange={(e) => setEmailChangePassword(e.target.value)} placeholder="••••••••" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleChangeEmail} disabled={changingEmail}>
+              {changingEmail ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Update Email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phone Change Dialog */}
+      <Dialog open={phoneDialogOpen} onOpenChange={setPhoneDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Phone Number</DialogTitle>
+            <DialogDescription>Enter your new phone number and current password to confirm the change.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Phone Number</Label>
+              <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="024 555 1234" />
+            </div>
+            <div className="space-y-2">
+              <Label>Current Password</Label>
+              <Input type="password" value={phoneChangePassword} onChange={(e) => setPhoneChangePassword(e.target.value)} placeholder="••••••••" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPhoneDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleChangePhone} disabled={changingPhone}>
+              {changingPhone ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Update Phone
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

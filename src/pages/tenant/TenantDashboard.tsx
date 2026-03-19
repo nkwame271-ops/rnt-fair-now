@@ -140,7 +140,7 @@ const TenantDashboard = () => {
             { label: "Active Cases", value: activeCases, icon: AlertTriangle, color: "text-destructive" },
             { label: "Tenancy Status", value: 0, icon: Shield, color: daysRemaining > 90 ? "text-success" : daysRemaining > 0 ? "text-warning" : "text-destructive", displayText: tenancyCardData ? (tenancyStatus === "active" ? "Active" : tenancyStatus === "renewal_window" ? "Renewal" : tenancyStatus === "expired" ? "Expired" : tenancyStatus.replace(/_/g, " ")) : "—" },
             { label: "Days Remaining", value: daysRemaining > 0 ? daysRemaining : 0, icon: Clock, color: daysRemaining > 90 ? "text-success" : daysRemaining > 0 ? "text-warning" : "text-destructive", displayText: tenancyCardData ? (daysRemaining > 0 ? `${daysRemaining} days` : "Expired") : "—" },
-            { label: "Next Tax Due", value: tenancy?.nextTax ?? 0, icon: CreditCard, color: "text-info", displayText: tenancy?.nextTax ? `GH₵ ${tenancy.nextTax.toLocaleString()}` : "—" },
+            { label: "Next Payment Due", value: tenancy?.nextTax ?? 0, icon: CreditCard, color: "text-info", displayText: tenancy?.nextTax ? `GH₵ ${tenancy.nextTax.toLocaleString()}` : "—" },
           ].map((stat) => (
             <StaggeredItem key={stat.label}>
               <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">

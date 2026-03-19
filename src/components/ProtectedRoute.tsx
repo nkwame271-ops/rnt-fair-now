@@ -155,6 +155,11 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
         });
         if (error) throw new Error(error.message || "Payment initiation failed");
         if (data?.error) throw new Error(data.error);
+        if (data?.skipped) {
+          setFeePaid(true);
+          toast.success("Registration fee waived! Welcome.");
+          return;
+        }
         if (data?.authorization_url) {
           window.location.href = data.authorization_url;
         } else {
