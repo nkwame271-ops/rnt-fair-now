@@ -92,7 +92,7 @@ const AssignmentHistory = ({ profile, refreshKey }: Props) => {
                     {a.landlordName} — <span className="font-mono text-xs">{a.purchase_id}</span>
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Assigned by {a.assignerName} • {a.office_name} • {format(new Date(a.created_at), "dd/MM/yyyy HH:mm")}
+                    Assigned by {a.assignerName} • {a.office_name}{(a as any).office_id ? ` (${(a as any).office_id})` : ""} • {format(new Date(a.created_at), "dd/MM/yyyy HH:mm")}
                   </p>
                 </div>
                 <Badge variant="outline">{a.card_count} card{a.card_count !== 1 ? "s" : ""}</Badge>
