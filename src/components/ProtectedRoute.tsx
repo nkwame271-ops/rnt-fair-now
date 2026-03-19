@@ -26,13 +26,16 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [payingFee, setPayingFee] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
+  const [hasRegistrationDate, setHasRegistrationDate] = useState(false);
+
   const checkRegistration = useCallback(async (userId: string, userRole: string) => {
     const table = userRole === "tenant" ? "tenants" : "landlords";
     const { data } = await supabase
       .from(table)
-      .select("registration_fee_paid")
+      .select("registration_fee_paid, registration_date")
       .eq("user_id", userId)
       .maybeSingle();
+    if (data?.registration_date) setHasRegistrationDate(true);
     return data?.registration_fee_paid ?? false;
   }, []);
 
