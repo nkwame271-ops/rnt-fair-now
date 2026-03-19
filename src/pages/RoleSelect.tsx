@@ -273,18 +273,24 @@ const RoleSelect = () => {
                 </div>
               </div>
             </div>
-            <div className="mt-6 pt-4 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <p className="text-muted-foreground/50 text-[11px]">© {new Date().getFullYear()} Rent Control Department</p>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground/50 text-[10px]">Powered by</span>
-                <img src={cfledLogo} alt="CFLED" className="h-7 w-auto opacity-60" />
+            <div className="mt-6 pt-4 border-t border-border/50">
+              <div className="flex flex-col items-center gap-2 mb-4">
+                <img src={cfledLogo} alt="CFLED" className="h-8 w-auto opacity-70" />
+                <span className="text-muted-foreground/60 text-[10px] text-center">Designed by Center for Financial Literacy, E-Commerce and Digitalization</span>
+                <div className="text-muted-foreground/50 text-[10px] text-center space-y-0.5">
+                  <p>Ghana Hostels Ltd., University of Ghana, Legon</p>
+                  <p>Contact: 0508376903 · Email: info@cflec.org</p>
+                </div>
               </div>
-              <button
-                onClick={() => navigate("/regulator/login")}
-                className="text-muted-foreground/40 hover:text-muted-foreground text-[11px] transition-colors"
-              >
-                Staff Portal
-              </button>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <p className="text-muted-foreground/50 text-[11px]">© {new Date().getFullYear()} Rent Control Department</p>
+                <button
+                  onClick={() => navigate("/regulator/login")}
+                  className="text-muted-foreground/40 hover:text-muted-foreground text-[11px] transition-colors"
+                >
+                  Staff Portal
+                </button>
+              </div>
             </div>
           </div>
         </footer>

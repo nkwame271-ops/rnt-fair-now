@@ -139,9 +139,8 @@ const RegulatorLayout = () => {
           <Outlet />
         </main>
         <footer className="border-t border-border bg-card px-4 py-2 flex items-center justify-center gap-2">
-          <span className="text-muted-foreground text-[10px]">Powered by</span>
           <img src="/cfled-logo.png" alt="CFLED" className="h-5 w-auto opacity-60" />
-          <span className="text-muted-foreground text-[10px]">Center for Financial Literacy, E-Commerce & Digitalization</span>
+          <span className="text-muted-foreground text-[10px]">Designed by Center for Financial Literacy, E-Commerce and Digitalization</span>
         </footer>
       </div>
       <TourGuide steps={regulatorTourSteps} storageKey="tour_regulator_completed" />
