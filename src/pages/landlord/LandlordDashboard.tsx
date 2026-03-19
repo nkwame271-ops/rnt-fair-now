@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useFeeConfig } from "@/hooks/useFeatureFlag";
+import { useFeeConfig, useFeatureFlag } from "@/hooks/useFeatureFlag";
 import LogoLoader from "@/components/LogoLoader";
 import { Building2, Users, AlertTriangle, PlusCircle, ArrowRight, Shield, XCircle, CreditCard, Award } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 const LandlordDashboard = () => {
   const { user } = useAuth();
   const { amount: regFee } = useFeeConfig("landlord_registration_fee");
+  const { enabled: registerPropertyEnabled } = useFeatureFlag("register_property");
+  const { enabled: declareExistingEnabled } = useFeatureFlag("declare_existing_tenancy");
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
   const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
@@ -167,22 +169,28 @@ const LandlordDashboard = () => {
           </div>
         </div>
 
-        <StaggeredGrid className="grid sm:grid-cols-2 gap-4">
-          <StaggeredItem>
-            <Link to="/landlord/register-property" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
-              <PlusCircle className="h-6 w-6 text-primary mb-3" />
-              <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">Register New Property</h3>
-              <p className="text-sm text-muted-foreground mt-1">Add a new property with units and pricing</p>
-            </Link>
-          </StaggeredItem>
-          <StaggeredItem>
-            <Link to="/landlord/declare-existing-tenancy" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
-              <Building2 className="h-6 w-6 text-info mb-3" />
-              <h3 className="font-semibold text-card-foreground group-hover:text-info transition-colors">Declare Existing Tenancy</h3>
-              <p className="text-sm text-muted-foreground mt-1">Migrate a tenancy that started before the platform</p>
-            </Link>
-          </StaggeredItem>
-        </StaggeredGrid>
+        {(registerPropertyEnabled || declareExistingEnabled) && (
+          <StaggeredGrid className="grid sm:grid-cols-2 gap-4">
+            {registerPropertyEnabled && (
+              <StaggeredItem>
+                <Link to="/landlord/register-property" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
+                  <PlusCircle className="h-6 w-6 text-primary mb-3" />
+                  <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">Register New Property</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Add a new property with units and pricing</p>
+                </Link>
+              </StaggeredItem>
+            )}
+            {declareExistingEnabled && (
+              <StaggeredItem>
+                <Link to="/landlord/declare-existing-tenancy" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
+                  <Building2 className="h-6 w-6 text-info mb-3" />
+                  <h3 className="font-semibold text-card-foreground group-hover:text-info transition-colors">Declare Existing Tenancy</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Migrate a tenancy that started before the platform</p>
+                </Link>
+              </StaggeredItem>
+            )}
+          </StaggeredGrid>
+        )}
 
         <div className="bg-card rounded-xl p-6 shadow-card border border-border">
           <div className="flex items-center justify-between mb-4">

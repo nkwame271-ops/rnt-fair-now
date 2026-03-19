@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
-import { FileText, Calculator, Store, CreditCard, AlertTriangle, CheckCircle2, Clock, ArrowRight, Shield, Loader2, Download, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, ArrowRight, Shield, Loader2, RefreshCw, CreditCard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,12 +15,6 @@ import TenancyCard, { TenancyCardData } from "@/components/TenancyCard";
 import { differenceInDays } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const quickActions = [
-  { to: "/tenant/file-complaint", label: "File Complaint", icon: FileText, color: "bg-destructive/10 text-destructive" },
-  { to: "/tenant/rent-checker", label: "Check Rent", icon: Calculator, color: "bg-primary/10 text-primary" },
-  { to: "/tenant/marketplace", label: "Marketplace", icon: Store, color: "bg-secondary/20 text-secondary-foreground" },
-  { to: "/tenant/payments", label: "Pay Rent", icon: CreditCard, color: "bg-info/10 text-info" },
-];
 
 const TenantDashboard = () => {
   const { user } = useAuth();
@@ -160,21 +154,6 @@ const TenantDashboard = () => {
           ))}
         </StaggeredGrid>
 
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-3">Quick Actions</h2>
-          <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {quickActions.map((action) => (
-              <StaggeredItem key={action.to}>
-                <Link to={action.to} className="group bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${action.color} mb-3`}>
-                    <action.icon className="h-5 w-5" />
-                  </div>
-                  <div className="text-sm font-semibold text-card-foreground group-hover:text-primary transition-colors">{action.label}</div>
-                </Link>
-              </StaggeredItem>
-            ))}
-          </StaggeredGrid>
-        </div>
 
         {/* Tenancy Card */}
         {tenancyCardData && (
