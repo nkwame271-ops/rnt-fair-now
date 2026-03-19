@@ -73,7 +73,7 @@ const RegisterTenant = () => {
     try {
       const phoneDigits = phone.replace(/\s/g, "");
       const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
-      const tempPassword = phoneDigits.slice(-6);
+      const tempPassword = phoneDigits;
 
       // Pre-check: email uniqueness
       if (email && email.trim()) {
