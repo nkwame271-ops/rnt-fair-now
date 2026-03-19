@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { sendSms } from "@/lib/smsService";
+import { sendNotification } from "@/lib/notificationService";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
 
 type Step = "select-unit" | "find-tenant" | "set-terms" | "review" | "done";
