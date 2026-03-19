@@ -169,13 +169,17 @@ const RegisterLandlord = () => {
 
       setGeneratedId(landlordId);
 
-      // Send registration success SMS (non-blocking)
-      sendSms(phone, "registration_success", {
-        name: fullName,
-        role: "Landlord",
-        id: landlordId,
+      // Send multi-channel notification (non-blocking)
+      sendNotification("account_created", {
         phone: phoneDigits,
-        link: `${window.location.origin}/login?role=landlord`,
+        email: email || undefined,
+        user_id: userId,
+        data: {
+          name: fullName,
+          role: "Landlord",
+          id: landlordId,
+          phone: phoneDigits,
+        },
       });
 
       setStep(2);

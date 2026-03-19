@@ -268,16 +268,7 @@ const Marketplace = () => {
       }).select().single();
       if (error) throw error;
 
-      // Send SMS notification for viewing request (non-blocking)
-      const { data: tenantProfile } = await supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle();
-      if (tenantProfile?.phone) {
-        sendSms(tenantProfile.phone, "viewing_scheduled", {
-          property: selectedUnit.property.property_name || selectedUnit.property.address,
-          action: "requested",
-          date: viewingDate || "TBD",
-          time: viewingTime || "",
-        });
-      }
+      // Viewing requests are in-app only per notification spec — no SMS/email
 
       // If fee is disabled, skip payment
       if (!viewingFeeConfig.enabled) {

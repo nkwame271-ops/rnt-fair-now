@@ -198,11 +198,7 @@ const FileComplaint = () => {
         } as any).eq("id", complaint.id);
       }
 
-      // Send SMS notification (non-blocking)
-      const { data: profile } = await supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle();
-      if (profile?.phone) {
-        sendSms(profile.phone, "complaint_filed", { code: complaintCode });
-      }
+      // Complaint filing is in-app only per notification spec — no SMS/email
 
       // If fee is disabled, skip payment entirely
       if (!feeConfig.enabled) {

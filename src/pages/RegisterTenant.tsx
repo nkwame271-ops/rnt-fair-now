@@ -175,13 +175,17 @@ const RegisterTenant = () => {
 
       setGeneratedId(tenantId);
 
-      // Send registration success SMS (non-blocking)
-      sendSms(phone, "registration_success", {
-        name: fullName,
-        role: "Tenant",
-        id: tenantId,
+      // Send multi-channel notification (non-blocking)
+      sendNotification("account_created", {
         phone: phoneDigits,
-        link: `${window.location.origin}/login?role=tenant`,
+        email: email || undefined,
+        user_id: userId,
+        data: {
+          name: fullName,
+          role: "Tenant",
+          id: tenantId,
+          phone: phoneDigits,
+        },
       });
 
       setStep(3);
