@@ -1344,6 +1344,7 @@ export type Database = {
           created_at: string | null
           id: string
           landlord_user_id: string
+          office_id: string | null
           office_name: string
           purchase_id: string
           serial_numbers: string[]
@@ -1354,6 +1355,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           landlord_user_id: string
+          office_id?: string | null
           office_name: string
           purchase_id: string
           serial_numbers?: string[]
@@ -1364,6 +1366,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           landlord_user_id?: string
+          office_id?: string | null
           office_name?: string
           purchase_id?: string
           serial_numbers?: string[]
@@ -1881,7 +1884,6 @@ export type Database = {
     Functions: {
       generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
-      generate_rent_card_serial: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
