@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 const TenantDashboard = () => {
   const { user } = useAuth();
-  const { amount: regFee } = useFeeConfig("tenant_registration_fee");
+  const { amount: regFee, enabled: regFeeEnabled } = useFeeConfig("tenant_registration_fee");
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
   const [activeCases, setActiveCases] = useState(0);
