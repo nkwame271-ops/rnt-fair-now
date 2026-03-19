@@ -20,7 +20,7 @@ const registrationBenefits = [
 const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const { user, loading, role } = useAuth();
   const feeKey = role === "tenant" ? "tenant_registration_fee" : "landlord_registration_fee";
-  const { amount: regFee } = useFeeConfig(feeKey);
+  const { amount: regFee, enabled: regFeeEnabled } = useFeeConfig(feeKey);
   const [checkingFee, setCheckingFee] = useState(true);
   const [feePaid, setFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
