@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
 
     // ── Helper: Send SMS + Email for payment (combined) ──
     const sendPaymentNotifications = async (userId: string, amount: number, description: string, receiptNo: string) => {
-      await sendPaymentNotifications(userId, amount, description, receiptNo);
+      await sendPaymentSms(userId, amount, description, receiptNo);
       await sendPaymentEmail(userId, amount, description, receiptNo);
     };
 
