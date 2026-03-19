@@ -184,7 +184,7 @@ const Login = () => {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input type="password" placeholder="••••••••" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
-              <p className="text-xs text-muted-foreground">First time? Your temporary password is the last 6 digits of your phone number.</p>
+              <p className="text-xs text-muted-foreground">First time? Your temporary password is your full phone number.</p>
             </div>
             <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}
