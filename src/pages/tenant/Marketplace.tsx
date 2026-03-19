@@ -62,6 +62,7 @@ const Marketplace = () => {
   const [maxPrice, setMaxPrice] = useState("");
   const [units, setUnits] = useState<MarketUnit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(20);
   const [selectedUnit, setSelectedUnit] = useState<MarketUnit | null>(null);
   const [viewingMessage, setViewingMessage] = useState("");
   const [viewingDate, setViewingDate] = useState("");
