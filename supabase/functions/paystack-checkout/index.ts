@@ -332,7 +332,11 @@ Deno.serve(async (req) => {
       if (landlord.registration_fee_paid) throw new Error("Registration fee already paid");
 
       const fee = await getDynamicFee(supabaseAdmin, "landlord_registration_fee");
-      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (!fee.enabled || fee.total === 0) {
+        // Auto-mark as paid when fee is disabled or zero
+        await supabaseAdmin.from("landlords").update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() }).eq("user_id", userId);
+        return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
       totalAmount = fee.total;
       splitPlan = fee.splits;
       description = `Landlord Registration Fee (GH₵ ${fee.total})`;
