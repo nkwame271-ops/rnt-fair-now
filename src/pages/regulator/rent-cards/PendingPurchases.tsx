@@ -144,10 +144,12 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       }
 
       // Audit trail
+      const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
       await supabase.from("serial_assignments" as any).insert({
         purchase_id: purchase.purchase_id,
         landlord_user_id: purchase.landlord_user_id,
         office_name: office,
+        office_id: officeId || null,
         assigned_by: user?.id,
         serial_numbers: assignedList,
         card_count: qty,
