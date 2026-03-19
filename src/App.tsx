@@ -65,6 +65,7 @@ import LandlordPaymentSettings from "./pages/landlord/PaymentSettings";
 import LandlordReceipts from "./pages/landlord/Receipts";
 import ManageRentCards from "./pages/landlord/ManageRentCards";
 import EscrowDashboard from "./pages/regulator/EscrowDashboard";
+import RegulatorRentCards from "./pages/regulator/RegulatorRentCards";
 import ProfilePage from "./pages/shared/ProfilePage";
 import VerifyRegistration from "./pages/shared/VerifyRegistration";
 import VerifyTenancy from "./pages/shared/VerifyTenancy";
@@ -157,6 +158,7 @@ const App = () => (
               <Route path="engine-room" element={<EngineRoom />} />
               <Route path="rent-assessments" element={<RegulatorRentAssessments />} />
               <Route path="terminations" element={<RegulatorTerminations />} />
+              <Route path="rent-cards" element={<RegulatorRentCards />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

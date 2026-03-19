@@ -1044,6 +1044,44 @@ export type Database = {
           },
         ]
       }
+      rent_card_serial_stock: {
+        Row: {
+          assigned_at: string | null
+          assigned_to_card_id: string | null
+          created_at: string
+          id: string
+          office_name: string
+          serial_number: string
+          status: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_to_card_id?: string | null
+          created_at?: string
+          id?: string
+          office_name: string
+          serial_number: string
+          status?: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_to_card_id?: string | null
+          created_at?: string
+          id?: string
+          office_name?: string
+          serial_number?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_card_serial_stock_assigned_to_card_id_fkey"
+            columns: ["assigned_to_card_id"]
+            isOneToOne: false
+            referencedRelation: "rent_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rent_cards: {
         Row: {
           activated_at: string | null
@@ -1058,9 +1096,10 @@ export type Database = {
           max_advance: number | null
           previous_rent: number | null
           property_id: string | null
+          purchase_id: string | null
           purchased_at: string
           qr_token: string | null
-          serial_number: string
+          serial_number: string | null
           start_date: string | null
           status: string
           tenancy_id: string | null
@@ -1080,9 +1119,10 @@ export type Database = {
           max_advance?: number | null
           previous_rent?: number | null
           property_id?: string | null
+          purchase_id?: string | null
           purchased_at?: string
           qr_token?: string | null
-          serial_number?: string
+          serial_number?: string | null
           start_date?: string | null
           status?: string
           tenancy_id?: string | null
@@ -1102,9 +1142,10 @@ export type Database = {
           max_advance?: number | null
           previous_rent?: number | null
           property_id?: string | null
+          purchase_id?: string | null
           purchased_at?: string
           qr_token?: string | null
-          serial_number?: string
+          serial_number?: string | null
           start_date?: string | null
           status?: string
           tenancy_id?: string | null
@@ -1757,6 +1798,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
       generate_rent_card_serial: { Args: never; Returns: string }
       has_role: {
