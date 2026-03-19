@@ -24,6 +24,7 @@ export type Database = {
           muted_features: string[] | null
           office_id: string | null
           office_name: string | null
+          stock_alert_threshold: number | null
           updated_at: string | null
           user_id: string
         }
@@ -36,6 +37,7 @@ export type Database = {
           muted_features?: string[] | null
           office_id?: string | null
           office_name?: string | null
+          stock_alert_threshold?: number | null
           updated_at?: string | null
           user_id: string
         }
@@ -48,6 +50,7 @@ export type Database = {
           muted_features?: string[] | null
           office_id?: string | null
           office_name?: string | null
+          stock_alert_threshold?: number | null
           updated_at?: string | null
           user_id?: string
         }
@@ -1086,7 +1089,9 @@ export type Database = {
       rent_card_serial_stock: {
         Row: {
           assigned_at: string | null
+          assigned_by: string | null
           assigned_to_card_id: string | null
+          batch_label: string | null
           created_at: string
           id: string
           office_name: string
@@ -1095,7 +1100,9 @@ export type Database = {
         }
         Insert: {
           assigned_at?: string | null
+          assigned_by?: string | null
           assigned_to_card_id?: string | null
+          batch_label?: string | null
           created_at?: string
           id?: string
           office_name: string
@@ -1104,7 +1111,9 @@ export type Database = {
         }
         Update: {
           assigned_at?: string | null
+          assigned_by?: string | null
           assigned_to_card_id?: string | null
+          batch_label?: string | null
           created_at?: string
           id?: string
           office_name?: string
@@ -1327,6 +1336,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      serial_assignments: {
+        Row: {
+          assigned_by: string
+          card_count: number
+          created_at: string | null
+          id: string
+          landlord_user_id: string
+          office_name: string
+          purchase_id: string
+          serial_numbers: string[]
+        }
+        Insert: {
+          assigned_by: string
+          card_count?: number
+          created_at?: string | null
+          id?: string
+          landlord_user_id: string
+          office_name: string
+          purchase_id: string
+          serial_numbers?: string[]
+        }
+        Update: {
+          assigned_by?: string
+          card_count?: number
+          created_at?: string | null
+          id?: string
+          landlord_user_id?: string
+          office_name?: string
+          purchase_id?: string
+          serial_numbers?: string[]
+        }
+        Relationships: []
       }
       side_payment_declarations: {
         Row: {
