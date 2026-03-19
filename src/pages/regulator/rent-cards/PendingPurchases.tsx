@@ -125,12 +125,14 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
         const serial = (availableSerials as any)[i];
         const cardId = purchase.card_ids[i];
 
-        await supabase
+        const { error: cardErr } = await supabase
           .from("rent_cards")
           .update({ serial_number: serial.serial_number, status: "valid" } as any)
           .eq("id", cardId);
 
-        await supabase
+        if (cardErr) throw cardErr;
+
+        const { error: stockErr2 } = await supabase
           .from("rent_card_serial_stock" as any)
           .update({
             status: "assigned",
@@ -139,6 +141,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
             assigned_by: user?.id,
           })
           .eq("id", serial.id);
+
+        if (stockErr2) throw stockErr2;
 
         assignedList.push(serial.serial_number);
       }
