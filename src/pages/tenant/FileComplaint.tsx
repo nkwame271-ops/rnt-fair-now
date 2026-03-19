@@ -204,6 +204,13 @@ const FileComplaint = () => {
         sendSms(profile.phone, "complaint_filed", { code: complaintCode });
       }
 
+      // If fee is disabled, skip payment entirely
+      if (!feeConfig.enabled) {
+        toast.success("Complaint filed successfully!");
+        navigate("/tenant/my-cases");
+        return;
+      }
+
       const { data: rawData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "complaint_fee", complaintId: complaint.id },
       });
