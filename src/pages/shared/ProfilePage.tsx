@@ -41,6 +41,18 @@ const ProfilePage = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // Email change dialog
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailChangePassword, setEmailChangePassword] = useState("");
+  const [changingEmail, setChangingEmail] = useState(false);
+
+  // Phone change dialog
+  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
+  const [newPhone, setNewPhone] = useState("");
+  const [phoneChangePassword, setPhoneChangePassword] = useState("");
+  const [changingPhone, setChangingPhone] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
