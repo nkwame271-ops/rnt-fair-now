@@ -358,12 +358,12 @@ const Marketplace = () => {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.map((unit, i) => (
+          {filtered.slice(0, visibleCount).map((unit, i) => (
             <motion.div
               key={unit.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
+              transition={{ delay: Math.min(i, 19) * 0.05 }}
               className="bg-card rounded-xl shadow-card border border-border overflow-hidden group cursor-pointer hover:shadow-elevated transition-all"
               onClick={() => setSelectedUnit(unit)}
             >
@@ -377,7 +377,6 @@ const Marketplace = () => {
                     <Clock className="h-3 w-3" /> Available {unit.availableFrom ? format(new Date(unit.availableFrom), "MMM d") : "Soon"}
                   </div>
                 )}
-                {/* Watchlist heart */}
                 <button
                   onClick={(e) => toggleWatchlist(unit.id, e)}
                   className="absolute top-3 right-3 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors"
@@ -412,6 +411,13 @@ const Marketplace = () => {
             </motion.div>
           ))}
         </div>
+        {visibleCount < filtered.length && (
+          <div className="flex justify-center pt-4">
+            <Button variant="outline" onClick={() => setVisibleCount(prev => prev + 20)}>
+              Load More ({filtered.length - visibleCount} remaining)
+            </Button>
+          </div>
+        )}
       )}
 
       {/* Detail & Viewing Request Modal */}
