@@ -180,7 +180,7 @@ const FileComplaint = () => {
         property_address: form.address,
         region: form.region,
         description: form.description,
-        status: "pending_payment",
+        status: feeConfig.enabled ? "pending_payment" : "submitted",
         gps_location: form.gpsLocation || null,
         gps_confirmed: form.gpsConfirmed,
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
