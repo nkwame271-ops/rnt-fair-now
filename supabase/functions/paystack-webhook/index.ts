@@ -252,6 +252,12 @@ Deno.serve(async (req) => {
       }
     };
 
+    // ── Helper: Send SMS + Email for payment (combined) ──
+    const sendPaymentNotifications = async (userId: string, amount: number, description: string, receiptNo: string) => {
+      await sendPaymentSms(userId, amount, description, receiptNo);
+      await sendPaymentEmail(userId, amount, description, receiptNo);
+    };
+
     // ── Helper: Send in-app notification ──
     const sendNotification = async (userId: string, paymentType: string, amount: number, meta?: any) => {
       const config = NOTIFICATION_MESSAGES[paymentType];
