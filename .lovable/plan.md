@@ -1,34 +1,29 @@
 
 
-## Fix: Arkesel SMS Edge Function — Wrong API Format
+# Update CFLED Branding and Contact Details
 
-**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
+## What's Changing
 
-**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
+1. **Footer branding text**: Change from "Powered by" to "Designed by Center for Financial Literacy, E-Commerce and Digitalization" across all 4 layout files.
 
-### Changes
+2. **Add CFLED contact details**: Add a subtle contact section to the landing page footer showing:
+   - Center For Financial Literacy, E-Commerce and Digitalization
+   - Ghana Hostels Ltd., University of Ghana, Legon
+   - Contact: 0508376903
+   - Email: info@cflec.org
 
-**1. Update `supabase/functions/send-sms/index.ts`**
+3. **Dashboard footers**: Update the 3 dashboard layout footers (Tenant, Landlord, Regulator) with the new "Designed by" text and keep contact details minimal (just the org name).
 
-- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
-- Move API key from request body to `api-key` header
-- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
-- Remove `action` from body
-- Update success check from `data.code !== "ok"` to `data.status !== "success"`
-- Add response text logging before JSON parse to aid debugging
+## Missing: New Logo Image
 
-### Technical Details
+You mentioned "Put this new Logo there" — but I don't see an uploaded image. **Please upload the new CFLED logo** so I can replace the current `cfled-logo.png`. I'll proceed with the text/contact changes and swap the logo once you provide it.
 
-```text
-Current (broken V1 format):
-  POST https://sms.arkesel.com/sms/api?action=send-sms
-  Body: { action, api_key, to, from, sms }
+## Files to Modify
 
-Fixed (V2 format):
-  POST https://api.arkesel.com/api/v2/sms/send
-  Headers: { api-key: ARKESEL_API_KEY }
-  Body: { sender, message, recipients: ["233..."] }
-```
-
-After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
+| File | Change |
+|---|---|
+| `src/pages/RoleSelect.tsx` | Update footer: "Designed by" text + add CFLED contact column |
+| `src/components/TenantLayout.tsx` | Footer: "Designed by" text |
+| `src/components/LandlordLayout.tsx` | Footer: "Designed by" text |
+| `src/components/RegulatorLayout.tsx` | Footer: "Designed by" text |
 
