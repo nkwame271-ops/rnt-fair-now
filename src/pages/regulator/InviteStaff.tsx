@@ -1,18 +1,48 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { UserPlus, Mail, Lock, User, Loader2, CheckCircle2 } from "lucide-react";
+import { UserPlus, Mail, Lock, User, Loader2, CheckCircle2, Shield, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdminProfile, GHANA_OFFICES, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
+import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import LogoLoader from "@/components/LogoLoader";
 
 const InviteStaff = () => {
+  const { profile, loading: profileLoading } = useAdminProfile();
+  const { flags, loading: flagsLoading } = useAllFeatureFlags();
+  const [adminType, setAdminType] = useState<"main_admin" | "sub_admin">("sub_admin");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
+  const [officeId, setOfficeId] = useState("");
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
+
+  if (profileLoading || flagsLoading) return <LogoLoader message="Loading..." />;
+  if (!profile?.isMainAdmin) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-20">
+        <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+        <h1 className="text-2xl font-bold text-foreground mb-2">Access Restricted</h1>
+        <p className="text-muted-foreground">Only Main Admins can invite staff.</p>
+      </div>
+    );
+  }
+
+  const office = GHANA_OFFICES.find(o => o.id === officeId);
+  const allFeatureKeys = Object.keys(FEATURE_ROUTE_MAP);
+
+  const toggleFeature = (key: string) => {
+    setSelectedFeatures(prev =>
+      prev.includes(key) ? prev.filter(f => f !== key) : [...prev, key]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,22 +50,36 @@ const InviteStaff = () => {
       toast.error("Password must be at least 6 characters");
       return;
     }
+    if (adminType === "sub_admin" && !officeId) {
+      toast.error("Please select an office for the Sub Admin");
+      return;
+    }
     setLoading(true);
     setCreated(null);
 
     try {
       const { data, error } = await supabase.functions.invoke("invite-staff", {
-        body: { email, fullName, password },
+        body: {
+          email,
+          fullName,
+          password,
+          adminType,
+          officeId: adminType === "sub_admin" ? officeId : null,
+          officeName: adminType === "sub_admin" ? office?.name : null,
+          allowedFeatures: adminType === "sub_admin" ? selectedFeatures : [],
+        },
       });
 
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
 
-      toast.success(`Staff account created for ${email}`);
+      toast.success(data?.message || `Staff account created for ${email}`);
       setCreated(email);
       setEmail("");
       setFullName("");
       setPassword("");
+      setOfficeId("");
+      setSelectedFeatures([]);
     } catch (err: any) {
       toast.error(err.message || "Failed to create staff account");
     } finally {
@@ -51,7 +95,7 @@ const InviteStaff = () => {
           <h1 className="text-3xl font-bold text-foreground">Invite Staff</h1>
         </div>
         <p className="text-muted-foreground">
-          Create new Rent Control Office staff accounts with regulator access.
+          Create new Rent Control Office staff accounts.
         </p>
       </motion.div>
 
@@ -67,12 +111,44 @@ const InviteStaff = () => {
         </div>
       )}
 
+      {/* Admin Type Tabs */}
+      <div className="flex gap-2">
+        <Button
+          variant={adminType === "main_admin" ? "default" : "outline"}
+          onClick={() => setAdminType("main_admin")}
+          className="flex-1"
+        >
+          <Shield className="h-4 w-4 mr-2" />
+          Invite Main Admin
+        </Button>
+        <Button
+          variant={adminType === "sub_admin" ? "default" : "outline"}
+          onClick={() => setAdminType("sub_admin")}
+          className="flex-1"
+        >
+          <Building2 className="h-4 w-4 mr-2" />
+          Invite Sub Admin
+        </Button>
+      </div>
+
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="bg-card rounded-xl p-6 shadow-elevated border border-border"
       >
+        <div className="mb-4 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+          {adminType === "main_admin" ? (
+            <>
+              <strong className="text-foreground">Main Admin</strong> — Full platform access. Can manage Engine Room, invite staff, and control all features.
+            </>
+          ) : (
+            <>
+              <strong className="text-foreground">Sub Admin</strong> — Limited to assigned office and selected features. Cannot access Engine Room or invite staff unless granted.
+            </>
+          )}
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
             <Label>Full Name</Label>
@@ -119,11 +195,48 @@ const InviteStaff = () => {
               The new staff member should change this password after first login.
             </p>
           </div>
+
+          {adminType === "sub_admin" && (
+            <>
+              <div className="space-y-2">
+                <Label>Assigned Office</Label>
+                <Select value={officeId} onValueChange={setOfficeId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select office..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GHANA_OFFICES.map(o => (
+                      <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Allowed Features</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Select which features this Sub Admin can access.
+                </p>
+                <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border border-border rounded-lg p-3">
+                  {allFeatureKeys.map(key => (
+                    <label key={key} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/30 rounded px-2 py-1.5">
+                      <Checkbox
+                        checked={selectedFeatures.includes(key)}
+                        onCheckedChange={() => toggleFeature(key)}
+                      />
+                      <span className="capitalize text-card-foreground">{key.replace(/_/g, " ")}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? (
               <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating Account...</>
             ) : (
-              <><UserPlus className="h-4 w-4 mr-2" /> Create Staff Account</>
+              <><UserPlus className="h-4 w-4 mr-2" /> Create {adminType === "main_admin" ? "Main Admin" : "Sub Admin"} Account</>
             )}
           </Button>
         </form>

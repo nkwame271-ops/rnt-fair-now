@@ -19,12 +19,13 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminProfile, getFeatureKeyForRoute } from "@/hooks/useAdminProfile";
 import TourGuide from "@/components/TourGuide";
 import { regulatorTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
 
-const navItems = [
+const allNavItems = [
   { to: "/regulator/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/regulator/tenants", label: "Tenants", icon: Users },
   { to: "/regulator/landlords", label: "Landlords", icon: Building2 },
@@ -49,12 +50,26 @@ const navItems = [
 const RegulatorLayout = () => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const { profile } = useAdminProfile();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
   };
+
+  // Filter nav items based on admin profile
+  const navItems = allNavItems.filter(item => {
+    // Main admin or no profile record (legacy/fallback) — show all
+    if (!profile || profile.isMainAdmin) return true;
+
+    // Sub admin — only show allowed features that aren't muted
+    const featureKey = getFeatureKeyForRoute(item.to);
+    if (!featureKey) return true; // unknown routes stay visible
+    const isAllowed = profile.allowedFeatures.includes(featureKey);
+    const isMuted = profile.mutedFeatures.includes(featureKey);
+    return isAllowed && !isMuted;
+  });
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -67,9 +82,15 @@ const RegulatorLayout = () => {
           <Shield className="h-6 w-6 text-sidebar-primary" />
           <span className="font-bold text-lg">Rent Control</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive text-destructive-foreground font-semibold ml-auto">
-            ADMIN
+            {profile?.isMainAdmin ? "ADMIN" : profile ? "STAFF" : "ADMIN"}
           </span>
         </div>
+        {profile && !profile.isMainAdmin && profile.officeName && (
+          <div className="px-5 py-2 border-b border-sidebar-border">
+            <p className="text-[10px] uppercase text-sidebar-foreground/50 font-semibold tracking-wider">Office</p>
+            <p className="text-xs text-sidebar-foreground/80 truncate">{profile.officeName}</p>
+          </div>
+        )}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map((item) => (
             <NavLink

@@ -1,14 +1,17 @@
-import { useState } from "react";
-import { CreditCard, Search, Loader2, Upload, CheckCircle, Package, Hash } from "lucide-react";
+import { useState, useEffect } from "react";
+import { CreditCard, Search, Loader2, Upload, CheckCircle, Package, Hash, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import PageTransition from "@/components/PageTransition";
 import { format } from "date-fns";
+import { useAdminProfile, GHANA_OFFICES } from "@/hooks/useAdminProfile";
+import LogoLoader from "@/components/LogoLoader";
 
 interface PendingPurchase {
   purchase_id: string;
@@ -21,18 +24,30 @@ interface PendingPurchase {
 }
 
 const RegulatorRentCards = () => {
+  const { profile, loading: profileLoading } = useAdminProfile();
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [purchases, setPurchases] = useState<PendingPurchase[]>([]);
   const [searched, setSearched] = useState(false);
 
-  const [officeName, setOfficeName] = useState("");
+  // Office is auto-populated for sub admins, selectable for main admins
+  const [selectedOfficeId, setSelectedOfficeId] = useState("");
   const [serialInput, setSerialInput] = useState("");
   const [uploading, setUploading] = useState(false);
   const [stockCount, setStockCount] = useState<number | null>(null);
 
   const [assigning, setAssigning] = useState<string | null>(null);
   const [assignedSerials, setAssignedSerials] = useState<Record<string, string[]>>({});
+
+  // Auto-set office for sub admins
+  useEffect(() => {
+    if (profile && !profile.isMainAdmin && profile.officeId) {
+      setSelectedOfficeId(profile.officeId);
+    }
+  }, [profile]);
+
+  const currentOffice = GHANA_OFFICES.find(o => o.id === selectedOfficeId);
+  const officeName = currentOffice?.name || "";
 
   // Fetch available stock count for the office
   const fetchStockCount = async (office: string) => {
@@ -45,6 +60,12 @@ const RegulatorRentCards = () => {
     setStockCount(count ?? 0);
   };
 
+  useEffect(() => {
+    if (officeName) fetchStockCount(officeName);
+  }, [officeName]);
+
+  if (profileLoading) return <LogoLoader message="Loading..." />;
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
@@ -52,13 +73,11 @@ const RegulatorRentCards = () => {
     setPurchases([]);
 
     try {
-      // Search rent_cards with awaiting_serial status
       let query = supabase
         .from("rent_cards")
         .select("id, purchase_id, landlord_user_id, purchased_at")
         .eq("status", "awaiting_serial");
 
-      // Try matching purchase_id or landlord
       const { data: cards, error } = await query;
       if (error) throw error;
 
@@ -67,10 +86,8 @@ const RegulatorRentCards = () => {
         return;
       }
 
-      // Filter by search query (purchase_id or landlord_id)
       const landlordUserIds = [...new Set(cards.map((c: any) => c.landlord_user_id))];
 
-      // Fetch landlord profiles and IDs
       const [profilesRes, landlordsRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name").in("user_id", landlordUserIds),
         supabase.from("landlords").select("user_id, landlord_id").in("user_id", landlordUserIds),
@@ -81,7 +98,6 @@ const RegulatorRentCards = () => {
 
       const q = searchQuery.trim().toUpperCase();
 
-      // Group by purchase_id, filter by query
       const grouped = new Map<string, PendingPurchase>();
       for (const card of cards as any[]) {
         const purchaseId = card.purchase_id || card.id;
@@ -117,8 +133,8 @@ const RegulatorRentCards = () => {
   };
 
   const handleAssign = async (purchase: PendingPurchase) => {
-    if (!officeName.trim()) {
-      toast.error("Please enter your office name first");
+    if (!officeName) {
+      toast.error("Please select an office first");
       return;
     }
 
@@ -127,11 +143,10 @@ const RegulatorRentCards = () => {
     try {
       const qty = purchase.pending_count;
 
-      // Fetch available serials from office stock
       const { data: availableSerials, error: stockErr } = await supabase
         .from("rent_card_serial_stock" as any)
         .select("id, serial_number")
-        .eq("office_name", officeName.trim())
+        .eq("office_name", officeName)
         .eq("status", "available")
         .order("created_at", { ascending: true })
         .limit(qty);
@@ -143,13 +158,11 @@ const RegulatorRentCards = () => {
         return;
       }
 
-      // Assign each serial to a card
       const assignedList: string[] = [];
       for (let i = 0; i < qty; i++) {
         const serial = (availableSerials as any)[i];
         const cardId = purchase.card_ids[i];
 
-        // Update rent_card with serial and status
         const { error: cardErr } = await supabase
           .from("rent_cards")
           .update({ serial_number: serial.serial_number, status: "valid" } as any)
@@ -157,7 +170,6 @@ const RegulatorRentCards = () => {
 
         if (cardErr) throw cardErr;
 
-        // Mark stock serial as assigned
         const { error: stockUpdateErr } = await supabase
           .from("rent_card_serial_stock" as any)
           .update({ status: "assigned", assigned_to_card_id: cardId, assigned_at: new Date().toISOString() })
@@ -169,12 +181,8 @@ const RegulatorRentCards = () => {
       }
 
       setAssignedSerials(prev => ({ ...prev, [purchase.purchase_id]: assignedList }));
-
-      // Remove from purchases list
       setPurchases(prev => prev.filter(p => p.purchase_id !== purchase.purchase_id));
-
-      // Refresh stock count
-      fetchStockCount(officeName.trim());
+      fetchStockCount(officeName);
 
       toast.success(`${qty} serial(s) assigned successfully!`);
     } catch (err: any) {
@@ -184,8 +192,8 @@ const RegulatorRentCards = () => {
   };
 
   const handleUploadSerials = async () => {
-    if (!officeName.trim()) {
-      toast.error("Please enter your office name");
+    if (!officeName) {
+      toast.error("Please select an office");
       return;
     }
     if (!serialInput.trim()) {
@@ -195,12 +203,10 @@ const RegulatorRentCards = () => {
 
     setUploading(true);
     try {
-      // Parse serials: support CSV, newline-separated, or range (RC-001 to RC-010)
       const lines = serialInput.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
       const serials: string[] = [];
 
       for (const line of lines) {
-        // Check for range pattern like "RC-20260319-0001 to RC-20260319-0010"
         const rangeMatch = line.match(/^(.+?)(\d+)\s*(?:to|-)\s*\1(\d+)$/i);
         if (rangeMatch) {
           const prefix = rangeMatch[1];
@@ -223,16 +229,16 @@ const RegulatorRentCards = () => {
 
       const rows = serials.map(s => ({
         serial_number: s,
-        office_name: officeName.trim(),
+        office_name: officeName,
         status: "available",
       }));
 
       const { error } = await supabase.from("rent_card_serial_stock" as any).insert(rows);
       if (error) throw error;
 
-      toast.success(`${serials.length} serial(s) added to ${officeName.trim()} stock`);
+      toast.success(`${serials.length} serial(s) added to ${officeName} stock`);
       setSerialInput("");
-      fetchStockCount(officeName.trim());
+      fetchStockCount(officeName);
     } catch (err: any) {
       toast.error(err.message || "Upload failed");
     }
@@ -254,15 +260,24 @@ const RegulatorRentCards = () => {
           </h2>
           <div className="flex items-end gap-4 flex-wrap">
             <div className="space-y-2 flex-1 min-w-[200px]">
-              <Label>Office Name</Label>
-              <Input
-                placeholder="e.g. Accra Central Office"
-                value={officeName}
-                onChange={(e) => {
-                  setOfficeName(e.target.value);
-                  fetchStockCount(e.target.value.trim());
-                }}
-              />
+              <Label>Office</Label>
+              {profile?.isMainAdmin ? (
+                <Select value={selectedOfficeId} onValueChange={setSelectedOfficeId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select office..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GHANA_OFFICES.map(o => (
+                      <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center gap-2 h-10 px-3 border border-border rounded-md bg-muted/30">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-card-foreground">{officeName || "No office assigned"}</span>
+                </div>
+              )}
             </div>
             {stockCount !== null && (
               <div className="pb-2">
@@ -286,7 +301,7 @@ const RegulatorRentCards = () => {
               value={serialInput}
               onChange={(e) => setSerialInput(e.target.value)}
             />
-            <Button onClick={handleUploadSerials} disabled={uploading || !officeName.trim()}>
+            <Button onClick={handleUploadSerials} disabled={uploading || !officeName}>
               <Upload className="h-4 w-4 mr-1" />
               {uploading ? "Uploading..." : "Add to Stock"}
             </Button>
@@ -335,7 +350,7 @@ const RegulatorRentCards = () => {
               </div>
               <Button
                 onClick={() => handleAssign(p)}
-                disabled={assigning === p.purchase_id || !officeName.trim()}
+                disabled={assigning === p.purchase_id || !officeName}
                 className="w-full sm:w-auto"
               >
                 {assigning === p.purchase_id ? (
