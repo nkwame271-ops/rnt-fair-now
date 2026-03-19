@@ -1,34 +1,34 @@
 
 
-## Fix: Arkesel SMS Edge Function — Wrong API Format
+# Fix: Don't retroactively charge users who registered for free
 
-**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
+## Problem
+When a user registers while the registration fee is **disabled**, their record is created with `registration_fee_paid: false`. Later, when the fee is turned back on, `ProtectedRoute` sees `!feePaid && regFeeEnabled` and blocks them with a paywall — even though they legitimately registered for free.
 
-**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
+## Root cause
+Registration always sets `registration_fee_paid: false` regardless of whether the fee is enabled. The fee-waiver logic only runs later in `paystack-checkout` (when user clicks pay), not at signup time.
 
-### Changes
+## Solution
 
-**1. Update `supabase/functions/send-sms/index.ts`**
+### 1. Set `registration_fee_paid: true` at signup when fee is disabled
+**Files:** `src/pages/RegisterTenant.tsx`, `src/pages/RegisterLandlord.tsx`
 
-- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
-- Move API key from request body to `api-key` header
-- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
-- Remove `action` from body
-- Update success check from `data.code !== "ok"` to `data.status !== "success"`
-- Add response text logging before JSON parse to aid debugging
+At the point where the tenant/landlord record is inserted (~line 158-161 in RegisterTenant, ~line 152-155 in RegisterLandlord), check if `regFeeEnabled` is false. If so, set `registration_fee_paid: true`, `registration_date: now`, and `expiry_date: now + 1 year` immediately.
 
-### Technical Details
+### 2. Grandfather existing free users via ProtectedRoute
+**File:** `src/components/ProtectedRoute.tsx`
 
-```text
-Current (broken V1 format):
-  POST https://sms.arkesel.com/sms/api?action=send-sms
-  Body: { action, api_key, to, from, sms }
+In the paywall check (line 146), also fetch `registration_date` from the tenant/landlord record. If a user already has a `registration_date` set (meaning they completed registration during a free period), treat them as paid — skip the paywall. This handles users who already registered for free before this fix.
 
-Fixed (V2 format):
-  POST https://api.arkesel.com/api/v2/sms/send
-  Headers: { api-key: ARKESEL_API_KEY }
-  Body: { sender, message, recipients: ["233..."] }
+Update `checkRegistration` to return both `registration_fee_paid` and `registration_date`, then use the logic:
+```
+const shouldBlock = !feePaid && !hasRegistrationDate && regFeeEnabled;
 ```
 
-After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
+### Files to modify
+| File | Change |
+|---|---|
+| `src/pages/RegisterTenant.tsx` | Set `registration_fee_paid: true` + dates when fee disabled |
+| `src/pages/RegisterLandlord.tsx` | Same |
+| `src/components/ProtectedRoute.tsx` | Also check `registration_date` — if set, skip paywall |
 
