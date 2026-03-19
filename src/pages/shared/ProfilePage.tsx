@@ -320,11 +320,21 @@ const ProfilePage = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone"><Phone className="inline h-3.5 w-3.5 mr-1" />Phone</Label>
-              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <div className="flex gap-2">
+                <Input id="phone" value={phone} disabled className="opacity-60 flex-1" />
+                <Button type="button" variant="outline" size="icon" onClick={() => { setNewPhone(phone); setPhoneDialogOpen(true); }}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email"><Mail className="inline h-3.5 w-3.5 mr-1" />Email</Label>
-              <Input id="email" value={email} disabled className="opacity-60" />
+              <div className="flex gap-2">
+                <Input id="email" value={email} disabled className="opacity-60 flex-1" />
+                <Button type="button" variant="outline" size="icon" onClick={() => { setNewEmail(email); setEmailDialogOpen(true); }}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="nationality">Nationality</Label>
