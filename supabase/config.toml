@@ -25,3 +25,7 @@ project_id = "qjrvwcwmhuxygdanbxsz"
     verify_jwt = false
   [functions.verify-rent-card]
     verify_jwt = false
+  [functions.send-notification]
+    verify_jwt = false
+  [functions.tenancy-expiry-check]
+    verify_jwt = false

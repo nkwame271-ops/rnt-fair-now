@@ -70,14 +70,14 @@ Deno.serve(async (req) => {
         propertyAddress = prop?.address || "";
       }
 
-      // Get tenant name for landlord notification
+      // Get tenant and landlord profiles for notifications
       const { data: tenantProfile } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, phone")
         .eq("user_id", t.tenant_user_id)
         .single();
 
-      // Notify tenant
+      // Notify tenant (in-app)
       await supabase.from("notifications").insert({
         user_id: t.tenant_user_id,
         title: "Tenancy Expiring Soon",
@@ -85,13 +85,33 @@ Deno.serve(async (req) => {
         link: "/tenant/renewal",
       });
 
-      // Notify landlord
+      // Notify landlord (in-app)
       await supabase.from("notifications").insert({
         user_id: t.landlord_user_id,
         title: "Tenant Tenancy Expiring",
         body: `Tenancy for ${tenantProfile?.full_name || "a tenant"} at ${propertyAddress || "your property"} expires in ${daysLeft} days.`,
         link: "/landlord/renewal-requests",
       });
+
+      // Send SMS reminders for expiry (per notification spec)
+      const ARKESEL_API_KEY = Deno.env.get("ARKESEL_API_KEY");
+      if (ARKESEL_API_KEY && tenantProfile?.phone) {
+        let phone = tenantProfile.phone.replace(/\s/g, "").replace(/^0/, "233");
+        if (!phone.startsWith("233")) phone = "233" + phone;
+        try {
+          await fetch("https://api.arkesel.com/api/v2/sms/send", {
+            method: "POST",
+            headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sender: "RentGhana",
+              message: `RentGhana: Your tenancy at ${propertyAddress || "your property"} expires in ${daysLeft} days. Request a renewal or plan your exit.`,
+              recipients: [phone],
+            }),
+          });
+        } catch (e) {
+          console.error(`SMS error for tenant ${t.tenant_user_id}:`, e);
+        }
+      }
 
       updated++;
     }
