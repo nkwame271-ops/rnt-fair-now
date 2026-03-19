@@ -142,8 +142,8 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     );
   }
 
-  // Block dashboard if fee not paid
-  if (role !== "regulator" && !feePaid) {
+  // Block dashboard if fee not paid (but skip if fee is disabled)
+  if (role !== "regulator" && !feePaid && regFeeEnabled) {
     const paymentType = role === "tenant" ? "tenant_registration" : "landlord_registration";
     const roleLabel = role === "tenant" ? "Tenant" : "Landlord";
 
