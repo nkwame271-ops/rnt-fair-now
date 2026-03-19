@@ -154,21 +154,6 @@ const TenantDashboard = () => {
           ))}
         </StaggeredGrid>
 
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-3">Quick Actions</h2>
-          <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {quickActions.map((action) => (
-              <StaggeredItem key={action.to}>
-                <Link to={action.to} className="group bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${action.color} mb-3`}>
-                    <action.icon className="h-5 w-5" />
-                  </div>
-                  <div className="text-sm font-semibold text-card-foreground group-hover:text-primary transition-colors">{action.label}</div>
-                </Link>
-              </StaggeredItem>
-            ))}
-          </StaggeredGrid>
-        </div>
 
         {/* Tenancy Card */}
         {tenancyCardData && (
