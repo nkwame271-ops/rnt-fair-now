@@ -136,6 +136,13 @@ const ProfilePage = () => {
       toast.success("Password changed successfully");
       setNewPassword("");
       setConfirmPassword("");
+      // Notify user about password change (non-blocking)
+      sendNotification("password_reset", {
+        phone: phone || undefined,
+        email: email || user?.email || undefined,
+        user_id: user?.id,
+        data: { name: fullName },
+      });
     }
     setChangingPassword(false);
   };
