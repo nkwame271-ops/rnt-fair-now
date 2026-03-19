@@ -71,7 +71,7 @@ const RegisterLandlord = () => {
     try {
       const phoneDigits = phone.replace(/\s/g, "");
       const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
-      const tempPassword = phoneDigits.slice(-6);
+      const tempPassword = phoneDigits;
 
       // Pre-check: email uniqueness
       if (email && email.trim()) {
@@ -355,7 +355,7 @@ const RegisterLandlord = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Temp Password:</span>
-                        <span className="font-medium text-foreground">Last 6 digits of your phone</span>
+                        <span className="font-medium text-foreground">Your full phone number</span>
                       </div>
                     </div>
                     <p className="text-xs text-destructive font-medium">⚠️ Change your password immediately after logging in. Do not share it with anyone.</p>

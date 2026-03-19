@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { AlertTriangle, Plus, Loader2, Upload, X, Clock, CheckCircle2, Image } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { AlertTriangle, Plus, Loader2, Upload, X, Clock, CheckCircle2, Image, Mic, Square, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +43,13 @@ const LandlordComplaints = () => {
   const [description, setDescription] = useState("");
   const [documents, setDocuments] = useState<File[]>([]);
 
+  // Audio recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
   useEffect(() => {
     if (!user) return;
     fetchComplaints();
@@ -65,6 +72,41 @@ const LandlordComplaints = () => {
   const resetForm = () => {
     setComplaintType(""); setTenantName(""); setPropertyAddress("");
     setRegion(""); setDescription(""); setDocuments([]);
+    deleteRecording();
+  };
+
+  // Audio recording handlers
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch {
+      toast.error("Could not access microphone. Please allow microphone access.");
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+  };
+
+  const deleteRecording = () => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioBlob(null);
+    setAudioUrl(null);
   };
 
   const handleSubmit = async () => {
@@ -81,6 +123,17 @@ const LandlordComplaints = () => {
         evidenceUrls.push(publicUrl);
       }
 
+      // Upload audio if recorded
+      let uploadedAudioUrl: string | null = null;
+      if (audioBlob) {
+        const audioPath = `${user.id}/${Date.now()}_voice.webm`;
+        const { error: audioErr } = await supabase.storage.from("application-evidence").upload(audioPath, audioBlob);
+        if (!audioErr) {
+          const { data: { publicUrl } } = supabase.storage.from("application-evidence").getPublicUrl(audioPath);
+          uploadedAudioUrl = publicUrl;
+        }
+      }
+
       const code = `LC-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
 
       const { error } = await supabase.from("landlord_complaints").insert({
@@ -92,6 +145,7 @@ const LandlordComplaints = () => {
         region,
         description,
         evidence_urls: evidenceUrls,
+        audio_url: uploadedAudioUrl,
       } as any);
 
       if (error) throw error;
@@ -198,6 +252,29 @@ const LandlordComplaints = () => {
                 placeholder="Describe the issue in detail..."
                 className="min-h-[100px]"
               />
+            </div>
+            {/* Voice Note */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1"><Mic className="h-3.5 w-3.5" /> Voice Note (optional)</Label>
+              <p className="text-xs text-muted-foreground">Can't type? Record a voice note describing your issue.</p>
+              {!audioUrl ? (
+                <Button
+                  type="button"
+                  variant={isRecording ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className="gap-2"
+                >
+                  {isRecording ? <><Square className="h-4 w-4" /> Stop Recording</> : <><Mic className="h-4 w-4" /> Start Recording</>}
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 bg-muted rounded-lg p-2">
+                  <audio src={audioUrl} controls className="h-8 flex-1" />
+                  <Button type="button" variant="ghost" size="icon" onClick={deleteRecording} className="h-8 w-8 text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label className="flex items-center gap-1"><Image className="h-3.5 w-3.5" /> Supporting Documents (up to 6)</Label>

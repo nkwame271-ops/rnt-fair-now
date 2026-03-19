@@ -474,6 +474,7 @@ export type Database = {
       }
       landlord_complaints: {
         Row: {
+          audio_url: string | null
           complaint_code: string
           complaint_type: string
           created_at: string
@@ -488,6 +489,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audio_url?: string | null
           complaint_code: string
           complaint_type: string
           created_at?: string
@@ -502,6 +504,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audio_url?: string | null
           complaint_code?: string
           complaint_type?: string
           created_at?: string
