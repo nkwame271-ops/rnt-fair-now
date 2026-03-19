@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { CreditCard, Loader2, ShoppingCart, Hash, Link2, MapPin, User, Calendar, DollarSign } from "lucide-react";
+import { CreditCard, Loader2, ShoppingCart, Hash, Link2, MapPin, User, Calendar, DollarSign, Clock, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { format } from "date-fns";
 
 interface RentCard {
   id: string;
-  serial_number: string;
+  serial_number: string | null;
   status: string;
   tenancy_id: string | null;
   purchased_at: string;
@@ -30,6 +30,7 @@ interface RentCard {
   advance_paid: number | null;
   last_payment_status: string | null;
   qr_token: string | null;
+  purchase_id: string | null;
 }
 
 interface EnrichedRentCard extends RentCard {
@@ -46,11 +47,23 @@ const PUBLISHED_URL = "https://rentghanapilot.lovable.app";
 
 const statusBadge = (status: string) => {
   switch (status) {
+    case "awaiting_serial": return "bg-amber-500/10 text-amber-600 border-amber-500/20";
     case "valid": return "bg-success/10 text-success border-success/20";
     case "active": return "bg-primary/10 text-primary border-primary/20";
     case "used": return "bg-muted text-muted-foreground border-border";
     case "voided": return "bg-destructive/10 text-destructive border-destructive/20";
     default: return "bg-muted text-muted-foreground border-border";
+  }
+};
+
+const statusLabel = (status: string) => {
+  switch (status) {
+    case "awaiting_serial": return "Awaiting Serial";
+    case "valid": return "Available";
+    case "active": return "Active";
+    case "used": return "Used";
+    case "voided": return "Voided";
+    default: return status.charAt(0).toUpperCase() + status.slice(1);
   }
 };
 
@@ -73,18 +86,14 @@ const ManageRentCards = () => {
 
     const rawCards = (data || []) as RentCard[];
 
-    // Enrich with names
     const enriched: EnrichedRentCard[] = [];
-    // Get landlord info
     const { data: landlordProfile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
     const { data: landlordRecord } = await supabase.from("landlords").select("landlord_id").eq("user_id", user.id).single();
 
-    // Collect unique tenant/property/unit IDs
     const tenantIds = [...new Set(rawCards.map(c => c.tenant_user_id).filter(Boolean))] as string[];
     const propertyIds = [...new Set(rawCards.map(c => c.property_id).filter(Boolean))] as string[];
     const unitIds = [...new Set(rawCards.map(c => c.unit_id).filter(Boolean))] as string[];
 
-    // Batch fetch
     const [tenantsRes, tenantProfilesRes, propsRes, unitsRes] = await Promise.all([
       tenantIds.length > 0 ? supabase.from("tenants").select("user_id, tenant_id").in("user_id", tenantIds) : { data: [] },
       tenantIds.length > 0 ? supabase.from("profiles").select("user_id, full_name").in("user_id", tenantIds) : { data: [] },
@@ -117,7 +126,6 @@ const ManageRentCards = () => {
     if (!user) return;
     fetchCards();
 
-    // Handle return from payment
     const params = new URLSearchParams(window.location.search);
     const ref = params.get("reference") || params.get("trxref");
 
@@ -126,11 +134,10 @@ const ManageRentCards = () => {
       supabase.functions.invoke("verify-payment", { body: { reference: ref } })
         .then(({ data }) => {
           if (data?.verified) {
-            toast.success("Rent cards purchased successfully!");
+            toast.success("Rent cards purchased! Visit your Rent Control office to collect physical cards.");
           } else {
             toast.info("Payment is being processed. Your cards will appear shortly.");
           }
-          // Poll for cards
           const poll = setInterval(async () => {
             await fetchCards();
             clearInterval(poll);
@@ -172,11 +179,20 @@ const ManageRentCards = () => {
     }
   };
 
+  const awaitingCount = cards.filter(c => c.status === "awaiting_serial").length;
   const validCount = cards.filter(c => c.status === "valid").length;
   const activeCount = cards.filter(c => c.status === "active").length;
   const usedCount = cards.filter(c => c.status === "used").length;
 
   const filteredCards = filterStatus === "all" ? cards : cards.filter(c => c.status === filterStatus);
+
+  // Group cards by purchase_id for display
+  const purchaseGroups = new Map<string, EnrichedRentCard[]>();
+  for (const card of filteredCards) {
+    const key = card.purchase_id || card.id;
+    if (!purchaseGroups.has(key)) purchaseGroups.set(key, []);
+    purchaseGroups.get(key)!.push(card);
+  }
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -189,9 +205,10 @@ const ManageRentCards = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           {[
             { label: "Total Cards", value: cards.length, color: "text-foreground" },
+            { label: "Awaiting Serial", value: awaitingCount, color: "text-amber-600" },
             { label: "Available", value: validCount, color: "text-success" },
             { label: "Active", value: activeCount, color: "text-primary" },
             { label: "Used", value: usedCount, color: "text-muted-foreground" },
@@ -203,13 +220,28 @@ const ManageRentCards = () => {
           ))}
         </div>
 
+        {/* Awaiting Serial Banner */}
+        {awaitingCount > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
+            <Building2 className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-amber-700">
+                {awaitingCount} card{awaitingCount > 1 ? "s" : ""} awaiting serial assignment
+              </p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                Please visit your assigned Rent Control office with your Landlord ID to collect your physical rent cards.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Purchase Section */}
         <div className="bg-card rounded-xl border border-border p-6 space-y-4">
           <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-primary" /> Purchase Rent Cards
           </h2>
           <p className="text-sm text-muted-foreground">
-            Each rent card costs <strong>GH₵ {PRICE_PER_CARD}</strong>. A rent card must be assigned to every new tenancy.
+            Each rent card costs <strong>GH₵ {PRICE_PER_CARD}</strong>. After purchase, collect physical cards from your Rent Control office.
           </p>
           <div className="flex items-end gap-4 flex-wrap">
             <div className="space-y-2">
@@ -232,9 +264,10 @@ const ManageRentCards = () => {
             <Hash className="h-5 w-5 text-primary" /> Your Rent Cards
           </h2>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
+              <SelectItem value="awaiting_serial">Awaiting Serial</SelectItem>
               <SelectItem value="valid">Available</SelectItem>
               <SelectItem value="active">Active</SelectItem>
               <SelectItem value="used">Used</SelectItem>
@@ -253,18 +286,26 @@ const ManageRentCards = () => {
             {filteredCards.map(card => {
               const isExpanded = expandedCard === card.id;
               const isLinked = card.status === "active" && card.tenant_user_id;
+              const isAwaiting = card.status === "awaiting_serial";
               return (
                 <div key={card.id} className="bg-card rounded-xl border border-border overflow-hidden">
-                  {/* Header row */}
                   <button
                     onClick={() => setExpandedCard(isExpanded ? null : card.id)}
                     className="w-full p-4 flex items-center justify-between hover:bg-muted/30 transition-colors text-left"
                   >
                     <div className="flex items-center gap-3">
-                      <CreditCard className="h-5 w-5 text-primary" />
+                      <CreditCard className={`h-5 w-5 ${isAwaiting ? "text-amber-500" : "text-primary"}`} />
                       <div>
-                        <p className="font-mono font-bold text-sm text-card-foreground">{card.serial_number}</p>
+                        {isAwaiting ? (
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3.5 w-3.5 text-amber-500" />
+                            <p className="text-sm font-medium text-amber-600">Collect from Rent Control office</p>
+                          </div>
+                        ) : (
+                          <p className="font-mono font-bold text-sm text-card-foreground">{card.serial_number}</p>
+                        )}
                         <p className="text-xs text-muted-foreground">
+                          {card.purchase_id && <span className="font-mono">{card.purchase_id} • </span>}
                           Purchased: {format(new Date(card.purchased_at), "dd/MM/yyyy")}
                           {card.activated_at && ` • Activated: ${format(new Date(card.activated_at), "dd/MM/yyyy")}`}
                         </p>
@@ -276,20 +317,28 @@ const ManageRentCards = () => {
                           <Link2 className="h-3 w-3" /> Linked
                         </span>
                       )}
-                      <Badge className={statusBadge(card.status)}>
-                        {card.status === "valid" ? "Available" : card.status.charAt(0).toUpperCase() + card.status.slice(1)}
-                      </Badge>
+                      <Badge className={statusBadge(card.status)}>{statusLabel(card.status)}</Badge>
                     </div>
                   </button>
 
-                  {/* Expanded detail view */}
                   {isExpanded && (
                     <div className="border-t border-border p-5 space-y-4">
+                      {isAwaiting && (
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-sm text-amber-700">
+                          <strong>Next step:</strong> Visit your assigned Rent Control office with your Landlord ID ({card.landlord_id_code}) to collect the physical card and have the serial number assigned.
+                        </div>
+                      )}
                       <div className="grid sm:grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground text-xs mb-1">Rent Card ID</p>
                           <p className="font-mono text-xs text-card-foreground">{card.id.slice(0, 8)}...</p>
                         </div>
+                        {card.purchase_id && (
+                          <div>
+                            <p className="text-muted-foreground text-xs mb-1">Purchase ID</p>
+                            <p className="font-mono text-xs text-card-foreground">{card.purchase_id}</p>
+                          </div>
+                        )}
                         <div>
                           <p className="text-muted-foreground text-xs mb-1">Landlord</p>
                           <p className="font-semibold text-card-foreground">{card.landlord_name} ({card.landlord_id_code})</p>
@@ -360,13 +409,10 @@ const ManageRentCards = () => {
                         )}
                         <div>
                           <p className="text-muted-foreground text-xs mb-1">Card Status</p>
-                          <Badge className={statusBadge(card.status)}>
-                            {card.status === "valid" ? "Available" : card.status.charAt(0).toUpperCase() + card.status.slice(1)}
-                          </Badge>
+                          <Badge className={statusBadge(card.status)}>{statusLabel(card.status)}</Badge>
                         </div>
                       </div>
 
-                      {/* QR Code */}
                       {card.qr_token && (
                         <div className="flex flex-col items-center gap-2 pt-3 border-t border-border">
                           <p className="text-xs text-muted-foreground font-medium">Verification QR Code</p>

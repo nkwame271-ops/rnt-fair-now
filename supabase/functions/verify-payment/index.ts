@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
           .eq("status", "awaiting_payment");
       }
     } else if (paymentType === "rent_card_bulk" || paymentType === "rent_card") {
-      // Create rent cards if not already created
+      // Create rent cards with awaiting_serial status (no serial number yet)
       const qty = meta?.quantity || 1;
       const { data: existingCards } = await supabaseAdmin
         .from("rent_cards")
@@ -151,9 +151,19 @@ Deno.serve(async (req) => {
         .eq("escrow_transaction_id", escrow.id);
 
       if (!existingCards || existingCards.length === 0) {
+        // Generate a purchase_id for the batch
+        const { data: purchaseIdData } = await supabaseAdmin.rpc("generate_purchase_id");
+        const purchaseId = purchaseIdData || `PUR-${Date.now()}`;
+        
         const rentCards = [];
         for (let i = 0; i < qty; i++) {
-          rentCards.push({ landlord_user_id: userId, status: "valid", escrow_transaction_id: escrow.id });
+          rentCards.push({
+            landlord_user_id: userId,
+            status: "awaiting_serial",
+            escrow_transaction_id: escrow.id,
+            serial_number: null,
+            purchase_id: purchaseId,
+          });
         }
         await supabaseAdmin.from("rent_cards").insert(rentCards);
       }
