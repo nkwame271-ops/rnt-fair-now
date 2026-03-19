@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { sendSms } from "@/lib/smsService";
+// Complaints are in-app only per notification spec — no SMS/email import needed
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
 
 const steps = ["Complaint Type", "Property Details", "Location", "Description & Evidence", "Review & Submit"];
