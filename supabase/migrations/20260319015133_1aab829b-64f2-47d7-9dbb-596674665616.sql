@@ -1,0 +1,1 @@
+ALTER TABLE public.landlord_complaints ADD COLUMN audio_url text;
