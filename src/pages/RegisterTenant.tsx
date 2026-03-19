@@ -154,10 +154,18 @@ const RegisterTenant = () => {
         toast.error("Account created but profile update failed. Please update your profile after logging in.");
       }
 
+      const now = new Date();
+      const expiryDate = new Date(now);
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+
       const { error: tenantError } = await supabase.from("tenants").insert({
         user_id: userId,
         tenant_id: tenantId,
-        registration_fee_paid: false,
+        registration_fee_paid: !regFeeEnabled,
+        ...(! regFeeEnabled ? {
+          registration_date: now.toISOString(),
+          expiry_date: expiryDate.toISOString(),
+        } : {}),
       });
 
       if (tenantError) {
