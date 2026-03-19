@@ -15,12 +15,6 @@ import TenancyCard, { TenancyCardData } from "@/components/TenancyCard";
 import { differenceInDays } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const quickActions = [
-  { to: "/tenant/file-complaint", label: "File Complaint", icon: FileText, color: "bg-destructive/10 text-destructive" },
-  { to: "/tenant/rent-checker", label: "Check Rent", icon: Calculator, color: "bg-primary/10 text-primary" },
-  { to: "/tenant/marketplace", label: "Marketplace", icon: Store, color: "bg-secondary/20 text-secondary-foreground" },
-  { to: "/tenant/payments", label: "Pay Rent", icon: CreditCard, color: "bg-info/10 text-info" },
-];
 
 const TenantDashboard = () => {
   const { user } = useAuth();
