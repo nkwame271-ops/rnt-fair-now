@@ -1,34 +1,26 @@
 
 
-## Fix: Arkesel SMS Edge Function — Wrong API Format
+# Plan: Complaint Status Fix + Hide Registration Fee When Disabled
 
-**Problem**: The `send-sms` edge function uses the Arkesel V1 URL (`sms.arkesel.com/sms/api?action=send-sms`) with a JSON POST body, but V1 expects query-parameter-style requests. The API returns HTML instead of JSON, causing a parse error.
+## Issue 1: Complaint stays "Awaiting Payment" after payment
 
-**Solution**: Switch to Arkesel V2 API which properly supports JSON POST requests.
+**Root cause:** In `MyCases.tsx`, after returning from Paystack, `verify-payment` is called and then `fetchComplaints()` runs. However, the webhook may not have processed yet, and the `verify-payment` edge function updates the complaint status (line 130-133) only when `status = "pending_payment"`. The issue is a race condition — `fetchComplaints()` fires before the update propagates, or the verify-payment response doesn't trigger a re-fetch.
 
-### Changes
+**Fix in `src/pages/tenant/MyCases.tsx`:**
+- After `verify-payment` returns `verified: true`, add a short delay before fetching complaints to let the status update propagate
+- Also re-fetch after a second delay as a safety net
 
-**1. Update `supabase/functions/send-sms/index.ts`**
+## Issue 2: Hide "Annual Registration" fee card on signup pages when fee is off
 
-- Change API URL from `https://sms.arkesel.com/sms/api?action=send-sms` → `https://api.arkesel.com/api/v2/sms/send`
-- Move API key from request body to `api-key` header
-- Change body format: use `recipients` (array of strings) instead of `to`, and `message` instead of `sms`
-- Remove `action` from body
-- Update success check from `data.code !== "ok"` to `data.status !== "success"`
-- Add response text logging before JSON parse to aid debugging
+**Files:** `src/pages/RegisterTenant.tsx` (lines 199-213) and `src/pages/RegisterLandlord.tsx` (lines 193-207)
 
-### Technical Details
+**Fix:** Wrap the fee card `<div>` in `{regFeeEnabled && (...)}` so it's hidden when the registration fee is turned off in Engine Room. Both pages already have `regFeeEnabled` from `useFeeConfig`.
 
-```text
-Current (broken V1 format):
-  POST https://sms.arkesel.com/sms/api?action=send-sms
-  Body: { action, api_key, to, from, sms }
+## Summary of changes
 
-Fixed (V2 format):
-  POST https://api.arkesel.com/api/v2/sms/send
-  Headers: { api-key: ARKESEL_API_KEY }
-  Body: { sender, message, recipients: ["233..."] }
-```
-
-After fixing, I'll re-test by calling the edge function with Benjamin's phone number (024678954).
+| File | Change |
+|---|---|
+| `src/pages/tenant/MyCases.tsx` | Add delay after verify-payment before fetching complaints; fetch again after 2s as safety net |
+| `src/pages/RegisterTenant.tsx` | Wrap "Annual Registration" fee card in `{regFeeEnabled && ...}` |
+| `src/pages/RegisterLandlord.tsx` | Same wrapping |
 
