@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 const LandlordDashboard = () => {
   const { user } = useAuth();
   const { amount: regFee } = useFeeConfig("landlord_registration_fee");
+  const { enabled: registerPropertyEnabled } = useFeatureFlag("register_property");
+  const { enabled: declareExistingEnabled } = useFeatureFlag("declare_existing_tenancy");
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
   const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
