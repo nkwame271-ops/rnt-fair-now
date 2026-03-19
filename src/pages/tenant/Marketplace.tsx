@@ -264,7 +264,7 @@ const Marketplace = () => {
         message: viewingMessage || null,
         preferred_date: viewingDate || null,
         preferred_time: viewingTime || null,
-        status: "awaiting_payment",
+        status: viewingFeeConfig.enabled ? "awaiting_payment" : "pending",
       }).select().single();
       if (error) throw error;
 
@@ -277,6 +277,14 @@ const Marketplace = () => {
           date: viewingDate || "TBD",
           time: viewingTime || "",
         });
+      }
+
+      // If fee is disabled, skip payment
+      if (!viewingFeeConfig.enabled) {
+        toast.success("Viewing request sent to landlord!");
+        setViewingRequestsByUnit(prev => ({ ...prev, [selectedUnit.id]: "pending" }));
+        setSelectedUnit(null);
+        return;
       }
 
       const { data: payData, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
