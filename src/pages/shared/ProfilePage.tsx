@@ -140,6 +140,70 @@ const ProfilePage = () => {
     setChangingPassword(false);
   };
 
+  const handleChangeEmail = async () => {
+    if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    if (!emailChangePassword) {
+      toast.error("Please enter your current password to confirm");
+      return;
+    }
+    setChangingEmail(true);
+    try {
+      // Re-authenticate with current password
+      const currentEmail = user?.email || "";
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: currentEmail,
+        password: emailChangePassword,
+      });
+      if (signInErr) throw new Error("Incorrect password. Please try again.");
+
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      if (error) throw error;
+      toast.success("Confirmation email sent to your new address. Please check your inbox to complete the change.");
+      setEmailDialogOpen(false);
+      setNewEmail("");
+      setEmailChangePassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update email");
+    } finally {
+      setChangingEmail(false);
+    }
+  };
+
+  const handleChangePhone = async () => {
+    if (!newPhone || newPhone.replace(/\s/g, "").length < 10) {
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+    if (!phoneChangePassword) {
+      toast.error("Please enter your current password to confirm");
+      return;
+    }
+    setChangingPhone(true);
+    try {
+      const currentEmail = user?.email || "";
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: currentEmail,
+        password: phoneChangePassword,
+      });
+      if (signInErr) throw new Error("Incorrect password. Please try again.");
+
+      const { error } = await supabase.from("profiles").update({ phone: newPhone.replace(/\s/g, "") }).eq("user_id", user!.id);
+      if (error) throw error;
+      setPhone(newPhone.replace(/\s/g, ""));
+      toast.success("Phone number updated successfully");
+      setPhoneDialogOpen(false);
+      setNewPhone("");
+      setPhoneChangePassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update phone number");
+    } finally {
+      setChangingPhone(false);
+    }
+  };
+
   const baseUrl = window.location.origin;
   const qrData = `${baseUrl}/verify/${role}/${registrationId}`;
 
