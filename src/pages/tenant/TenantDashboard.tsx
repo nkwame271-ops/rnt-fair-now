@@ -36,27 +36,31 @@ const TenantDashboard = () => {
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
+      // Parallel fetch for independent queries
+      const [profileRes, tenantRes, complaintsRes, tenanciesRes] = await Promise.all([
+        supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
+        supabase.from("tenants").select("registration_fee_paid").eq("user_id", user.id).maybeSingle(),
+        supabase.from("complaints").select("id", { count: "exact", head: true }).eq("tenant_user_id", user.id).not("status", "in", '("resolved","closed")'),
+        supabase.from("tenancies").select("*, unit:units(unit_name, unit_type, property_id)").eq("tenant_user_id", user.id).in("status", ["active", "pending", "renewal_window", "existing_declared", "awaiting_verification", "verified_existing"]).limit(1),
+      ]);
+
+      const profile = profileRes.data;
       setProfileName(profile?.full_name || "Tenant");
+      setRegistrationFeePaid(tenantRes.data?.registration_fee_paid ?? true);
+      setActiveCases(complaintsRes.count || 0);
 
-      const { data: tenantRecord } = await supabase.from("tenants").select("registration_fee_paid").eq("user_id", user.id).maybeSingle();
-      setRegistrationFeePaid(tenantRecord?.registration_fee_paid ?? true);
-
-      const { count } = await supabase.from("complaints").select("id", { count: "exact", head: true }).eq("tenant_user_id", user.id).not("status", "in", '("resolved","closed")');
-      setActiveCases(count || 0);
-
-      const { data: ts } = await supabase
-        .from("tenancies")
-        .select("*, unit:units(unit_name, unit_type, property_id)")
-        .eq("tenant_user_id", user.id)
-        .in("status", ["active", "pending", "renewal_window", "existing_declared", "awaiting_verification", "verified_existing"])
-        .limit(1);
-
+      const ts = tenanciesRes.data;
       if (ts && ts.length > 0) {
         const t = ts[0] as any;
-        const { data: prop } = await supabase.from("properties").select("address, id, ghana_post_gps").eq("id", t.unit.property_id).single();
-        const { data: landlord } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
-        const { data: payments } = await supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed, tax_amount").eq("tenancy_id", t.id).order("due_date");
+        // Parallel fetch for tenancy-dependent queries
+        const [propRes, landlordRes, paymentsRes] = await Promise.all([
+          supabase.from("properties").select("address, id, ghana_post_gps").eq("id", t.unit.property_id).single(),
+          supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single(),
+          supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed, tax_amount").eq("tenancy_id", t.id).order("due_date"),
+        ]);
+        const prop = propRes.data;
+        const landlord = landlordRes.data;
+        const payments = paymentsRes.data;
 
         const paid = (payments || []).filter((p: any) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed").length;
         const nextP = (payments || []).find((p: any) => !p.tenant_marked_paid && !p.landlord_confirmed && p.status !== "confirmed");

@@ -86,8 +86,6 @@ export const useFeeConfig = (key: string): { amount: number; enabled: boolean; l
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Always fetch fresh for fee checks — bypass stale cache
-    invalidateFeatureFlags();
     fetchFlags().then((flags) => {
       const flag = flags.find((f) => f.feature_key === key);
       setAmount(flag?.fee_amount ?? 0);

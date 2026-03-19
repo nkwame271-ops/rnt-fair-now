@@ -28,41 +28,48 @@ const LandlordDashboard = () => {
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
-      setProfileName(profile?.full_name || "Landlord");
+      // Parallel fetch for independent queries
+      const [profileRes, landlordRes, propsRes, tenanciesRes] = await Promise.all([
+        supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
+        supabase.from("landlords").select("registration_fee_paid, compliance_score").eq("user_id", user.id).maybeSingle(),
+        supabase.from("properties").select("id").eq("landlord_user_id", user.id),
+        supabase.from("tenancies").select("id, status").eq("landlord_user_id", user.id),
+      ]);
 
-      const { data: landlordRecord } = await supabase.from("landlords").select("registration_fee_paid, compliance_score").eq("user_id", user.id).maybeSingle();
-      setRegistrationFeePaid(landlordRecord?.registration_fee_paid ?? true);
-      setComplianceScore((landlordRecord as any)?.compliance_score ?? 100);
+      setProfileName(profileRes.data?.full_name || "Landlord");
+      setRegistrationFeePaid(landlordRes.data?.registration_fee_paid ?? true);
+      setComplianceScore((landlordRes.data as any)?.compliance_score ?? 100);
 
-      const { data: props } = await supabase.from("properties").select("id").eq("landlord_user_id", user.id);
-      const propIds = (props || []).map(p => p.id);
+      const props = propsRes.data || [];
+      const propIds = props.map(p => p.id);
+      const tenancies = tenanciesRes.data || [];
+      const tenancyIds = tenancies.map(t => t.id);
 
-      let totalUnits = 0, occupiedUnits = 0;
-      if (propIds.length > 0) {
-        const { data: units } = await supabase.from("units").select("status").in("property_id", propIds);
-        totalUnits = (units || []).length;
-        occupiedUnits = (units || []).filter(u => u.status === "occupied").length;
-      }
+      // Parallel fetch for dependent queries
+      const [unitsRes, paymentsRes] = await Promise.all([
+        propIds.length > 0
+          ? supabase.from("units").select("status").in("property_id", propIds)
+          : Promise.resolve({ data: [] }),
+        tenancyIds.length > 0
+          ? supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed").in("tenancy_id", tenancyIds)
+          : Promise.resolve({ data: [] }),
+      ]);
 
-      const { data: tenancies } = await supabase.from("tenancies").select("id, status").eq("landlord_user_id", user.id);
-      const pendingTenancies = (tenancies || []).filter(t => t.status === "pending").length;
-      const tenancyIds = (tenancies || []).map(t => t.id);
+      const units = unitsRes.data || [];
+      const totalUnits = units.length;
+      const occupiedUnits = units.filter((u: any) => u.status === "occupied").length;
 
-      // Tenancy breakdown
-      const active = (tenancies || []).filter(t => t.status === "active").length;
-      const expired = (tenancies || []).filter(t => t.status === "expired" || t.status === "terminated").length;
-      const existing = (tenancies || []).filter(t => ["existing_declared", "awaiting_verification", "verified_existing"].includes(t.status)).length;
+      const pendingTenancies = tenancies.filter(t => t.status === "pending").length;
+      const active = tenancies.filter(t => t.status === "active").length;
+      const expired = tenancies.filter(t => t.status === "expired" || t.status === "terminated").length;
+      const existing = tenancies.filter(t => ["existing_declared", "awaiting_verification", "verified_existing"].includes(t.status)).length;
       setTenancyBreakdown({ active, pending: pendingTenancies, expired, existing });
 
-      let validMonths = 0, pendingMonths = 0;
-      if (tenancyIds.length > 0) {
-        const { data: payments } = await supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed").in("tenancy_id", tenancyIds);
-        validMonths = (payments || []).filter(p => p.landlord_confirmed || p.status === "confirmed").length;
-        pendingMonths = (payments || []).filter(p => !p.landlord_confirmed && p.status !== "confirmed").length;
-      }
+      const payments = paymentsRes.data || [];
+      const validMonths = payments.filter((p: any) => p.landlord_confirmed || p.status === "confirmed").length;
+      const pendingMonths = payments.filter((p: any) => !p.landlord_confirmed && p.status !== "confirmed").length;
 
-      setStats({ properties: (props || []).length, totalUnits, occupiedUnits, pendingTenancies, validMonths, pendingMonths });
+      setStats({ properties: props.length, totalUnits, occupiedUnits, pendingTenancies, validMonths, pendingMonths });
       setLoading(false);
     };
     fetch();
