@@ -190,21 +190,23 @@ const RegisterLandlord = () => {
           <p className="text-primary-foreground/80 text-lg mb-8">
             Get your unique Landlord ID to register properties, manage tenants, and stay compliant with Act 220.
           </p>
-          <div className="bg-primary-foreground/10 rounded-xl p-5 backdrop-blur-sm border border-primary-foreground/20">
-            <div className="flex items-center gap-3 mb-3">
-              <Building2 className="h-5 w-5 text-secondary" />
-              <span className="font-semibold">Annual Registration</span>
+          {regFeeEnabled && (
+            <div className="bg-primary-foreground/10 rounded-xl p-5 backdrop-blur-sm border border-primary-foreground/20">
+              <div className="flex items-center gap-3 mb-3">
+                <Building2 className="h-5 w-5 text-secondary" />
+                <span className="font-semibold">Annual Registration</span>
+              </div>
+              <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ {regFee.toFixed(2)}</div>
+              <p className="text-primary-foreground/70 text-sm mb-3">Per year</p>
+              <div className="border-t border-primary-foreground/20 pt-3">
+                <p className="text-sm font-semibold mb-2">Registration Fee Covers:</p>
+                <ul className="space-y-1.5 text-sm text-primary-foreground/80">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Landlord ID card</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />12-month platform access</li>
+                </ul>
+              </div>
             </div>
-            <div className="text-3xl font-extrabold text-secondary mb-1">GH₵ {regFee.toFixed(2)}</div>
-            <p className="text-primary-foreground/70 text-sm mb-3">Per year</p>
-            <div className="border-t border-primary-foreground/20 pt-3">
-              <p className="text-sm font-semibold mb-2">Registration Fee Covers:</p>
-              <ul className="space-y-1.5 text-sm text-primary-foreground/80">
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Landlord ID card</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />12-month platform access</li>
-              </ul>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 

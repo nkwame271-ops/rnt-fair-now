@@ -56,7 +56,7 @@ const MyCases = () => {
     if (reference) {
       const verifyPayment = async () => {
         try {
-          const { data, error } = await supabase.functions.invoke("verify-payment", {
+          const { data } = await supabase.functions.invoke("verify-payment", {
             body: { reference },
           });
           if (data?.verified) {
@@ -64,7 +64,11 @@ const MyCases = () => {
           }
         } catch (_) {}
         setSearchParams({}, { replace: true });
-        fetchComplaints();
+        // Delay fetch to let status update propagate
+        await new Promise((r) => setTimeout(r, 1500));
+        await fetchComplaints();
+        // Safety net re-fetch
+        setTimeout(() => fetchComplaints(), 3000);
       };
       verifyPayment();
     } else {
