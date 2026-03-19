@@ -204,6 +204,13 @@ const ProfilePage = () => {
       setPhoneDialogOpen(false);
       setNewPhone("");
       setPhoneChangePassword("");
+      // Notify about contact change (non-blocking)
+      sendNotification("contact_changed", {
+        phone: newPhone.replace(/\s/g, "") || undefined,
+        email: email || user?.email || undefined,
+        user_id: user?.id,
+        data: { name: fullName },
+      });
     } catch (err: any) {
       toast.error(err.message || "Failed to update phone number");
     } finally {
