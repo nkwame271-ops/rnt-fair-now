@@ -62,6 +62,7 @@ const Marketplace = () => {
   const [maxPrice, setMaxPrice] = useState("");
   const [units, setUnits] = useState<MarketUnit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(20);
   const [selectedUnit, setSelectedUnit] = useState<MarketUnit | null>(null);
   const [viewingMessage, setViewingMessage] = useState("");
   const [viewingDate, setViewingDate] = useState("");
@@ -356,61 +357,69 @@ const Marketplace = () => {
           </p>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.map((unit, i) => (
-            <motion.div
-              key={unit.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="bg-card rounded-xl shadow-card border border-border overflow-hidden group cursor-pointer hover:shadow-elevated transition-all"
-              onClick={() => setSelectedUnit(unit)}
-            >
-              <div className="relative h-48 overflow-hidden">
-                <img src={unit.imageUrl} alt={unit.unit_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                <div className="absolute top-3 left-3 flex items-center gap-1 bg-primary/90 text-primary-foreground text-[10px] font-semibold px-2 py-1 rounded-full">
-                  <Shield className="h-3 w-3" /> Registered
-                </div>
-                {unit.availableSoon && (
-                  <div className="absolute top-3 right-12 flex items-center gap-1 bg-secondary/90 text-secondary-foreground text-[10px] font-semibold px-2 py-1 rounded-full">
-                    <Clock className="h-3 w-3" /> Available {unit.availableFrom ? format(new Date(unit.availableFrom), "MMM d") : "Soon"}
+        <>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filtered.slice(0, visibleCount).map((unit, i) => (
+              <motion.div
+                key={unit.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(i, 19) * 0.05 }}
+                className="bg-card rounded-xl shadow-card border border-border overflow-hidden group cursor-pointer hover:shadow-elevated transition-all"
+                onClick={() => setSelectedUnit(unit)}
+              >
+                <div className="relative h-48 overflow-hidden">
+                  <img src={unit.imageUrl} alt={unit.unit_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <div className="absolute top-3 left-3 flex items-center gap-1 bg-primary/90 text-primary-foreground text-[10px] font-semibold px-2 py-1 rounded-full">
+                    <Shield className="h-3 w-3" /> Registered
                   </div>
-                )}
-                {/* Watchlist heart */}
-                <button
-                  onClick={(e) => toggleWatchlist(unit.id, e)}
-                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors"
-                >
-                  <Heart className={`h-4 w-4 ${watchlist.has(unit.id) ? "fill-destructive text-destructive" : "text-muted-foreground"}`} />
-                </button>
-                <div className="absolute bottom-3 right-3 bg-card/90 backdrop-blur px-2.5 py-1 rounded-lg text-sm font-bold text-card-foreground">
-                  GH₵ {unit.monthly_rent.toLocaleString()}/mo
-                </div>
-              </div>
-              <div className="p-4">
-                <h3 className="font-semibold text-card-foreground text-sm line-clamp-1">{unit.property.property_name || unit.unit_name}</h3>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                  <MapPin className="h-3 w-3" /> {unit.property.area}, {unit.property.region}
-                </div>
-                <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><Bed className="h-3 w-3" /> {unit.unit_type}</span>
-                  {unit.water_available && <span className="flex items-center gap-1"><Droplets className="h-3 w-3" /> Water</span>}
-                  {unit.electricity_available && <span className="flex items-center gap-1"><Zap className="h-3 w-3" /> Power</span>}
-                </div>
-                <div className="flex gap-1.5 mt-3 flex-wrap">
                   {unit.availableSoon && (
-                    <Badge variant="outline" className="text-[10px] border-secondary text-secondary-foreground bg-secondary/10">
-                      Available Soon
-                    </Badge>
+                    <div className="absolute top-3 right-12 flex items-center gap-1 bg-secondary/90 text-secondary-foreground text-[10px] font-semibold px-2 py-1 rounded-full">
+                      <Clock className="h-3 w-3" /> Available {unit.availableFrom ? format(new Date(unit.availableFrom), "MMM d") : "Soon"}
+                    </div>
                   )}
-                  {(unit.amenities || []).slice(0, 3).map((a) => (
-                    <Badge key={a} variant="secondary" className="text-[10px]">{a}</Badge>
-                  ))}
+                  <button
+                    onClick={(e) => toggleWatchlist(unit.id, e)}
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors"
+                  >
+                    <Heart className={`h-4 w-4 ${watchlist.has(unit.id) ? "fill-destructive text-destructive" : "text-muted-foreground"}`} />
+                  </button>
+                  <div className="absolute bottom-3 right-3 bg-card/90 backdrop-blur px-2.5 py-1 rounded-lg text-sm font-bold text-card-foreground">
+                    GH₵ {unit.monthly_rent.toLocaleString()}/mo
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+                <div className="p-4">
+                  <h3 className="font-semibold text-card-foreground text-sm line-clamp-1">{unit.property.property_name || unit.unit_name}</h3>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                    <MapPin className="h-3 w-3" /> {unit.property.area}, {unit.property.region}
+                  </div>
+                  <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1"><Bed className="h-3 w-3" /> {unit.unit_type}</span>
+                    {unit.water_available && <span className="flex items-center gap-1"><Droplets className="h-3 w-3" /> Water</span>}
+                    {unit.electricity_available && <span className="flex items-center gap-1"><Zap className="h-3 w-3" /> Power</span>}
+                  </div>
+                  <div className="flex gap-1.5 mt-3 flex-wrap">
+                    {unit.availableSoon && (
+                      <Badge variant="outline" className="text-[10px] border-secondary text-secondary-foreground bg-secondary/10">
+                        Available Soon
+                      </Badge>
+                    )}
+                    {(unit.amenities || []).slice(0, 3).map((a) => (
+                      <Badge key={a} variant="secondary" className="text-[10px]">{a}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          {visibleCount < filtered.length && (
+            <div className="flex justify-center pt-4">
+              <Button variant="outline" onClick={() => setVisibleCount(prev => prev + 20)}>
+                Load More ({filtered.length - visibleCount} remaining)
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Detail & Viewing Request Modal */}
