@@ -2,18 +2,16 @@ import { useState } from "react";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Globe, Briefcase, UserPlus, Building, Lock } from "lucide-react";
+import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Briefcase, UserPlus, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { regions } from "@/data/dummyData";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { sendNotification } from "@/lib/notificationService";
 import FormField from "@/components/FormField";
-import { formatPhone, formatGhanaCard, isValidPhone, isValidGhanaCard } from "@/lib/formatters";
+import { formatPhone, isValidPhone } from "@/lib/formatters";
 
-const steps = ["Account", "Identity", "Contact", "Your ID"];
+const steps = ["Account", "Contact", "Your ID"];
 
 const RegisterTenant = () => {
   const navigate = useNavigate();
@@ -24,10 +22,6 @@ const RegisterTenant = () => {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [isCitizen, setIsCitizen] = useState(true);
-  const [ghanaCardNo, setGhanaCardNo] = useState("");
-  const [residencePermitNo, setResidencePermitNo] = useState("");
-  const [region, setRegion] = useState("");
   const [occupation, setOccupation] = useState("");
   const [workAddress, setWorkAddress] = useState("");
   const [emergencyName, setEmergencyName] = useState("");
@@ -66,15 +60,14 @@ const RegisterTenant = () => {
   const canProceed = () => {
     switch (step) {
       case 0: return fullName.length > 2 && isValidPhone(phone);
-      case 1: return (isCitizen ? isValidGhanaCard(ghanaCardNo) : true) && region;
-      case 2: return true; // contact step is all optional
+      case 1: return true; // contact step is all optional
       default: return true;
     }
   };
 
   const handleNext = async () => {
-    if (step < 2) { setStep(step + 1); return; }
-    if (step === 2) { await handleCreateAccount(); return; }
+    if (step < 1) { setStep(step + 1); return; }
+    if (step === 1) { await handleCreateAccount(); return; }
   };
 
   const handleCreateAccount = async () => {
@@ -91,24 +84,6 @@ const RegisterTenant = () => {
           toast.error("This email is already in use by another account. Please use a different email or log in.");
           setLoading(false);
           return;
-        }
-      }
-
-      // Pre-check: Ghana Card uniqueness for tenant role
-      if (isCitizen && ghanaCardNo) {
-        const { data: cardMatches } = await supabase.from("profiles").select("user_id, ghana_card_no").eq("ghana_card_no", ghanaCardNo);
-        if (cardMatches && cardMatches.length > 0) {
-          // Check if any match is already a tenant
-          for (const match of cardMatches) {
-            const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", match.user_id);
-            if (roles?.some(r => r.role === "tenant")) {
-              toast.error("This Ghana Card is already registered as a Tenant. Please log in or recover your account.", {
-                action: { label: "Go to Login", onClick: () => navigate("/login?role=tenant") },
-              });
-              setLoading(false);
-              return;
-            }
-          }
         }
       }
 
@@ -140,10 +115,6 @@ const RegisterTenant = () => {
 
       const { error: profileError } = await supabase.from("profiles").update({
         email: email || null,
-        nationality: isCitizen ? "Ghanaian" : "Non-Ghanaian",
-        is_citizen: isCitizen,
-        ghana_card_no: isCitizen ? ghanaCardNo : null,
-        residence_permit_no: !isCitizen ? residencePermitNo : null,
         occupation, work_address: workAddress,
         emergency_contact_name: emergencyName,
         emergency_contact_phone: emergencyPhone.replace(/\s/g, ""),
@@ -162,7 +133,7 @@ const RegisterTenant = () => {
         user_id: userId,
         tenant_id: tenantId,
         registration_fee_paid: !regFeeEnabled,
-        ...(! regFeeEnabled ? {
+        ...(!regFeeEnabled ? {
           registration_date: now.toISOString(),
           expiry_date: expiryDate.toISOString(),
         } : {}),
@@ -188,7 +159,7 @@ const RegisterTenant = () => {
         },
       });
 
-      setStep(3);
+      setStep(2);
     } catch (err: any) {
       toast.error(err.message || "Registration failed");
     } finally {
@@ -196,7 +167,7 @@ const RegisterTenant = () => {
     }
   };
 
-  const progressPercent = Math.round((Math.min(step, 3) / 3) * 100);
+  const progressPercent = Math.round((Math.min(step, 2) / 2) * 100);
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -241,7 +212,7 @@ const RegisterTenant = () => {
         {/* Progress bar */}
         <div className="mb-2 max-w-lg">
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
-            <span>Step {Math.min(step + 1, 3)} of 3</span>
+            <span>Step {Math.min(step + 1, 2)} of 2</span>
             <span>{progressPercent}% complete</span>
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -256,7 +227,7 @@ const RegisterTenant = () => {
 
         {/* Step labels */}
         <div className="flex items-center gap-1 mb-6 max-w-lg overflow-x-auto">
-          {steps.slice(0, 3).map((s, i) => (
+          {steps.slice(0, 2).map((s, i) => (
             <div key={s} className="flex items-center gap-1">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-all ${
                 i < step ? "bg-primary text-primary-foreground" :
@@ -266,7 +237,7 @@ const RegisterTenant = () => {
                 {i < step ? <CheckCircle2 className="h-3 w-3" /> : i + 1}
               </div>
               <span className={`text-xs whitespace-nowrap ${i === step ? "text-foreground font-medium" : "text-muted-foreground"}`}>{s}</span>
-              {i < 2 && <div className={`h-px w-4 ${i < step ? "bg-primary" : "bg-border"}`} />}
+              {i < 1 && <div className={`h-px w-4 ${i < step ? "bg-primary" : "bg-border"}`} />}
             </div>
           ))}
         </div>
@@ -305,57 +276,8 @@ const RegisterTenant = () => {
                 </div>
               )}
 
-              {/* Step 1: Identity */}
+              {/* Step 1: Contact & Work */}
               {step === 1 && (
-                <div className="space-y-5">
-                  <div>
-                    <h1 className="text-2xl font-bold text-foreground">Identity Verification</h1>
-                    <p className="text-muted-foreground mt-1">Your citizenship and ID details</p>
-                  </div>
-                  <div className="space-y-4">
-                    <FormField label="Citizenship Status">
-                      <div className="flex gap-3">
-                        <button type="button" onClick={() => { setIsCitizen(true); setResidencePermitNo(""); }}
-                          className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors ${
-                            isCitizen ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                          }`}>
-                          <IdCard className="h-4 w-4" /> Ghanaian
-                        </button>
-                        <button type="button" onClick={() => { setIsCitizen(false); setGhanaCardNo(""); }}
-                          className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors ${
-                            !isCitizen ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                          }`}>
-                          <Globe className="h-4 w-4" /> Non-Citizen
-                        </button>
-                      </div>
-                    </FormField>
-                    {isCitizen ? (
-                      <FormField label="Ghana Card Number" valid={isValidGhanaCard(ghanaCardNo)} hint="Format: GHA-XXXXXXXXX-X">
-                        <div className="relative">
-                          <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input value={ghanaCardNo} onChange={(e) => setGhanaCardNo(formatGhanaCard(e.target.value))} placeholder="GHA-123456789-0" className="pl-10" maxLength={15} />
-                        </div>
-                      </FormField>
-                    ) : (
-                      <FormField label="Residence Permit Number (Optional)" optional>
-                        <div className="relative">
-                          <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input value={residencePermitNo} onChange={(e) => setResidencePermitNo(e.target.value)} placeholder="RP-XXXXXXXXX" className="pl-10" />
-                        </div>
-                      </FormField>
-                    )}
-                    <FormField label="Region of Residence" valid={!!region}>
-                      <Select value={region} onValueChange={setRegion}>
-                        <SelectTrigger><SelectValue placeholder="Select your region" /></SelectTrigger>
-                        <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </FormField>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 2: Contact & Work */}
-              {step === 2 && (
                 <div className="space-y-5">
                   <div>
                     <h1 className="text-2xl font-bold text-foreground">Contact Details</h1>
@@ -393,8 +315,8 @@ const RegisterTenant = () => {
                 </div>
               )}
 
-              {/* Step 3: Success */}
-              {step === 3 && (
+              {/* Step 2: Success */}
+              {step === 2 && (
                 <div className="space-y-6 text-center py-8">
                   <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", duration: 0.5 }}
                     className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
@@ -437,6 +359,7 @@ const RegisterTenant = () => {
                       {!regFeeEnabled && (
                         <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Your account is active — proceed to login</li>
                       )}
+                      <li className="flex items-start gap-2"><CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />Complete your Ghana Card verification after logging in</li>
                     </ul>
                   </div>
                 </div>
@@ -445,9 +368,9 @@ const RegisterTenant = () => {
           </AnimatePresence>
 
           <div className="mt-8">
-            {step < 3 ? (
+            {step < 2 ? (
               <Button onClick={handleNext} disabled={!canProceed() || loading} className="w-full h-12 text-base font-semibold">
-                {loading ? "Creating account..." : step === 2 ? "Create Account" : "Continue"} <ArrowRight className="ml-2 h-4 w-4" />
+                {loading ? "Creating account..." : step === 1 ? "Create Account" : "Continue"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
               <Button onClick={handlePayRegistration} disabled={payingRegistration} className="w-full h-12 text-base font-semibold bg-success hover:bg-success/90">
