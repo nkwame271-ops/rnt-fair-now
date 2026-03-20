@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          admin_user_id: string
+          created_at: string | null
+          id: string
+          new_state: Json | null
+          old_state: Json | null
+          reason: string
+          target_id: string
+          target_type: string
+        }
+        Insert: {
+          action: string
+          admin_user_id: string
+          created_at?: string | null
+          id?: string
+          new_state?: Json | null
+          old_state?: Json | null
+          reason: string
+          target_id: string
+          target_type: string
+        }
+        Update: {
+          action?: string
+          admin_user_id?: string
+          created_at?: string | null
+          id?: string
+          new_state?: Json | null
+          old_state?: Json | null
+          reason?: string
+          target_id?: string
+          target_type?: string
+        }
+        Relationships: []
+      }
       admin_staff: {
         Row: {
           admin_type: string
@@ -564,6 +600,7 @@ export type Database = {
       }
       landlords: {
         Row: {
+          account_status: string
           compliance_score: number
           created_at: string
           expiry_date: string | null
@@ -576,6 +613,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_status?: string
           compliance_score?: number
           created_at?: string
           expiry_date?: string | null
@@ -588,6 +626,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_status?: string
           compliance_score?: number
           created_at?: string
           expiry_date?: string | null
@@ -1098,6 +1137,9 @@ export type Database = {
           created_at: string
           id: string
           office_name: string
+          revoke_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
           serial_number: string
           status: string
         }
@@ -1109,6 +1151,9 @@ export type Database = {
           created_at?: string
           id?: string
           office_name: string
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
           serial_number: string
           status?: string
         }
@@ -1120,6 +1165,9 @@ export type Database = {
           created_at?: string
           id?: string
           office_name?: string
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
           serial_number?: string
           status?: string
         }
@@ -1137,6 +1185,7 @@ export type Database = {
         Row: {
           activated_at: string | null
           advance_paid: number | null
+          card_role: string | null
           created_at: string
           current_rent: number | null
           escrow_transaction_id: string | null
@@ -1160,6 +1209,7 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           advance_paid?: number | null
+          card_role?: string | null
           created_at?: string
           current_rent?: number | null
           escrow_transaction_id?: string | null
@@ -1183,6 +1233,7 @@ export type Database = {
         Update: {
           activated_at?: string | null
           advance_paid?: number | null
+          card_role?: string | null
           created_at?: string
           current_rent?: number | null
           escrow_transaction_id?: string | null
@@ -1498,6 +1549,7 @@ export type Database = {
           renewal_requested_at: string | null
           renewal_requested_by: string | null
           rent_card_id: string | null
+          rent_card_id_2: string | null
           start_date: string
           status: string
           tenancy_type: string
@@ -1532,6 +1584,7 @@ export type Database = {
           renewal_requested_at?: string | null
           renewal_requested_by?: string | null
           rent_card_id?: string | null
+          rent_card_id_2?: string | null
           start_date: string
           status?: string
           tenancy_type?: string
@@ -1566,6 +1619,7 @@ export type Database = {
           renewal_requested_at?: string | null
           renewal_requested_by?: string | null
           rent_card_id?: string | null
+          rent_card_id_2?: string | null
           start_date?: string
           status?: string
           tenancy_type?: string
@@ -1578,6 +1632,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tenancies_rent_card_id_2_fkey"
+            columns: ["rent_card_id_2"]
+            isOneToOne: false
+            referencedRelation: "rent_cards"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tenancies_rent_card_id_fkey"
             columns: ["rent_card_id"]
@@ -1635,6 +1696,7 @@ export type Database = {
       }
       tenants: {
         Row: {
+          account_status: string
           created_at: string
           expiry_date: string | null
           id: string
@@ -1645,6 +1707,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_status?: string
           created_at?: string
           expiry_date?: string | null
           id?: string
@@ -1655,6 +1718,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_status?: string
           created_at?: string
           expiry_date?: string | null
           id?: string
