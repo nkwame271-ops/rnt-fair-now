@@ -11,6 +11,7 @@ interface LandlordFull {
   landlord_id: string;
   user_id: string;
   status: string;
+  account_status: string;
   registration_date: string | null;
   expiry_date: string | null;
   registration_fee_paid: boolean;
@@ -59,7 +60,7 @@ const RegulatorLandlords = () => {
     const fetchData = async () => {
       const { data: landlordData } = await supabase
         .from("landlords")
-        .select("landlord_id, user_id, status, registration_date, expiry_date, registration_fee_paid")
+        .select("landlord_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid")
         .order("created_at", { ascending: false });
 
       if (!landlordData || landlordData.length === 0) { setLoading(false); return; }
@@ -136,11 +137,11 @@ const RegulatorLandlords = () => {
   });
 
   const exportCSV = () => {
-    const headers = ["Landlord ID", "Name", "Phone", "Email", "Nationality", "Properties", "Active Tenants", "Status", "Registered", "Expires"];
+    const headers = ["Landlord ID", "Name", "Phone", "Email", "Nationality", "Properties", "Active Tenants", "Status", "Account Status", "Registered", "Expires"];
     const rows = filtered.map((l) => [
       l.landlord_id, l.profile?.full_name || "", l.profile?.phone || "", l.profile?.email || "", l.profile?.nationality || "",
       l.properties?.length || 0, l.tenancies?.filter(t => t.status === "active").length || 0,
-      l.status, l.registration_date ? new Date(l.registration_date).toLocaleDateString() : "",
+      l.status, l.account_status, l.registration_date ? new Date(l.registration_date).toLocaleDateString() : "",
       l.expiry_date ? new Date(l.expiry_date).toLocaleDateString() : "",
     ]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
@@ -187,8 +188,11 @@ const RegulatorLandlords = () => {
                   <div className="text-muted-foreground">{l.profile?.phone || "—"}</div>
                   <div className="text-muted-foreground">{l.properties?.length || 0} properties • {totalUnits} units</div>
                   <div className="text-muted-foreground">{activeTenancies.length} active tenants</div>
-                  <div>
+                  <div className="flex flex-wrap gap-1">
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${l.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{l.status}</span>
+                    {l.account_status !== "active" && (
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-destructive/10 text-destructive">{l.account_status}</span>
+                    )}
                   </div>
                 </div>
                 {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}

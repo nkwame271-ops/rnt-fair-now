@@ -12,6 +12,7 @@ interface TenantFull {
   tenant_id: string;
   user_id: string;
   status: string;
+  account_status: string;
   registration_date: string | null;
   expiry_date: string | null;
   registration_fee_paid: boolean;
@@ -65,7 +66,7 @@ const RegulatorTenants = () => {
     const fetchData = async () => {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("tenant_id, user_id, status, registration_date, expiry_date, registration_fee_paid")
+        .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid")
         .order("created_at", { ascending: false });
 
       if (!tenantData || tenantData.length === 0) { setLoading(false); return; }
@@ -136,7 +137,9 @@ const RegulatorTenants = () => {
   }, []);
 
   const filtered = tenants.filter((t) => {
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
+    if (statusFilter === "deactivated" && t.account_status !== "deactivated") return false;
+    else if (statusFilter === "archived" && t.account_status !== "archived") return false;
+    else if (statusFilter !== "all" && statusFilter !== "deactivated" && statusFilter !== "archived" && t.status !== statusFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -148,12 +151,12 @@ const RegulatorTenants = () => {
   });
 
   const exportCSV = () => {
-    const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Status", "Active Tenancies", "Complaints", "Registered", "Expires"];
+    const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Status", "Account Status", "Active Tenancies", "Complaints", "Registered", "Expires"];
     const rows = filtered.map((t) => [
       t.tenant_id, t.profile?.full_name || "", t.profile?.phone || "", t.profile?.email || "",
       t.profile?.nationality || "", t.profile?.is_citizen ? "Yes" : "No",
       t.profile?.is_citizen ? t.profile?.ghana_card_no || "" : t.profile?.residence_permit_no || "",
-      t.profile?.occupation || "", t.status,
+      t.profile?.occupation || "", t.status, t.account_status,
       t.tenancies?.filter(tc => tc.status === "active").length || 0,
       t.complaints?.length || 0,
       t.registration_date ? new Date(t.registration_date).toLocaleDateString() : "",
@@ -188,6 +191,8 @@ const RegulatorTenants = () => {
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="expired">Expired</SelectItem>
+            <SelectItem value="deactivated">Deactivated</SelectItem>
+            <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -212,9 +217,12 @@ const RegulatorTenants = () => {
                   <div className="text-muted-foreground">{t.profile?.phone || "—"}</div>
                   <div className="text-muted-foreground">{t.profile?.is_citizen ? "🇬🇭 Citizen" : "Permit"}</div>
                   <div className="text-muted-foreground">{t.profile?.occupation || "—"}</div>
-                  <div>
+                  <div className="flex flex-wrap gap-1">
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${t.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{t.status}</span>
-                    {activeTenancies.length > 0 && <span className="ml-2 text-xs text-primary font-medium">{activeTenancies.length} active</span>}
+                    {t.account_status !== "active" && (
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-destructive/10 text-destructive">{t.account_status}</span>
+                    )}
+                    {activeTenancies.length > 0 && <span className="ml-1 text-xs text-primary font-medium">{activeTenancies.length} active</span>}
                   </div>
                   <div className="text-muted-foreground text-xs">{t.expiry_date ? new Date(t.expiry_date).toLocaleDateString() : "—"}</div>
                 </div>
