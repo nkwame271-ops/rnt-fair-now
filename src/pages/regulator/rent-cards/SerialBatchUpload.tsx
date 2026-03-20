@@ -74,18 +74,28 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
 
     setUploading(true);
     try {
-      // Check which serials already exist in batches of 100
+      // 1. Delete ALL revoked rows matching incoming serials FIRST
+      for (let i = 0; i < serials.length; i += 100) {
+        const batch = serials.slice(i, i + 100);
+        await supabase
+          .from("rent_card_serial_stock")
+          .delete()
+          .in("serial_number", batch)
+          .eq("status", "revoked");
+      }
+
+      // 2. Check which serials still exist (available/assigned)
       const existingSet = new Set<string>();
       for (let i = 0; i < serials.length; i += 100) {
         const batch = serials.slice(i, i + 100);
         const { data } = await supabase
           .from("rent_card_serial_stock")
           .select("serial_number")
-          .in("serial_number", batch)
-          .in("status", ["available", "assigned"]);
+          .in("serial_number", batch);
         if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
       }
 
+      // 3. Filter to new serials and insert
       const newSerials = serials.filter(s => !existingSet.has(s));
       const skippedCount = serials.length - newSerials.length;
 
@@ -93,16 +103,6 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
         toast.warning(`All ${serials.length} serial(s) already exist in stock. Nothing uploaded.`);
         setUploading(false);
         return;
-      }
-
-      // Delete any revoked rows for these serials so we can re-insert them fresh
-      for (let i = 0; i < newSerials.length; i += 100) {
-        const batch = newSerials.slice(i, i + 100);
-        await supabase
-          .from("rent_card_serial_stock")
-          .delete()
-          .in("serial_number", batch)
-          .eq("status", "revoked");
       }
 
       const rows = newSerials.map(s => ({
