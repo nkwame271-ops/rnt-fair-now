@@ -362,16 +362,17 @@ Deno.serve(async (req) => {
       const userId = reference.split("_")[1];
       const { data: escrowTx } = await supabase.from("escrow_transactions").select("metadata, id").eq("reference", reference).single();
       const qty = (escrowTx?.metadata as any)?.quantity || 1;
+      const cardCount = qty * 2; // Each purchase = 2 cards (Landlord Copy + Tenant Copy)
       const escrowId = escrowTx?.id || null;
       const rentCards = [];
-      for (let i = 0; i < qty; i++) {
+      for (let i = 0; i < cardCount; i++) {
         rentCards.push({ landlord_user_id: userId, status: "valid", escrow_transaction_id: escrowId });
       }
       await supabase.from("rent_cards").insert(rentCards);
       const splits = SPLIT_RULES.rent_card.splits.map(s => ({ ...s, amount: s.amount * qty }));
       const receiptNo = await completeEscrow(reference, userId, "rent_card", amountPaid, splits);
-      await sendPaymentNotifications(userId, amountPaid, `Rent Card purchase (${qty} cards)`, receiptNo);
-      await sendNotification(userId, "rent_card", amountPaid, { quantity: qty });
+      await sendPaymentNotifications(userId, amountPaid, `Rent Card purchase (${qty} pair${qty > 1 ? "s" : ""}, ${cardCount} cards)`, receiptNo);
+      await sendNotification(userId, "rent_card", amountPaid, { quantity: cardCount });
 
     } else if (reference.startsWith("agrsale_")) {
       const userId = data.metadata?.userId || "";
