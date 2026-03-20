@@ -287,6 +287,12 @@ const RegisterTenant = () => {
                         <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="kwame@example.com" className="pl-10" type="email" />
                       </div>
                     </FormField>
+                    <FormField label="Region of Stay" valid={!!region}>
+                      <Select value={region} onValueChange={setRegion}>
+                        <SelectTrigger><SelectValue placeholder="Select your region" /></SelectTrigger>
+                        <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </FormField>
                   </div>
                 </div>
               )}

@@ -95,6 +95,16 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
         return;
       }
 
+      // Delete any revoked rows for these serials so we can re-insert them fresh
+      for (let i = 0; i < newSerials.length; i += 100) {
+        const batch = newSerials.slice(i, i + 100);
+        await supabase
+          .from("rent_card_serial_stock")
+          .delete()
+          .in("serial_number", batch)
+          .eq("status", "revoked");
+      }
+
       const rows = newSerials.map(s => ({
         serial_number: s,
         office_name: targetOffice.name,
