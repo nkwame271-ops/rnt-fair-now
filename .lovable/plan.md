@@ -1,33 +1,23 @@
 
 
-# Manual Serial-to-Card Assignment in Pending Purchases
+# Updated Rent Card Logic (Implemented)
 
-## What Changes
+## Core Principle
 
-Currently, clicking "Assign" on a pending purchase auto-picks the next available serials from office stock sequentially. The admin has no control over which specific serial goes to which card.
+Each physical rent card is treated as an individual record. Pairing of two cards happens only at tenancy creation.
 
-**New flow**: After clicking "Assign", instead of immediately assigning, show a mapping UI where the admin can pick a specific serial number for each pending rent card. Each card row shows the card ID and a searchable dropdown of available serials from the office. The admin confirms once all cards are mapped.
+## What Changed
 
-## File Changed
+### 1. Purchase creates 2 cards per unit purchased
+- `verify-payment/index.ts`: `qty * 2` cards created per purchase
+- `paystack-webhook/index.ts`: Same `qty * 2` logic for fallback card creation
+- `ManageRentCards.tsx`: UI shows "pairs" instead of individual cards, pricing per pair
 
-| File | Change |
-|---|---|
-| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Replace auto-assign with a manual serial picker UI |
+### 2. Assignment UI — bulk selection with checkboxes
+- `PendingPurchases.tsx`: Individual card rows with checkboxes, "Select All" toggle, bulk assign opens mapping dialog for selected cards only
+- Auto-fill sequential shortcut preserved
 
-## Technical Details
-
-### PendingPurchases.tsx
-
-1. **New state**: `mappingPurchase` (the purchase being mapped), `serialMap` (Record of cardId → selected serial), `availableSerials` (fetched list of available serials for the office).
-
-2. **When admin clicks "Assign"**: Instead of running the assignment loop, fetch all available serials for the office and set `mappingPurchase` to that purchase. Show a modal/inline panel.
-
-3. **Mapping UI**: For each `card_id` in the purchase, render a row with:
-   - Card ID (truncated)
-   - A searchable input/select to pick a serial number from `availableSerials`
-   - The selected serial is removed from the available list for other rows (no duplicates)
-
-4. **"Confirm Assignment" button**: Runs the existing atomic claim logic but uses the admin-selected serial for each card instead of sequential auto-pick. Falls back gracefully if a selected serial was claimed by another admin (toast error for that specific card).
-
-5. **Quick-fill option**: Keep a "Auto-fill sequential" button that pre-fills all cards with the next N available serials (preserving current behavior as a shortcut).
-
+### 3. Status flow
+- `awaiting_serial` → Awaiting Serial (Stage 1: after purchase)
+- `valid` → Available (Stage 2: serial assigned)
+- `active` → Used (Stage 3: linked to tenancy)
