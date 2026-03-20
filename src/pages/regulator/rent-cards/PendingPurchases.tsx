@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Search, CreditCard, Loader2, CheckCircle, Wand2, CheckSquare, Square } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Search, CreditCard, Loader2, CheckCircle, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,13 +17,93 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+/* ─── Searchable serial picker ─── */
+const SerialSearchPicker = ({
+  options,
+  value,
+  onChange,
+}: {
+  options: SerialOption[];
+  value: string;
+  onChange: (val: string) => void;
+}) => {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!query) return options.slice(0, 100);
+    const q = query.toUpperCase();
+    return options.filter(s => s.serial_number.toUpperCase().includes(q)).slice(0, 100);
+  }, [options, query]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      {value && !open ? (
+        <button
+          type="button"
+          onClick={() => { setOpen(true); setQuery(""); }}
+          className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-left font-mono text-xs ring-offset-background hover:bg-accent/50 transition-colors"
+        >
+          <span className="flex-1 truncate">{value}</span>
+          <span className="text-muted-foreground text-[10px] ml-2">Change</span>
+        </button>
+      ) : (
+        <Input
+          ref={inputRef}
+          placeholder="Type to search serial…"
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          className="font-mono text-xs"
+          autoComplete="off"
+        />
+      )}
+      {open && (
+        <div className="absolute z-50 mt-1 w-full max-h-[200px] overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-3">No serials found</p>
+          ) : (
+            filtered.map(s => (
+              <button
+                key={s.serial_number}
+                type="button"
+                className={`w-full text-left px-3 py-2 text-xs font-mono hover:bg-accent transition-colors ${
+                  s.serial_number === value ? "bg-accent text-accent-foreground" : "text-popover-foreground"
+                }`}
+                onClick={() => {
+                  onChange(s.serial_number);
+                  setOpen(false);
+                  setQuery("");
+                }}
+              >
+                {s.serial_number}
+              </button>
+            ))
+          )}
+          {options.length > 100 && filtered.length >= 100 && (
+            <p className="text-[10px] text-muted-foreground text-center py-1">
+              Showing first 100 — type to narrow results
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface PendingCard {
   id: string;
@@ -156,16 +236,25 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     setSerialMap({});
 
     try {
-      const { data, error } = await supabase
-        .from("rent_card_serial_stock" as any)
-        .select("id, serial_number")
-        .eq("office_name", office)
-        .eq("status", "available")
-        .order("serial_number", { ascending: true })
-        .limit(500);
+      let allSerials: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("rent_card_serial_stock" as any)
+          .select("id, serial_number")
+          .eq("office_name", office)
+          .eq("status", "available")
+          .order("serial_number", { ascending: true })
+          .range(from, from + PAGE - 1);
 
-      if (error) throw error;
-      setAvailableSerials((data as any[] || []).map((s: any) => ({ id: s.id, serial_number: s.serial_number })));
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allSerials = allSerials.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      setAvailableSerials(allSerials.map((s: any) => ({ id: s.id, serial_number: s.serial_number })));
     } catch (err: any) {
       toast.error(err.message || "Failed to load serials");
       setMappingCards([]);
@@ -453,7 +542,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                   );
                   return (
                     <div key={card.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
-                      <div className="min-w-0 flex-shrink-0">
+                    <div className="min-w-0 flex-shrink-0">
                         <span className="text-xs font-medium text-muted-foreground">Card {idx + 1}</span>
                         <p className="font-mono text-xs text-card-foreground truncate max-w-[140px]" title={card.id}>
                           {card.id.slice(0, 8)}…
@@ -461,21 +550,11 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                         <p className="text-[10px] text-muted-foreground">{card.purchase_id}</p>
                       </div>
                       <div className="flex-1">
-                        <Select
+                        <SerialSearchPicker
+                          options={options}
                           value={currentVal}
-                          onValueChange={val => setSerialMap(prev => ({ ...prev, [card.id]: val }))}
-                        >
-                          <SelectTrigger className="font-mono text-xs">
-                            <SelectValue placeholder="Select serial number…" />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-[200px]">
-                            {options.map(s => (
-                              <SelectItem key={s.serial_number} value={s.serial_number} className="font-mono text-xs">
-                                {s.serial_number}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          onChange={val => setSerialMap(prev => ({ ...prev, [card.id]: val }))}
+                        />
                       </div>
                     </div>
                   );
