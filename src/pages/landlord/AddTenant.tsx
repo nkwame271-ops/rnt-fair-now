@@ -232,7 +232,7 @@ const AddTenant = () => {
   };
 
   const handleSubmit = async () => {
-    if (!user || !foundTenant || !property || !unit || !selectedRentCardId) return;
+    if (!user || !foundTenant || !property || !unit || !selectedRentCardId || !selectedRentCardId2) return;
     setSubmitting(true);
     try {
       const months = parseInt(advanceMonths);
