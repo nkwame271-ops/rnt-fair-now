@@ -16,6 +16,7 @@ import {
   TrendingUp,
   ClipboardList,
   Gavel,
+  Send,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -44,6 +45,7 @@ const allNavItems = [
   { to: "/regulator/invite-staff", label: "Invite Staff", icon: UserPlus },
   { to: "/regulator/feedback", label: "Beta Feedback", icon: MessageSquare },
   { to: "/regulator/support-chats", label: "Support Chats", icon: MessageSquare },
+  { to: "/regulator/sms-broadcast", label: "SMS Broadcast", icon: Send },
   { to: "/regulator/api-keys", label: "Agency APIs", icon: Shield },
 ];
 

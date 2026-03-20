@@ -157,6 +157,7 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   invite_staff: ["/regulator/invite-staff"],
   feedback: ["/regulator/feedback"],
   support_chats: ["/regulator/support-chats"],
+  sms_broadcast: ["/regulator/sms-broadcast"],
   api_keys: ["/regulator/api-keys"],
 };
 
