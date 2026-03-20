@@ -49,11 +49,20 @@ const DeclareExistingTenancy = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const { data } = await supabase
-        .from("properties")
-        .select("id, property_name, address, region, ghana_post_gps, units(id, unit_name, unit_type, monthly_rent, status)")
-        .eq("landlord_user_id", user.id);
-      setProperties((data || []) as PropertyWithUnits[]);
+      const [{ data: propData }, { data: cardData }] = await Promise.all([
+        supabase
+          .from("properties")
+          .select("id, property_name, address, region, ghana_post_gps, units(id, unit_name, unit_type, monthly_rent, status)")
+          .eq("landlord_user_id", user.id),
+        supabase
+          .from("rent_cards")
+          .select("id, serial_number")
+          .eq("landlord_user_id", user.id)
+          .in("status", ["valid", "awaiting_serial"])
+          .is("tenancy_id", null),
+      ]);
+      setProperties((propData || []) as PropertyWithUnits[]);
+      setAvailableRentCards((cardData || []).filter((c: any) => c.serial_number) as { id: string; serial_number: string }[]);
       setLoading(false);
     };
     fetchData();
