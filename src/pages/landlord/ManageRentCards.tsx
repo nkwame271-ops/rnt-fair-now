@@ -31,6 +31,7 @@ interface RentCard {
   last_payment_status: string | null;
   qr_token: string | null;
   purchase_id: string | null;
+  card_role: string | null;
 }
 
 interface EnrichedRentCard extends RentCard {
