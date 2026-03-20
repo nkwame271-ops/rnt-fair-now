@@ -1,118 +1,73 @@
 
 
-# Plan: Rent Card Range Logic + Admin Safe Controls + Audit Trail
+# Audit: Gaps Found in Rent Card Range Logic + Admin Controls Implementation
 
-## Overview
-This is a significant update touching serial assignment flow, landlord inventory concept, tenancy card selection (2 cards per tenancy), admin destructive action controls, and audit logging. No changes to the core rent card purchase or payment framework.
+After reviewing all affected files end-to-end, several changes were made at the UI level only and are not enforced or integrated across the full system. Here are the gaps and the plan to fix them.
 
-## Part 1: Database Changes (Migration)
+---
 
-### New table: `admin_audit_log`
-Tracks all admin destructive/corrective actions.
-```sql
-CREATE TABLE public.admin_audit_log (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  admin_user_id uuid NOT NULL,
-  action text NOT NULL, -- 'revoke_batch', 'unassign_serial', 'void_upload', 'deactivate_account', 'archive_account', 'correction'
-  target_type text NOT NULL, -- 'serial_stock', 'rent_card', 'landlord', 'tenant'
-  target_id text NOT NULL,
-  reason text NOT NULL,
-  old_state jsonb DEFAULT '{}',
-  new_state jsonb DEFAULT '{}',
-  created_at timestamptz DEFAULT now()
-);
-```
-RLS: Regulators SELECT only, service_role ALL.
+## Gap 1: `account_status` Not Enforced at Login/Access Level
 
-### Alter `rent_card_serial_stock`
-- Add column `revoked_at timestamptz`
-- Add column `revoked_by uuid`
-- Add column `revoke_reason text`
-- Update status enum to support `'revoked'`
+**Problem:** The `account_status` column (`deactivated`, `archived`) exists on `landlords` and `tenants` tables, and the admin-action edge function can set it. But **nothing in the app checks it**. A deactivated user can still log in, access their dashboard, and perform all actions normally.
 
-### Alter `rent_cards` — support 2 cards per tenancy
-Currently `tenancies.rent_card_id` is a single UUID. The spec says each tenancy needs **2 cards** (landlord copy + tenant copy).
-- Add `card_role text` column to `rent_cards` (values: `'landlord_copy'`, `'tenant_copy'`, null for legacy)
-- Add `tenancies.rent_card_id_2 uuid` for the second card reference
+**Fix:** Update `ProtectedRoute.tsx` to fetch `account_status` from the tenant/landlord record. If status is `deactivated` or `archived`, show a blocked screen ("Your account has been deactivated. Contact Rent Control.") instead of rendering the dashboard.
 
-### Alter `landlords` and `tenants`
-- Add `account_status text DEFAULT 'active'` to both tables (values: `'active'`, `'deactivated'`, `'archived'`)
+---
 
-## Part 2: Regulator UI — Admin Controls (Main Admin Only)
+## Gap 2: AdminActions UI Missing "Void Upload" and "Account Deactivate/Archive"
 
-### Update `RegulatorRentCards.tsx`
-Add a new tab: **"Admin Actions"** (Main Admin only)
-Contains 4 sections:
-1. **Revoke Serial Batch** — search by batch label or office, select unused serials, revoke with reason + password confirmation
-2. **Unassign Serial** — search by serial number, unassign if not linked to tenancy, with reason + password
-3. **Void Upload** — find a batch by label, void all unused serials in that batch
-4. **Audit Log** — read-only view of all `admin_audit_log` entries
+**Problem:** The plan called for 4 sections in AdminActions: Revoke Batch, Unassign Serial, Void Upload, and Account Deactivate/Archive. The current implementation only has Revoke Batch, Unassign Serial, and Audit Log. The edge function supports `void_upload`, `deactivate_account`, and `archive_account` actions, but there is no UI to trigger them.
 
-### Create `src/pages/regulator/rent-cards/AdminActions.tsx`
-New component with the above 4 sections. Each destructive action:
-- Checks `profile.isMainAdmin` before rendering
-- Shows a confirmation dialog requiring the admin's password (re-authenticate via Supabase `signInWithPassword`)
-- Requires a text reason field
-- Calls the backend, logs to `admin_audit_log`
+**Fix:** Add two more sections to `AdminActions.tsx`:
+1. **Void Upload** — search by batch label, void all unused serials (calls `void_upload` action)
+2. **Account Management** — search by landlord/tenant ID, deactivate or archive (calls `deactivate_account`/`archive_account`)
 
-### Create `src/components/AdminPasswordConfirm.tsx`
-Reusable dialog component: takes `onConfirm(password, reason)`, validates password via Supabase auth, then executes the action.
+Both gated behind `AdminPasswordConfirm`.
 
-## Part 3: Assignment Flow Update — Range-based
+---
 
-### Update `PendingPurchases.tsx`
-Currently assigns serials 1:1 to individual `rent_cards` rows. Update to:
-- Show how many **pairs** are needed (pending_count / 2 or pending_count depending on whether cards are already pairs)
-- Assign consecutive serials from office stock as a range block
-- Display the assigned range (e.g., "RC-001 to RC-010") instead of individual badges
+## Gap 3: `verify-tenancy` Edge Function Doesn't Return Second Rent Card
 
-### Update `OfficeSerialStock.tsx`
-- Add a "Ranges" view showing contiguous serial blocks per office
-- Show which ranges are fully available vs partially assigned
+**Problem:** The function only selects `rent_card_id` from tenancies and returns one `rent_card_serial`. It doesn't fetch `rent_card_id_2`, so the verification page shows incomplete data for the new 2-card model.
 
-## Part 4: Tenancy Registration — 2 Cards Per Tenancy
+**Fix:** Update `verify-tenancy/index.ts` to also select `rent_card_id_2`, fetch both card serials, and return `rent_card_serial_landlord` and `rent_card_serial_tenant` (with `card_role`).
 
-### Update `AddTenant.tsx`
-Currently selects 1 rent card. Change to:
-- Auto-select 2 unused (`valid` status) rent cards from landlord's inventory
-- Label them as "Landlord Copy" and "Tenant Copy"
-- Both get activated and linked to the same tenancy
-- Update the `rent_cards` rows with `card_role` field
+---
 
-### Update tenancy insert logic
-- Set both `rent_card_id` and `rent_card_id_2` on the tenancy
-- Activate both cards with the same tenancy details but different `card_role`
+## Gap 4: `DeclareExistingTenancy` Not Updated for 2-Card Model
 
-## Part 5: Landlord Dashboard — Serial Inventory View
+**Problem:** The existing tenancy declaration flow still works with the old single-card model. It doesn't select 2 rent cards or set `card_role` or `rent_card_id_2`.
 
-### Update `ManageRentCards.tsx`
-- Add an "Assigned Serials" section showing the landlord's serial range inventory
-- Group cards by assignment batch showing range notation (e.g., "RC-20260319-0001 to RC-20260319-0010")
-- Show which serials are unused vs active vs used
+**Fix:** Update `DeclareExistingTenancy.tsx` to match `AddTenant.tsx` — require 2 available rent cards, label them landlord/tenant copy, set `card_role` on both, and link `rent_card_id_2` to the tenancy.
 
-## Part 6: Edge Function for Admin Actions
+---
 
-### Create `supabase/functions/admin-action/index.ts`
-Handles destructive actions server-side with service_role:
-- Accepts `{ action, target_id, reason, password }` 
-- Re-authenticates admin via password
-- Validates the action is safe (e.g., serial not in active tenancy)
-- Executes the action (revoke, unassign, void, deactivate, archive)
-- Logs to `admin_audit_log`
-- Returns success/failure
+## Gap 5: `TenancyCard` Component Only Shows One Card Serial
 
-## Summary of Files
+**Problem:** The `TenancyCard` component has a single `rentCardSerial` prop. With the 2-card model, it should show both the landlord copy and tenant copy serials.
 
-| File | Action |
+**Fix:** Add `rentCardSerial2` and `cardRole` to the `TenancyCardData` interface. Display both serials with their role labels on the tenancy card and PDF.
+
+---
+
+## Gap 6: Tenant Dashboard / `MyAgreements` Doesn't Show Card Role
+
+**Problem:** When a tenant views their tenancy, they don't see which card is their copy vs the landlord's. The data is stored but not surfaced.
+
+**Fix:** In tenant agreement views, fetch both `rent_card_id` and `rent_card_id_2` with their `card_role` and display the tenant's copy serial prominently.
+
+---
+
+## Files to Modify
+
+| File | Change |
 |---|---|
-| Migration SQL | New `admin_audit_log` table, alter `rent_card_serial_stock`, `rent_cards`, `tenancies`, `landlords`, `tenants` |
-| `supabase/functions/admin-action/index.ts` | **Create** — server-side admin action handler |
-| `supabase/config.toml` | Add `admin-action` function |
-| `src/components/AdminPasswordConfirm.tsx` | **Create** — reusable password+reason confirmation dialog |
-| `src/pages/regulator/rent-cards/AdminActions.tsx` | **Create** — Main Admin destructive controls UI |
-| `src/pages/regulator/RegulatorRentCards.tsx` | Add "Admin Actions" tab (Main Admin only) |
-| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Update to assign range blocks, show range notation |
-| `src/pages/regulator/rent-cards/OfficeSerialStock.tsx` | Add range view for serial blocks |
-| `src/pages/landlord/ManageRentCards.tsx` | Add serial inventory view, group by range |
-| `src/pages/landlord/AddTenant.tsx` | Select 2 cards per tenancy (landlord copy + tenant copy) |
+| `src/components/ProtectedRoute.tsx` | Check `account_status`, block deactivated/archived users |
+| `src/pages/regulator/rent-cards/AdminActions.tsx` | Add Void Upload + Account Deactivate/Archive sections |
+| `supabase/functions/verify-tenancy/index.ts` | Fetch and return both rent card serials |
+| `src/pages/landlord/DeclareExistingTenancy.tsx` | Require 2 cards, set `card_role`, link `rent_card_id_2` |
+| `src/components/TenancyCard.tsx` | Show both card serials with role labels |
+| `src/lib/generateTenancyCardPdf.ts` | Include both serials in PDF |
+| `src/pages/tenant/MyAgreements.tsx` | Surface card role info for tenant |
+| `src/pages/shared/VerifyTenancy.tsx` | Display both card serials from updated API |
 
