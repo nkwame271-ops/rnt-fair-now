@@ -271,7 +271,23 @@ Deno.serve(async (req) => {
       const { quantity: qty } = body;
       const cardQty = Math.min(Math.max(parseInt(qty) || 1, 1), 50);
       const fee = await getDynamicFee(supabaseAdmin, "rent_card_fee");
-      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Rent card fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (!fee.enabled) {
+        const cardCount = cardQty * 2;
+        const { data: purchaseIdData } = await supabaseAdmin.rpc("generate_purchase_id");
+        const purchaseId = purchaseIdData || `PUR-${Date.now()}`;
+        const rentCards = [];
+        for (let i = 0; i < cardCount; i++) {
+          rentCards.push({
+            landlord_user_id: userId,
+            status: "awaiting_serial",
+            purchase_id: purchaseId,
+            purchased_at: new Date().toISOString(),
+            qr_token: crypto.randomUUID(),
+          });
+        }
+        await supabaseAdmin.from("rent_cards").insert(rentCards);
+        return new Response(JSON.stringify({ skipped: true, message: `Rent card fee is currently waived. ${cardCount} cards created!` }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
       totalAmount = fee.total * cardQty;
       splitPlan = fee.splits.map(s => ({ ...s, amount: s.amount * cardQty }));
       description = `Rent Card Purchase (${cardQty} cards × GH₵ ${fee.total})`;
