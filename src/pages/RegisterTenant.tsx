@@ -62,7 +62,7 @@ const RegisterTenant = () => {
 
   const canProceed = () => {
     switch (step) {
-      case 0: return fullName.length > 2 && isValidPhone(phone);
+      case 0: return fullName.length > 2 && isValidPhone(phone) && !!region;
       case 1: return true; // contact step is all optional
       default: return true;
     }
