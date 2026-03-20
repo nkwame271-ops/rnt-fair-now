@@ -158,6 +158,7 @@ const SmsBroadcast = () => {
               )}
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">SMS Credits</p>
+                <p className="text-[10px] text-muted-foreground">1 credit ≈ 1 SMS segment (160 chars)</p>
                 <p className={`text-3xl font-bold ${getBalanceColor()}`}>
                   {balanceLoading ? "..." : balance !== null ? balance.toLocaleString() : "N/A"}
                 </p>
@@ -287,7 +288,7 @@ const SmsBroadcast = () => {
             </Button>
 
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Messages are sent via Arkesel with sender ID "RentGhana". Each SMS segment is up to 160 characters.
+              Messages are sent by Center for Financial Literacy, E-Commerce and Digitalization via unique API. Sender ID: "RentGhana". Each SMS segment is up to 160 characters.
             </p>
           </CardContent>
         </Card>
