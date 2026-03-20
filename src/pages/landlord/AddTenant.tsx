@@ -117,7 +117,7 @@ const AddTenant = () => {
     // Save form data to sessionStorage before redirect
     sessionStorage.setItem("addTenantFormData", JSON.stringify({
       selectedPropertyId, selectedUnitId, foundTenant, rent, advanceMonths,
-      leaseDurationMonths, startDate, customFieldValues, selectedRentCardId,
+      leaseDurationMonths, startDate, customFieldValues, selectedRentCardId, selectedRentCardId2,
     }));
     try {
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
