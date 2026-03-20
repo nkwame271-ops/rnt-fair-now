@@ -156,16 +156,25 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     setSerialMap({});
 
     try {
-      const { data, error } = await supabase
-        .from("rent_card_serial_stock" as any)
-        .select("id, serial_number")
-        .eq("office_name", office)
-        .eq("status", "available")
-        .order("serial_number", { ascending: true })
-        .limit(500);
+      let allSerials: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("rent_card_serial_stock" as any)
+          .select("id, serial_number")
+          .eq("office_name", office)
+          .eq("status", "available")
+          .order("serial_number", { ascending: true })
+          .range(from, from + PAGE - 1);
 
-      if (error) throw error;
-      setAvailableSerials((data as any[] || []).map((s: any) => ({ id: s.id, serial_number: s.serial_number })));
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allSerials = allSerials.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      setAvailableSerials(allSerials.map((s: any) => ({ id: s.id, serial_number: s.serial_number })));
     } catch (err: any) {
       toast.error(err.message || "Failed to load serials");
       setMappingCards([]);
