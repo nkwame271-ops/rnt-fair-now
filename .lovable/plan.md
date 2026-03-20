@@ -1,32 +1,56 @@
 
 
-# Fix: SMS Credits Display, Branding, and Revoked Serial Re-upload
+# Fix: Serial Re-upload, Tenant Region, and Archived Account Re-registration
 
-## Three Issues
+## Four Issues
 
-### 1. SMS Credits incorrect
-The Arkesel balance API returns raw units (e.g. `999999880`). The UI displays this number directly. Arkesel V1 balance is typically in "credits" where 1 credit = 1 SMS page. The number `999,999,880` looks like it may be in a sub-unit. We need to display it properly — dividing if needed, or at minimum formatting it correctly. Since the API returns `balance: 999999880`, and the account name is visible, this appears to be the actual credit count. The display is correct but confusing. We should add context (e.g. "1 credit ≈ 1 SMS segment").
+### 1. Serial re-upload fails with unique constraint violation
+**Root cause**: The `rent_card_serial_stock` table has a UNIQUE constraint on `serial_number` (`rent_card_serial_stock_serial_number_key`). The previous fix correctly filters the frontend check to skip revoked serials, but when inserting, the old revoked row still exists in the DB — causing a unique constraint violation.
 
-### 2. Branding text
-Line 290: Change "Messages are sent via Arkesel with sender ID 'RentGhana'" to reference "Center for Financial Literacy, E-Commerce and Digitalization".
+**Fix**: Before inserting new serials, DELETE the revoked rows that match the incoming serial numbers. This clears the way for the fresh insert. The flow becomes:
+1. Check for `available`/`assigned` duplicates (skip those)
+2. Delete any `revoked` rows matching the remaining serials
+3. Insert the new rows
 
-### 3. Revoked serials should be re-uploadable
-In `SerialBatchUpload.tsx`, the duplicate check (lines 81-85) queries ALL serials in `rent_card_serial_stock` regardless of status. Revoked serials should not block re-upload. Fix: only check for serials with `status` in `('available', 'assigned')` — exclude `revoked` ones.
+### 2. PendingPurchases assign error
+The "duplicate key" error on assignment likely happens when a serial that was previously revoked still exists in the table. The assignment flow uses UPDATE on existing `available` rows — it shouldn't hit a unique constraint. This is likely the same root cause as issue 1 (stale revoked rows from a previous failed re-upload attempt). Fixing issue 1 resolves this.
+
+### 3. Tenant registration: Region of Stay required
+The tenant registration form currently has no region/location field. The landlord form has a `region` field and validates it. The tenant form should also require a "Region of Stay" field on Step 0 (Account), stored in `profiles.delivery_region`.
+
+### 4. Archived accounts should allow re-registration
+Currently both `deactivated` and `archived` statuses block registration. Per the user's request: `deactivated` = permanently blocked, `archived` = number freed for re-use. Fix both `RegisterTenant.tsx` and `RegisterLandlord.tsx` to only block on `deactivated`, not `archived`.
 
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `src/pages/regulator/SmsBroadcast.tsx` | Update branding text (line 290), add context to credits display |
-| `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` | Filter duplicate check to exclude revoked serials (lines 81-85) |
+| `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` | Delete revoked rows before inserting new ones |
+| `src/pages/RegisterTenant.tsx` | Add required Region of Stay field; remove `archived` from registration block |
+| `src/pages/RegisterLandlord.tsx` | Remove `archived` from registration block |
 
 ## Technical Details
 
-### SmsBroadcast.tsx
-- Line 160: Add subtitle "1 credit = 1 SMS segment (160 chars)"
-- Line 290: Replace with "Messages are sent by Center for Financial Literacy, E-Commerce and Digitalization via unique API. Sender ID: 'RentGhana'. Each SMS segment is up to 160 characters."
-
 ### SerialBatchUpload.tsx
-- Lines 81-85: Add `.in("status", ["available", "assigned"])` to the existing serial check query so revoked serials are excluded from the "already exists" filter
-- This allows previously revoked serials to be re-uploaded as fresh stock
+After filtering out `available`/`assigned` duplicates and before the insert, add a step to delete revoked rows matching `newSerials`:
+```typescript
+// Delete revoked rows so we can re-insert them fresh
+const revokedToDelete = serials.filter(s => !existingSet.has(s));
+for (let i = 0; i < revokedToDelete.length; i += 100) {
+  const batch = revokedToDelete.slice(i, i + 100);
+  await supabase.from("rent_card_serial_stock")
+    .delete()
+    .in("serial_number", batch)
+    .eq("status", "revoked");
+}
+```
+
+### RegisterTenant.tsx
+- Add `region` state and a Region of Stay `<Select>` dropdown on Step 0 using the existing `regions` import
+- Make it required in `canProceed`: `fullName.length > 2 && isValidPhone(phone) && !!region`
+- Save to `profiles.delivery_region` during account creation
+- Change deactivation check from `=== "deactivated" || === "archived"` to only `=== "deactivated"`
+
+### RegisterLandlord.tsx
+- Change deactivation check from `=== "deactivated" || === "archived"` to only `=== "deactivated"`
 
