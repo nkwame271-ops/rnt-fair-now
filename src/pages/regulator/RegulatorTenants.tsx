@@ -66,7 +66,7 @@ const RegulatorTenants = () => {
     const fetchData = async () => {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("tenant_id, user_id, status, registration_date, expiry_date, registration_fee_paid")
+        .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid")
         .order("created_at", { ascending: false });
 
       if (!tenantData || tenantData.length === 0) { setLoading(false); return; }
