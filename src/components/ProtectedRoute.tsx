@@ -24,6 +24,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [checkingFee, setCheckingFee] = useState(true);
   const [feePaid, setFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
+  const [accountStatus, setAccountStatus] = useState<string>("active");
   const [verifying, setVerifying] = useState(false);
 
   const [hasRegistrationDate, setHasRegistrationDate] = useState(false);
