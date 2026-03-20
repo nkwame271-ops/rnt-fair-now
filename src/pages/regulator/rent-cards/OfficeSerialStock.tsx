@@ -10,6 +10,17 @@ interface StockSummary {
   total: number;
   available: number;
   assigned: number;
+  revoked: number;
+}
+
+interface SerialRange {
+  batch_label: string;
+  first_serial: string;
+  last_serial: string;
+  count: number;
+  available: number;
+  assigned: number;
+  revoked: number;
 }
 
 interface Props {
