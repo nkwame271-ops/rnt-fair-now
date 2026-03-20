@@ -158,6 +158,7 @@ const SmsBroadcast = () => {
               )}
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">SMS Credits</p>
+                <p className="text-[10px] text-muted-foreground">1 credit ≈ 1 SMS segment (160 chars)</p>
                 <p className={`text-3xl font-bold ${getBalanceColor()}`}>
                   {balanceLoading ? "..." : balance !== null ? balance.toLocaleString() : "N/A"}
                 </p>
