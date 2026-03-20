@@ -105,7 +105,7 @@ const AddTenant = () => {
 
   // Auto-submit after restoring form data from fee payment return
   useEffect(() => {
-    if (autoSubmitPending && foundTenant && selectedUnitId && selectedRentCardId && !loading) {
+    if (autoSubmitPending && foundTenant && selectedUnitId && selectedRentCardId && selectedRentCardId2 && !loading) {
       setAutoSubmitPending(false);
       // Small delay to let state settle
       setTimeout(() => handleSubmit(), 500);
