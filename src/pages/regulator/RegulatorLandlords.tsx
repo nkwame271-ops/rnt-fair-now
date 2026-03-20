@@ -188,8 +188,11 @@ const RegulatorLandlords = () => {
                   <div className="text-muted-foreground">{l.profile?.phone || "—"}</div>
                   <div className="text-muted-foreground">{l.properties?.length || 0} properties • {totalUnits} units</div>
                   <div className="text-muted-foreground">{activeTenancies.length} active tenants</div>
-                  <div>
+                  <div className="flex flex-wrap gap-1">
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${l.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{l.status}</span>
+                    {l.account_status !== "active" && (
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-destructive/10 text-destructive">{l.account_status}</span>
+                    )}
                   </div>
                 </div>
                 {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}

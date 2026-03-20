@@ -72,6 +72,17 @@ const RegisterLandlord = () => {
       const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
       const tempPassword = phoneDigits;
 
+      // Pre-check: deactivated account
+      const { data: existingProfile } = await supabase.from("profiles").select("user_id").eq("phone", phoneDigits).maybeSingle();
+      if (existingProfile) {
+        const { data: landlordRecord } = await supabase.from("landlords").select("account_status").eq("user_id", existingProfile.user_id).maybeSingle();
+        if (landlordRecord && (landlordRecord.account_status === "deactivated" || landlordRecord.account_status === "archived")) {
+          toast.error("This phone number is linked to a deactivated account. Please contact Rent Control for assistance.");
+          setLoading(false);
+          return;
+        }
+      }
+
       // Pre-check: email uniqueness
       if (email && email.trim()) {
         const { data: emailMatch } = await supabase.from("profiles").select("id").eq("email", email.trim()).maybeSingle();
