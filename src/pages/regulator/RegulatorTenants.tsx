@@ -12,6 +12,7 @@ interface TenantFull {
   tenant_id: string;
   user_id: string;
   status: string;
+  account_status: string;
   registration_date: string | null;
   expiry_date: string | null;
   registration_fee_paid: boolean;
