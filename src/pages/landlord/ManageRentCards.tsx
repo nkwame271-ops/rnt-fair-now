@@ -43,7 +43,7 @@ interface EnrichedRentCard extends RentCard {
   unit_name?: string;
 }
 
-const PRICE_PER_CARD = 25;
+const PRICE_PER_PAIR = 25;
 const PUBLISHED_URL = "https://www.rentcontrolghana.com";
 
 const statusBadge = (status: string) => {
@@ -242,19 +242,20 @@ const ManageRentCards = () => {
             <ShoppingCart className="h-5 w-5 text-primary" /> Purchase Rent Cards
           </h2>
           <p className="text-sm text-muted-foreground">
-            Each rent card costs <strong>GH₵ {PRICE_PER_CARD}</strong>. After purchase, collect physical cards from your Rent Control office.
+            Each purchase includes <strong>2 rent cards</strong> (Landlord Copy + Tenant Copy) at <strong>GH₵ {PRICE_PER_PAIR}</strong> per pair. After purchase, collect physical cards from your Rent Control office.
           </p>
           <div className="flex items-end gap-4 flex-wrap">
             <div className="space-y-2">
-              <Label>Quantity</Label>
+              <Label>Number of Pairs</Label>
               <Input type="number" min="1" max="50" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-24" />
             </div>
             <div className="text-sm text-muted-foreground pb-2">
-              Total: <strong className="text-foreground">GH₵ {(parseInt(quantity) * PRICE_PER_CARD || 0).toLocaleString()}</strong>
+              <span>{parseInt(quantity) * 2 || 0} cards</span> •{" "}
+              Total: <strong className="text-foreground">GH₵ {(parseInt(quantity) * PRICE_PER_PAIR || 0).toLocaleString()}</strong>
             </div>
             <Button onClick={handlePurchase} disabled={purchasing || !parseInt(quantity) || parseInt(quantity) < 1}>
               <CreditCard className="h-4 w-4 mr-1" />
-              {purchasing ? "Processing..." : "Buy Rent Cards"}
+              {purchasing ? "Processing..." : `Buy ${parseInt(quantity) || 0} Pair${parseInt(quantity) !== 1 ? "s" : ""}`}
             </Button>
           </div>
         </div>

@@ -144,7 +144,9 @@ Deno.serve(async (req) => {
       }
     } else if (paymentType === "rent_card_bulk" || paymentType === "rent_card") {
       // Create rent cards with awaiting_serial status (no serial number yet)
+      // Each purchase = 2 physical cards (Landlord Copy + Tenant Copy)
       const qty = meta?.quantity || 1;
+      const cardCount = qty * 2;
       const { data: existingCards } = await supabaseAdmin
         .from("rent_cards")
         .select("id")
@@ -156,7 +158,7 @@ Deno.serve(async (req) => {
         const purchaseId = purchaseIdData || `PUR-${Date.now()}`;
         
         const rentCards = [];
-        for (let i = 0; i < qty; i++) {
+        for (let i = 0; i < cardCount; i++) {
           rentCards.push({
             landlord_user_id: userId,
             status: "awaiting_serial",
