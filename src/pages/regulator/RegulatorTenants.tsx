@@ -137,7 +137,9 @@ const RegulatorTenants = () => {
   }, []);
 
   const filtered = tenants.filter((t) => {
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
+    if (statusFilter === "deactivated" && t.account_status !== "deactivated") return false;
+    else if (statusFilter === "archived" && t.account_status !== "archived") return false;
+    else if (statusFilter !== "all" && statusFilter !== "deactivated" && statusFilter !== "archived" && t.status !== statusFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return (
