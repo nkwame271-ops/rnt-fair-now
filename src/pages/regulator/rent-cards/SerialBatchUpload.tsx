@@ -74,7 +74,27 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
 
     setUploading(true);
     try {
-      const rows = serials.map(s => ({
+      // Check which serials already exist in batches of 100
+      const existingSet = new Set<string>();
+      for (let i = 0; i < serials.length; i += 100) {
+        const batch = serials.slice(i, i + 100);
+        const { data } = await supabase
+          .from("rent_card_serial_stock")
+          .select("serial_number")
+          .in("serial_number", batch);
+        if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
+      }
+
+      const newSerials = serials.filter(s => !existingSet.has(s));
+      const skippedCount = serials.length - newSerials.length;
+
+      if (newSerials.length === 0) {
+        toast.warning(`All ${serials.length} serial(s) already exist in stock. Nothing uploaded.`);
+        setUploading(false);
+        return;
+      }
+
+      const rows = newSerials.map(s => ({
         serial_number: s,
         office_name: targetOffice.name,
         status: "available",
@@ -84,7 +104,10 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
       const { error } = await supabase.from("rent_card_serial_stock" as any).insert(rows);
       if (error) throw error;
 
-      toast.success(`${serials.length} serial(s) added to ${targetOffice.name}`);
+      const msg = skippedCount > 0
+        ? `${newSerials.length} new serial(s) added to ${targetOffice.name}. ${skippedCount} duplicate(s) skipped.`
+        : `${newSerials.length} serial(s) added to ${targetOffice.name}`;
+      toast.success(msg);
       setSerialInput("");
       setBatchLabel("");
       setPreview(null);
