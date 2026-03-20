@@ -41,21 +41,48 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
     }
   }, [profile]);
 
+  const [ranges, setRanges] = useState<SerialRange[]>([]);
+
   useEffect(() => {
-    if (!officeName) { setStock(null); return; }
+    if (!officeName) { setStock(null); setRanges([]); return; }
     const fetchStock = async () => {
       setLoading(true);
       const { data } = await supabase
         .from("rent_card_serial_stock" as any)
-        .select("status")
-        .eq("office_name", officeName);
+        .select("serial_number, status, batch_label")
+        .eq("office_name", officeName)
+        .order("serial_number", { ascending: true });
 
       const items = (data || []) as any[];
       setStock({
         total: items.length,
         available: items.filter(i => i.status === "available").length,
         assigned: items.filter(i => i.status === "assigned").length,
+        revoked: items.filter(i => i.status === "revoked").length,
       });
+
+      // Group by batch_label for range view
+      const batchMap = new Map<string, any[]>();
+      for (const item of items) {
+        const key = item.batch_label || "Unbatched";
+        if (!batchMap.has(key)) batchMap.set(key, []);
+        batchMap.get(key)!.push(item);
+      }
+
+      const rangeList: SerialRange[] = [];
+      for (const [batch_label, batchItems] of batchMap) {
+        const sorted = batchItems.sort((a: any, b: any) => a.serial_number.localeCompare(b.serial_number));
+        rangeList.push({
+          batch_label,
+          first_serial: sorted[0].serial_number,
+          last_serial: sorted[sorted.length - 1].serial_number,
+          count: sorted.length,
+          available: sorted.filter((i: any) => i.status === "available").length,
+          assigned: sorted.filter((i: any) => i.status === "assigned").length,
+          revoked: sorted.filter((i: any) => i.status === "revoked").length,
+        });
+      }
+      setRanges(rangeList);
       setLoading(false);
     };
     fetchStock();
