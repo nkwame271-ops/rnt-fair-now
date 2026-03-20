@@ -46,8 +46,9 @@ Deno.serve(async (req) => {
       throw new Error("Missing required fields: action, target_id, reason, password");
     }
 
-    // Re-authenticate admin via password
-    const { error: reAuthError } = await adminClient.auth.signInWithPassword({
+    // Re-authenticate admin via password using a separate client to avoid mutating adminClient session
+    const verifyClient = createClient(supabaseUrl, anonKey);
+    const { error: reAuthError } = await verifyClient.auth.signInWithPassword({
       email: user.email!,
       password,
     });
