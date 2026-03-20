@@ -129,6 +129,7 @@ const RegisterTenant = () => {
 
       const { error: profileError } = await supabase.from("profiles").update({
         email: email || null,
+        delivery_region: region || null,
         occupation, work_address: workAddress,
         emergency_contact_name: emergencyName,
         emergency_contact_phone: emergencyPhone.replace(/\s/g, ""),
