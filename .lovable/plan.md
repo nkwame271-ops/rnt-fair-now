@@ -1,30 +1,27 @@
 
 
-# Fix: Switch to Arkesel V1 API (DNS Workaround) + Send Bulk SMS
+# Fix: Replace `rentghanapilot.lovable.app` with `www.rentcontrolghana.com` Across Codebase
 
 ## Problem
-The edge function runtime cannot resolve `api.arkesel.com` (V2 endpoint). This is a platform-level DNS issue — not a code bug. It affects both `send-sms` and `bulk-welcome-sms`.
+The bulk welcome SMS sent to all 13 users contained `rentghanapilot.lovable.app` instead of the correct domain `www.rentcontrolghana.com`. This same wrong URL appears in 8 files across the project — QR codes, payment callbacks, verification links, PDFs, etc.
 
 ## Fix
-Switch both functions to use the **Arkesel V1 GET-based API** at `sms.arkesel.com/sms/api` which uses a different domain that may resolve correctly. If that also fails, fall back to trying the IP-based approach or a different SMS gateway.
+Find-and-replace `rentghanapilot.lovable.app` → `www.rentcontrolghana.com` in all affected files:
 
-### V1 API format
-```
-GET https://sms.arkesel.com/sms/api?action=send-sms&api_key=KEY&to=233XXXXXXXXX&from=RentGhana&sms=MESSAGE
-```
-
-## Changes
-
-| File | Change |
+| File | What uses the URL |
 |---|---|
-| `supabase/functions/send-sms/index.ts` | Add V1 fallback: try V2 first, if DNS fails, retry with V1 GET endpoint |
-| `supabase/functions/bulk-welcome-sms/index.ts` | Same V1 fallback pattern |
+| `supabase/functions/bulk-welcome-sms/index.ts` | Welcome SMS message text |
+| `supabase/functions/paystack-checkout/index.ts` | Payment callback origin fallback |
+| `supabase/functions/verify-payment/index.ts` | Receipt QR code data |
+| `supabase/functions/auth-email-hook/index.ts` | Sample project URL + SITE_NAME |
+| `src/components/TenancyCard.tsx` | Tenancy verification QR code |
+| `src/pages/landlord/ManageRentCards.tsx` | Published URL constant |
+| `src/lib/generateTenancyCardPdf.ts` | PDF verification link text |
+| `README.md` | Live demo link |
 
-After deploying, I'll send a test SMS to one number. If it works, I'll fire off all 13 one by one and report results.
+## After Deploying
+Once fixed, I'll re-send the corrected welcome SMS to all 13 users with the right domain.
 
-## Execution Order
-1. Update both functions with V1 fallback
-2. Deploy both
-3. Test with one number (Benjamin Boateng — 0247517843)
-4. If successful, loop through remaining 12 numbers
+## Files Changed
+8 files — simple string replacement in each.
 
