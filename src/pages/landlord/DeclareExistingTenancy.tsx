@@ -133,7 +133,7 @@ const DeclareExistingTenancy = () => {
         }
       }
 
-      const { error } = await supabase.from("tenancies").insert({
+      const { error, data: tenancyData } = await supabase.from("tenancies").insert({
         tenant_user_id: foundTenant.userId,
         landlord_user_id: user.id,
         unit_id: unit.id,
@@ -153,9 +153,44 @@ const DeclareExistingTenancy = () => {
         landlord_accepted: true,
         tenant_accepted: false,
         compliance_status: "under_review",
+        rent_card_id: selectedRentCardId || null,
+        rent_card_id_2: selectedRentCardId2 || null,
       } as any).select().single();
 
       if (error) throw error;
+
+      // Activate rent cards if selected
+      if (selectedRentCardId && tenancyData) {
+        const cardActivationData = {
+          status: "active",
+          tenancy_id: tenancyData.id,
+          activated_at: new Date().toISOString(),
+          tenant_user_id: foundTenant.userId,
+          property_id: property.id,
+          unit_id: unit.id,
+          start_date: existingStartDate,
+          expiry_date: expiryDate,
+          current_rent: monthlyRent,
+          max_advance: maxLawfulAdvance,
+          advance_paid: advMonths,
+        };
+
+        const updates = [
+          supabase.from("rent_cards").update({
+            ...cardActivationData,
+            card_role: "landlord_copy",
+          } as any).eq("id", selectedRentCardId),
+        ];
+        if (selectedRentCardId2) {
+          updates.push(
+            supabase.from("rent_cards").update({
+              ...cardActivationData,
+              card_role: "tenant_copy",
+            } as any).eq("id", selectedRentCardId2)
+          );
+        }
+        await Promise.all(updates);
+      }
 
       await supabase.from("units").update({ status: "occupied" }).eq("id", unit.id);
 
