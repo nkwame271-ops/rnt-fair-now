@@ -462,7 +462,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                   );
                   return (
                     <div key={card.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
-                      <div className="min-w-0 flex-shrink-0">
+                    <div className="min-w-0 flex-shrink-0">
                         <span className="text-xs font-medium text-muted-foreground">Card {idx + 1}</span>
                         <p className="font-mono text-xs text-card-foreground truncate max-w-[140px]" title={card.id}>
                           {card.id.slice(0, 8)}…
@@ -470,21 +470,11 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                         <p className="text-[10px] text-muted-foreground">{card.purchase_id}</p>
                       </div>
                       <div className="flex-1">
-                        <Select
+                        <SerialSearchPicker
+                          options={options}
                           value={currentVal}
-                          onValueChange={val => setSerialMap(prev => ({ ...prev, [card.id]: val }))}
-                        >
-                          <SelectTrigger className="font-mono text-xs">
-                            <SelectValue placeholder="Select serial number…" />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-[200px]">
-                            {options.map(s => (
-                              <SelectItem key={s.serial_number} value={s.serial_number} className="font-mono text-xs">
-                                {s.serial_number}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          onChange={val => setSerialMap(prev => ({ ...prev, [card.id]: val }))}
+                        />
                       </div>
                     </div>
                   );
