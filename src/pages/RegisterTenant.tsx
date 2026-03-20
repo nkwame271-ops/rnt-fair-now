@@ -23,6 +23,7 @@ const RegisterTenant = () => {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [region, setRegion] = useState("");
   const [phone, setPhone] = useState("");
   const [occupation, setOccupation] = useState("");
   const [workAddress, setWorkAddress] = useState("");
