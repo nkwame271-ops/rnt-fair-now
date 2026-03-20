@@ -96,6 +96,9 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   };
 
   const handleAssign = async (purchase: PendingPurchase) => {
+    // Prevent double-click
+    if (assigning) return;
+
     const office = profile?.isMainAdmin
       ? GHANA_OFFICES.find(o => o.id === profile?.officeId)?.name || GHANA_OFFICES[0]?.name
       : officeName;
@@ -105,13 +108,14 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     setAssigning(purchase.purchase_id);
     try {
       const qty = purchase.pending_count;
+      // Fetch extra serials in case some get claimed by another admin concurrently
       const { data: availableSerials, error: stockErr } = await supabase
         .from("rent_card_serial_stock" as any)
         .select("id, serial_number")
         .eq("office_name", office)
         .eq("status", "available")
         .order("created_at", { ascending: true })
-        .limit(qty);
+        .limit(qty + 10);
 
       if (stockErr) throw stockErr;
       if (!availableSerials || availableSerials.length < qty) {
@@ -121,48 +125,76 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       }
 
       const assignedList: string[] = [];
+      let serialIdx = 0;
+
       for (let i = 0; i < qty; i++) {
-        const serial = (availableSerials as any)[i];
         const cardId = purchase.card_ids[i];
+        let assigned = false;
 
-        const { error: cardErr } = await supabase
-          .from("rent_cards")
-          .update({ serial_number: serial.serial_number, status: "valid" } as any)
-          .eq("id", cardId);
+        // Try serials until one sticks (handles race conditions)
+        while (serialIdx < (availableSerials as any[]).length && !assigned) {
+          const serial = (availableSerials as any)[serialIdx];
+          serialIdx++;
 
-        if (cardErr) throw cardErr;
+          // Atomically claim the serial — only update if still available
+          const { data: updated, error: stockErr2 } = await supabase
+            .from("rent_card_serial_stock" as any)
+            .update({
+              status: "assigned",
+              assigned_to_card_id: cardId,
+              assigned_at: new Date().toISOString(),
+              assigned_by: user?.id,
+            })
+            .eq("id", serial.id)
+            .eq("status", "available")
+            .select("id");
 
-        const { error: stockErr2 } = await supabase
-          .from("rent_card_serial_stock" as any)
-          .update({
-            status: "assigned",
-            assigned_to_card_id: cardId,
-            assigned_at: new Date().toISOString(),
-            assigned_by: user?.id,
-          })
-          .eq("id", serial.id);
+          if (stockErr2) throw stockErr2;
+          if (!updated || updated.length === 0) continue; // serial was claimed, try next
 
-        if (stockErr2) throw stockErr2;
+          const { error: cardErr } = await supabase
+            .from("rent_cards")
+            .update({ serial_number: serial.serial_number, status: "valid" } as any)
+            .eq("id", cardId);
 
-        assignedList.push(serial.serial_number);
+          if (cardErr) throw cardErr;
+
+          assignedList.push(serial.serial_number);
+          assigned = true;
+        }
+
+        if (!assigned) {
+          toast.error(`Ran out of available serials after assigning ${assignedList.length}/${qty}`);
+          break;
+        }
       }
 
-      // Audit trail
-      const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
-      await supabase.from("serial_assignments" as any).insert({
-        purchase_id: purchase.purchase_id,
-        landlord_user_id: purchase.landlord_user_id,
-        office_name: office,
-        office_id: officeId || null,
-        assigned_by: user?.id,
-        serial_numbers: assignedList,
-        card_count: qty,
-      });
+      if (assignedList.length > 0) {
+        // Audit trail — use upsert-like approach: check if already logged
+        const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
+        const { data: existingAudit } = await supabase
+          .from("serial_assignments" as any)
+          .select("id")
+          .eq("purchase_id", purchase.purchase_id)
+          .limit(1);
 
-      setAssignedSerials(prev => ({ ...prev, [purchase.purchase_id]: assignedList }));
-      setPurchases(prev => prev.filter(p => p.purchase_id !== purchase.purchase_id));
-      onStockChanged();
-      toast.success(`${qty} serial(s) assigned successfully!`);
+        if (!existingAudit || existingAudit.length === 0) {
+          await supabase.from("serial_assignments" as any).insert({
+            purchase_id: purchase.purchase_id,
+            landlord_user_id: purchase.landlord_user_id,
+            office_name: office,
+            office_id: officeId || null,
+            assigned_by: user?.id,
+            serial_numbers: assignedList,
+            card_count: assignedList.length,
+          });
+        }
+
+        setAssignedSerials(prev => ({ ...prev, [purchase.purchase_id]: assignedList }));
+        setPurchases(prev => prev.filter(p => p.purchase_id !== purchase.purchase_id));
+        onStockChanged();
+        toast.success(`${assignedList.length} serial(s) assigned successfully!`);
+      }
     } catch (err: any) {
       toast.error(err.message || "Assignment failed");
     }
