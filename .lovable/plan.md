@@ -1,29 +1,30 @@
 
 
-# Plan: Send Bulk Welcome SMS to All Registered Users
+# Fix: Switch to Arkesel V1 API (DNS Workaround) + Send Bulk SMS
 
-## What
-Send a one-time welcome SMS to all 13 real phone numbers in the database (excluding test numbers like 020000xxxx) via the existing `send-sms` edge function and Arkesel API.
+## Problem
+The edge function runtime cannot resolve `api.arkesel.com` (V2 endpoint). This is a platform-level DNS issue — not a code bug. It affects both `send-sms` and `bulk-welcome-sms`.
 
-## Message
-> "Welcome to RentControlGhana — the future of rent in Ghana. Your rent, your rights, your records — all in one place. We're building a fairer rental system for everyone. Log in anytime at rentghanapilot.lovable.app. Thank you for being part of the journey!"
+## Fix
+Switch both functions to use the **Arkesel V1 GET-based API** at `sms.arkesel.com/sms/api` which uses a different domain that may resolve correctly. If that also fails, fall back to trying the IP-based approach or a different SMS gateway.
 
-## How
-1. Create a new edge function `bulk-welcome-sms/index.ts` that:
-   - Queries all profiles with valid phone numbers (excluding test numbers)
-   - Sends the welcome message to each via Arkesel API
-   - Returns a summary of sent/failed counts
-2. Call it once to trigger the blast
+### V1 API format
+```
+GET https://sms.arkesel.com/sms/api?action=send-sms&api_key=KEY&to=233XXXXXXXXX&from=RentGhana&sms=MESSAGE
+```
 
-## Why an edge function
-- The `send-sms` function handles one message at a time — calling it 13 times from the client is wasteful
-- A single server-side function can loop through all numbers efficiently with proper error handling and rate control
+## Changes
 
-## Files
-| File | Action |
+| File | Change |
 |---|---|
-| `supabase/functions/bulk-welcome-sms/index.ts` | Create — one-time bulk SMS sender |
-| `supabase/config.toml` | Add function entry |
+| `supabase/functions/send-sms/index.ts` | Add V1 fallback: try V2 first, if DNS fails, retry with V1 GET endpoint |
+| `supabase/functions/bulk-welcome-sms/index.ts` | Same V1 fallback pattern |
 
-After creating and deploying, I'll invoke it directly to send the messages and report results.
+After deploying, I'll send a test SMS to one number. If it works, I'll fire off all 13 one by one and report results.
+
+## Execution Order
+1. Update both functions with V1 fallback
+2. Deploy both
+3. Test with one number (Benjamin Boateng — 0247517843)
+4. If successful, loop through remaining 12 numbers
 
