@@ -110,7 +110,7 @@ const AddTenant = () => {
       // Small delay to let state settle
       setTimeout(() => handleSubmit(), 500);
     }
-  }, [autoSubmitPending, foundTenant, selectedUnitId, selectedRentCardId, loading]);
+  }, [autoSubmitPending, foundTenant, selectedUnitId, selectedRentCardId, selectedRentCardId2, loading]);
 
   const handlePayFee = async () => {
     if (!user) return;
