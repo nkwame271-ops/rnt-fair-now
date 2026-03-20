@@ -44,7 +44,7 @@ interface EnrichedRentCard extends RentCard {
 }
 
 const PRICE_PER_CARD = 25;
-const PUBLISHED_URL = "https://rentghanapilot.lovable.app";
+const PUBLISHED_URL = "https://www.rentcontrolghana.com";
 
 const statusBadge = (status: string) => {
   switch (status) {
