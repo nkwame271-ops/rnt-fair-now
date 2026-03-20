@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
 
     const { data: t, error: tErr } = await supabase
       .from("tenancies")
-      .select("registration_code, status, compliance_status, agreed_rent, start_date, end_date, landlord_user_id, tenant_user_id, rent_card_id")
+      .select("registration_code, status, compliance_status, agreed_rent, start_date, end_date, landlord_user_id, tenant_user_id, rent_card_id, rent_card_id_2")
       .eq("id", tenancyId)
       .maybeSingle();
 
@@ -37,11 +37,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    const [{ data: landlordProfile }, { data: tenantProfile }, rentCardResult] = await Promise.all([
+    const [{ data: landlordProfile }, { data: tenantProfile }, rentCard1Result, rentCard2Result] = await Promise.all([
       supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).maybeSingle(),
       supabase.from("profiles").select("full_name").eq("user_id", t.tenant_user_id).maybeSingle(),
       t.rent_card_id
-        ? supabase.from("rent_cards").select("serial_number").eq("id", t.rent_card_id).maybeSingle()
+        ? supabase.from("rent_cards").select("serial_number, card_role").eq("id", t.rent_card_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      t.rent_card_id_2
+        ? supabase.from("rent_cards").select("serial_number, card_role").eq("id", t.rent_card_id_2).maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
 
@@ -54,7 +57,10 @@ Deno.serve(async (req) => {
       end_date: t.end_date,
       landlord_name: landlordProfile?.full_name || "Unknown",
       tenant_name: tenantProfile?.full_name || "Unknown",
-      rent_card_serial: rentCardResult?.data?.serial_number || null,
+      rent_card_serial: rentCard1Result?.data?.serial_number || null,
+      rent_card_role: rentCard1Result?.data?.card_role || null,
+      rent_card_serial_2: rentCard2Result?.data?.serial_number || null,
+      rent_card_role_2: rentCard2Result?.data?.card_role || null,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
