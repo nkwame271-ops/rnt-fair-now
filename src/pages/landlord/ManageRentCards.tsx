@@ -43,7 +43,7 @@ interface EnrichedRentCard extends RentCard {
   unit_name?: string;
 }
 
-const PRICE_PER_CARD = 25;
+const PRICE_PER_PAIR = 25;
 const PUBLISHED_URL = "https://www.rentcontrolghana.com";
 
 const statusBadge = (status: string) => {
