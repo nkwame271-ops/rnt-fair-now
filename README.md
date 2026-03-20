@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://rentghanapilot.lovable.app">Live Demo</a> •
+  <a href="https://www.rentcontrolghana.com">Live Demo</a> •
   <a href="#features">Features</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#getting-started">Getting Started</a>

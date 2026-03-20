@@ -10,7 +10,7 @@ const ARKESEL_V2_URL = "https://api.arkesel.com/api/v2/sms/send";
 const ARKESEL_V1_URL = "https://sms.arkesel.com/sms/api";
 
 const WELCOME_MESSAGE =
-  "Welcome to RentControlGhana — the future of rent in Ghana! Your rent, your rights, your records — all in one place. We're building a fairer rental system for everyone. Log in anytime at rentghanapilot.lovable.app. Thank you for being part of the journey!";
+  "Welcome to RentControlGhana — the future of rent in Ghana! Your rent, your rights, your records — all in one place. We're building a fairer rental system for everyone. Log in anytime at www.rentcontrolghana.com. Thank you for being part of the journey!";
 
 async function sendSms(apiKey: string, phone: string, message: string, sender: string) {
   // Try V2 first

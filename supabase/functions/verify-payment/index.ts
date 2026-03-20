@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
         payment_type: paymentType,
         description: meta?.description || `Payment for ${paymentType.replace(/_/g, " ")}`,
         split_breakdown: splitBreakdown.length > 0 ? splitBreakdown : null,
-        qr_code_data: `https://rentghanapilot.lovable.app/verify/receipt/${reference}`,
+        qr_code_data: `https://www.rentcontrolghana.com/verify/receipt/${reference}`,
         status: "active",
       });
     }
