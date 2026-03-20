@@ -217,9 +217,12 @@ const RegulatorTenants = () => {
                   <div className="text-muted-foreground">{t.profile?.phone || "—"}</div>
                   <div className="text-muted-foreground">{t.profile?.is_citizen ? "🇬🇭 Citizen" : "Permit"}</div>
                   <div className="text-muted-foreground">{t.profile?.occupation || "—"}</div>
-                  <div>
+                  <div className="flex flex-wrap gap-1">
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${t.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{t.status}</span>
-                    {activeTenancies.length > 0 && <span className="ml-2 text-xs text-primary font-medium">{activeTenancies.length} active</span>}
+                    {t.account_status !== "active" && (
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-destructive/10 text-destructive">{t.account_status}</span>
+                    )}
+                    {activeTenancies.length > 0 && <span className="ml-1 text-xs text-primary font-medium">{activeTenancies.length} active</span>}
                   </div>
                   <div className="text-muted-foreground text-xs">{t.expiry_date ? new Date(t.expiry_date).toLocaleDateString() : "—"}</div>
                 </div>
