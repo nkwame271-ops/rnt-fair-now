@@ -151,12 +151,12 @@ const RegulatorTenants = () => {
   });
 
   const exportCSV = () => {
-    const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Status", "Active Tenancies", "Complaints", "Registered", "Expires"];
+    const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Status", "Account Status", "Active Tenancies", "Complaints", "Registered", "Expires"];
     const rows = filtered.map((t) => [
       t.tenant_id, t.profile?.full_name || "", t.profile?.phone || "", t.profile?.email || "",
       t.profile?.nationality || "", t.profile?.is_citizen ? "Yes" : "No",
       t.profile?.is_citizen ? t.profile?.ghana_card_no || "" : t.profile?.residence_permit_no || "",
-      t.profile?.occupation || "", t.status,
+      t.profile?.occupation || "", t.status, t.account_status,
       t.tenancies?.filter(tc => tc.status === "active").length || 0,
       t.complaints?.length || 0,
       t.registration_date ? new Date(t.registration_date).toLocaleDateString() : "",
