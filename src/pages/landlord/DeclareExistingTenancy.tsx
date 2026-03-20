@@ -39,6 +39,9 @@ const DeclareExistingTenancy = () => {
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [createdCode, setCreatedCode] = useState("");
+  const [availableRentCards, setAvailableRentCards] = useState<{ id: string; serial_number: string }[]>([]);
+  const [selectedRentCardId, setSelectedRentCardId] = useState("");
+  const [selectedRentCardId2, setSelectedRentCardId2] = useState("");
 
   const property = properties.find(p => p.id === selectedPropertyId);
   const unit = property?.units.find(u => u.id === selectedUnitId);
