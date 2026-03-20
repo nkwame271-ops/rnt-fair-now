@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Search, CreditCard, Loader2, CheckCircle } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Search, CreditCard, Loader2, CheckCircle, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,21 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { AdminProfile, GHANA_OFFICES } from "@/hooks/useAdminProfile";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface PendingPurchase {
   purchase_id: string;
@@ -17,6 +32,11 @@ export interface PendingPurchase {
   pending_count: number;
   purchased_at: string;
   card_ids: string[];
+}
+
+interface SerialOption {
+  id: string;
+  serial_number: string;
 }
 
 interface Props {
@@ -30,12 +50,28 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   const [searching, setSearching] = useState(false);
   const [purchases, setPurchases] = useState<PendingPurchase[]>([]);
   const [searched, setSearched] = useState(false);
-  const [assigning, setAssigning] = useState<string | null>(null);
+  const [assigning, setAssigning] = useState(false);
   const [assignedSerials, setAssignedSerials] = useState<Record<string, string[]>>({});
 
+  // Mapping state
+  const [mappingPurchase, setMappingPurchase] = useState<PendingPurchase | null>(null);
+  const [serialMap, setSerialMap] = useState<Record<string, string>>({});
+  const [availableSerials, setAvailableSerials] = useState<SerialOption[]>([]);
+  const [loadingSerials, setLoadingSerials] = useState(false);
+  const [serialFilter, setSerialFilter] = useState("");
+
   const officeName = profile?.isMainAdmin
-    ? "" // main admin will need to pick — handled in assign
+    ? ""
     : GHANA_OFFICES.find(o => o.id === profile?.officeId)?.name || "";
+
+  const resolveOffice = () => {
+    return profile?.isMainAdmin
+      ? GHANA_OFFICES.find(o => o.id === profile?.officeId)?.name || GHANA_OFFICES[0]?.name
+      : officeName;
+  };
+
+  // Serials already picked in the current mapping (exclude from other dropdowns)
+  const selectedSerialSet = useMemo(() => new Set(Object.values(serialMap).filter(Boolean)), [serialMap]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -95,93 +131,106 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     setSearching(false);
   };
 
-  const handleAssign = async (purchase: PendingPurchase) => {
-    // Prevent double-click
-    if (assigning) return;
-
-    const office = profile?.isMainAdmin
-      ? GHANA_OFFICES.find(o => o.id === profile?.officeId)?.name || GHANA_OFFICES[0]?.name
-      : officeName;
-
+  const openMappingDialog = async (purchase: PendingPurchase) => {
+    const office = resolveOffice();
     if (!office) { toast.error("No office configured"); return; }
 
-    setAssigning(purchase.purchase_id);
+    setLoadingSerials(true);
+    setMappingPurchase(purchase);
+    setSerialMap({});
+    setSerialFilter("");
+
     try {
-      const qty = purchase.pending_count;
-      // Fetch extra serials in case some get claimed by another admin concurrently
-      const { data: availableSerials, error: stockErr } = await supabase
+      const { data, error } = await supabase
         .from("rent_card_serial_stock" as any)
         .select("id, serial_number")
         .eq("office_name", office)
         .eq("status", "available")
-        .order("created_at", { ascending: true })
-        .limit(qty + 10);
+        .order("serial_number", { ascending: true })
+        .limit(500);
 
-      if (stockErr) throw stockErr;
-      if (!availableSerials || availableSerials.length < qty) {
-        toast.error(`Not enough serials. Available: ${availableSerials?.length || 0}, needed: ${qty}`);
-        setAssigning(null);
-        return;
+      if (error) throw error;
+      setAvailableSerials((data as any[] || []).map((s: any) => ({ id: s.id, serial_number: s.serial_number })));
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load serials");
+      setMappingPurchase(null);
+    }
+    setLoadingSerials(false);
+  };
+
+  const handleAutoFill = () => {
+    if (!mappingPurchase) return;
+    const newMap: Record<string, string> = {};
+    const used = new Set<string>();
+    for (const cardId of mappingPurchase.card_ids) {
+      const next = availableSerials.find(s => !used.has(s.serial_number));
+      if (next) {
+        newMap[cardId] = next.serial_number;
+        used.add(next.serial_number);
       }
+    }
+    setSerialMap(newMap);
+  };
 
+  const allMapped = mappingPurchase
+    ? mappingPurchase.card_ids.every(id => serialMap[id])
+    : false;
+
+  const handleConfirmAssign = async () => {
+    if (!mappingPurchase || !allMapped) return;
+    setAssigning(true);
+
+    const office = resolveOffice();
+    if (!office) { toast.error("No office configured"); setAssigning(false); return; }
+
+    try {
       const assignedList: string[] = [];
-      let serialIdx = 0;
 
-      for (let i = 0; i < qty; i++) {
-        const cardId = purchase.card_ids[i];
-        let assigned = false;
+      for (const cardId of mappingPurchase.card_ids) {
+        const chosenSerial = serialMap[cardId];
+        const serialRecord = availableSerials.find(s => s.serial_number === chosenSerial);
+        if (!serialRecord) { toast.error(`Serial ${chosenSerial} not found`); continue; }
 
-        // Try serials until one sticks (handles race conditions)
-        while (serialIdx < (availableSerials as any[]).length && !assigned) {
-          const serial = (availableSerials as any)[serialIdx];
-          serialIdx++;
+        // Atomically claim the serial
+        const { data: updated, error: stockErr } = await supabase
+          .from("rent_card_serial_stock" as any)
+          .update({
+            status: "assigned",
+            assigned_to_card_id: cardId,
+            assigned_at: new Date().toISOString(),
+            assigned_by: user?.id,
+          })
+          .eq("id", serialRecord.id)
+          .eq("status", "available")
+          .select("id");
 
-          // Atomically claim the serial — only update if still available
-          const { data: updated, error: stockErr2 } = await supabase
-            .from("rent_card_serial_stock" as any)
-            .update({
-              status: "assigned",
-              assigned_to_card_id: cardId,
-              assigned_at: new Date().toISOString(),
-              assigned_by: user?.id,
-            })
-            .eq("id", serial.id)
-            .eq("status", "available")
-            .select("id");
-
-          if (stockErr2) throw stockErr2;
-          if (!updated || updated.length === 0) continue; // serial was claimed, try next
-
-          const { error: cardErr } = await supabase
-            .from("rent_cards")
-            .update({ serial_number: serial.serial_number, status: "valid" } as any)
-            .eq("id", cardId);
-
-          if (cardErr) throw cardErr;
-
-          assignedList.push(serial.serial_number);
-          assigned = true;
+        if (stockErr) throw stockErr;
+        if (!updated || updated.length === 0) {
+          toast.error(`Serial ${chosenSerial} was claimed by another admin`);
+          continue;
         }
 
-        if (!assigned) {
-          toast.error(`Ran out of available serials after assigning ${assignedList.length}/${qty}`);
-          break;
-        }
+        const { error: cardErr } = await supabase
+          .from("rent_cards")
+          .update({ serial_number: chosenSerial, status: "valid" } as any)
+          .eq("id", cardId);
+
+        if (cardErr) throw cardErr;
+        assignedList.push(chosenSerial);
       }
 
       if (assignedList.length > 0) {
-        // Audit trail — use upsert-like approach: check if already logged
         const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
         const { data: existingAudit } = await supabase
           .from("serial_assignments" as any)
           .select("id")
-          .eq("purchase_id", purchase.purchase_id)
+          .eq("purchase_id", mappingPurchase.purchase_id)
           .limit(1);
 
         if (!existingAudit || existingAudit.length === 0) {
           await supabase.from("serial_assignments" as any).insert({
-            purchase_id: purchase.purchase_id,
-            landlord_user_id: purchase.landlord_user_id,
+            purchase_id: mappingPurchase.purchase_id,
+            landlord_user_id: mappingPurchase.landlord_user_id,
             office_name: office,
             office_id: officeId || null,
             assigned_by: user?.id,
@@ -190,15 +239,17 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           });
         }
 
-        setAssignedSerials(prev => ({ ...prev, [purchase.purchase_id]: assignedList }));
-        setPurchases(prev => prev.filter(p => p.purchase_id !== purchase.purchase_id));
+        setAssignedSerials(prev => ({ ...prev, [mappingPurchase.purchase_id]: assignedList }));
+        setPurchases(prev => prev.filter(p => p.purchase_id !== mappingPurchase.purchase_id));
         onStockChanged();
         toast.success(`${assignedList.length} serial(s) assigned successfully!`);
       }
+
+      setMappingPurchase(null);
     } catch (err: any) {
       toast.error(err.message || "Assignment failed");
     }
-    setAssigning(null);
+    setAssigning(false);
   };
 
   return (
@@ -241,16 +292,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                 {p.pending_count} card{p.pending_count > 1 ? "s" : ""} pending
               </Badge>
             </div>
-            <Button
-              onClick={() => handleAssign(p)}
-              disabled={assigning === p.purchase_id}
-              className="w-full sm:w-auto"
-            >
-              {assigning === p.purchase_id ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Assigning...</>
-              ) : (
-                <><CheckCircle className="h-4 w-4 mr-1" /> Assign {p.pending_count} Serial{p.pending_count > 1 ? "s" : ""}</>
-              )}
+            <Button onClick={() => openMappingDialog(p)} className="w-full sm:w-auto">
+              <CreditCard className="h-4 w-4 mr-1" /> Assign Serials
             </Button>
           </div>
         ))}
@@ -276,6 +319,86 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           );
         })}
       </div>
+
+      {/* Serial Mapping Dialog */}
+      <Dialog open={!!mappingPurchase} onOpenChange={open => { if (!open && !assigning) setMappingPurchase(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Assign Serials — {mappingPurchase?.purchase_id}</DialogTitle>
+            <DialogDescription>
+              Pick a specific serial number for each rent card. {mappingPurchase?.landlord_name} ({mappingPurchase?.landlord_id_code})
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingSerials ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="ml-2 text-sm text-muted-foreground">Loading available serials…</span>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {availableSerials.length} serial(s) available in office stock
+                </p>
+                <Button variant="outline" size="sm" onClick={handleAutoFill}>
+                  <Wand2 className="h-3 w-3 mr-1" /> Auto-fill sequential
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {mappingPurchase?.card_ids.map((cardId, idx) => {
+                  const currentVal = serialMap[cardId] || "";
+                  // Available options: not selected by other cards, or the one selected for this card
+                  const options = availableSerials.filter(
+                    s => !selectedSerialSet.has(s.serial_number) || s.serial_number === currentVal
+                  );
+                  return (
+                    <div key={cardId} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
+                      <div className="min-w-0 flex-shrink-0">
+                        <span className="text-xs font-medium text-muted-foreground">Card {idx + 1}</span>
+                        <p className="font-mono text-xs text-card-foreground truncate max-w-[140px]" title={cardId}>
+                          {cardId.slice(0, 8)}…
+                        </p>
+                      </div>
+                      <div className="flex-1">
+                        <Select
+                          value={currentVal}
+                          onValueChange={val => setSerialMap(prev => ({ ...prev, [cardId]: val }))}
+                        >
+                          <SelectTrigger className="font-mono text-xs">
+                            <SelectValue placeholder="Select serial number…" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px]">
+                            {options.map(s => (
+                              <SelectItem key={s.serial_number} value={s.serial_number} className="font-mono text-xs">
+                                {s.serial_number}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setMappingPurchase(null)} disabled={assigning}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmAssign} disabled={!allMapped || assigning}>
+              {assigning ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Assigning…</>
+              ) : (
+                <><CheckCircle className="h-4 w-4 mr-1" /> Confirm Assignment ({mappingPurchase?.pending_count})</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
