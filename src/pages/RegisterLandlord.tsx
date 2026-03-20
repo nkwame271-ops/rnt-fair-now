@@ -76,7 +76,7 @@ const RegisterLandlord = () => {
       const { data: existingProfile } = await supabase.from("profiles").select("user_id").eq("phone", phoneDigits).maybeSingle();
       if (existingProfile) {
         const { data: landlordRecord } = await supabase.from("landlords").select("account_status").eq("user_id", existingProfile.user_id).maybeSingle();
-        if (landlordRecord && (landlordRecord.account_status === "deactivated" || landlordRecord.account_status === "archived")) {
+        if (landlordRecord && landlordRecord.account_status === "deactivated") {
           toast.error("This phone number is linked to a deactivated account. Please contact Rent Control for assistance.");
           setLoading(false);
           return;

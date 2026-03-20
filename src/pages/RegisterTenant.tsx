@@ -5,11 +5,13 @@ import { useNavigate } from "react-router-dom";
 import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Briefcase, UserPlus, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { sendNotification } from "@/lib/notificationService";
 import FormField from "@/components/FormField";
 import { formatPhone, isValidPhone } from "@/lib/formatters";
+import { regions } from "@/data/dummyData";
 
 const steps = ["Account", "Contact", "Your ID"];
 
@@ -21,6 +23,7 @@ const RegisterTenant = () => {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [region, setRegion] = useState("");
   const [phone, setPhone] = useState("");
   const [occupation, setOccupation] = useState("");
   const [workAddress, setWorkAddress] = useState("");
@@ -59,7 +62,7 @@ const RegisterTenant = () => {
 
   const canProceed = () => {
     switch (step) {
-      case 0: return fullName.length > 2 && isValidPhone(phone);
+      case 0: return fullName.length > 2 && isValidPhone(phone) && !!region;
       case 1: return true; // contact step is all optional
       default: return true;
     }
@@ -81,7 +84,7 @@ const RegisterTenant = () => {
       const { data: existingProfile } = await supabase.from("profiles").select("user_id").eq("phone", phoneDigits).maybeSingle();
       if (existingProfile) {
         const { data: tenantRecord } = await supabase.from("tenants").select("account_status").eq("user_id", existingProfile.user_id).maybeSingle();
-        if (tenantRecord && (tenantRecord.account_status === "deactivated" || tenantRecord.account_status === "archived")) {
+        if (tenantRecord && tenantRecord.account_status === "deactivated") {
           toast.error("This phone number is linked to a deactivated account. Please contact Rent Control for assistance.");
           setLoading(false);
           return;
@@ -126,6 +129,7 @@ const RegisterTenant = () => {
 
       const { error: profileError } = await supabase.from("profiles").update({
         email: email || null,
+        delivery_region: region || null,
         occupation, work_address: workAddress,
         emergency_contact_name: emergencyName,
         emergency_contact_phone: emergencyPhone.replace(/\s/g, ""),
@@ -282,6 +286,12 @@ const RegisterTenant = () => {
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="kwame@example.com" className="pl-10" type="email" />
                       </div>
+                    </FormField>
+                    <FormField label="Region of Stay" valid={!!region}>
+                      <Select value={region} onValueChange={setRegion}>
+                        <SelectTrigger><SelectValue placeholder="Select your region" /></SelectTrigger>
+                        <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                      </Select>
                     </FormField>
                   </div>
                 </div>
