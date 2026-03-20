@@ -1,33 +1,57 @@
 
 
-# Manual Serial-to-Card Assignment in Pending Purchases
+# Updated Rent Card Logic
+
+## Summary of Changes
+
+The rent card system needs to align with the physical card model: each purchase creates exactly 2 cards (a pair), serial assignment gets a bulk selection UI, and tenancy creation already handles the 2-card pairing correctly.
 
 ## What Changes
 
-Currently, clicking "Assign" on a pending purchase auto-picks the next available serials from office stock sequentially. The admin has no control over which specific serial goes to which card.
+### 1. Purchase creates 2 cards per unit purchased
+Currently buying qty=4 creates 4 cards. Updated: qty=4 creates 8 cards (4 pairs). The purchase quantity represents "pairs of cards", not individual cards.
 
-**New flow**: After clicking "Assign", instead of immediately assigning, show a mapping UI where the admin can pick a specific serial number for each pending rent card. Each card row shows the card ID and a searchable dropdown of available serials from the office. The admin confirms once all cards are mapped.
+### 2. Assignment UI — bulk selection with checkboxes
+Currently the admin must open a mapping dialog per purchase. Updated: show all pending cards for a landlord with checkboxes. Admin can select specific cards or "Select All", then bulk-assign serials from office stock in one action.
 
-## File Changed
+### 3. Status alignment
+Current statuses already map correctly:
+- `awaiting_serial` → Awaiting Serial (Stage 1)
+- `valid` → Available (Stage 2, has serial, not yet used)
+- `active` → Used (Stage 3, linked to tenancy)
+
+No status rename needed — the flow is already correct.
+
+## Files Changed
 
 | File | Change |
 |---|---|
-| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Replace auto-assign with a manual serial picker UI |
+| `supabase/functions/verify-payment/index.ts` | Multiply quantity by 2 when creating rent cards |
+| `supabase/functions/paystack-webhook/index.ts` | Same — multiply by 2 for the fallback card creation |
+| `src/pages/landlord/ManageRentCards.tsx` | Update purchase UI labels: "1 purchase = 2 cards (1 pair)" |
+| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Add checkbox selection for individual cards + "Select All" toggle, bulk assign button that opens the serial mapping dialog for selected cards only |
 
 ## Technical Details
 
+### verify-payment/index.ts & paystack-webhook/index.ts
+Change the card creation loop from `qty` to `qty * 2`:
+```typescript
+const cardCount = qty * 2; // Each purchase = 1 pair = 2 cards
+for (let i = 0; i < cardCount; i++) {
+  rentCards.push({ ... });
+}
+```
+
+### ManageRentCards.tsx
+- Update the purchase section label: "Each purchase includes 2 rent cards (Landlord Copy + Tenant Copy)"
+- Update the price display: show per-pair pricing
+- Keep quantity selector as "Number of pairs"
+
 ### PendingPurchases.tsx
-
-1. **New state**: `mappingPurchase` (the purchase being mapped), `serialMap` (Record of cardId → selected serial), `availableSerials` (fetched list of available serials for the office).
-
-2. **When admin clicks "Assign"**: Instead of running the assignment loop, fetch all available serials for the office and set `mappingPurchase` to that purchase. Show a modal/inline panel.
-
-3. **Mapping UI**: For each `card_id` in the purchase, render a row with:
-   - Card ID (truncated)
-   - A searchable input/select to pick a serial number from `availableSerials`
-   - The selected serial is removed from the available list for other rows (no duplicates)
-
-4. **"Confirm Assignment" button**: Runs the existing atomic claim logic but uses the admin-selected serial for each card instead of sequential auto-pick. Falls back gracefully if a selected serial was claimed by another admin (toast error for that specific card).
-
-5. **Quick-fill option**: Keep a "Auto-fill sequential" button that pre-fills all cards with the next N available serials (preserving current behavior as a shortcut).
+- Add `selectedCardIds: Set<string>` state for checkbox tracking
+- Show individual card rows with checkboxes instead of grouping by purchase
+- Add "Select All" / "Deselect All" toggle
+- "Assign Serials" button opens the mapping dialog for only the selected cards
+- Keep the existing per-card serial dropdown mapping in the dialog
+- Keep "Auto-fill sequential" shortcut
 
