@@ -288,7 +288,7 @@ const SmsBroadcast = () => {
             </Button>
 
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Messages are sent via Arkesel with sender ID "RentGhana". Each SMS segment is up to 160 characters.
+              Messages are sent by Center for Financial Literacy, E-Commerce and Digitalization via unique API. Sender ID: "RentGhana". Each SMS segment is up to 160 characters.
             </p>
           </CardContent>
         </Card>

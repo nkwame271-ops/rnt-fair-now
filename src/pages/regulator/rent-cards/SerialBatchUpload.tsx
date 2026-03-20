@@ -81,7 +81,8 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
         const { data } = await supabase
           .from("rent_card_serial_stock")
           .select("serial_number")
-          .in("serial_number", batch);
+          .in("serial_number", batch)
+          .in("status", ["available", "assigned"]);
         if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
       }
 
