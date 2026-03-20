@@ -424,30 +424,43 @@ const AddTenant = () => {
                   )}
                 </div>
               )}
-              {availableRentCards.length === 0 && (
+              {availableRentCards.length < 2 && (
                 <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 flex items-start gap-3">
                   <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-sm text-card-foreground">No Rent Cards Available</p>
-                    <p className="text-xs text-muted-foreground mt-1">You need at least one rent card to create a tenancy. Each tenancy requires a rent card.</p>
+                    <p className="font-semibold text-sm text-card-foreground">Not Enough Rent Cards</p>
+                    <p className="text-xs text-muted-foreground mt-1">Each tenancy requires 2 rent cards (landlord copy + tenant copy). You have {availableRentCards.length} available.</p>
                     <Link to="/landlord/rent-cards">
                       <Button size="sm" variant="outline" className="mt-2">Buy Rent Cards</Button>
                     </Link>
                   </div>
                 </div>
               )}
-              {availableRentCards.length > 0 && (
-                <div className="space-y-3">
-                  <Label>Assign Rent Card</Label>
-                  <Select value={selectedRentCardId} onValueChange={setSelectedRentCardId}>
-                    <SelectTrigger><SelectValue placeholder="Select a rent card" /></SelectTrigger>
-                    <SelectContent>
-                      {availableRentCards.map((rc) => (
-                        <SelectItem key={rc.id} value={rc.id}>{rc.serial_number}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">{availableRentCards.length} card(s) available</p>
+              {availableRentCards.length >= 2 && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Landlord Copy (Card 1)</Label>
+                    <Select value={selectedRentCardId} onValueChange={(v) => { setSelectedRentCardId(v); if (v === selectedRentCardId2) setSelectedRentCardId2(""); }}>
+                      <SelectTrigger><SelectValue placeholder="Select landlord copy card" /></SelectTrigger>
+                      <SelectContent>
+                        {availableRentCards.filter(rc => rc.id !== selectedRentCardId2).map((rc) => (
+                          <SelectItem key={rc.id} value={rc.id}>{rc.serial_number}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tenant Copy (Card 2)</Label>
+                    <Select value={selectedRentCardId2} onValueChange={setSelectedRentCardId2}>
+                      <SelectTrigger><SelectValue placeholder="Select tenant copy card" /></SelectTrigger>
+                      <SelectContent>
+                        {availableRentCards.filter(rc => rc.id !== selectedRentCardId).map((rc) => (
+                          <SelectItem key={rc.id} value={rc.id}>{rc.serial_number}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{availableRentCards.length} card(s) available — 2 required per tenancy</p>
                 </div>
               )}
               <Button disabled={!selectedUnitId || !selectedRentCardId} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
