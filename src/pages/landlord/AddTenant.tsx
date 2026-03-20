@@ -46,6 +46,7 @@ const AddTenant = () => {
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [availableRentCards, setAvailableRentCards] = useState<{ id: string; serial_number: string }[]>([]);
   const [selectedRentCardId, setSelectedRentCardId] = useState("");
+  const [selectedRentCardId2, setSelectedRentCardId2] = useState("");
   const [registrationCode, setRegistrationCode] = useState("");
 
   const property = properties.find(p => p.id === selectedPropertyId);
@@ -92,6 +93,7 @@ const AddTenant = () => {
           setStartDate(data.startDate || "2026-03-01");
           setCustomFieldValues(data.customFieldValues || {});
           setSelectedRentCardId(data.selectedRentCardId || "");
+          setSelectedRentCardId2(data.selectedRentCardId2 || "");
           setStep("review");
           setAutoSubmitPending(true);
           sessionStorage.removeItem("addTenantFormData");
@@ -104,19 +106,19 @@ const AddTenant = () => {
 
   // Auto-submit after restoring form data from fee payment return
   useEffect(() => {
-    if (autoSubmitPending && foundTenant && selectedUnitId && selectedRentCardId && !loading) {
+    if (autoSubmitPending && foundTenant && selectedUnitId && selectedRentCardId && selectedRentCardId2 && !loading) {
       setAutoSubmitPending(false);
       // Small delay to let state settle
       setTimeout(() => handleSubmit(), 500);
     }
-  }, [autoSubmitPending, foundTenant, selectedUnitId, selectedRentCardId, loading]);
+  }, [autoSubmitPending, foundTenant, selectedUnitId, selectedRentCardId, selectedRentCardId2, loading]);
 
   const handlePayFee = async () => {
     if (!user) return;
     // Save form data to sessionStorage before redirect
     sessionStorage.setItem("addTenantFormData", JSON.stringify({
       selectedPropertyId, selectedUnitId, foundTenant, rent, advanceMonths,
-      leaseDurationMonths, startDate, customFieldValues, selectedRentCardId,
+      leaseDurationMonths, startDate, customFieldValues, selectedRentCardId, selectedRentCardId2,
     }));
     try {
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
@@ -231,7 +233,7 @@ const AddTenant = () => {
   };
 
   const handleSubmit = async () => {
-    if (!user || !foundTenant || !property || !unit || !selectedRentCardId) return;
+    if (!user || !foundTenant || !property || !unit || !selectedRentCardId || !selectedRentCardId2) return;
     setSubmitting(true);
     try {
       const months = parseInt(advanceMonths);
@@ -275,8 +277,8 @@ const AddTenant = () => {
       if (!tenancy) throw new Error("Failed to create tenancy after multiple attempts");
       setRegistrationCode(regCode);
 
-      // Activate the rent card with full tenancy details
-      await supabase.from("rent_cards").update({
+      // Activate both rent cards (landlord copy + tenant copy)
+      const cardActivationData = {
         status: "active",
         tenancy_id: tenancy.id,
         activated_at: new Date().toISOString(),
@@ -290,7 +292,23 @@ const AddTenant = () => {
         max_advance: maxAdvance,
         advance_paid: parseInt(advanceMonths),
         last_payment_status: "pending",
-      } as any).eq("id", selectedRentCardId);
+      };
+
+      await Promise.all([
+        supabase.from("rent_cards").update({
+          ...cardActivationData,
+          card_role: "landlord_copy",
+        } as any).eq("id", selectedRentCardId),
+        supabase.from("rent_cards").update({
+          ...cardActivationData,
+          card_role: "tenant_copy",
+        } as any).eq("id", selectedRentCardId2),
+      ]);
+
+      // Link second card to tenancy
+      await supabase.from("tenancies").update({
+        rent_card_id_2: selectedRentCardId2,
+      } as any).eq("id", tenancy.id);
 
       // Generate rent payment schedule — batch insert
       const totalMonths = parseInt(leaseDurationMonths);
@@ -407,33 +425,46 @@ const AddTenant = () => {
                   )}
                 </div>
               )}
-              {availableRentCards.length === 0 && (
+              {availableRentCards.length < 2 && (
                 <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 flex items-start gap-3">
                   <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-sm text-card-foreground">No Rent Cards Available</p>
-                    <p className="text-xs text-muted-foreground mt-1">You need at least one rent card to create a tenancy. Each tenancy requires a rent card.</p>
+                    <p className="font-semibold text-sm text-card-foreground">Not Enough Rent Cards</p>
+                    <p className="text-xs text-muted-foreground mt-1">Each tenancy requires 2 rent cards (landlord copy + tenant copy). You have {availableRentCards.length} available.</p>
                     <Link to="/landlord/rent-cards">
                       <Button size="sm" variant="outline" className="mt-2">Buy Rent Cards</Button>
                     </Link>
                   </div>
                 </div>
               )}
-              {availableRentCards.length > 0 && (
-                <div className="space-y-3">
-                  <Label>Assign Rent Card</Label>
-                  <Select value={selectedRentCardId} onValueChange={setSelectedRentCardId}>
-                    <SelectTrigger><SelectValue placeholder="Select a rent card" /></SelectTrigger>
-                    <SelectContent>
-                      {availableRentCards.map((rc) => (
-                        <SelectItem key={rc.id} value={rc.id}>{rc.serial_number}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">{availableRentCards.length} card(s) available</p>
+              {availableRentCards.length >= 2 && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Landlord Copy (Card 1)</Label>
+                    <Select value={selectedRentCardId} onValueChange={(v) => { setSelectedRentCardId(v); if (v === selectedRentCardId2) setSelectedRentCardId2(""); }}>
+                      <SelectTrigger><SelectValue placeholder="Select landlord copy card" /></SelectTrigger>
+                      <SelectContent>
+                        {availableRentCards.filter(rc => rc.id !== selectedRentCardId2).map((rc) => (
+                          <SelectItem key={rc.id} value={rc.id}>{rc.serial_number}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tenant Copy (Card 2)</Label>
+                    <Select value={selectedRentCardId2} onValueChange={setSelectedRentCardId2}>
+                      <SelectTrigger><SelectValue placeholder="Select tenant copy card" /></SelectTrigger>
+                      <SelectContent>
+                        {availableRentCards.filter(rc => rc.id !== selectedRentCardId).map((rc) => (
+                          <SelectItem key={rc.id} value={rc.id}>{rc.serial_number}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{availableRentCards.length} card(s) available — 2 required per tenancy</p>
                 </div>
               )}
-              <Button disabled={!selectedUnitId || !selectedRentCardId} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
+              <Button disabled={!selectedUnitId || !selectedRentCardId || !selectedRentCardId2} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
                 Next: Find Tenant
               </Button>
             </>

@@ -9,6 +9,7 @@ import OfficeSerialStock from "./rent-cards/OfficeSerialStock";
 import PendingPurchases from "./rent-cards/PendingPurchases";
 import AssignmentHistory from "./rent-cards/AssignmentHistory";
 import StockAlerts from "./rent-cards/StockAlerts";
+import AdminActions from "./rent-cards/AdminActions";
 
 const RegulatorRentCards = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
@@ -38,6 +39,7 @@ const RegulatorRentCards = () => {
             <TabsTrigger value="pending">Pending & Assign</TabsTrigger>
             <TabsTrigger value="history">Assignment History</TabsTrigger>
             {isMain && <TabsTrigger value="alerts">Stock Alerts</TabsTrigger>}
+            {isMain && <TabsTrigger value="admin_actions">Admin Actions</TabsTrigger>}
           </TabsList>
 
           {isMain && (
@@ -61,6 +63,12 @@ const RegulatorRentCards = () => {
           {isMain && (
             <TabsContent value="alerts">
               <StockAlerts refreshKey={refreshKey} threshold={50} />
+            </TabsContent>
+          )}
+
+          {isMain && (
+            <TabsContent value="admin_actions">
+              <AdminActions refreshKey={refreshKey} onStockChanged={triggerRefresh} />
             </TabsContent>
           )}
         </Tabs>

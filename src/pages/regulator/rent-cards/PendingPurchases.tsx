@@ -223,19 +223,26 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           </div>
         ))}
 
-        {Object.entries(assignedSerials).map(([purchaseId, serials]) => (
-          <div key={purchaseId} className="border border-success/30 bg-success/5 rounded-lg p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-success" />
-              <p className="font-semibold text-success text-sm">Assigned — {purchaseId}</p>
+        {Object.entries(assignedSerials).map(([purchaseId, serials]) => {
+          const sorted = [...serials].sort();
+          const rangeLabel = sorted.length > 1
+            ? `${sorted[0]} → ${sorted[sorted.length - 1]}`
+            : sorted[0];
+          return (
+            <div key={purchaseId} className="border border-success/30 bg-success/5 rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-success" />
+                <p className="font-semibold text-success text-sm">Assigned — {purchaseId}</p>
+              </div>
+              <p className="font-mono text-xs text-card-foreground">{rangeLabel} ({sorted.length} serial{sorted.length > 1 ? "s" : ""})</p>
+              <div className="flex flex-wrap gap-2">
+                {serials.map(s => (
+                  <Badge key={s} variant="outline" className="font-mono text-xs">{s}</Badge>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {serials.map(s => (
-                <Badge key={s} variant="outline" className="font-mono text-xs">{s}</Badge>
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

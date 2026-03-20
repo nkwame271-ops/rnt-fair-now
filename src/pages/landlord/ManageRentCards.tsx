@@ -31,6 +31,7 @@ interface RentCard {
   last_payment_status: string | null;
   qr_token: string | null;
   purchase_id: string | null;
+  card_role: string | null;
 }
 
 interface EnrichedRentCard extends RentCard {
@@ -258,6 +259,46 @@ const ManageRentCards = () => {
           </div>
         </div>
 
+        {/* Serial Inventory — Range View */}
+        {cards.some(c => c.serial_number && c.status === "valid") && (
+          <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+              <Hash className="h-5 w-5 text-primary" /> Assigned Serial Inventory
+            </h2>
+            <p className="text-sm text-muted-foreground">Your available serials from Rent Control office assignments, grouped by batch.</p>
+            {(() => {
+              const validCards = cards.filter(c => c.serial_number && ["valid", "active", "used"].includes(c.status));
+              const batchGroups = new Map<string, typeof validCards>();
+              for (const card of validCards) {
+                const key = card.purchase_id || "ungrouped";
+                if (!batchGroups.has(key)) batchGroups.set(key, []);
+                batchGroups.get(key)!.push(card);
+              }
+              return Array.from(batchGroups.entries()).map(([purchaseId, groupCards]) => {
+                const sorted = [...groupCards].sort((a, b) => (a.serial_number || "").localeCompare(b.serial_number || ""));
+                const first = sorted[0]?.serial_number || "";
+                const last = sorted[sorted.length - 1]?.serial_number || "";
+                const available = sorted.filter(c => c.status === "valid").length;
+                const active = sorted.filter(c => c.status === "active").length;
+                return (
+                  <div key={purchaseId} className="border border-border rounded-lg p-3 flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <p className="font-mono text-xs font-bold text-card-foreground">
+                        {sorted.length > 1 ? `${first} → ${last}` : first}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Purchase: {purchaseId} • {sorted.length} card(s)</p>
+                    </div>
+                    <div className="flex gap-2 text-xs">
+                      <Badge className="bg-success/10 text-success border-success/20">{available} unused</Badge>
+                      <Badge className="bg-primary/10 text-primary border-primary/20">{active} active</Badge>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        )}
+
         {/* Filter */}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -302,7 +343,14 @@ const ManageRentCards = () => {
                             <p className="text-sm font-medium text-amber-600">Collect from Rent Control office</p>
                           </div>
                         ) : (
-                          <p className="font-mono font-bold text-sm text-card-foreground">{card.serial_number}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono font-bold text-sm text-card-foreground">{card.serial_number}</p>
+                            {card.card_role && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {card.card_role === "landlord_copy" ? "Landlord Copy" : card.card_role === "tenant_copy" ? "Tenant Copy" : card.card_role}
+                              </Badge>
+                            )}
+                          </div>
                         )}
                         <p className="text-xs text-muted-foreground">
                           {card.purchase_id && <span className="font-mono">{card.purchase_id} • </span>}

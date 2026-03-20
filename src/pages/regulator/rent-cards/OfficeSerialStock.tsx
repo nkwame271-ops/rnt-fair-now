@@ -10,6 +10,17 @@ interface StockSummary {
   total: number;
   available: number;
   assigned: number;
+  revoked: number;
+}
+
+interface SerialRange {
+  batch_label: string;
+  first_serial: string;
+  last_serial: string;
+  count: number;
+  available: number;
+  assigned: number;
+  revoked: number;
 }
 
 interface Props {
@@ -30,21 +41,48 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
     }
   }, [profile]);
 
+  const [ranges, setRanges] = useState<SerialRange[]>([]);
+
   useEffect(() => {
-    if (!officeName) { setStock(null); return; }
+    if (!officeName) { setStock(null); setRanges([]); return; }
     const fetchStock = async () => {
       setLoading(true);
       const { data } = await supabase
         .from("rent_card_serial_stock" as any)
-        .select("status")
-        .eq("office_name", officeName);
+        .select("serial_number, status, batch_label")
+        .eq("office_name", officeName)
+        .order("serial_number", { ascending: true });
 
       const items = (data || []) as any[];
       setStock({
         total: items.length,
         available: items.filter(i => i.status === "available").length,
         assigned: items.filter(i => i.status === "assigned").length,
+        revoked: items.filter(i => i.status === "revoked").length,
       });
+
+      // Group by batch_label for range view
+      const batchMap = new Map<string, any[]>();
+      for (const item of items) {
+        const key = item.batch_label || "Unbatched";
+        if (!batchMap.has(key)) batchMap.set(key, []);
+        batchMap.get(key)!.push(item);
+      }
+
+      const rangeList: SerialRange[] = [];
+      for (const [batch_label, batchItems] of batchMap) {
+        const sorted = batchItems.sort((a: any, b: any) => a.serial_number.localeCompare(b.serial_number));
+        rangeList.push({
+          batch_label,
+          first_serial: sorted[0].serial_number,
+          last_serial: sorted[sorted.length - 1].serial_number,
+          count: sorted.length,
+          available: sorted.filter((i: any) => i.status === "available").length,
+          assigned: sorted.filter((i: any) => i.status === "assigned").length,
+          revoked: sorted.filter((i: any) => i.status === "revoked").length,
+        });
+      }
+      setRanges(rangeList);
       setLoading(false);
     };
     fetchStock();
@@ -79,20 +117,46 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
         </div>
 
         {stock && !loading && (
-          <div className="grid grid-cols-3 gap-4 pt-2">
-            <div className="rounded-lg border border-border p-4 text-center">
-              <p className="text-2xl font-bold text-card-foreground">{stock.total}</p>
-              <p className="text-xs text-muted-foreground mt-1">Total Serials</p>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+              <div className="rounded-lg border border-border p-4 text-center">
+                <p className="text-2xl font-bold text-card-foreground">{stock.total}</p>
+                <p className="text-xs text-muted-foreground mt-1">Total Serials</p>
+              </div>
+              <div className="rounded-lg border border-success/30 bg-success/5 p-4 text-center">
+                <p className="text-2xl font-bold text-success">{stock.available}</p>
+                <p className="text-xs text-muted-foreground mt-1">Available</p>
+              </div>
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-center">
+                <p className="text-2xl font-bold text-primary">{stock.assigned}</p>
+                <p className="text-xs text-muted-foreground mt-1">Assigned</p>
+              </div>
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-center">
+                <p className="text-2xl font-bold text-destructive">{stock.revoked}</p>
+                <p className="text-xs text-muted-foreground mt-1">Revoked</p>
+              </div>
             </div>
-            <div className="rounded-lg border border-success/30 bg-success/5 p-4 text-center">
-              <p className="text-2xl font-bold text-success">{stock.available}</p>
-              <p className="text-xs text-muted-foreground mt-1">Available</p>
-            </div>
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-center">
-              <p className="text-2xl font-bold text-primary">{stock.assigned}</p>
-              <p className="text-xs text-muted-foreground mt-1">Assigned</p>
-            </div>
-          </div>
+
+            {/* Range View */}
+            {ranges.length > 0 && (
+              <div className="space-y-3 pt-4">
+                <h3 className="text-sm font-semibold text-card-foreground">Serial Ranges by Batch</h3>
+                {ranges.map((r) => (
+                  <div key={r.batch_label} className="border border-border rounded-lg p-3 flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <p className="font-mono text-xs font-bold text-card-foreground">{r.first_serial} → {r.last_serial}</p>
+                      <p className="text-xs text-muted-foreground">Batch: {r.batch_label} • {r.count} serials</p>
+                    </div>
+                    <div className="flex gap-2 text-xs">
+                      <span className="text-success">{r.available} avail</span>
+                      <span className="text-primary">{r.assigned} assigned</span>
+                      {r.revoked > 0 && <span className="text-destructive">{r.revoked} revoked</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {loading && <p className="text-sm text-muted-foreground py-4 text-center">Loading stock...</p>}
