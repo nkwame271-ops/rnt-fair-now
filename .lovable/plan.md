@@ -1,37 +1,29 @@
 
 
-# Fix: Admin Action Audit Log Not Saving + Password Re-auth Bug
+# Plan: Send Bulk Welcome SMS to All Registered Users
 
-## Problem Found
-Both **Revoke Batch** and **Unassign Serial** execute successfully — I confirmed this by calling the edge function live:
-- Revoked 497 serials from "Batch1" ✓
-- Unassigned serial "26/0000498" ✓
+## What
+Send a one-time welcome SMS to all 13 real phone numbers in the database (excluding test numbers like 020000xxxx) via the existing `send-sms` edge function and Arkesel API.
 
-However, the **audit log is always empty** (0 rows). The root cause:
+## Message
+> "Welcome to RentControlGhana — the future of rent in Ghana. Your rent, your rights, your records — all in one place. We're building a fairer rental system for everyone. Log in anytime at rentghanapilot.lovable.app. Thank you for being part of the journey!"
 
-The `admin-action` edge function creates an `adminClient` using `SUPABASE_SERVICE_ROLE_KEY`, then calls `adminClient.auth.signInWithPassword()` to verify the admin's password. This **mutates the client session** — after that call, `adminClient` operates as an authenticated user, not as service_role. The subsequent audit log insert silently fails because the `admin_audit_log` table only allows `service_role` to insert.
+## How
+1. Create a new edge function `bulk-welcome-sms/index.ts` that:
+   - Queries all profiles with valid phone numbers (excluding test numbers)
+   - Sends the welcome message to each via Arkesel API
+   - Returns a summary of sent/failed counts
+2. Call it once to trigger the blast
 
-The revoke/unassign operations themselves succeed because regulators have UPDATE RLS policies on `rent_card_serial_stock`.
+## Why an edge function
+- The `send-sms` function handles one message at a time — calling it 13 times from the client is wasteful
+- A single server-side function can loop through all numbers efficiently with proper error handling and rate control
 
-## Fix
-
-In `supabase/functions/admin-action/index.ts`:
-
-1. **Create a separate client for password verification** — use a throwaway client for the `signInWithPassword` call, keeping the `adminClient` (service_role) clean for all data operations.
-
-```typescript
-// Instead of:
-const { error: reAuthError } = await adminClient.auth.signInWithPassword(...)
-
-// Use:
-const verifyClient = createClient(supabaseUrl, anonKey);
-const { error: reAuthError } = await verifyClient.auth.signInWithPassword(...)
-```
-
-This is a one-line fix in the edge function. No UI changes needed — the AdminActions UI is already correct.
-
-## Files to Modify
-| File | Change |
+## Files
+| File | Action |
 |---|---|
-| `supabase/functions/admin-action/index.ts` | Use separate client for password verification |
+| `supabase/functions/bulk-welcome-sms/index.ts` | Create — one-time bulk SMS sender |
+| `supabase/config.toml` | Add function entry |
+
+After creating and deploying, I'll invoke it directly to send the messages and report results.
 
