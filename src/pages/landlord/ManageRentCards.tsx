@@ -343,7 +343,14 @@ const ManageRentCards = () => {
                             <p className="text-sm font-medium text-amber-600">Collect from Rent Control office</p>
                           </div>
                         ) : (
-                          <p className="font-mono font-bold text-sm text-card-foreground">{card.serial_number}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono font-bold text-sm text-card-foreground">{card.serial_number}</p>
+                            {card.card_role && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {card.card_role === "landlord_copy" ? "Landlord Copy" : card.card_role === "tenant_copy" ? "Tenant Copy" : card.card_role}
+                              </Badge>
+                            )}
+                          </div>
                         )}
                         <p className="text-xs text-muted-foreground">
                           {card.purchase_id && <span className="font-mono">{card.purchase_id} • </span>}

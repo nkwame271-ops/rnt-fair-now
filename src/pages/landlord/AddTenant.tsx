@@ -93,6 +93,7 @@ const AddTenant = () => {
           setStartDate(data.startDate || "2026-03-01");
           setCustomFieldValues(data.customFieldValues || {});
           setSelectedRentCardId(data.selectedRentCardId || "");
+          setSelectedRentCardId2(data.selectedRentCardId2 || "");
           setStep("review");
           setAutoSubmitPending(true);
           sessionStorage.removeItem("addTenantFormData");
