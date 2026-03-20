@@ -95,6 +95,16 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
         if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
       }
 
+      // 3. Filter to new serials and insert
+      const newSerials = serials.filter(s => !existingSet.has(s));
+      const skippedCount = serials.length - newSerials.length;
+
+      if (newSerials.length === 0) {
+        toast.warning(`All ${serials.length} serial(s) already exist in stock. Nothing uploaded.`);
+        setUploading(false);
+        return;
+      }
+
       const rows = newSerials.map(s => ({
         serial_number: s,
         office_name: targetOffice.name,
