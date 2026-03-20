@@ -19,7 +19,7 @@ export const generateTenancyCardPdf = (data: TenancyCardData): jsPDF => {
   doc.setFontSize(7);
   doc.setFont("helvetica", "normal");
 
-  const rows = [
+  const rows: [string, string][] = [
     ["Property ID", data.propertyId.slice(0, 12) + "..."],
     ["Digital Address", data.digitalAddress || "—"],
     ["Landlord", data.landlordName],
@@ -29,10 +29,22 @@ export const generateTenancyCardPdf = (data: TenancyCardData): jsPDF => {
     ["Advance Paid", `${data.advancePaid} month(s)`],
     ["Start Date", data.startDate],
     ["Expiry Date", data.expiryDate],
-    ["Rent Card", (data as any).rentCardSerial || "—"],
+  ];
+
+  // Add rent card serials with role labels
+  if (data.rentCardSerial) {
+    const label = data.rentCardRole === "landlord_copy" ? "Card (Landlord)" : data.rentCardRole === "tenant_copy" ? "Card (Tenant)" : "Rent Card";
+    rows.push([label, data.rentCardSerial]);
+  }
+  if (data.rentCardSerial2) {
+    const label = data.rentCardRole2 === "tenant_copy" ? "Card (Tenant)" : data.rentCardRole2 === "landlord_copy" ? "Card (Landlord)" : "Rent Card 2";
+    rows.push([label, data.rentCardSerial2]);
+  }
+
+  rows.push(
     ["Compliance", data.complianceStatus],
     ["Status", data.status],
-  ];
+  );
 
   let y = 21;
   const col1 = 5;

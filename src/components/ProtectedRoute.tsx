@@ -24,6 +24,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [checkingFee, setCheckingFee] = useState(true);
   const [feePaid, setFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
+  const [accountStatus, setAccountStatus] = useState<string>("active");
   const [verifying, setVerifying] = useState(false);
 
   const [hasRegistrationDate, setHasRegistrationDate] = useState(false);
@@ -32,10 +33,11 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     const table = userRole === "tenant" ? "tenants" : "landlords";
     const { data } = await supabase
       .from(table)
-      .select("registration_fee_paid, registration_date")
+      .select("registration_fee_paid, registration_date, account_status")
       .eq("user_id", userId)
       .maybeSingle();
     if (data?.registration_date) setHasRegistrationDate(true);
+    if (data?.account_status) setAccountStatus(data.account_status);
     return data?.registration_fee_paid ?? false;
   }, []);
 
@@ -124,6 +126,28 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
 
   if (!user) return <Navigate to="/" replace />;
   if (requiredRole && role !== requiredRole) return <Navigate to="/" replace />;
+
+  // Block deactivated or archived accounts
+  if (role !== "regulator" && (accountStatus === "deactivated" || accountStatus === "archived")) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="max-w-md w-full text-center space-y-6">
+          <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+            <Shield className="h-8 w-8 text-destructive" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">
+            Account {accountStatus === "deactivated" ? "Deactivated" : "Archived"}
+          </h1>
+          <p className="text-muted-foreground">
+            Your account has been {accountStatus} by Rent Control. You cannot access the platform at this time.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            If you believe this is an error, please contact Rent Control for assistance.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Verifying payment with server
   if (verifying) {

@@ -21,6 +21,9 @@ export interface TenancyCardData {
   complianceStatus: string;
   status: string;
   rentCardSerial?: string;
+  rentCardSerial2?: string;
+  rentCardRole?: string;
+  rentCardRole2?: string;
 }
 
 const statusColor = (status: string) => {
@@ -81,7 +84,16 @@ const TenancyCard = ({ data }: { data: TenancyCardData }) => {
           <div><p className="text-muted-foreground text-xs">Start Date</p><p className="font-semibold">{format(new Date(data.startDate), "dd/MM/yyyy")}</p></div>
           <div><p className="text-muted-foreground text-xs">Expiry Date</p><p className="font-semibold">{format(new Date(data.expiryDate), "dd/MM/yyyy")}</p></div>
           {data.rentCardSerial && (
-            <div><p className="text-muted-foreground text-xs">Rent Card</p><p className="font-mono font-semibold text-primary text-xs">{data.rentCardSerial}</p></div>
+            <div>
+              <p className="text-muted-foreground text-xs">{data.rentCardRole === "landlord_copy" ? "Landlord Copy" : data.rentCardRole === "tenant_copy" ? "Tenant Copy" : "Rent Card"}</p>
+              <p className="font-mono font-semibold text-primary text-xs">{data.rentCardSerial}</p>
+            </div>
+          )}
+          {data.rentCardSerial2 && (
+            <div>
+              <p className="text-muted-foreground text-xs">{data.rentCardRole2 === "tenant_copy" ? "Tenant Copy" : data.rentCardRole2 === "landlord_copy" ? "Landlord Copy" : "Rent Card 2"}</p>
+              <p className="font-mono font-semibold text-primary text-xs">{data.rentCardSerial2}</p>
+            </div>
           )}
         </div>
 

@@ -16,7 +16,16 @@ interface TenancyInfo {
   landlord_name: string;
   tenant_name: string;
   rent_card_serial: string | null;
+  rent_card_role: string | null;
+  rent_card_serial_2: string | null;
+  rent_card_role_2: string | null;
 }
+
+const roleLabel = (role: string | null) => {
+  if (role === "landlord_copy") return "Landlord Copy";
+  if (role === "tenant_copy") return "Tenant Copy";
+  return "Rent Card";
+};
 
 const VerifyTenancy = () => {
   const { tenancyId } = useParams<{ tenancyId: string }>();
@@ -100,7 +109,16 @@ const VerifyTenancy = () => {
             <div><p className="text-muted-foreground text-xs">Start Date</p><p className="font-semibold text-foreground">{format(new Date(tenancy.start_date), "dd/MM/yyyy")}</p></div>
             <div><p className="text-muted-foreground text-xs">End Date</p><p className="font-semibold text-foreground">{format(new Date(tenancy.end_date), "dd/MM/yyyy")}</p></div>
             {tenancy.rent_card_serial && (
-              <div className="col-span-2"><p className="text-muted-foreground text-xs">Rent Card</p><p className="font-mono font-semibold text-primary text-sm">{tenancy.rent_card_serial}</p></div>
+              <div>
+                <p className="text-muted-foreground text-xs">{roleLabel(tenancy.rent_card_role)}</p>
+                <p className="font-mono font-semibold text-primary text-sm">{tenancy.rent_card_serial}</p>
+              </div>
+            )}
+            {tenancy.rent_card_serial_2 && (
+              <div>
+                <p className="text-muted-foreground text-xs">{roleLabel(tenancy.rent_card_role_2)}</p>
+                <p className="font-mono font-semibold text-primary text-sm">{tenancy.rent_card_serial_2}</p>
+              </div>
             )}
           </div>
 

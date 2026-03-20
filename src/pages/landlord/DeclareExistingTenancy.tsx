@@ -39,6 +39,9 @@ const DeclareExistingTenancy = () => {
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [createdCode, setCreatedCode] = useState("");
+  const [availableRentCards, setAvailableRentCards] = useState<{ id: string; serial_number: string }[]>([]);
+  const [selectedRentCardId, setSelectedRentCardId] = useState("");
+  const [selectedRentCardId2, setSelectedRentCardId2] = useState("");
 
   const property = properties.find(p => p.id === selectedPropertyId);
   const unit = property?.units.find(u => u.id === selectedUnitId);
@@ -46,11 +49,20 @@ const DeclareExistingTenancy = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const { data } = await supabase
-        .from("properties")
-        .select("id, property_name, address, region, ghana_post_gps, units(id, unit_name, unit_type, monthly_rent, status)")
-        .eq("landlord_user_id", user.id);
-      setProperties((data || []) as PropertyWithUnits[]);
+      const [{ data: propData }, { data: cardData }] = await Promise.all([
+        supabase
+          .from("properties")
+          .select("id, property_name, address, region, ghana_post_gps, units(id, unit_name, unit_type, monthly_rent, status)")
+          .eq("landlord_user_id", user.id),
+        supabase
+          .from("rent_cards")
+          .select("id, serial_number")
+          .eq("landlord_user_id", user.id)
+          .in("status", ["valid", "awaiting_serial"])
+          .is("tenancy_id", null),
+      ]);
+      setProperties((propData || []) as PropertyWithUnits[]);
+      setAvailableRentCards((cardData || []).filter((c: any) => c.serial_number) as { id: string; serial_number: string }[]);
       setLoading(false);
     };
     fetchData();
@@ -121,7 +133,7 @@ const DeclareExistingTenancy = () => {
         }
       }
 
-      const { error } = await supabase.from("tenancies").insert({
+      const { error, data: tenancyData } = await supabase.from("tenancies").insert({
         tenant_user_id: foundTenant.userId,
         landlord_user_id: user.id,
         unit_id: unit.id,
@@ -141,9 +153,44 @@ const DeclareExistingTenancy = () => {
         landlord_accepted: true,
         tenant_accepted: false,
         compliance_status: "under_review",
+        rent_card_id: selectedRentCardId || null,
+        rent_card_id_2: selectedRentCardId2 || null,
       } as any).select().single();
 
       if (error) throw error;
+
+      // Activate rent cards if selected
+      if (selectedRentCardId && tenancyData) {
+        const cardActivationData = {
+          status: "active",
+          tenancy_id: tenancyData.id,
+          activated_at: new Date().toISOString(),
+          tenant_user_id: foundTenant.userId,
+          property_id: property.id,
+          unit_id: unit.id,
+          start_date: existingStartDate,
+          expiry_date: expiryDate,
+          current_rent: monthlyRent,
+          max_advance: maxLawfulAdvance,
+          advance_paid: advMonths,
+        };
+
+        const updates = [
+          supabase.from("rent_cards").update({
+            ...cardActivationData,
+            card_role: "landlord_copy",
+          } as any).eq("id", selectedRentCardId),
+        ];
+        if (selectedRentCardId2) {
+          updates.push(
+            supabase.from("rent_cards").update({
+              ...cardActivationData,
+              card_role: "tenant_copy",
+            } as any).eq("id", selectedRentCardId2)
+          );
+        }
+        await Promise.all(updates);
+      }
 
       await supabase.from("units").update({ status: "occupied" }).eq("id", unit.id);
 
@@ -309,6 +356,37 @@ const DeclareExistingTenancy = () => {
             <Input type="file" accept="audio/*" onChange={(e) => setVoiceFile(e.target.files?.[0] || null)} />
             <p className="text-xs text-muted-foreground">Record or upload a voice description of the tenancy</p>
           </div>
+
+          {availableRentCards.length >= 2 && (
+            <div className="space-y-3 border-t border-border pt-4">
+              <Label>Link Rent Cards (optional)</Label>
+              <p className="text-xs text-muted-foreground">Assign 2 physical rent cards to this tenancy — one landlord copy and one tenant copy.</p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Landlord Copy</Label>
+                  <Select value={selectedRentCardId} onValueChange={(v) => { setSelectedRentCardId(v); if (v === selectedRentCardId2) setSelectedRentCardId2(""); }}>
+                    <SelectTrigger><SelectValue placeholder="Select card..." /></SelectTrigger>
+                    <SelectContent>
+                      {availableRentCards.filter(c => c.id !== selectedRentCardId2).map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.serial_number}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Tenant Copy</Label>
+                  <Select value={selectedRentCardId2} onValueChange={setSelectedRentCardId2}>
+                    <SelectTrigger><SelectValue placeholder="Select card..." /></SelectTrigger>
+                    <SelectContent>
+                      {availableRentCards.filter(c => c.id !== selectedRentCardId).map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.serial_number}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("find-tenant")}>Back</Button>
