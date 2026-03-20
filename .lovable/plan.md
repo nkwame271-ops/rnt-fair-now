@@ -1,27 +1,36 @@
 
 
-# Fix: Replace `rentghanapilot.lovable.app` with `www.rentcontrolghana.com` Across Codebase
+# Plan: Remove Ghana Card from Signup, Keep Only in Post-Login KYC
 
-## Problem
-The bulk welcome SMS sent to all 13 users contained `rentghanapilot.lovable.app` instead of the correct domain `www.rentcontrolghana.com`. This same wrong URL appears in 8 files across the project — QR codes, payment callbacks, verification links, PDFs, etc.
+## Summary
+Both registration forms (Tenant and Landlord) currently collect Ghana Card number and citizenship status at signup. This needs to be removed — Ghana Card verification should only happen post-login via the existing KYC flow (KycVerificationCard on profile page).
 
-## Fix
-Find-and-replace `rentghanapilot.lovable.app` → `www.rentcontrolghana.com` in all affected files:
+## Changes
 
-| File | What uses the URL |
-|---|---|
-| `supabase/functions/bulk-welcome-sms/index.ts` | Welcome SMS message text |
-| `supabase/functions/paystack-checkout/index.ts` | Payment callback origin fallback |
-| `supabase/functions/verify-payment/index.ts` | Receipt QR code data |
-| `supabase/functions/auth-email-hook/index.ts` | Sample project URL + SITE_NAME |
-| `src/components/TenancyCard.tsx` | Tenancy verification QR code |
-| `src/pages/landlord/ManageRentCards.tsx` | Published URL constant |
-| `src/lib/generateTenancyCardPdf.ts` | PDF verification link text |
-| `README.md` | Live demo link |
+### 1. RegisterTenant.tsx
+- Remove the "Identity" step entirely (step 1 with Ghana Card, citizenship, region)
+- Reduce wizard from 3 input steps to 2: "Account" (name, phone, email) → "Contact" (occupation, emergency)
+- Remove `ghanaCardNo`, `isCitizen`, `residencePermitNo`, `region` state variables
+- Remove Ghana Card uniqueness pre-check from `handleCreateAccount`
+- Stop saving `ghana_card_no`, `residence_permit_no`, `nationality`, `is_citizen` to profiles at signup
+- Update `canProceed()` and step navigation logic
+- Update steps array and progress indicators
 
-## After Deploying
-Once fixed, I'll re-send the corrected welcome SMS to all 13 users with the right domain.
+### 2. RegisterLandlord.tsx
+- Remove the "Identity & Region" step (step 1 with Ghana Card, citizenship, region)
+- Reduce wizard from 2 input steps to 1: just "Account" (name, business name, phone, email)
+- Add region selector to the Account step (needed for landlord record)
+- Remove `ghanaCardNo`, `isCitizen`, `residencePermitNo` state variables
+- Remove Ghana Card uniqueness pre-check from `handleCreateAccount`
+- Stop saving `ghana_card_no`, `residence_permit_no`, `nationality`, `is_citizen` to profiles at signup
+- Update steps array and progress indicators
 
-## Files Changed
-8 files — simple string replacement in each.
+### 3. Ghana Card Uniqueness (already handled)
+The `check_ghana_card_uniqueness` database trigger already prevents the same Ghana Card from being used for duplicate role registrations. This will now fire when users submit KYC (which updates `profiles.ghana_card_no`) instead of at signup — no changes needed to the trigger.
+
+### 4. No changes needed
+- `KycVerificationCard` — already handles post-login Ghana Card verification with image uploads and selfie
+- `KycGate` — already blocks actions until KYC is verified
+- `useKycStatus` — already works correctly
+- Database schema — no changes needed
 
