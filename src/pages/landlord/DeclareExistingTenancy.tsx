@@ -357,6 +357,37 @@ const DeclareExistingTenancy = () => {
             <p className="text-xs text-muted-foreground">Record or upload a voice description of the tenancy</p>
           </div>
 
+          {availableRentCards.length >= 2 && (
+            <div className="space-y-3 border-t border-border pt-4">
+              <Label>Link Rent Cards (optional)</Label>
+              <p className="text-xs text-muted-foreground">Assign 2 physical rent cards to this tenancy — one landlord copy and one tenant copy.</p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Landlord Copy</Label>
+                  <Select value={selectedRentCardId} onValueChange={(v) => { setSelectedRentCardId(v); if (v === selectedRentCardId2) setSelectedRentCardId2(""); }}>
+                    <SelectTrigger><SelectValue placeholder="Select card..." /></SelectTrigger>
+                    <SelectContent>
+                      {availableRentCards.filter(c => c.id !== selectedRentCardId2).map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.serial_number}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Tenant Copy</Label>
+                  <Select value={selectedRentCardId2} onValueChange={setSelectedRentCardId2}>
+                    <SelectTrigger><SelectValue placeholder="Select card..." /></SelectTrigger>
+                    <SelectContent>
+                      {availableRentCards.filter(c => c.id !== selectedRentCardId).map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.serial_number}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("find-tenant")}>Back</Button>
             <Button disabled={!rent || monthlyRent <= 0 || !existingStartDate || !expiryDate} onClick={() => setStep("review")}>Next: Review</Button>
