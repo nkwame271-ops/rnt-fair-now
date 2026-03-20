@@ -1,30 +1,39 @@
 
 
-# Fix: Duplicate Serial Number Errors in Rent Card Management
+# Fix: Account Status Not Reflected in Databases + Re-registration Prevention
 
-## Problem
-Two places hit the `rent_card_serial_stock_serial_number_key` unique constraint:
+## Issues Found
 
-1. **Serial Batch Upload** — Inserting serials that already exist in the stock table (e.g. re-uploading same batch).
-2. **Pending & Assign** — The assign flow updates the `rent_cards` table with `serial_number`, but the error message references `rent_card_serial_stock`, meaning it's likely trying to insert into `serial_assignments` or a race condition where the same serial gets picked twice.
+### Issue 1: Regulator Databases show `status` instead of `account_status`
+Both `RegulatorTenants.tsx` and `RegulatorLandlords.tsx` fetch and display the **`status`** column (which tracks registration status like active/expired), NOT the **`account_status`** column (which tracks deactivated/archived). So when admin deactivates an account, the database pages still show "active".
 
-## Fix
+**Fix**: Fetch `account_status` alongside `status` and display it as a badge (e.g. red "Deactivated" tag) when not "active". Also add `account_status` to the status filter dropdown.
 
-### 1. SerialBatchUpload.tsx — Skip existing serials before insert
-- Before inserting, query `rent_card_serial_stock` for all serials in the batch
-- Filter out any that already exist
-- Show the admin how many were skipped ("X already exist, Y new serials uploaded")
-- If all already exist, show a warning instead of failing
+### Issue 2: Deactivated users can re-register with same phone number
+The registration flow uses `supabase.auth.signUp()` with a synthetic email based on the phone number. If the auth record still exists, Supabase returns "already registered" and the user is told to log in. **However**, if the auth record was deleted or if the user uses a different phone format, they could bypass this. More critically, even without re-registration, the current system has no check that blocks a deactivated user from simply **logging in** and being blocked only at the `ProtectedRoute` level — which is correct behavior. But if auth records get cleaned up, they could re-register.
 
-### 2. PendingPurchases.tsx — Add conflict handling to assign flow
-- Add `.eq("status", "available")` check already exists, but add a re-check after the update to catch race conditions
-- Use `upsert` or `ON CONFLICT DO NOTHING` where applicable
-- For the `serial_assignments` audit insert (line 152), add conflict handling since the same purchase could be assigned twice if the admin double-clicks
-- Wrap the assignment loop to gracefully handle a serial that got claimed between the SELECT and UPDATE
+**Fix**: Add a pre-check in both `RegisterTenant.tsx` and `RegisterLandlord.tsx` that queries the `profiles` table by phone number, then checks if the linked tenant/landlord record has `account_status = 'deactivated'` or `'archived'`. If so, block registration with a clear message.
 
-### Files Changed
+## Files Changed
+
 | File | Change |
 |---|---|
-| `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` | Pre-filter existing serials before insert, show skip count |
-| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Add conflict guards and prevent double-assign |
+| `src/pages/regulator/RegulatorTenants.tsx` | Fetch + display `account_status`, add filter option |
+| `src/pages/regulator/RegulatorLandlords.tsx` | Fetch + display `account_status`, add filter option |
+| `src/pages/RegisterTenant.tsx` | Pre-check phone against deactivated accounts before signup |
+| `src/pages/RegisterLandlord.tsx` | Pre-check phone against deactivated accounts before signup |
+
+## Details
+
+### RegulatorTenants.tsx / RegulatorLandlords.tsx
+- Add `account_status` to the `.select()` query (line 68 / line 62)
+- Add `account_status` to the interface
+- Display a red "Deactivated" or "Archived" badge next to the existing status badge when `account_status !== 'active'`
+- Add filter options: "Deactivated", "Archived" to the status dropdown
+- Include `account_status` in CSV export
+
+### RegisterTenant.tsx / RegisterLandlord.tsx
+- Before `signUp`, query `profiles` by phone → get `user_id` → check `tenants`/`landlords` table for `account_status`
+- If deactivated/archived, show error: "This phone number is linked to a deactivated account. Please contact Rent Control for assistance."
+- Block registration
 
