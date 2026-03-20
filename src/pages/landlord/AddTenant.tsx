@@ -463,7 +463,7 @@ const AddTenant = () => {
                   <p className="text-xs text-muted-foreground">{availableRentCards.length} card(s) available — 2 required per tenancy</p>
                 </div>
               )}
-              <Button disabled={!selectedUnitId || !selectedRentCardId} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
+              <Button disabled={!selectedUnitId || !selectedRentCardId || !selectedRentCardId2} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
                 Next: Find Tenant
               </Button>
             </>
