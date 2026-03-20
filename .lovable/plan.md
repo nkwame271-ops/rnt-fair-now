@@ -1,113 +1,118 @@
 
 
-# Plan: Comprehensive Notification System Overhaul
+# Plan: Rent Card Range Logic + Admin Safe Controls + Audit Trail
 
-This plan implements the full notification logic and templates as specified, adding multi-channel (SMS + Email + In-App) notifications across the platform.
+## Overview
+This is a significant update touching serial assignment flow, landlord inventory concept, tenancy card selection (2 cards per tenancy), admin destructive action controls, and audit logging. No changes to the core rent card purchase or payment framework.
 
-## Current State
-- **SMS**: `smsService.ts` sends SMS via `send-sms` edge function (Arkesel V2). Used in 5 places (registration, complaint, agreement, viewing, payment).
-- **Email**: Only auth emails (signup, recovery, magic-link, etc.) via `auth-email-hook`. No transactional email sending for business events.
-- **In-App**: Notifications table used in `paystack-webhook` and `tenancy-expiry-check`.
-- **No transactional email infrastructure** exists yet — needs scaffolding.
+## Part 1: Database Changes (Migration)
 
-## Architecture
-
-All notification sending will be centralized in a new `send-notification` edge function. Frontend code and other edge functions call it with an event type and data. It decides which channels (SMS, Email, In-App) to use based on the rules below.
-
-```text
-Caller (frontend/webhook/cron)
-  → send-notification edge function
-    → SMS (Arkesel) if event requires it
-    → Email (enqueue via pgmq) if event requires it
-    → In-App (notifications table insert) always
+### New table: `admin_audit_log`
+Tracks all admin destructive/corrective actions.
+```sql
+CREATE TABLE public.admin_audit_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_user_id uuid NOT NULL,
+  action text NOT NULL, -- 'revoke_batch', 'unassign_serial', 'void_upload', 'deactivate_account', 'archive_account', 'correction'
+  target_type text NOT NULL, -- 'serial_stock', 'rent_card', 'landlord', 'tenant'
+  target_id text NOT NULL,
+  reason text NOT NULL,
+  old_state jsonb DEFAULT '{}',
+  new_state jsonb DEFAULT '{}',
+  created_at timestamptz DEFAULT now()
+);
 ```
+RLS: Regulators SELECT only, service_role ALL.
 
-## Channel Rules (from spec)
+### Alter `rent_card_serial_stock`
+- Add column `revoked_at timestamptz`
+- Add column `revoked_by uuid`
+- Add column `revoke_reason text`
+- Update status enum to support `'revoked'`
 
-| Event | SMS | Email | In-App |
-|---|---|---|---|
-| account_created | ✓ | ✓ | ✓ |
-| password_reset | ✓ | ✓ | ✓ |
-| contact_changed | ✓ | ✓ | ✓ |
-| recovery_completed | ✓ | ✓ | ✓ |
-| payment_successful | ✓ | ✓ | ✓ |
-| escrow_released | ✓ | ✓ | ✓ |
-| tenancy_registered | ✓ | ✓ | ✓ |
-| rent_card_verified | ✓ | ✓ | ✓ |
-| fraud_alert | ✓ | ✓ | ✓ |
-| otp | ✓ | - | - |
-| login_alert | ✓ | - | ✓ |
-| tenancy_expiry_reminder | ✓ | - | ✓ |
-| complaint_reminder | ✓ | - | ✓ |
-| full_receipt | - | ✓ | ✓ |
-| tenancy_agreement | - | ✓ | ✓ |
-| rent_card_copy | - | ✓ | ✓ |
-| complaint_summary | - | ✓ | ✓ |
+### Alter `rent_cards` — support 2 cards per tenancy
+Currently `tenancies.rent_card_id` is a single UUID. The spec says each tenancy needs **2 cards** (landlord copy + tenant copy).
+- Add `card_role text` column to `rent_cards` (values: `'landlord_copy'`, `'tenant_copy'`, null for legacy)
+- Add `tenancies.rent_card_id_2 uuid` for the second card reference
 
-## Changes
+### Alter `landlords` and `tenants`
+- Add `account_status text DEFAULT 'active'` to both tables (values: `'active'`, `'deactivated'`, `'archived'`)
 
-### 1. Create `supabase/functions/send-notification/index.ts`
-Central edge function that accepts `{ event, phone, email, data }` and dispatches to the correct channels:
-- **SMS**: Calls Arkesel V2 directly (like current `send-sms`)
-- **Email**: Renders HTML from templates and enqueues via `enqueue_email` RPC (uses existing pgmq infrastructure)
-- **In-App**: Inserts into `notifications` table
-- Contains all SMS templates (from spec) and email HTML templates (simple branded HTML matching the platform style)
-- Channel routing map determines which channels each event triggers
+## Part 2: Regulator UI — Admin Controls (Main Admin Only)
 
-### 2. Create email templates for transactional events
-New file: `supabase/functions/send-notification/email-templates.ts`
-- Simple HTML template functions for each email type (account_created, payment_successful, contact_changed, recovery_completed, tenancy_registered, rent_card_verified, fraud_alert, full_receipt, tenancy_agreement, rent_card_copy, complaint_summary)
-- Branded with RentControlGhana green (#2d7a4f), Plus Jakarta Sans font
-- All follow the format from the spec (Hello [Name], body, Regards, RentControlGhana)
+### Update `RegulatorRentCards.tsx`
+Add a new tab: **"Admin Actions"** (Main Admin only)
+Contains 4 sections:
+1. **Revoke Serial Batch** — search by batch label or office, select unused serials, revoke with reason + password confirmation
+2. **Unassign Serial** — search by serial number, unassign if not linked to tenancy, with reason + password
+3. **Void Upload** — find a batch by label, void all unused serials in that batch
+4. **Audit Log** — read-only view of all `admin_audit_log` entries
 
-### 3. Update `src/lib/smsService.ts`
-- Rename to `notificationService.ts` with expanded event types
-- Change from calling `send-sms` to calling `send-notification`
-- Pass both phone and email so the edge function can route to correct channels
-- Export `sendNotification()` instead of `sendSms()`
+### Create `src/pages/regulator/rent-cards/AdminActions.tsx`
+New component with the above 4 sections. Each destructive action:
+- Checks `profile.isMainAdmin` before rendering
+- Shows a confirmation dialog requiring the admin's password (re-authenticate via Supabase `signInWithPassword`)
+- Requires a text reason field
+- Calls the backend, logs to `admin_audit_log`
 
-### 4. Update all frontend callers (5 files)
-Replace `sendSms()` calls with `sendNotification()`:
-- `RegisterTenant.tsx` — `account_created` event
-- `RegisterLandlord.tsx` — `account_created` event  
-- `FileComplaint.tsx` — keep as is (complaint_filed is in-app only per spec)
-- `Marketplace.tsx` — viewing is in-app only per spec, remove SMS call
-- `AddTenant.tsx` — `tenancy_registered` event (both SMS + Email)
+### Create `src/components/AdminPasswordConfirm.tsx`
+Reusable dialog component: takes `onConfirm(password, reason)`, validates password via Supabase auth, then executes the action.
 
-### 5. Update `ProfilePage.tsx`
-- After successful password change: call `sendNotification("password_reset", ...)`
-- After successful contact detail change: call `sendNotification("contact_changed", ...)`
+## Part 3: Assignment Flow Update — Range-based
 
-### 6. Update `paystack-webhook/index.ts`
-- Add email sending alongside existing SMS + in-app for payment events
-- After `sendPaymentSms()`, also enqueue a "Payment Successful" email
-- For escrow release events, trigger `escrow_released` notification
+### Update `PendingPurchases.tsx`
+Currently assigns serials 1:1 to individual `rent_cards` rows. Update to:
+- Show how many **pairs** are needed (pending_count / 2 or pending_count depending on whether cards are already pairs)
+- Assign consecutive serials from office stock as a range block
+- Display the assigned range (e.g., "RC-001 to RC-010") instead of individual badges
 
-### 7. Update `tenancy-expiry-check/index.ts`
-- Add SMS sending for tenancy expiry reminders (currently in-app only)
+### Update `OfficeSerialStock.tsx`
+- Add a "Ranges" view showing contiguous serial blocks per office
+- Show which ranges are fully available vs partially assigned
 
-### 8. Add to `supabase/config.toml`
-```toml
-[functions.send-notification]
-  verify_jwt = false
-```
+## Part 4: Tenancy Registration — 2 Cards Per Tenancy
 
-### Files to create
-| File | Purpose |
+### Update `AddTenant.tsx`
+Currently selects 1 rent card. Change to:
+- Auto-select 2 unused (`valid` status) rent cards from landlord's inventory
+- Label them as "Landlord Copy" and "Tenant Copy"
+- Both get activated and linked to the same tenancy
+- Update the `rent_cards` rows with `card_role` field
+
+### Update tenancy insert logic
+- Set both `rent_card_id` and `rent_card_id_2` on the tenancy
+- Activate both cards with the same tenancy details but different `card_role`
+
+## Part 5: Landlord Dashboard — Serial Inventory View
+
+### Update `ManageRentCards.tsx`
+- Add an "Assigned Serials" section showing the landlord's serial range inventory
+- Group cards by assignment batch showing range notation (e.g., "RC-20260319-0001 to RC-20260319-0010")
+- Show which serials are unused vs active vs used
+
+## Part 6: Edge Function for Admin Actions
+
+### Create `supabase/functions/admin-action/index.ts`
+Handles destructive actions server-side with service_role:
+- Accepts `{ action, target_id, reason, password }` 
+- Re-authenticates admin via password
+- Validates the action is safe (e.g., serial not in active tenancy)
+- Executes the action (revoke, unassign, void, deactivate, archive)
+- Logs to `admin_audit_log`
+- Returns success/failure
+
+## Summary of Files
+
+| File | Action |
 |---|---|
-| `supabase/functions/send-notification/index.ts` | Central notification dispatcher |
-
-### Files to modify
-| File | Change |
-|---|---|
-| `src/lib/smsService.ts` | Refactor to `notificationService.ts` — call `send-notification` |
-| `src/pages/RegisterTenant.tsx` | Use `sendNotification("account_created")` |
-| `src/pages/RegisterLandlord.tsx` | Same |
-| `src/pages/landlord/AddTenant.tsx` | Use `sendNotification("tenancy_registered")` |
-| `src/pages/tenant/Marketplace.tsx` | Remove SMS for viewing (in-app only per spec) |
-| `src/pages/tenant/FileComplaint.tsx` | Remove SMS for complaint (in-app only per spec) |
-| `src/pages/shared/ProfilePage.tsx` | Add notifications for password change + contact change |
-| `supabase/functions/paystack-webhook/index.ts` | Add email enqueue for payment events |
-| `supabase/functions/tenancy-expiry-check/index.ts` | Add SMS for expiry reminders |
-| `supabase/config.toml` | Add send-notification function config |
+| Migration SQL | New `admin_audit_log` table, alter `rent_card_serial_stock`, `rent_cards`, `tenancies`, `landlords`, `tenants` |
+| `supabase/functions/admin-action/index.ts` | **Create** — server-side admin action handler |
+| `supabase/config.toml` | Add `admin-action` function |
+| `src/components/AdminPasswordConfirm.tsx` | **Create** — reusable password+reason confirmation dialog |
+| `src/pages/regulator/rent-cards/AdminActions.tsx` | **Create** — Main Admin destructive controls UI |
+| `src/pages/regulator/RegulatorRentCards.tsx` | Add "Admin Actions" tab (Main Admin only) |
+| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Update to assign range blocks, show range notation |
+| `src/pages/regulator/rent-cards/OfficeSerialStock.tsx` | Add range view for serial blocks |
+| `src/pages/landlord/ManageRentCards.tsx` | Add serial inventory view, group by range |
+| `src/pages/landlord/AddTenant.tsx` | Select 2 cards per tenancy (landlord copy + tenant copy) |
 
