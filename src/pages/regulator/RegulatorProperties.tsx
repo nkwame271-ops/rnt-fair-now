@@ -182,6 +182,63 @@ const RegulatorProperties = () => {
     return <Badge variant="outline" className="text-warning border-warning/30 text-xs"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
   };
 
+  // Suggest Relisting state
+  const [showSuggestRelist, setShowSuggestRelist] = useState(false);
+  const [suggestPropertyId, setSuggestPropertyId] = useState("");
+  const [suggestedPrice, setSuggestedPrice] = useState("");
+  const [suggestNotes, setSuggestNotes] = useState("");
+  const [submittingSuggest, setSubmittingSuggest] = useState(false);
+
+  const handleSuggestRelisting = async () => {
+    if (!suggestedPrice || !suggestPropertyId) return;
+    setSubmittingSuggest(true);
+    try {
+      const { error } = await supabase.from("properties").update({
+        property_status: "needs_update",
+        suggested_price: parseFloat(suggestedPrice),
+      } as any).eq("id", suggestPropertyId);
+      if (error) throw error;
+
+      await supabase.from("property_events").insert({
+        property_id: suggestPropertyId,
+        event_type: "status_change",
+        old_value: { status: properties.find(p => p.id === suggestPropertyId)?.property_status },
+        new_value: { status: "needs_update", suggested_price: parseFloat(suggestedPrice) },
+        performed_by: user?.id,
+        reason: suggestNotes || "Admin suggested relisting with price guidance",
+      } as any);
+
+      // Get landlord user_id for notification
+      const prop = properties.find(p => p.id === suggestPropertyId);
+      if (prop) {
+        const { data: profile } = await supabase.from("profiles").select("phone, email, full_name").eq("user_id", prop.landlord_user_id).maybeSingle();
+        if (profile) {
+          await supabase.functions.invoke("send-notification", {
+            body: {
+              event: "contact_changed",
+              phone: profile.phone,
+              email: profile.email,
+              user_id: prop.landlord_user_id,
+              data: {
+                name: profile.full_name,
+                message: `Your property needs a pricing update. Suggested rent: GH₵ ${parseFloat(suggestedPrice).toLocaleString()}. Please edit and resubmit.`,
+              },
+            },
+          });
+        }
+      }
+
+      setProperties(prev => prev.map(p => p.id === suggestPropertyId ? { ...p, property_status: "needs_update", suggested_price: parseFloat(suggestedPrice) } : p));
+      toast.success("Property sent back for pricing update");
+      setShowSuggestRelist(false);
+      setSuggestedPrice("");
+      setSuggestNotes("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to suggest relisting");
+    }
+    setSubmittingSuggest(false);
+  };
+
   const statusColors: Record<string, string> = {
     draft: "bg-muted text-muted-foreground",
     pending_identity_review: "bg-orange-100 text-orange-700 border-orange-200",
@@ -193,6 +250,7 @@ const RegulatorProperties = () => {
     pending_rent_review: "bg-warning/10 text-warning border-warning/30",
     suspended: "bg-destructive/10 text-destructive border-destructive/20",
     archived: "bg-muted text-muted-foreground border-border",
+    needs_update: "bg-orange-100 text-orange-700 border-orange-200",
   };
 
   const statusLabels: Record<string, string> = {
@@ -206,6 +264,7 @@ const RegulatorProperties = () => {
     pending_rent_review: "Rent Review",
     suspended: "Suspended",
     archived: "Archived",
+    needs_update: "Needs Update",
   };
 
   const handleChangeStatus = async (propertyId: string, newStatus: string) => {
