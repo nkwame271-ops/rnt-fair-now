@@ -17,10 +17,16 @@ import PropertyLocationPicker from "@/components/PropertyLocationPicker";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Badge } from "@/components/ui/badge";
 
+const unitTypePresets = [
+  "Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom",
+  "Self-Contained", "Apartment", "Hostel Room", "Shop", "Office",
+];
+
 interface UnitForm {
   name: string;
-  type: PropertyType | "";
+  type: string;
   rent: string;
+  bedroomCount: string;
   hasToiletBathroom: boolean;
   hasKitchen: boolean;
   waterAvailable: boolean;
