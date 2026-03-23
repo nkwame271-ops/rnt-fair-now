@@ -86,6 +86,7 @@ const RegulatorTerminations = lazy(() => import("./pages/regulator/RegulatorTerm
 const EscrowDashboard = lazy(() => import("./pages/regulator/EscrowDashboard"));
 const RegulatorRentCards = lazy(() => import("./pages/regulator/RegulatorRentCards"));
 const SmsBroadcast = lazy(() => import("./pages/regulator/SmsBroadcast"));
+const RegulatorRentReviews = lazy(() => import("./pages/regulator/RegulatorRentReviews"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
