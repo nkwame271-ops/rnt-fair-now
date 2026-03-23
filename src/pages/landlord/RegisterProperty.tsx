@@ -72,12 +72,7 @@ const RegisterProperty = () => {
   const areas = region ? areasByRegion[region] || [] : [];
   const effectiveArea = customArea.trim() || area;
 
-  const addUnit = () => setUnits([...units, {
-    name: `Unit ${String.fromCharCode(65 + units.length)}`, type: "", rent: "",
-    hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
-    electricityAvailable: false, hasBorehole: false, hasPolytank: false,
-    amenities: [], customAmenities: "",
-  }]);
+  const addUnit = () => setUnits([...units, createEmptyUnit(units.length)]);
   const removeUnit = (i: number) => setUnits(units.filter((_, idx) => idx !== i));
   const updateUnit = (i: number, updates: Partial<UnitForm>) => {
     const updated = [...units];
