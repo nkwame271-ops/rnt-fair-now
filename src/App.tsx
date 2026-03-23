@@ -49,6 +49,7 @@ const LandlordDashboard = lazy(() => import("./pages/landlord/LandlordDashboard"
 const MyProperties = lazy(() => import("./pages/landlord/MyProperties"));
 const RegisterProperty = lazy(() => import("./pages/landlord/RegisterProperty"));
 const EditProperty = lazy(() => import("./pages/landlord/EditProperty"));
+const RentIncreaseRequest = lazy(() => import("./pages/landlord/RentIncreaseRequest"));
 const Agreements = lazy(() => import("./pages/landlord/Agreements"));
 const AddTenant = lazy(() => import("./pages/landlord/AddTenant"));
 const LandlordViewingRequests = lazy(() => import("./pages/landlord/ViewingRequests"));
