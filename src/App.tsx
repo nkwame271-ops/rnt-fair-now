@@ -162,6 +162,7 @@ const App = () => (
                 <Route path="receipts" element={<LandlordReceipts />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="feedback" element={<LandlordFeedback />} />
+                <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
               </Route>
 
               {/* Regulator Routes */}
