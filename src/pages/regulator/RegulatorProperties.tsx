@@ -282,48 +282,81 @@ const RegulatorProperties = () => {
                 <TableHead>Address</TableHead>
                 <TableHead>Region</TableHead>
                 <TableHead>Units</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Assessment</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No properties found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No properties found</TableCell></TableRow>
               ) : (
-                filtered.map((p: any) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
-                    <TableCell className="font-medium">{p.property_name || "—"}</TableCell>
-                    <TableCell className="flex items-center gap-1 text-sm">
-                      <MapPin className="h-3 w-3 text-muted-foreground" />
-                      <a
-                        href={(() => { const gps = parseGPS(p.gps_location); return gps ? `https://www.google.com/maps?q=${gps.lat},${gps.lng}` : `https://www.google.com/maps/search/${encodeURIComponent(p.address)}`; })()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline hover:text-primary/80"
-                      >
-                        {p.address}
-                      </a>
-                    </TableCell>
-                    <TableCell>{p.region}, {p.area}</TableCell>
-                    <TableCell>
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">{p.units?.length || 0}</span>
-                    </TableCell>
-                    <TableCell>{assessmentBadge(p.assessment_status || "pending")}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openDetail(p)} className="gap-1">
-                          <Eye className="h-3.5 w-3.5" /> View
-                        </Button>
-                        {(p.assessment_status || "pending") !== "approved" && (
-                          <Button size="sm" variant="ghost" onClick={() => openAssessmentForm(p.id)} className="gap-1 text-primary">
-                            <ClipboardCheck className="h-3.5 w-3.5" /> Assess
-                          </Button>
+                filtered.map((p: any) => {
+                  const pStatus = p.property_status || "pending_assessment";
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
+                      <TableCell className="font-medium">
+                        {p.property_name || "—"}
+                        {pStatus === "pending_identity_review" && (
+                          <Badge variant="outline" className="ml-1 text-[10px] bg-orange-100 text-orange-700 border-orange-200 gap-0.5">
+                            <AlertTriangle className="h-2.5 w-2.5" /> Duplicate Risk
+                          </Badge>
                         )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          <a
+                            href={(() => { const gps = parseGPS(p.gps_location); return gps ? `https://www.google.com/maps?q=${gps.lat},${gps.lng}` : `https://www.google.com/maps/search/${encodeURIComponent(p.address)}`; })()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary underline hover:text-primary/80 truncate max-w-[150px]"
+                          >
+                            {p.address}
+                          </a>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">{p.region}, {p.area}</TableCell>
+                      <TableCell>
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">{p.units?.length || 0}</span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-xs ${statusColors[pStatus] || "text-muted-foreground"}`}>
+                          {statusLabels[pStatus] || pStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{assessmentBadge(p.assessment_status || "pending")}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => openDetail(p)} className="gap-1">
+                            <Eye className="h-3.5 w-3.5" /> View
+                          </Button>
+                          {(p.assessment_status || "pending") !== "approved" && (
+                            <Button size="sm" variant="ghost" onClick={() => openAssessmentForm(p.id)} className="gap-1 text-primary">
+                              <ClipboardCheck className="h-3.5 w-3.5" /> Assess
+                            </Button>
+                          )}
+                          {pStatus === "pending_identity_review" && (
+                            <Button size="sm" variant="ghost" onClick={() => handleChangeStatus(p.id, "pending_assessment")} className="gap-1 text-success">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Clear
+                            </Button>
+                          )}
+                          {pStatus === "live" && (
+                            <Button size="sm" variant="ghost" onClick={() => handleChangeStatus(p.id, "suspended")} className="gap-1 text-destructive">
+                              <Ban className="h-3.5 w-3.5" /> Suspend
+                            </Button>
+                          )}
+                          {pStatus === "suspended" && (
+                            <Button size="sm" variant="ghost" onClick={() => handleChangeStatus(p.id, "approved")} className="gap-1 text-success">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Reinstate
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
