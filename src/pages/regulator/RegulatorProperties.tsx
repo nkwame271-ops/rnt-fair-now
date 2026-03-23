@@ -398,6 +398,16 @@ const RegulatorProperties = () => {
                               <ClipboardCheck className="h-3.5 w-3.5" /> Assess
                             </Button>
                           )}
+                          {["pending_assessment", "pending_identity_review"].includes(pStatus) && (
+                            <Button size="sm" variant="ghost" onClick={() => {
+                              setSuggestPropertyId(p.id);
+                              setSuggestedPrice("");
+                              setSuggestNotes("");
+                              setShowSuggestRelist(true);
+                            }} className="gap-1 text-orange-600">
+                              <AlertTriangle className="h-3.5 w-3.5" /> Suggest Relist
+                            </Button>
+                          )}
                           {pStatus === "pending_identity_review" && (
                             <Button size="sm" variant="ghost" onClick={() => handleChangeStatus(p.id, "pending_assessment")} className="gap-1 text-success">
                               <CheckCircle2 className="h-3.5 w-3.5" /> Clear
