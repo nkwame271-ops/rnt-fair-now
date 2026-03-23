@@ -180,6 +180,53 @@ const RegulatorProperties = () => {
     return <Badge variant="outline" className="text-warning border-warning/30 text-xs"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
   };
 
+  const statusColors: Record<string, string> = {
+    draft: "bg-muted text-muted-foreground",
+    pending_identity_review: "bg-orange-100 text-orange-700 border-orange-200",
+    pending_assessment: "bg-warning/10 text-warning border-warning/30",
+    approved: "bg-success/10 text-success border-success/20",
+    live: "bg-primary/10 text-primary border-primary/20",
+    occupied: "bg-info/10 text-info border-info/20",
+    off_market: "bg-muted text-muted-foreground border-border",
+    pending_rent_review: "bg-warning/10 text-warning border-warning/30",
+    suspended: "bg-destructive/10 text-destructive border-destructive/20",
+    archived: "bg-muted text-muted-foreground border-border",
+  };
+
+  const statusLabels: Record<string, string> = {
+    draft: "Draft",
+    pending_identity_review: "Identity Review",
+    pending_assessment: "Under Assessment",
+    approved: "Approved",
+    live: "Live",
+    occupied: "Occupied",
+    off_market: "Off Market",
+    pending_rent_review: "Rent Review",
+    suspended: "Suspended",
+    archived: "Archived",
+  };
+
+  const handleChangeStatus = async (propertyId: string, newStatus: string) => {
+    const { error } = await supabase.from("properties").update({
+      property_status: newStatus,
+      ...(newStatus === "live" ? { listed_on_marketplace: true } : {}),
+      ...(newStatus === "suspended" || newStatus === "off_market" ? { listed_on_marketplace: false } : {}),
+    } as any).eq("id", propertyId);
+    if (error) { toast.error(error.message); return; }
+
+    await supabase.from("property_events").insert({
+      property_id: propertyId,
+      event_type: "status_change",
+      old_value: { status: properties.find(p => p.id === propertyId)?.property_status },
+      new_value: { status: newStatus },
+      performed_by: user?.id,
+      reason: `Admin changed status to ${newStatus}`,
+    } as any);
+
+    setProperties(prev => prev.map(p => p.id === propertyId ? { ...p, property_status: newStatus } : p));
+    toast.success(`Property status changed to ${statusLabels[newStatus] || newStatus}`);
+  };
+
   if (loading) return <LogoLoader message="Loading properties..." />;
 
   return (
