@@ -46,11 +46,13 @@ interface Property {
   region: string;
   area: string;
   gps_location: string | null;
+  ghana_post_gps: string | null;
   property_condition: string | null;
   property_category: string;
   assessment_status: string;
   property_status: string;
   listed_on_marketplace: boolean;
+  approved_rent: number | null;
   units: Unit[];
   tenancyCount: number;
 }
