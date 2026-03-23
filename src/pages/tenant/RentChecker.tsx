@@ -5,27 +5,65 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { regions, areasByRegion, rentPrices, type PropertyType } from "@/data/dummyData";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { regions, areasByRegion, rentPrices } from "@/data/dummyData";
 
-const propertyTypes: PropertyType[] = ["Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom"];
+const propertySubTypes = {
+  residential: ["Apartment", "Detached House", "Semi-Detached", "Hostel", "Compound House"],
+  commercial: ["Shop", "Office", "Warehouse", "Restaurant Space"],
+};
+
+const bedroomOptions = ["1", "2", "3", "4", "5", "6", "7", "8+"];
 
 const RentChecker = () => {
   const [region, setRegion] = useState("");
   const [area, setArea] = useState("");
-  const [type, setType] = useState<PropertyType | "">("");
+  const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial">("residential");
+  const [subType, setSubType] = useState("");
+  const [bedroomRange, setBedroomRange] = useState("");
   const [currentRent, setCurrentRent] = useState("");
   const [result, setResult] = useState<null | { min: number; avg: number; max: number; diff: number }>(null);
 
   const areas = region ? areasByRegion[region] || [] : [];
 
   const handleCheck = () => {
-    const match = rentPrices.find(
-      (r) => r.region === region && r.area === area && r.type === type
+    // Map bedroom count to closest property type for lookup
+    const bedrooms = parseInt(bedroomRange) || 0;
+    let typeKey = "";
+    if (bedrooms <= 0) typeKey = "Single Room";
+    else if (bedrooms === 1) typeKey = "1-Bedroom";
+    else if (bedrooms === 2) typeKey = "2-Bedroom";
+    else if (bedrooms >= 3) typeKey = "3-Bedroom";
+
+    // Try exact match first
+    let match = rentPrices.find(
+      (r) => r.region === region && r.area === area && r.type === typeKey
     );
+
+    // Fallback: try any match in the same region + area
+    if (!match && area) {
+      match = rentPrices.find(
+        (r) => r.region === region && r.area === area
+      );
+    }
+
+    // Fallback: region-level average
+    if (!match) {
+      const regionMatches = rentPrices.filter(r => r.region === region && r.type === typeKey);
+      if (regionMatches.length > 0) {
+        const avgMin = Math.round(regionMatches.reduce((s, r) => s + r.min, 0) / regionMatches.length);
+        const avgAvg = Math.round(regionMatches.reduce((s, r) => s + r.avg, 0) / regionMatches.length);
+        const avgMax = Math.round(regionMatches.reduce((s, r) => s + r.max, 0) / regionMatches.length);
+        match = { region, area: "Region Average", type: typeKey as any, min: avgMin, avg: avgAvg, max: avgMax };
+      }
+    }
+
     if (match) {
       const rent = parseFloat(currentRent) || 0;
       const diff = rent > 0 ? ((rent - match.avg) / match.avg) * 100 : 0;
       setResult({ min: match.min, avg: match.avg, max: match.max, diff });
+    } else {
+      setResult(null);
     }
   };
 
@@ -37,6 +75,21 @@ const RentChecker = () => {
       </div>
 
       <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
+        {/* Property Category */}
+        <div className="space-y-2">
+          <Label>Property Category</Label>
+          <RadioGroup value={propertyCategory} onValueChange={(v) => { setPropertyCategory(v as "residential" | "commercial"); setSubType(""); }} className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <RadioGroupItem value="residential" />
+              <span className="text-sm">Residential</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <RadioGroupItem value="commercial" />
+              <span className="text-sm">Commercial</span>
+            </label>
+          </RadioGroup>
+        </div>
+
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Region</Label>
@@ -57,13 +110,23 @@ const RentChecker = () => {
             </Select>
           </div>
         </div>
-        <div className="grid sm:grid-cols-2 gap-4">
+
+        <div className="grid sm:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label>Property Type</Label>
-            <Select value={type} onValueChange={(v) => { setType(v as PropertyType); setResult(null); }}>
-              <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+            <Label>Sub-type</Label>
+            <Select value={subType} onValueChange={(v) => { setSubType(v); setResult(null); }}>
+              <SelectTrigger><SelectValue placeholder="Select sub-type" /></SelectTrigger>
               <SelectContent>
-                {propertyTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                {propertySubTypes[propertyCategory].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Bedrooms</Label>
+            <Select value={bedroomRange} onValueChange={(v) => { setBedroomRange(v); setResult(null); }}>
+              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                {bedroomOptions.map((b) => <SelectItem key={b} value={b}>{b} {b === "8+" ? "or more" : b === "1" ? "bedroom" : "bedrooms"}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -77,7 +140,8 @@ const RentChecker = () => {
             />
           </div>
         </div>
-        <Button onClick={handleCheck} className="w-full sm:w-auto" disabled={!region || !area || !type}>
+
+        <Button onClick={handleCheck} className="w-full sm:w-auto" disabled={!region}>
           <Search className="h-4 w-4 mr-2" /> Check Rent Prices
         </Button>
       </div>
@@ -87,7 +151,7 @@ const RentChecker = () => {
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
           {/* Price Range */}
           <div className="bg-card rounded-xl p-6 shadow-card border border-border">
-            <h2 className="text-lg font-semibold text-card-foreground mb-4">Market Rent Range — {area}</h2>
+            <h2 className="text-lg font-semibold text-card-foreground mb-4">Market Rent Range — {area || region}</h2>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="bg-muted rounded-lg p-4">
                 <div className="text-xs text-muted-foreground mb-1">Minimum</div>

@@ -260,8 +260,8 @@ const RoleSelect = () => {
               <div>
                 <h4 className="font-semibold text-foreground text-sm mb-3">Contact</h4>
                 <div className="space-y-2 text-muted-foreground text-xs">
-                  <div className="flex items-center gap-2"><Phone className="h-3 w-3" /> +233 (0) 302 123 456</div>
-                  <div className="flex items-center gap-2"><Mail className="h-3 w-3" /> info@rentcontrol.gov.gh</div>
+                  <div className="flex items-center gap-2"><Phone className="h-3 w-3" /> +233 303 960 792</div>
+                  <div className="flex items-center gap-2"><Mail className="h-3 w-3" /> rentcontroldepart@gmail.com</div>
                   <div className="flex items-center gap-2"><MapPin className="h-3 w-3" /> Accra, Greater Accra Region</div>
                 </div>
               </div>

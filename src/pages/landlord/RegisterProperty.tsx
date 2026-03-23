@@ -5,8 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { PlusCircle, Trash2, Building2, Upload, X, Store, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
-import { regions, areasByRegion, type PropertyType } from "@/data/dummyData";
+import { regions, areasByRegion } from "@/data/dummyData";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,10 +17,16 @@ import PropertyLocationPicker from "@/components/PropertyLocationPicker";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Badge } from "@/components/ui/badge";
 
+const unitTypePresets = [
+  "Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom",
+  "Self-Contained", "Apartment", "Hostel Room", "Shop", "Office",
+];
+
 interface UnitForm {
   name: string;
-  type: PropertyType | "";
+  type: string;
   rent: string;
+  bedroomCount: string;
   hasToiletBathroom: boolean;
   hasKitchen: boolean;
   waterAvailable: boolean;
@@ -31,8 +38,15 @@ interface UnitForm {
   benchmark?: { pricing_band: string; pricing_label: string; benchmark_min: number; benchmark_max: number; benchmark_expected: number; confidence: string };
 }
 
-const propertyTypes: PropertyType[] = ["Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom", "Self-Contained"];
 const amenityOptions = ["Security", "Parking", "Balcony", "Compound", "AC", "Generator", "Pool", "Gym"];
+
+const createEmptyUnit = (index: number): UnitForm => ({
+  name: index === 0 ? "Unit A" : `Unit ${String.fromCharCode(65 + index)}`,
+  type: "", rent: "", bedroomCount: "",
+  hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
+  electricityAvailable: false, hasBorehole: false, hasPolytank: false,
+  amenities: [], customAmenities: "",
+});
 
 const normalizeAddress = (addr: string) => addr.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
 
@@ -51,27 +65,14 @@ const RegisterProperty = () => {
   const [propertyCondition, setPropertyCondition] = useState("");
   const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial">("residential");
   const [images, setImages] = useState<File[]>([]);
-  const [roomCount, setRoomCount] = useState("");
-  const [bathroomCount, setBathroomCount] = useState("");
-  const [occupancyType, setOccupancyType] = useState("self_contained");
-  const [furnishingStatus, setFurnishingStatus] = useState("unfurnished");
   const [ownershipType, setOwnershipType] = useState("owner");
-  const [units, setUnits] = useState<UnitForm[]>([{
-    name: "Unit A", type: "", rent: "",
-    hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
-    electricityAvailable: false, hasBorehole: false, hasPolytank: false,
-    amenities: [], customAmenities: "",
-  }]);
+  const [propertyStructure, setPropertyStructure] = useState<"single_unit" | "multi_unit">("single_unit");
+  const [units, setUnits] = useState<UnitForm[]>([createEmptyUnit(0)]);
 
   const areas = region ? areasByRegion[region] || [] : [];
   const effectiveArea = customArea.trim() || area;
 
-  const addUnit = () => setUnits([...units, {
-    name: `Unit ${String.fromCharCode(65 + units.length)}`, type: "", rent: "",
-    hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
-    electricityAvailable: false, hasBorehole: false, hasPolytank: false,
-    amenities: [], customAmenities: "",
-  }]);
+  const addUnit = () => setUnits([...units, createEmptyUnit(units.length)]);
   const removeUnit = (i: number) => setUnits(units.filter((_, idx) => idx !== i));
   const updateUnit = (i: number, updates: Partial<UnitForm>) => {
     const updated = [...units];
@@ -186,11 +187,8 @@ const RegisterProperty = () => {
         property_category: propertyCategory,
         listed_on_marketplace: false,
         property_status: propertyStatus,
-        room_count: roomCount ? parseInt(roomCount) : null,
-        bathroom_count: bathroomCount ? parseInt(bathroomCount) : null,
-        occupancy_type: occupancyType,
-        furnishing_status: furnishingStatus,
         ownership_type: ownershipType,
+        property_structure: propertyStructure,
         normalized_address: normalizedAddr,
         property_fingerprint: fingerprint,
       } as any).select().single();
@@ -343,50 +341,40 @@ const RegisterProperty = () => {
                 </div>
               </div>
 
-              {/* New identity fields */}
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Room Count</Label>
-                  <Input type="number" value={roomCount} onChange={(e) => setRoomCount(e.target.value)} placeholder="e.g. 4" min="1" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Bathroom Count</Label>
-                  <Input type="number" value={bathroomCount} onChange={(e) => setBathroomCount(e.target.value)} placeholder="e.g. 2" min="0" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Occupancy Type</Label>
-                  <Select value={occupancyType} onValueChange={setOccupancyType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="self_contained">Self-Contained</SelectItem>
-                      <SelectItem value="shared">Shared Facilities</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Ownership Type */}
+              <div className="space-y-2">
+                <Label>Ownership Type</Label>
+                <Select value={ownershipType} onValueChange={setOwnershipType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="agent">Agent</SelectItem>
+                    <SelectItem value="caretaker">Caretaker</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Furnishing Status</Label>
-                  <Select value={furnishingStatus} onValueChange={setFurnishingStatus}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unfurnished">Unfurnished</SelectItem>
-                      <SelectItem value="semi_furnished">Semi-Furnished</SelectItem>
-                      <SelectItem value="furnished">Furnished</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Ownership Type</Label>
-                  <Select value={ownershipType} onValueChange={setOwnershipType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="owner">Owner</SelectItem>
-                      <SelectItem value="agent">Agent</SelectItem>
-                      <SelectItem value="caretaker">Caretaker</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+
+              {/* Property Structure */}
+              <div className="space-y-3">
+                <Label>Property Structure *</Label>
+                <RadioGroup value={propertyStructure} onValueChange={(v) => {
+                  setPropertyStructure(v as "single_unit" | "multi_unit");
+                  if (v === "single_unit" && units.length > 1) {
+                    setUnits([units[0]]);
+                  }
+                }} className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <RadioGroupItem value="single_unit" />
+                    <span className="text-sm">Single unit property</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <RadioGroupItem value="multi_unit" />
+                    <span className="text-sm">Multi-unit property</span>
+                  </label>
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">
+                  {propertyStructure === "single_unit" ? "One unit will be created automatically." : "Add multiple units to this property."}
+                </p>
               </div>
 
               {/* GPS — Map Picker */}
@@ -471,26 +459,33 @@ const RegisterProperty = () => {
             <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-card-foreground">Units ({units.length})</h2>
-                <Button type="button" variant="outline" size="sm" onClick={addUnit}>
-                  <PlusCircle className="h-4 w-4 mr-1" /> Add Unit
-                </Button>
+                {propertyStructure === "multi_unit" && (
+                  <Button type="button" variant="outline" size="sm" onClick={addUnit}>
+                    <PlusCircle className="h-4 w-4 mr-1" /> Add Unit
+                  </Button>
+                )}
               </div>
               <div className="space-y-4">
                 {units.map((unit, i) => (
                   <div key={i} className="bg-muted rounded-lg p-4 space-y-3">
-                    <div className="grid sm:grid-cols-4 gap-3 items-end">
-                      <div className="space-y-1">
+                    <div className="flex items-end gap-3 flex-wrap">
+                      <div className="space-y-1 flex-1 min-w-[120px]">
                         <Label className="text-xs">Unit Name</Label>
                         <Input value={unit.name} onChange={(e) => updateUnit(i, { name: e.target.value })} />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Type</Label>
-                        <Select value={unit.type} onValueChange={(v) => updateUnit(i, { type: v as PropertyType })}>
-                          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>{propertyTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                        </Select>
+                      <div className="space-y-1 flex-1 min-w-[180px]">
+                        <Label className="text-xs">Unit Type</Label>
+                        <Input
+                          value={unit.type}
+                          onChange={(e) => updateUnit(i, { type: e.target.value })}
+                          placeholder="e.g. 3-Bedroom Duplex with BQ"
+                        />
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 w-24">
+                        <Label className="text-xs">Bedrooms</Label>
+                        <Input type="number" value={unit.bedroomCount} onChange={(e) => updateUnit(i, { bedroomCount: e.target.value })} placeholder="0" min="0" />
+                      </div>
+                      <div className="space-y-1 w-28">
                         <Label className="text-xs">Rent (GH₵)</Label>
                         <Input
                           type="number"
@@ -500,9 +495,29 @@ const RegisterProperty = () => {
                           placeholder="e.g. 1200"
                         />
                       </div>
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeUnit(i)} disabled={units.length === 1} className="text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {propertyStructure === "multi_unit" && (
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeUnit(i)} disabled={units.length === 1} className="text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Quick-select type presets */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {unitTypePresets.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => updateUnit(i, { type: preset })}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                            unit.type === preset
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
                     </div>
 
                     {/* Benchmark feedback */}

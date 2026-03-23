@@ -866,8 +866,10 @@ export type Database = {
           property_fingerprint: string | null
           property_name: string | null
           property_status: string
+          property_structure: string | null
           region: string
           room_count: number | null
+          suggested_price: number | null
           updated_at: string
         }
         Insert: {
@@ -902,8 +904,10 @@ export type Database = {
           property_fingerprint?: string | null
           property_name?: string | null
           property_status?: string
+          property_structure?: string | null
           region: string
           room_count?: number | null
+          suggested_price?: number | null
           updated_at?: string
         }
         Update: {
@@ -938,8 +942,10 @@ export type Database = {
           property_fingerprint?: string | null
           property_name?: string | null
           property_status?: string
+          property_structure?: string | null
           region?: string
           room_count?: number | null
+          suggested_price?: number | null
           updated_at?: string
         }
         Relationships: []

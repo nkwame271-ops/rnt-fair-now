@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, Users, MapPin, UserPlus, Loader2, Droplets, Zap, ChefHat, Bath, CircleDot, Pencil, Store, Archive, TrendingUp } from "lucide-react";
+import { Building2, Users, MapPin, UserPlus, Loader2, Droplets, Zap, ChefHat, Bath, CircleDot, Pencil, Store, Archive, TrendingUp, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,6 +77,7 @@ const statusColors: Record<string, string> = {
   pending_rent_review: "bg-warning/10 text-warning border-warning/30",
   suspended: "bg-destructive/10 text-destructive border-destructive/20",
   archived: "bg-muted text-muted-foreground border-border",
+  needs_update: "bg-orange-100 text-orange-700 border-orange-200",
 };
 
 const statusLabels: Record<string, string> = {
@@ -90,6 +91,7 @@ const statusLabels: Record<string, string> = {
   pending_rent_review: "Rent Review",
   suspended: "Suspended",
   archived: "Archived",
+  needs_update: "Needs Update",
 };
 
 const MyProperties = () => {
@@ -196,7 +198,12 @@ const MyProperties = () => {
 
   const handleToggleListing = async (property: Property) => {
     if (property.listed_on_marketplace) {
-      // Delist flow
+      // Delist flow — guard against occupied units
+      const hasOccupiedUnit = property.units.some(u => u.status === "occupied");
+      if (hasOccupiedUnit) {
+        toast.error("Occupied properties cannot be delisted. All units must be vacant first.");
+        return;
+      }
       setListingId(property.id);
       const { error } = await supabase.from("properties").update({
         listed_on_marketplace: false,
@@ -204,7 +211,6 @@ const MyProperties = () => {
       } as any).eq("id", property.id);
       if (error) toast.error(error.message);
       else {
-        // Log delist event
         await supabase.from("property_events").insert({
           property_id: property.id,
           event_type: "delisting",
@@ -448,6 +454,41 @@ const MyProperties = () => {
                   </AlertDialog>
                 </div>
               </div>
+
+              {/* Needs Update banner with suggested price */}
+              {p.property_status === "needs_update" && (
+                <div className="mx-4 mt-0 mb-2 p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-orange-800 dark:text-orange-300">Pricing update required</p>
+                      {(p as any).suggested_price && (
+                        <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">
+                          Admin suggested rent: <strong>GH₵ {Number((p as any).suggested_price).toLocaleString()}/mo</strong>
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">Edit your property to adjust pricing, then resubmit for assessment.</p>
+                      <div className="flex gap-2 mt-2">
+                        <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate(`/landlord/edit-property/${p.id}`)}>
+                          <Pencil className="h-3 w-3 mr-1" /> Edit Property
+                        </Button>
+                        <Button size="sm" className="text-xs bg-orange-600 hover:bg-orange-700 text-white" onClick={async () => {
+                          const { error } = await supabase.from("properties").update({
+                            property_status: "pending_assessment",
+                          } as any).eq("id", p.id);
+                          if (error) toast.error(error.message);
+                          else {
+                            setProperties(prev => prev.map(pr => pr.id === p.id ? { ...pr, property_status: "pending_assessment" } : pr));
+                            toast.success("Property resubmitted for assessment");
+                          }
+                        }}>
+                          Resubmit for Assessment
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="p-4 space-y-4">
                 {p.units.map((u) => (

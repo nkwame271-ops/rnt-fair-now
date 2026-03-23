@@ -58,6 +58,7 @@ const RegulatorProperties = () => {
       .from("properties")
       .update({
         assessment_status: "approved",
+        property_status: "approved",
         assessed_at: new Date().toISOString(),
         assessed_by: user?.id,
       } as any)
@@ -68,10 +69,10 @@ const RegulatorProperties = () => {
     } else {
       toast.success("Property approved — Fully Assessed / Tenantable");
       setProperties((prev) =>
-        prev.map((p) => p.id === propertyId ? { ...p, assessment_status: "approved", assessed_at: new Date().toISOString() } : p)
+        prev.map((p) => p.id === propertyId ? { ...p, assessment_status: "approved", property_status: "approved", assessed_at: new Date().toISOString() } : p)
       );
       if (detailProperty?.id === propertyId) {
-        setDetailProperty({ ...detailProperty, assessment_status: "approved" });
+        setDetailProperty({ ...detailProperty, assessment_status: "approved", property_status: "approved" });
       }
     }
     setApproving(false);
@@ -124,6 +125,7 @@ const RegulatorProperties = () => {
 
       await supabase.from("properties").update({
         assessment_status: "approved",
+        property_status: "approved",
         assessed_at: new Date().toISOString(),
         assessed_by: user?.id,
         approved_rent: approvedRent,
@@ -132,10 +134,10 @@ const RegulatorProperties = () => {
 
       toast.success(`Property approved with rent GH₵ ${approvedRent.toLocaleString()}`);
       setProperties((prev) =>
-        prev.map((p) => p.id === propertyId ? { ...p, assessment_status: "approved", approved_rent: approvedRent } : p)
+        prev.map((p) => p.id === propertyId ? { ...p, assessment_status: "approved", property_status: "approved", approved_rent: approvedRent } : p)
       );
       if (detailProperty?.id === propertyId) {
-        setDetailProperty({ ...detailProperty, assessment_status: "approved", approved_rent: approvedRent });
+        setDetailProperty({ ...detailProperty, assessment_status: "approved", property_status: "approved", approved_rent: approvedRent });
       }
     } catch (err: any) {
       toast.error(err.message);
@@ -180,6 +182,63 @@ const RegulatorProperties = () => {
     return <Badge variant="outline" className="text-warning border-warning/30 text-xs"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
   };
 
+  // Suggest Relisting state
+  const [showSuggestRelist, setShowSuggestRelist] = useState(false);
+  const [suggestPropertyId, setSuggestPropertyId] = useState("");
+  const [suggestedPrice, setSuggestedPrice] = useState("");
+  const [suggestNotes, setSuggestNotes] = useState("");
+  const [submittingSuggest, setSubmittingSuggest] = useState(false);
+
+  const handleSuggestRelisting = async () => {
+    if (!suggestedPrice || !suggestPropertyId) return;
+    setSubmittingSuggest(true);
+    try {
+      const { error } = await supabase.from("properties").update({
+        property_status: "needs_update",
+        suggested_price: parseFloat(suggestedPrice),
+      } as any).eq("id", suggestPropertyId);
+      if (error) throw error;
+
+      await supabase.from("property_events").insert({
+        property_id: suggestPropertyId,
+        event_type: "status_change",
+        old_value: { status: properties.find(p => p.id === suggestPropertyId)?.property_status },
+        new_value: { status: "needs_update", suggested_price: parseFloat(suggestedPrice) },
+        performed_by: user?.id,
+        reason: suggestNotes || "Admin suggested relisting with price guidance",
+      } as any);
+
+      // Get landlord user_id for notification
+      const prop = properties.find(p => p.id === suggestPropertyId);
+      if (prop) {
+        const { data: profile } = await supabase.from("profiles").select("phone, email, full_name").eq("user_id", prop.landlord_user_id).maybeSingle();
+        if (profile) {
+          await supabase.functions.invoke("send-notification", {
+            body: {
+              event: "contact_changed",
+              phone: profile.phone,
+              email: profile.email,
+              user_id: prop.landlord_user_id,
+              data: {
+                name: profile.full_name,
+                message: `Your property needs a pricing update. Suggested rent: GH₵ ${parseFloat(suggestedPrice).toLocaleString()}. Please edit and resubmit.`,
+              },
+            },
+          });
+        }
+      }
+
+      setProperties(prev => prev.map(p => p.id === suggestPropertyId ? { ...p, property_status: "needs_update", suggested_price: parseFloat(suggestedPrice) } : p));
+      toast.success("Property sent back for pricing update");
+      setShowSuggestRelist(false);
+      setSuggestedPrice("");
+      setSuggestNotes("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to suggest relisting");
+    }
+    setSubmittingSuggest(false);
+  };
+
   const statusColors: Record<string, string> = {
     draft: "bg-muted text-muted-foreground",
     pending_identity_review: "bg-orange-100 text-orange-700 border-orange-200",
@@ -191,6 +250,7 @@ const RegulatorProperties = () => {
     pending_rent_review: "bg-warning/10 text-warning border-warning/30",
     suspended: "bg-destructive/10 text-destructive border-destructive/20",
     archived: "bg-muted text-muted-foreground border-border",
+    needs_update: "bg-orange-100 text-orange-700 border-orange-200",
   };
 
   const statusLabels: Record<string, string> = {
@@ -204,6 +264,7 @@ const RegulatorProperties = () => {
     pending_rent_review: "Rent Review",
     suspended: "Suspended",
     archived: "Archived",
+    needs_update: "Needs Update",
   };
 
   const handleChangeStatus = async (propertyId: string, newStatus: string) => {
@@ -335,6 +396,16 @@ const RegulatorProperties = () => {
                           {(p.assessment_status || "pending") !== "approved" && (
                             <Button size="sm" variant="ghost" onClick={() => openAssessmentForm(p.id)} className="gap-1 text-primary">
                               <ClipboardCheck className="h-3.5 w-3.5" /> Assess
+                            </Button>
+                          )}
+                          {["pending_assessment", "pending_identity_review"].includes(pStatus) && (
+                            <Button size="sm" variant="ghost" onClick={() => {
+                              setSuggestPropertyId(p.id);
+                              setSuggestedPrice("");
+                              setSuggestNotes("");
+                              setShowSuggestRelist(true);
+                            }} className="gap-1 text-orange-600">
+                              <AlertTriangle className="h-3.5 w-3.5" /> Suggest Relist
                             </Button>
                           )}
                           {pStatus === "pending_identity_review" && (
@@ -541,6 +612,37 @@ const RegulatorProperties = () => {
                   <CheckCircle2 className="h-4 w-4 mr-1" /> Assess & Approve
                 </Button>
               )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Suggest Relisting Dialog */}
+      <Dialog open={showSuggestRelist} onOpenChange={setShowSuggestRelist}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600" /> Suggest Relisting with Price Guidance
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This will send the property back to the landlord with your suggested price. They can edit and resubmit.
+            </p>
+            <div className="space-y-2">
+              <Label>Suggested Monthly Rent (GH₵) *</Label>
+              <Input type="number" value={suggestedPrice} onChange={(e) => setSuggestedPrice(e.target.value)} placeholder="e.g. 800" />
+            </div>
+            <div className="space-y-2">
+              <Label>Notes to Landlord</Label>
+              <Textarea value={suggestNotes} onChange={(e) => setSuggestNotes(e.target.value)} placeholder="e.g. Rent is above benchmark for this area..." rows={3} />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setShowSuggestRelist(false)}>Cancel</Button>
+              <Button onClick={handleSuggestRelisting} disabled={submittingSuggest || !suggestedPrice} className="bg-orange-600 hover:bg-orange-700 text-white">
+                {submittingSuggest ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <AlertTriangle className="h-4 w-4 mr-1" />}
+                Send for Update
+              </Button>
             </div>
           </div>
         </DialogContent>
