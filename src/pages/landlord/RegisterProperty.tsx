@@ -187,11 +187,8 @@ const RegisterProperty = () => {
         property_category: propertyCategory,
         listed_on_marketplace: false,
         property_status: propertyStatus,
-        room_count: roomCount ? parseInt(roomCount) : null,
-        bathroom_count: bathroomCount ? parseInt(bathroomCount) : null,
-        occupancy_type: occupancyType,
-        furnishing_status: furnishingStatus,
         ownership_type: ownershipType,
+        property_structure: propertyStructure,
         normalized_address: normalizedAddr,
         property_fingerprint: fingerprint,
       } as any).select().single();
