@@ -198,7 +198,12 @@ const MyProperties = () => {
 
   const handleToggleListing = async (property: Property) => {
     if (property.listed_on_marketplace) {
-      // Delist flow
+      // Delist flow — guard against occupied units
+      const hasOccupiedUnit = property.units.some(u => u.status === "occupied");
+      if (hasOccupiedUnit) {
+        toast.error("Occupied properties cannot be delisted. All units must be vacant first.");
+        return;
+      }
       setListingId(property.id);
       const { error } = await supabase.from("properties").update({
         listed_on_marketplace: false,
@@ -206,7 +211,6 @@ const MyProperties = () => {
       } as any).eq("id", property.id);
       if (error) toast.error(error.message);
       else {
-        // Log delist event
         await supabase.from("property_events").insert({
           property_id: property.id,
           event_type: "delisting",
