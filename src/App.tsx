@@ -49,6 +49,7 @@ const LandlordDashboard = lazy(() => import("./pages/landlord/LandlordDashboard"
 const MyProperties = lazy(() => import("./pages/landlord/MyProperties"));
 const RegisterProperty = lazy(() => import("./pages/landlord/RegisterProperty"));
 const EditProperty = lazy(() => import("./pages/landlord/EditProperty"));
+const RentIncreaseRequest = lazy(() => import("./pages/landlord/RentIncreaseRequest"));
 const Agreements = lazy(() => import("./pages/landlord/Agreements"));
 const AddTenant = lazy(() => import("./pages/landlord/AddTenant"));
 const LandlordViewingRequests = lazy(() => import("./pages/landlord/ViewingRequests"));
@@ -85,6 +86,7 @@ const RegulatorTerminations = lazy(() => import("./pages/regulator/RegulatorTerm
 const EscrowDashboard = lazy(() => import("./pages/regulator/EscrowDashboard"));
 const RegulatorRentCards = lazy(() => import("./pages/regulator/RegulatorRentCards"));
 const SmsBroadcast = lazy(() => import("./pages/regulator/SmsBroadcast"));
+const RegulatorRentReviews = lazy(() => import("./pages/regulator/RegulatorRentReviews"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -160,6 +162,7 @@ const App = () => (
                 <Route path="receipts" element={<LandlordReceipts />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="feedback" element={<LandlordFeedback />} />
+                <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
               </Route>
 
               {/* Regulator Routes */}
@@ -185,6 +188,7 @@ const App = () => (
                 <Route path="terminations" element={<RegulatorTerminations />} />
                 <Route path="rent-cards" element={<RegulatorRentCards />} />
                 <Route path="sms-broadcast" element={<SmsBroadcast />} />
+                <Route path="rent-reviews" element={<RegulatorRentReviews />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

@@ -837,11 +837,15 @@ export type Database = {
         Row: {
           address: string
           approved_rent: number | null
+          archived_at: string | null
+          archived_reason: string | null
           area: string
           assessed_at: string | null
           assessed_by: string | null
           assessment_status: string
+          bathroom_count: number | null
           created_at: string
+          furnishing_status: string | null
           ghana_post_gps: string | null
           gps_confirmed: boolean
           gps_confirmed_at: string | null
@@ -853,21 +857,31 @@ export type Database = {
           location_locked: boolean
           location_locked_at: string | null
           location_locked_by: string | null
+          normalized_address: string | null
+          occupancy_type: string | null
+          ownership_type: string | null
           property_category: string
           property_code: string
           property_condition: string | null
+          property_fingerprint: string | null
           property_name: string | null
+          property_status: string
           region: string
+          room_count: number | null
           updated_at: string
         }
         Insert: {
           address: string
           approved_rent?: number | null
+          archived_at?: string | null
+          archived_reason?: string | null
           area: string
           assessed_at?: string | null
           assessed_by?: string | null
           assessment_status?: string
+          bathroom_count?: number | null
           created_at?: string
+          furnishing_status?: string | null
           ghana_post_gps?: string | null
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
@@ -879,21 +893,31 @@ export type Database = {
           location_locked?: boolean
           location_locked_at?: string | null
           location_locked_by?: string | null
+          normalized_address?: string | null
+          occupancy_type?: string | null
+          ownership_type?: string | null
           property_category?: string
           property_code: string
           property_condition?: string | null
+          property_fingerprint?: string | null
           property_name?: string | null
+          property_status?: string
           region: string
+          room_count?: number | null
           updated_at?: string
         }
         Update: {
           address?: string
           approved_rent?: number | null
+          archived_at?: string | null
+          archived_reason?: string | null
           area?: string
           assessed_at?: string | null
           assessed_by?: string | null
           assessment_status?: string
+          bathroom_count?: number | null
           created_at?: string
+          furnishing_status?: string | null
           ghana_post_gps?: string | null
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
@@ -905,11 +929,17 @@ export type Database = {
           location_locked?: boolean
           location_locked_at?: string | null
           location_locked_by?: string | null
+          normalized_address?: string | null
+          occupancy_type?: string | null
+          ownership_type?: string | null
           property_category?: string
           property_code?: string
           property_condition?: string | null
+          property_fingerprint?: string | null
           property_name?: string | null
+          property_status?: string
           region?: string
+          room_count?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -963,6 +993,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "property_assessments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          new_value: Json | null
+          old_value: Json | null
+          performed_by: string | null
+          property_id: string
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          performed_by?: string | null
+          property_id: string
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          performed_by?: string | null
+          property_id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_events_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
@@ -1128,6 +1199,69 @@ export type Database = {
           },
         ]
       }
+      rent_benchmarks: {
+        Row: {
+          benchmark_expected: number
+          benchmark_max: number
+          benchmark_min: number
+          comparable_count: number
+          computed_at: string
+          confidence: string
+          hard_cap: number
+          id: string
+          property_class: string
+          property_id: string
+          soft_cap: number
+          unit_id: string | null
+          zone_key: string
+        }
+        Insert: {
+          benchmark_expected?: number
+          benchmark_max?: number
+          benchmark_min?: number
+          comparable_count?: number
+          computed_at?: string
+          confidence?: string
+          hard_cap?: number
+          id?: string
+          property_class: string
+          property_id: string
+          soft_cap?: number
+          unit_id?: string | null
+          zone_key: string
+        }
+        Update: {
+          benchmark_expected?: number
+          benchmark_max?: number
+          benchmark_min?: number
+          comparable_count?: number
+          computed_at?: string
+          confidence?: string
+          hard_cap?: number
+          id?: string
+          property_class?: string
+          property_id?: string
+          soft_cap?: number
+          unit_id?: string | null
+          zone_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_benchmarks_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_benchmarks_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rent_card_serial_stock: {
         Row: {
           assigned_at: string | null
@@ -1267,6 +1401,132 @@ export type Database = {
             columns: ["tenancy_id"]
             isOneToOne: false
             referencedRelation: "tenancies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rent_increase_requests: {
+        Row: {
+          created_at: string
+          current_approved_rent: number
+          evidence_urls: string[] | null
+          id: string
+          landlord_user_id: string
+          property_id: string
+          proposed_rent: number
+          reason: string | null
+          request_type: string
+          reviewed_at: string | null
+          reviewer_notes: string | null
+          reviewer_user_id: string | null
+          status: string
+          unit_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_approved_rent?: number
+          evidence_urls?: string[] | null
+          id?: string
+          landlord_user_id: string
+          property_id: string
+          proposed_rent: number
+          reason?: string | null
+          request_type?: string
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          status?: string
+          unit_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_approved_rent?: number
+          evidence_urls?: string[] | null
+          id?: string
+          landlord_user_id?: string
+          property_id?: string
+          proposed_rent?: number
+          reason?: string | null
+          request_type?: string
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          status?: string
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_increase_requests_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_increase_requests_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rent_market_data: {
+        Row: {
+          accepted_rent: number | null
+          advance_months: number | null
+          approved_rent: number | null
+          asking_rent: number | null
+          created_at: string
+          event_date: string
+          event_type: string
+          id: string
+          property_class: string
+          property_id: string | null
+          unit_id: string | null
+          zone_key: string
+        }
+        Insert: {
+          accepted_rent?: number | null
+          advance_months?: number | null
+          approved_rent?: number | null
+          asking_rent?: number | null
+          created_at?: string
+          event_date?: string
+          event_type?: string
+          id?: string
+          property_class: string
+          property_id?: string | null
+          unit_id?: string | null
+          zone_key: string
+        }
+        Update: {
+          accepted_rent?: number | null
+          advance_months?: number | null
+          approved_rent?: number | null
+          asking_rent?: number | null
+          created_at?: string
+          event_date?: string
+          event_type?: string
+          id?: string
+          property_class?: string
+          property_id?: string | null
+          unit_id?: string | null
+          zone_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_market_data_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_market_data_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]

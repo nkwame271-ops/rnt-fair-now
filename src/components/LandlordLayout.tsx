@@ -45,6 +45,7 @@ const navItems = [
   { to: "/landlord/payment-settings", label: "Payment Settings", icon: CreditCard, featureKey: "payment_settings" },
   { to: "/landlord/receipts", label: "Receipts", icon: FileText, featureKey: "landlord_receipts" },
   { to: "/landlord/profile", label: "My Profile", icon: UserCircle },
+  { to: "/landlord/rent-increase-request", label: "Rent Increase", icon: Wallet, featureKey: "rent_increase" },
   { to: "/landlord/feedback", label: "Beta Feedback", icon: MessageSquare, featureKey: "landlord_feedback" },
 ];
 

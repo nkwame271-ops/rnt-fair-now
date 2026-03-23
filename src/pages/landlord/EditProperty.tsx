@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, Save } from "lucide-react";
+import { Loader2, ArrowLeft, Save, Lock } from "lucide-react";
 import { regions, areasByRegion } from "@/data/dummyData";
 
 const EditProperty = () => {
@@ -24,6 +24,12 @@ const EditProperty = () => {
   const [condition, setCondition] = useState("");
   const [ghanaPostGps, setGhanaPostGps] = useState("");
   const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial">("residential");
+  const [roomCount, setRoomCount] = useState("");
+  const [bathroomCount, setBathroomCount] = useState("");
+  const [occupancyType, setOccupancyType] = useState("self_contained");
+  const [furnishingStatus, setFurnishingStatus] = useState("unfurnished");
+  const [ownershipType, setOwnershipType] = useState("owner");
+  const [locationLocked, setLocationLocked] = useState(false);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -46,6 +52,12 @@ const EditProperty = () => {
       setCondition(data.property_condition || "");
       setGhanaPostGps(data.ghana_post_gps || "");
       setPropertyCategory(((data as any).property_category as "residential" | "commercial") || "residential");
+      setRoomCount(String((data as any).room_count || ""));
+      setBathroomCount(String((data as any).bathroom_count || ""));
+      setOccupancyType((data as any).occupancy_type || "self_contained");
+      setFurnishingStatus((data as any).furnishing_status || "unfurnished");
+      setOwnershipType((data as any).ownership_type || "owner");
+      setLocationLocked(data.location_locked || false);
       setLoading(false);
     };
     fetch();
@@ -57,6 +69,7 @@ const EditProperty = () => {
       return;
     }
     setSaving(true);
+    const normalizedAddr = address.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
     const { error } = await supabase
       .from("properties")
       .update({
@@ -65,8 +78,14 @@ const EditProperty = () => {
         region,
         area,
         property_condition: condition || null,
-        ghana_post_gps: ghanaPostGps || null,
+        ghana_post_gps: locationLocked ? undefined : (ghanaPostGps || null),
         property_category: propertyCategory,
+        room_count: roomCount ? parseInt(roomCount) : null,
+        bathroom_count: bathroomCount ? parseInt(bathroomCount) : null,
+        occupancy_type: occupancyType,
+        furnishing_status: furnishingStatus,
+        ownership_type: ownershipType,
+        normalized_address: normalizedAddr,
       } as any)
       .eq("id", id!)
       .eq("landlord_user_id", user!.id);
@@ -130,13 +149,69 @@ const EditProperty = () => {
             </SelectContent>
           </Select>
         </div>
+
+        {/* New identity fields */}
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label>Room Count</Label>
+            <Input type="number" value={roomCount} onChange={(e) => setRoomCount(e.target.value)} placeholder="e.g. 4" min="1" />
+          </div>
+          <div className="space-y-2">
+            <Label>Bathroom Count</Label>
+            <Input type="number" value={bathroomCount} onChange={(e) => setBathroomCount(e.target.value)} placeholder="e.g. 2" min="0" />
+          </div>
+          <div className="space-y-2">
+            <Label>Occupancy Type</Label>
+            <Select value={occupancyType} onValueChange={setOccupancyType}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="self_contained">Self-Contained</SelectItem>
+                <SelectItem value="shared">Shared Facilities</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Furnishing Status</Label>
+            <Select value={furnishingStatus} onValueChange={setFurnishingStatus}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unfurnished">Unfurnished</SelectItem>
+                <SelectItem value="semi_furnished">Semi-Furnished</SelectItem>
+                <SelectItem value="furnished">Furnished</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Ownership Type</Label>
+            <Select value={ownershipType} onValueChange={setOwnershipType}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="agent">Agent</SelectItem>
+                <SelectItem value="caretaker">Caretaker</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label>Property Condition</Label>
           <Input value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="e.g. Newly built, Good condition" />
         </div>
         <div className="space-y-2">
-          <Label>Ghana Post GPS</Label>
-          <Input value={ghanaPostGps} onChange={(e) => setGhanaPostGps(e.target.value)} placeholder="e.g. GA-123-4567" />
+          <Label className="flex items-center gap-2">
+            Ghana Post GPS
+            {locationLocked && <span className="flex items-center gap-1 text-xs text-warning"><Lock className="h-3 w-3" /> Locked</span>}
+          </Label>
+          <Input
+            value={ghanaPostGps}
+            onChange={(e) => setGhanaPostGps(e.target.value)}
+            placeholder="e.g. GA-123-4567"
+            disabled={locationLocked}
+          />
+          {locationLocked && <p className="text-xs text-muted-foreground">Location is locked after approval. Contact admin to change.</p>}
         </div>
 
         <Button onClick={handleSave} disabled={saving} className="w-full">
