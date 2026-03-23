@@ -38,8 +38,15 @@ interface UnitForm {
   benchmark?: { pricing_band: string; pricing_label: string; benchmark_min: number; benchmark_max: number; benchmark_expected: number; confidence: string };
 }
 
-const propertyTypes: PropertyType[] = ["Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom", "Self-Contained"];
 const amenityOptions = ["Security", "Parking", "Balcony", "Compound", "AC", "Generator", "Pool", "Gym"];
+
+const createEmptyUnit = (index: number): UnitForm => ({
+  name: index === 0 ? "Unit A" : `Unit ${String.fromCharCode(65 + index)}`,
+  type: "", rent: "", bedroomCount: "",
+  hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
+  electricityAvailable: false, hasBorehole: false, hasPolytank: false,
+  amenities: [], customAmenities: "",
+});
 
 const normalizeAddress = (addr: string) => addr.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
 
