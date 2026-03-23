@@ -77,6 +77,7 @@ const statusColors: Record<string, string> = {
   pending_rent_review: "bg-warning/10 text-warning border-warning/30",
   suspended: "bg-destructive/10 text-destructive border-destructive/20",
   archived: "bg-muted text-muted-foreground border-border",
+  needs_update: "bg-orange-100 text-orange-700 border-orange-200",
 };
 
 const statusLabels: Record<string, string> = {
@@ -90,6 +91,7 @@ const statusLabels: Record<string, string> = {
   pending_rent_review: "Rent Review",
   suspended: "Suspended",
   archived: "Archived",
+  needs_update: "Needs Update",
 };
 
 const MyProperties = () => {
