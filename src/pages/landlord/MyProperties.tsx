@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { Building2, Users, MapPin, UserPlus, Loader2, Droplets, Zap, ChefHat, Bath, CircleDot, Pencil, Trash2, Store } from "lucide-react";
+import { Building2, Users, MapPin, UserPlus, Loader2, Droplets, Zap, ChefHat, Bath, CircleDot, Pencil, Store, Archive, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +20,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 interface Unit {
   id: string;
@@ -45,6 +49,7 @@ interface Property {
   property_condition: string | null;
   property_category: string;
   assessment_status: string;
+  property_status: string;
   listed_on_marketplace: boolean;
   units: Unit[];
   tenancyCount: number;
@@ -59,12 +64,41 @@ const facilityIcons: Record<string, { icon: React.ReactNode; label: string }> = 
   has_polytank: { icon: <Droplets className="h-3 w-3" />, label: "Polytank" },
 };
 
+const statusColors: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground",
+  pending_identity_review: "bg-orange-100 text-orange-700 border-orange-200",
+  pending_assessment: "bg-warning/10 text-warning border-warning/30",
+  approved: "bg-success/10 text-success border-success/20",
+  live: "bg-primary/10 text-primary border-primary/20",
+  occupied: "bg-info/10 text-info border-info/20",
+  off_market: "bg-muted text-muted-foreground border-border",
+  pending_rent_review: "bg-warning/10 text-warning border-warning/30",
+  suspended: "bg-destructive/10 text-destructive border-destructive/20",
+  archived: "bg-muted text-muted-foreground border-border",
+};
+
+const statusLabels: Record<string, string> = {
+  draft: "Draft",
+  pending_identity_review: "Identity Review",
+  pending_assessment: "Under Assessment",
+  approved: "Approved",
+  live: "Live on Marketplace",
+  occupied: "Occupied",
+  off_market: "Off Market",
+  pending_rent_review: "Rent Review",
+  suspended: "Suspended",
+  archived: "Archived",
+};
+
 const MyProperties = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [archiveReason, setArchiveReason] = useState("");
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState<string | null>(null);
+  const [archivePassword, setArchivePassword] = useState("");
   const [listingId, setListingId] = useState<string | null>(null);
 
   const fetchProps = async () => {
@@ -72,7 +106,8 @@ const MyProperties = () => {
     const { data: props } = await supabase
       .from("properties")
       .select("*, units(*)")
-      .eq("landlord_user_id", user.id);
+      .eq("landlord_user_id", user.id)
+      .neq("property_status", "archived");
 
     if (!props) { setLoading(false); return; }
 
@@ -86,6 +121,7 @@ const MyProperties = () => {
 
     setProperties(props.map(p => ({
       ...p,
+      property_status: (p as any).property_status || "pending_assessment",
       units: (p.units || []) as Unit[],
       tenancyCount: (p.units || []).filter((u: any) => tenancyUnitIds.has(u.id)).length,
     })));
@@ -96,65 +132,80 @@ const MyProperties = () => {
     if (!user) return;
     fetchProps();
 
-    // Handle return from Paystack listing payment
     const params = new URLSearchParams(window.location.search);
     const payStatus = params.get("status");
     const ref = params.get("reference") || params.get("trxref");
 
     if (ref || payStatus === "listed") {
-      // Verify payment server-side then refresh
       window.history.replaceState({}, "", window.location.pathname);
       if (ref) {
         supabase.functions.invoke("verify-payment", { body: { reference: ref } })
           .then(({ data }) => {
-            if (data?.verified) {
-              toast.success("Property listed on marketplace successfully!");
-            } else {
-              toast.info("Payment is being processed. Your listing will appear shortly.");
-            }
+            if (data?.verified) toast.success("Property listed on marketplace successfully!");
+            else toast.info("Payment is being processed. Your listing will appear shortly.");
             fetchProps();
           })
-          .catch(() => {
-            toast.info("Payment is being processed. Your listing will appear shortly.");
-            fetchProps();
-          });
+          .catch(() => { toast.info("Payment is being processed."); fetchProps(); });
       } else {
         toast.success("Property listed on marketplace successfully!");
         fetchProps();
       }
     } else if (payStatus === "cancelled" || payStatus === "failed") {
-      toast.error("Listing payment was not completed. Your property was not listed.");
+      toast.error("Listing payment was not completed.");
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [user]);
 
-  const handleDelete = async (propertyId: string) => {
-    setDeletingId(propertyId);
-    await supabase.from("units").delete().eq("property_id", propertyId);
-    await supabase.from("property_images").delete().eq("property_id", propertyId);
-    const { error } = await supabase.from("properties").delete().eq("id", propertyId).eq("landlord_user_id", user!.id);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      setProperties(prev => prev.filter(p => p.id !== propertyId));
-      toast.success("Property deleted");
+  const handleArchive = async (propertyId: string) => {
+    if (!archiveReason.trim()) {
+      toast.error("Please provide a reason for archiving");
+      return;
     }
-    setDeletingId(null);
+    setArchivingId(propertyId);
+    try {
+      const { error } = await supabase.from("properties").update({
+        property_status: "archived",
+        archived_at: new Date().toISOString(),
+        archived_reason: archiveReason,
+        listed_on_marketplace: false,
+      } as any).eq("id", propertyId).eq("landlord_user_id", user!.id);
+
+      if (error) throw error;
+
+      // Log the archive event
+      await supabase.from("property_events").insert({
+        property_id: propertyId,
+        event_type: "archive",
+        old_value: {},
+        new_value: { status: "archived", reason: archiveReason },
+        performed_by: user!.id,
+        reason: archiveReason,
+      } as any);
+
+      setProperties(prev => prev.filter(p => p.id !== propertyId));
+      toast.success("Property archived. Its history is preserved and can be restored by an administrator.");
+      setShowArchiveConfirm(null);
+      setArchiveReason("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to archive property");
+    }
+    setArchivingId(null);
   };
 
   const handleToggleListing = async (property: Property) => {
     if (property.listed_on_marketplace) {
-      // Delist
       setListingId(property.id);
-      const { error } = await supabase.from("properties").update({ listed_on_marketplace: false }).eq("id", property.id);
-      if (error) { toast.error(error.message); }
+      const { error } = await supabase.from("properties").update({
+        listed_on_marketplace: false,
+        property_status: "off_market",
+      } as any).eq("id", property.id);
+      if (error) toast.error(error.message);
       else {
-        setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: false } : p));
+        setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: false, property_status: "off_market" } : p));
         toast.success("Property delisted from marketplace");
       }
       setListingId(null);
     } else {
-      // List → pay listing fee via Paystack
       setListingId(property.id);
       try {
         const { data, error } = await supabase.functions.invoke("paystack-checkout", {
@@ -162,26 +213,29 @@ const MyProperties = () => {
         });
         if (error) throw new Error(error.message);
         if (data?.error) throw new Error(data.error);
-        
-        // Handle fee skipped/waived
+
         if (data?.skipped) {
-          const { error: updateErr } = await supabase.from("properties").update({ listed_on_marketplace: true }).eq("id", property.id);
+          const { error: updateErr } = await supabase.from("properties").update({
+            listed_on_marketplace: true,
+            property_status: "live",
+          } as any).eq("id", property.id);
           if (updateErr) throw new Error(updateErr.message);
-          setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: true } : p));
+          setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: true, property_status: "live" } : p));
           toast.success(data.message || "Property listed on marketplace!");
           setListingId(null);
           return;
         }
-        
+
         if (data?.authorization_url) {
           window.location.href = data.authorization_url;
         } else {
-          console.error("Unexpected paystack-checkout response:", data);
-          // If response has no URL and wasn't explicitly skipped, it may be an unhandled waiver
           if (data && !data.error) {
-            const { error: updateErr } = await supabase.from("properties").update({ listed_on_marketplace: true }).eq("id", property.id);
+            const { error: updateErr } = await supabase.from("properties").update({
+              listed_on_marketplace: true,
+              property_status: "live",
+            } as any).eq("id", property.id);
             if (updateErr) throw new Error(updateErr.message);
-            setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: true } : p));
+            setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: true, property_status: "live" } : p));
             toast.success("Property listed on marketplace!");
             setListingId(null);
             return;
@@ -204,9 +258,14 @@ const MyProperties = () => {
           <h1 className="text-3xl font-bold text-foreground">My Properties</h1>
           <p className="text-muted-foreground mt-1">Overview of all registered properties</p>
         </div>
-        <Link to="/landlord/add-tenant">
-          <Button><UserPlus className="h-4 w-4 mr-1" /> Add Tenant</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link to="/landlord/rent-increase-request">
+            <Button variant="outline" size="sm"><TrendingUp className="h-4 w-4 mr-1" /> Rent Increase</Button>
+          </Link>
+          <Link to="/landlord/add-tenant">
+            <Button><UserPlus className="h-4 w-4 mr-1" /> Add Tenant</Button>
+          </Link>
+        </div>
       </div>
 
       {properties.length === 0 ? (
@@ -229,23 +288,13 @@ const MyProperties = () => {
                     <div className="flex items-center gap-1 text-sm text-primary-foreground/80 mt-1">
                       <MapPin className="h-3.5 w-3.5" /> {p.address}, {p.area}, {p.region}
                     </div>
-                    {p.gps_location && (
-                      <div className="text-xs text-primary-foreground/60 mt-0.5">GPS: {p.gps_location}</div>
-                    )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     <Badge variant="outline" className="text-xs capitalize bg-primary-foreground/10 text-primary-foreground border-primary-foreground/20">
                       {p.property_category || "residential"}
                     </Badge>
-                    {p.listed_on_marketplace && (
-                      <Badge className="bg-success/80 text-success-foreground text-xs">Listed</Badge>
-                    )}
-                    <Badge variant="outline" className={`text-xs ${
-                      p.assessment_status === "approved"
-                        ? "bg-success/10 text-success border-success/20"
-                        : "text-warning border-warning/30"
-                    }`}>
-                      {p.assessment_status === "approved" ? "Fully Assessed ✓" : "Processing — Under Assessment"}
+                    <Badge variant="outline" className={`text-xs ${statusColors[p.property_status] || "text-muted-foreground"}`}>
+                      {statusLabels[p.property_status] || p.property_status}
                     </Badge>
                     <span className="text-xs bg-primary-foreground/20 px-2.5 py-1 rounded-full font-semibold">
                       {p.property_code}
@@ -256,52 +305,63 @@ const MyProperties = () => {
                   <span className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {p.units.length} units</span>
                   <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {p.tenancyCount} tenants</span>
                 </div>
-                {p.property_condition && (
-                  <div className="text-xs text-primary-foreground/70 mt-2">Condition: {p.property_condition}</div>
-                )}
 
-                {/* Action buttons */}
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={(e) => { e.stopPropagation(); navigate(`/landlord/edit-property/${p.id}`); }}
-                    className="text-xs"
-                  >
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <Button size="sm" variant="secondary" onClick={() => navigate(`/landlord/edit-property/${p.id}`)} className="text-xs">
                     <Pencil className="h-3 w-3 mr-1" /> Edit
                   </Button>
                   <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={(e) => { e.stopPropagation(); handleToggleListing(p); }}
-                    disabled={listingId === p.id || (p.assessment_status !== "approved" && !p.listed_on_marketplace)}
+                    size="sm" variant="secondary"
+                    onClick={() => handleToggleListing(p)}
+                    disabled={listingId === p.id || (!["approved", "off_market", "live"].includes(p.property_status) && !p.listed_on_marketplace)}
                     className="text-xs"
-                    title={p.assessment_status !== "approved" && !p.listed_on_marketplace ? "Property must be approved before listing on marketplace" : undefined}
                   >
                     <Store className="h-3 w-3 mr-1" />
-                    {listingId === p.id ? "Processing..." : p.listed_on_marketplace ? "Delist" : p.assessment_status !== "approved" ? "Awaiting Approval" : "List on Marketplace"}
+                    {listingId === p.id ? "Processing..." : p.listed_on_marketplace ? "Delist" : !["approved", "off_market"].includes(p.property_status) ? "Awaiting Approval" : "List on Marketplace"}
                   </Button>
-                  <AlertDialog>
+
+                  {/* Archive button */}
+                  <AlertDialog open={showArchiveConfirm === p.id} onOpenChange={(open) => { if (!open) { setShowArchiveConfirm(null); setArchiveReason(""); } }}>
                     <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="destructive" className="text-xs" onClick={(e) => e.stopPropagation()}>
-                        <Trash2 className="h-3 w-3 mr-1" /> Delete
+                      <Button size="sm" variant="destructive" className="text-xs" onClick={(e) => { e.stopPropagation(); setShowArchiveConfirm(p.id); }}>
+                        <Archive className="h-3 w-3 mr-1" /> Archive
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Property?</AlertDialogTitle>
+                        <AlertDialogTitle>Archive Property?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This will permanently delete "{p.property_name || p.property_code}" and all its units. This action cannot be undone.
+                          This will remove "{p.property_name || p.property_code}" from active listings. The property record and its history will be preserved. Future relisting will require re-assessment and may incur fees.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
+                      <div className="space-y-3 py-2">
+                        <div className="space-y-2">
+                          <Label className="text-sm">Reason for archiving *</Label>
+                          <Textarea
+                            value={archiveReason}
+                            onChange={(e) => setArchiveReason(e.target.value)}
+                            placeholder="e.g. Property sold, no longer renting, renovation planned..."
+                            rows={3}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm">Confirm your password *</Label>
+                          <Input
+                            type="password"
+                            value={archivePassword}
+                            onChange={(e) => setArchivePassword(e.target.value)}
+                            placeholder="Enter your password to confirm"
+                          />
+                        </div>
+                      </div>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          onClick={() => handleDelete(p.id)}
-                          disabled={deletingId === p.id}
+                          onClick={() => handleArchive(p.id)}
+                          disabled={archivingId === p.id || !archiveReason.trim()}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                          {deletingId === p.id ? "Deleting..." : "Delete Property"}
+                          {archivingId === p.id ? "Archiving..." : "Archive Property"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

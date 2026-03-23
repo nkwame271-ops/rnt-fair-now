@@ -35,3 +35,7 @@ project_id = "qjrvwcwmhuxygdanbxsz"
     verify_jwt = false
   [functions.admin-sms-broadcast]
     verify_jwt = false
+  [functions.check-property-duplicate]
+    verify_jwt = false
+  [functions.compute-rent-benchmark]
+    verify_jwt = false

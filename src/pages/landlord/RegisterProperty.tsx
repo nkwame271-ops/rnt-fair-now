@@ -5,8 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
-import { PlusCircle, Trash2, Building2, Upload, X, Store } from "lucide-react";
+import { PlusCircle, Trash2, Building2, Upload, X, Store, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { regions, areasByRegion, type PropertyType } from "@/data/dummyData";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -15,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import KycGate from "@/components/KycGate";
 import PropertyLocationPicker from "@/components/PropertyLocationPicker";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { Badge } from "@/components/ui/badge";
 
 interface UnitForm {
   name: string;
@@ -28,10 +28,13 @@ interface UnitForm {
   hasPolytank: boolean;
   amenities: string[];
   customAmenities: string;
+  benchmark?: { pricing_band: string; pricing_label: string; benchmark_min: number; benchmark_max: number; benchmark_expected: number; confidence: string };
 }
 
 const propertyTypes: PropertyType[] = ["Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom", "Self-Contained"];
 const amenityOptions = ["Security", "Parking", "Balcony", "Compound", "AC", "Generator", "Pool", "Gym"];
+
+const normalizeAddress = (addr: string) => addr.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
 
 const RegisterProperty = () => {
   const navigate = useNavigate();
@@ -48,6 +51,11 @@ const RegisterProperty = () => {
   const [propertyCondition, setPropertyCondition] = useState("");
   const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial">("residential");
   const [images, setImages] = useState<File[]>([]);
+  const [roomCount, setRoomCount] = useState("");
+  const [bathroomCount, setBathroomCount] = useState("");
+  const [occupancyType, setOccupancyType] = useState("self_contained");
+  const [furnishingStatus, setFurnishingStatus] = useState("unfurnished");
+  const [ownershipType, setOwnershipType] = useState("owner");
   const [units, setUnits] = useState<UnitForm[]>([{
     name: "Unit A", type: "", rent: "",
     hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
@@ -80,6 +88,29 @@ const RegisterProperty = () => {
 
   const removeImage = (idx: number) => setImages(images.filter((_, i) => i !== idx));
 
+  const computeBenchmarkForUnit = async (unitIndex: number, propertyId?: string) => {
+    const unit = units[unitIndex];
+    if (!unit.type || !unit.rent || !region || !effectiveArea) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("compute-rent-benchmark", {
+        body: {
+          property_id: propertyId || null,
+          unit_id: null,
+          zone_key: `${region}|${effectiveArea}`,
+          property_class: unit.type,
+          asking_rent: parseFloat(unit.rent),
+        },
+      });
+      if (error) throw error;
+      if (data) {
+        updateUnit(unitIndex, { benchmark: data });
+      }
+    } catch (err) {
+      console.error("Benchmark computation failed:", err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -87,7 +118,6 @@ const RegisterProperty = () => {
       toast.error("Please select or type an area");
       return;
     }
-
     if (!gpsLocation) {
       toast.error("Please select the property location on the map");
       return;
@@ -96,10 +126,43 @@ const RegisterProperty = () => {
       toast.error("Please confirm the pin represents the property's physical location");
       return;
     }
+    if (!ghanaPostGps.trim()) {
+      toast.error("Ghana Post GPS code is required");
+      return;
+    }
 
     setSubmitting(true);
 
     try {
+      const normalizedAddr = normalizeAddress(address);
+      const fingerprint = `${ghanaPostGps.toUpperCase().replace(/\s/g, "")}|${normalizedAddr}|${gpsLocation}`;
+
+      // Check for duplicate property
+      const { data: dupCheck } = await supabase.functions.invoke("check-property-duplicate", {
+        body: {
+          gps_location: gpsLocation,
+          ghana_post_gps: ghanaPostGps,
+          normalized_address: normalizedAddr,
+          landlord_user_id: user.id,
+          region,
+          area: effectiveArea,
+        },
+      });
+
+      let propertyStatus = "pending_assessment";
+      let existingPropertyId: string | undefined;
+
+      if (dupCheck?.match === "high") {
+        toast.info("This property appears to already exist in the system. It has been linked to the existing record.");
+        existingPropertyId = dupCheck.existingPropertyId;
+        // Update existing property instead of creating new
+        navigate("/landlord/my-properties");
+        return;
+      } else if (dupCheck?.match === "medium") {
+        propertyStatus = "pending_identity_review";
+        toast.info("This property may already exist. It will be reviewed by an administrator.");
+      }
+
       const regionCode = region.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
       const areaCode = effectiveArea.slice(0, 2).toUpperCase();
       const propertyCode = `${regionCode}-${areaCode}-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999)).padStart(3, "0")}`;
@@ -114,14 +177,33 @@ const RegisterProperty = () => {
         gps_location: gpsLocation,
         gps_confirmed: true,
         gps_confirmed_at: new Date().toISOString(),
-        ghana_post_gps: ghanaPostGps || null,
+        ghana_post_gps: ghanaPostGps,
         property_condition: propertyCondition || null,
         property_category: propertyCategory,
         listed_on_marketplace: false,
+        property_status: propertyStatus,
+        room_count: roomCount ? parseInt(roomCount) : null,
+        bathroom_count: bathroomCount ? parseInt(bathroomCount) : null,
+        occupancy_type: occupancyType,
+        furnishing_status: furnishingStatus,
+        ownership_type: ownershipType,
+        normalized_address: normalizedAddr,
+        property_fingerprint: fingerprint,
       } as any).select().single();
 
       if (propErr) throw propErr;
 
+      // Log property creation event
+      await supabase.from("property_events").insert({
+        property_id: prop.id,
+        event_type: "status_change",
+        old_value: {},
+        new_value: { status: propertyStatus },
+        performed_by: user.id,
+        reason: "Property registered",
+      } as any);
+
+      // Upload images
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
         const ext = file.name.split(".").pop();
@@ -136,9 +218,10 @@ const RegisterProperty = () => {
         });
       }
 
+      // Create units and compute benchmarks
       for (const u of units) {
         if (!u.type || !u.rent) continue;
-        await supabase.from("units").insert({
+        const { data: unitData } = await supabase.from("units").insert({
           property_id: prop.id,
           unit_name: u.name,
           unit_type: u.type,
@@ -151,16 +234,61 @@ const RegisterProperty = () => {
           has_polytank: u.hasPolytank,
           amenities: u.amenities,
           custom_amenities: u.customAmenities || null,
-        });
+        }).select().single();
+
+        // Compute benchmark for each unit
+        if (unitData) {
+          await supabase.functions.invoke("compute-rent-benchmark", {
+            body: {
+              property_id: prop.id,
+              unit_id: unitData.id,
+              zone_key: `${region}|${effectiveArea}`,
+              property_class: u.type,
+              asking_rent: parseFloat(u.rent),
+            },
+          });
+
+          // Store market data event
+          await supabase.from("rent_market_data").insert({
+            property_id: prop.id,
+            unit_id: unitData.id,
+            zone_key: `${region}|${effectiveArea}`,
+            property_class: u.type,
+            asking_rent: parseFloat(u.rent),
+            event_type: "listing",
+            event_date: new Date().toISOString().split("T")[0],
+          } as any);
+        }
       }
 
-      toast.success(`Property registered! Code: ${propertyCode}. Your property is now under assessment.`);
+      toast.success(`Property registered! Code: ${propertyCode}. ${propertyStatus === "pending_identity_review" ? "Under identity review." : "Under assessment."}`);
       navigate("/landlord/my-properties");
     } catch (err: any) {
       toast.error(err.message || "Failed to register property");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const getBenchmarkBadge = (benchmark?: UnitForm["benchmark"]) => {
+    if (!benchmark || benchmark.pricing_band === "unknown") return null;
+    const colors: Record<string, string> = {
+      within: "bg-success/10 text-success border-success/20",
+      above: "bg-warning/10 text-warning border-warning/20",
+      pending_justification: "bg-orange-100 text-orange-700 border-orange-200",
+      rejected: "bg-destructive/10 text-destructive border-destructive/20",
+    };
+    const icons: Record<string, React.ReactNode> = {
+      within: <CheckCircle2 className="h-3 w-3" />,
+      above: <AlertTriangle className="h-3 w-3" />,
+      pending_justification: <Clock className="h-3 w-3" />,
+      rejected: <X className="h-3 w-3" />,
+    };
+    return (
+      <Badge variant="outline" className={`text-xs gap-1 ${colors[benchmark.pricing_band] || ""}`}>
+        {icons[benchmark.pricing_band]} {benchmark.pricing_label}
+      </Badge>
+    );
   };
 
   return (
@@ -184,20 +312,20 @@ const RegisterProperty = () => {
                   <Input required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Asante Residences" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Address</Label>
+                  <Label>Address *</Label>
                   <Input required value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. 14 Palm Street" />
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Region</Label>
+                  <Label>Region *</Label>
                   <Select value={region} onValueChange={(v) => { setRegion(v); setArea(""); setCustomArea(""); }}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Area</Label>
+                  <Label>Area *</Label>
                   <Select value={area} onValueChange={(v) => { setArea(v); setCustomArea(""); }} disabled={!region}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>{areas.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
@@ -211,7 +339,53 @@ const RegisterProperty = () => {
                 </div>
               </div>
 
-              {/* GPS — Map Picker (isolated boundary) */}
+              {/* New identity fields */}
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Room Count</Label>
+                  <Input type="number" value={roomCount} onChange={(e) => setRoomCount(e.target.value)} placeholder="e.g. 4" min="1" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Bathroom Count</Label>
+                  <Input type="number" value={bathroomCount} onChange={(e) => setBathroomCount(e.target.value)} placeholder="e.g. 2" min="0" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Occupancy Type</Label>
+                  <Select value={occupancyType} onValueChange={setOccupancyType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="self_contained">Self-Contained</SelectItem>
+                      <SelectItem value="shared">Shared Facilities</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Furnishing Status</Label>
+                  <Select value={furnishingStatus} onValueChange={setFurnishingStatus}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unfurnished">Unfurnished</SelectItem>
+                      <SelectItem value="semi_furnished">Semi-Furnished</SelectItem>
+                      <SelectItem value="furnished">Furnished</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Ownership Type</Label>
+                  <Select value={ownershipType} onValueChange={setOwnershipType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="owner">Owner</SelectItem>
+                      <SelectItem value="agent">Agent</SelectItem>
+                      <SelectItem value="caretaker">Caretaker</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* GPS — Map Picker */}
               <ErrorBoundary section="Property Location Map">
                 <PropertyLocationPicker
                   region={region}
@@ -221,15 +395,20 @@ const RegisterProperty = () => {
                   ghanaPostGps={ghanaPostGps}
                   onLocationChange={(loc) => {
                     setGpsLocation(loc ? `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}` : "");
-                    // Auto-fill address from reverse geocoding if available
-                    if (loc?.address && !address) {
-                      setAddress(loc.address);
-                    }
+                    if (loc?.address && !address) setAddress(loc.address);
                   }}
                   onConfirmChange={(next) => setGpsConfirmed(!!next)}
                   onGhanaPostGpsChange={setGhanaPostGps}
                 />
               </ErrorBoundary>
+
+              {/* Ghana Post GPS required notice */}
+              {!ghanaPostGps.trim() && (
+                <div className="flex items-center gap-2 text-xs text-warning">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span>Ghana Post GPS code is required for property registration</span>
+                </div>
+              )}
 
               {/* Property Category */}
               <div className="space-y-2">
@@ -251,15 +430,15 @@ const RegisterProperty = () => {
               </div>
 
               {/* Processing notice */}
-              <div className="flex items-center gap-3 rounded-lg border border-info/30 p-4 bg-info/5">
-                <Store className="h-5 w-5 text-info" />
+              <div className="flex items-center gap-3 rounded-lg border border-primary/30 p-4 bg-primary/5">
+                <Store className="h-5 w-5 text-primary" />
                 <div>
                   <p className="text-sm font-medium text-foreground">Marketplace Listing</p>
                   <p className="text-xs text-muted-foreground mt-0.5">Your property will be listed on the marketplace after it has been assessed and approved by Rent Control.</p>
                 </div>
               </div>
 
-              {/* Images (isolated boundary) */}
+              {/* Images */}
               <ErrorBoundary section="Image Upload">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1">
@@ -283,7 +462,7 @@ const RegisterProperty = () => {
             </div>
           </ErrorBoundary>
 
-          {/* ── Units (isolated boundary) ── */}
+          {/* ── Units ── */}
           <ErrorBoundary section="Units">
             <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
               <div className="flex items-center justify-between">
@@ -309,12 +488,29 @@ const RegisterProperty = () => {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Rent (GH₵)</Label>
-                        <Input type="number" value={unit.rent} onChange={(e) => updateUnit(i, { rent: e.target.value })} placeholder="e.g. 1200" />
+                        <Input
+                          type="number"
+                          value={unit.rent}
+                          onChange={(e) => updateUnit(i, { rent: e.target.value })}
+                          onBlur={() => computeBenchmarkForUnit(i)}
+                          placeholder="e.g. 1200"
+                        />
                       </div>
                       <Button type="button" variant="ghost" size="icon" onClick={() => removeUnit(i)} disabled={units.length === 1} className="text-destructive">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
+
+                    {/* Benchmark feedback */}
+                    {unit.benchmark && unit.benchmark.pricing_band !== "unknown" && (
+                      <div className="flex items-center gap-3 text-xs">
+                        {getBenchmarkBadge(unit.benchmark)}
+                        <span className="text-muted-foreground">
+                          Benchmark: GH₵ {unit.benchmark.benchmark_min?.toLocaleString()} – {unit.benchmark.benchmark_max?.toLocaleString()} ({unit.benchmark.confidence} confidence)
+                        </span>
+                      </div>
+                    )}
+
                     {/* Facilities */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                       {[
