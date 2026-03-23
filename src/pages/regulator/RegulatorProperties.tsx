@@ -124,6 +124,7 @@ const RegulatorProperties = () => {
 
       await supabase.from("properties").update({
         assessment_status: "approved",
+        property_status: "approved",
         assessed_at: new Date().toISOString(),
         assessed_by: user?.id,
         approved_rent: approvedRent,
