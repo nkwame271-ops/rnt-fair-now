@@ -616,6 +616,37 @@ const RegulatorProperties = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Suggest Relisting Dialog */}
+      <Dialog open={showSuggestRelist} onOpenChange={setShowSuggestRelist}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600" /> Suggest Relisting with Price Guidance
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This will send the property back to the landlord with your suggested price. They can edit and resubmit.
+            </p>
+            <div className="space-y-2">
+              <Label>Suggested Monthly Rent (GH₵) *</Label>
+              <Input type="number" value={suggestedPrice} onChange={(e) => setSuggestedPrice(e.target.value)} placeholder="e.g. 800" />
+            </div>
+            <div className="space-y-2">
+              <Label>Notes to Landlord</Label>
+              <Textarea value={suggestNotes} onChange={(e) => setSuggestNotes(e.target.value)} placeholder="e.g. Rent is above benchmark for this area..." rows={3} />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setShowSuggestRelist(false)}>Cancel</Button>
+              <Button onClick={handleSuggestRelisting} disabled={submittingSuggest || !suggestedPrice} className="bg-orange-600 hover:bg-orange-700 text-white">
+                {submittingSuggest ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <AlertTriangle className="h-4 w-4 mr-1" />}
+                Send for Update
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
