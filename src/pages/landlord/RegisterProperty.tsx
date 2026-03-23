@@ -153,14 +153,18 @@ const RegisterProperty = () => {
       let existingPropertyId: string | undefined;
 
       if (dupCheck?.match === "high") {
-        toast.info("This property appears to already exist in the system. It has been linked to the existing record.");
+        const isArchived = dupCheck.propertyStatus === "archived";
+        if (isArchived) {
+          toast.warning("This property was previously archived. It has been linked to the existing record. Contact an administrator to restore it.");
+        } else {
+          toast.info("This property appears to already exist in the system. It has been linked to the existing record.");
+        }
         existingPropertyId = dupCheck.existingPropertyId;
-        // Update existing property instead of creating new
         navigate("/landlord/my-properties");
         return;
       } else if (dupCheck?.match === "medium") {
         propertyStatus = "pending_identity_review";
-        toast.info("This property may already exist. It will be reviewed by an administrator.");
+        toast.info("This property may already exist (including archived records). It will be reviewed by an administrator.");
       }
 
       const regionCode = region.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
