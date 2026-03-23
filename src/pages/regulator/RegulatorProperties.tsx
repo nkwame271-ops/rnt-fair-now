@@ -401,7 +401,12 @@ const RegulatorProperties = () => {
                   <div><span className="text-muted-foreground">Condition:</span> <span className="font-semibold">{detailProperty.property_condition || "—"}</span></div>
                   <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold">{detailProperty.gps_location || "—"}</span></div>
                   <div><span className="text-muted-foreground">Ghana Post GPS:</span> <span className="font-semibold">{detailProperty.ghana_post_gps || "—"}</span></div>
-                  <div><span className="text-muted-foreground">Status:</span> {assessmentBadge(detailProperty.assessment_status || "pending")}</div>
+                  <div><span className="text-muted-foreground">Assessment:</span> {assessmentBadge(detailProperty.assessment_status || "pending")}</div>
+                  <div><span className="text-muted-foreground">Property Status:</span>{" "}
+                    <Badge variant="outline" className={`text-xs ${statusColors[detailProperty.property_status || "pending_assessment"] || ""}`}>
+                      {statusLabels[detailProperty.property_status || "pending_assessment"] || detailProperty.property_status}
+                    </Badge>
+                  </div>
                   {(detailProperty as any).approved_rent && (
                     <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold text-success">GH₵ {Number((detailProperty as any).approved_rent).toLocaleString()}</span></div>
                   )}
