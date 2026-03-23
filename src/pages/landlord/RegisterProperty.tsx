@@ -65,17 +65,9 @@ const RegisterProperty = () => {
   const [propertyCondition, setPropertyCondition] = useState("");
   const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial">("residential");
   const [images, setImages] = useState<File[]>([]);
-  const [roomCount, setRoomCount] = useState("");
-  const [bathroomCount, setBathroomCount] = useState("");
-  const [occupancyType, setOccupancyType] = useState("self_contained");
-  const [furnishingStatus, setFurnishingStatus] = useState("unfurnished");
   const [ownershipType, setOwnershipType] = useState("owner");
-  const [units, setUnits] = useState<UnitForm[]>([{
-    name: "Unit A", type: "", rent: "",
-    hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
-    electricityAvailable: false, hasBorehole: false, hasPolytank: false,
-    amenities: [], customAmenities: "",
-  }]);
+  const [propertyStructure, setPropertyStructure] = useState<"single_unit" | "multi_unit">("single_unit");
+  const [units, setUnits] = useState<UnitForm[]>([createEmptyUnit(0)]);
 
   const areas = region ? areasByRegion[region] || [] : [];
   const effectiveArea = customArea.trim() || area;
