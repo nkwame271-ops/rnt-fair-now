@@ -455,6 +455,41 @@ const MyProperties = () => {
                 </div>
               </div>
 
+              {/* Needs Update banner with suggested price */}
+              {p.property_status === "needs_update" && (
+                <div className="mx-4 mt-0 mb-2 p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-orange-800 dark:text-orange-300">Pricing update required</p>
+                      {(p as any).suggested_price && (
+                        <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">
+                          Admin suggested rent: <strong>GH₵ {Number((p as any).suggested_price).toLocaleString()}/mo</strong>
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">Edit your property to adjust pricing, then resubmit for assessment.</p>
+                      <div className="flex gap-2 mt-2">
+                        <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate(`/landlord/edit-property/${p.id}`)}>
+                          <Pencil className="h-3 w-3 mr-1" /> Edit Property
+                        </Button>
+                        <Button size="sm" className="text-xs bg-orange-600 hover:bg-orange-700 text-white" onClick={async () => {
+                          const { error } = await supabase.from("properties").update({
+                            property_status: "pending_assessment",
+                          } as any).eq("id", p.id);
+                          if (error) toast.error(error.message);
+                          else {
+                            setProperties(prev => prev.map(pr => pr.id === p.id ? { ...pr, property_status: "pending_assessment" } : pr));
+                            toast.success("Property resubmitted for assessment");
+                          }
+                        }}>
+                          Resubmit for Assessment
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="p-4 space-y-4">
                 {p.units.map((u) => (
                   <div key={u.id} className="bg-muted/50 rounded-lg p-4 space-y-3 border border-border/50">
