@@ -58,6 +58,7 @@ const RegulatorProperties = () => {
       .from("properties")
       .update({
         assessment_status: "approved",
+        property_status: "approved",
         assessed_at: new Date().toISOString(),
         assessed_by: user?.id,
       } as any)
@@ -68,10 +69,10 @@ const RegulatorProperties = () => {
     } else {
       toast.success("Property approved — Fully Assessed / Tenantable");
       setProperties((prev) =>
-        prev.map((p) => p.id === propertyId ? { ...p, assessment_status: "approved", assessed_at: new Date().toISOString() } : p)
+        prev.map((p) => p.id === propertyId ? { ...p, assessment_status: "approved", property_status: "approved", assessed_at: new Date().toISOString() } : p)
       );
       if (detailProperty?.id === propertyId) {
-        setDetailProperty({ ...detailProperty, assessment_status: "approved" });
+        setDetailProperty({ ...detailProperty, assessment_status: "approved", property_status: "approved" });
       }
     }
     setApproving(false);
