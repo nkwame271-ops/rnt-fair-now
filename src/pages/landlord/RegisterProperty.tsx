@@ -341,50 +341,40 @@ const RegisterProperty = () => {
                 </div>
               </div>
 
-              {/* New identity fields */}
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Room Count</Label>
-                  <Input type="number" value={roomCount} onChange={(e) => setRoomCount(e.target.value)} placeholder="e.g. 4" min="1" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Bathroom Count</Label>
-                  <Input type="number" value={bathroomCount} onChange={(e) => setBathroomCount(e.target.value)} placeholder="e.g. 2" min="0" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Occupancy Type</Label>
-                  <Select value={occupancyType} onValueChange={setOccupancyType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="self_contained">Self-Contained</SelectItem>
-                      <SelectItem value="shared">Shared Facilities</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Ownership Type */}
+              <div className="space-y-2">
+                <Label>Ownership Type</Label>
+                <Select value={ownershipType} onValueChange={setOwnershipType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="agent">Agent</SelectItem>
+                    <SelectItem value="caretaker">Caretaker</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Furnishing Status</Label>
-                  <Select value={furnishingStatus} onValueChange={setFurnishingStatus}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unfurnished">Unfurnished</SelectItem>
-                      <SelectItem value="semi_furnished">Semi-Furnished</SelectItem>
-                      <SelectItem value="furnished">Furnished</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Ownership Type</Label>
-                  <Select value={ownershipType} onValueChange={setOwnershipType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="owner">Owner</SelectItem>
-                      <SelectItem value="agent">Agent</SelectItem>
-                      <SelectItem value="caretaker">Caretaker</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+
+              {/* Property Structure */}
+              <div className="space-y-3">
+                <Label>Property Structure *</Label>
+                <RadioGroup value={propertyStructure} onValueChange={(v) => {
+                  setPropertyStructure(v as "single_unit" | "multi_unit");
+                  if (v === "single_unit" && units.length > 1) {
+                    setUnits([units[0]]);
+                  }
+                }} className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <RadioGroupItem value="single_unit" />
+                    <span className="text-sm">Single unit property</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <RadioGroupItem value="multi_unit" />
+                    <span className="text-sm">Multi-unit property</span>
+                  </label>
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">
+                  {propertyStructure === "single_unit" ? "One unit will be created automatically." : "Add multiple units to this property."}
+                </p>
               </div>
 
               {/* GPS — Map Picker */}
