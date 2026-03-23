@@ -102,6 +102,7 @@ Deno.serve(async (req) => {
       match,
       confidence: bestMatch.score,
       existingPropertyId: match !== "low" ? bestMatch.id : undefined,
+      propertyStatus: match !== "low" ? existing.find(p => p.id === bestMatch.id)?.property_status : undefined,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
