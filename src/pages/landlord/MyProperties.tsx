@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, Users, MapPin, UserPlus, Loader2, Droplets, Zap, ChefHat, Bath, CircleDot, Pencil, Store, Archive, TrendingUp } from "lucide-react";
+import { Building2, Users, MapPin, UserPlus, Loader2, Droplets, Zap, ChefHat, Bath, CircleDot, Pencil, Store, Archive, TrendingUp, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
