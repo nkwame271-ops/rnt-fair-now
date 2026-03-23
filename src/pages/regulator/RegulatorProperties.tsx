@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck } from "lucide-react";
+import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -180,6 +180,53 @@ const RegulatorProperties = () => {
     return <Badge variant="outline" className="text-warning border-warning/30 text-xs"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
   };
 
+  const statusColors: Record<string, string> = {
+    draft: "bg-muted text-muted-foreground",
+    pending_identity_review: "bg-orange-100 text-orange-700 border-orange-200",
+    pending_assessment: "bg-warning/10 text-warning border-warning/30",
+    approved: "bg-success/10 text-success border-success/20",
+    live: "bg-primary/10 text-primary border-primary/20",
+    occupied: "bg-info/10 text-info border-info/20",
+    off_market: "bg-muted text-muted-foreground border-border",
+    pending_rent_review: "bg-warning/10 text-warning border-warning/30",
+    suspended: "bg-destructive/10 text-destructive border-destructive/20",
+    archived: "bg-muted text-muted-foreground border-border",
+  };
+
+  const statusLabels: Record<string, string> = {
+    draft: "Draft",
+    pending_identity_review: "Identity Review",
+    pending_assessment: "Under Assessment",
+    approved: "Approved",
+    live: "Live",
+    occupied: "Occupied",
+    off_market: "Off Market",
+    pending_rent_review: "Rent Review",
+    suspended: "Suspended",
+    archived: "Archived",
+  };
+
+  const handleChangeStatus = async (propertyId: string, newStatus: string) => {
+    const { error } = await supabase.from("properties").update({
+      property_status: newStatus,
+      ...(newStatus === "live" ? { listed_on_marketplace: true } : {}),
+      ...(newStatus === "suspended" || newStatus === "off_market" ? { listed_on_marketplace: false } : {}),
+    } as any).eq("id", propertyId);
+    if (error) { toast.error(error.message); return; }
+
+    await supabase.from("property_events").insert({
+      property_id: propertyId,
+      event_type: "status_change",
+      old_value: { status: properties.find(p => p.id === propertyId)?.property_status },
+      new_value: { status: newStatus },
+      performed_by: user?.id,
+      reason: `Admin changed status to ${newStatus}`,
+    } as any);
+
+    setProperties(prev => prev.map(p => p.id === propertyId ? { ...p, property_status: newStatus } : p));
+    toast.success(`Property status changed to ${statusLabels[newStatus] || newStatus}`);
+  };
+
   if (loading) return <LogoLoader message="Loading properties..." />;
 
   return (
@@ -235,48 +282,81 @@ const RegulatorProperties = () => {
                 <TableHead>Address</TableHead>
                 <TableHead>Region</TableHead>
                 <TableHead>Units</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Assessment</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No properties found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No properties found</TableCell></TableRow>
               ) : (
-                filtered.map((p: any) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
-                    <TableCell className="font-medium">{p.property_name || "—"}</TableCell>
-                    <TableCell className="flex items-center gap-1 text-sm">
-                      <MapPin className="h-3 w-3 text-muted-foreground" />
-                      <a
-                        href={(() => { const gps = parseGPS(p.gps_location); return gps ? `https://www.google.com/maps?q=${gps.lat},${gps.lng}` : `https://www.google.com/maps/search/${encodeURIComponent(p.address)}`; })()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline hover:text-primary/80"
-                      >
-                        {p.address}
-                      </a>
-                    </TableCell>
-                    <TableCell>{p.region}, {p.area}</TableCell>
-                    <TableCell>
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">{p.units?.length || 0}</span>
-                    </TableCell>
-                    <TableCell>{assessmentBadge(p.assessment_status || "pending")}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openDetail(p)} className="gap-1">
-                          <Eye className="h-3.5 w-3.5" /> View
-                        </Button>
-                        {(p.assessment_status || "pending") !== "approved" && (
-                          <Button size="sm" variant="ghost" onClick={() => openAssessmentForm(p.id)} className="gap-1 text-primary">
-                            <ClipboardCheck className="h-3.5 w-3.5" /> Assess
-                          </Button>
+                filtered.map((p: any) => {
+                  const pStatus = p.property_status || "pending_assessment";
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
+                      <TableCell className="font-medium">
+                        {p.property_name || "—"}
+                        {pStatus === "pending_identity_review" && (
+                          <Badge variant="outline" className="ml-1 text-[10px] bg-orange-100 text-orange-700 border-orange-200 gap-0.5">
+                            <AlertTriangle className="h-2.5 w-2.5" /> Duplicate Risk
+                          </Badge>
                         )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          <a
+                            href={(() => { const gps = parseGPS(p.gps_location); return gps ? `https://www.google.com/maps?q=${gps.lat},${gps.lng}` : `https://www.google.com/maps/search/${encodeURIComponent(p.address)}`; })()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary underline hover:text-primary/80 truncate max-w-[150px]"
+                          >
+                            {p.address}
+                          </a>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">{p.region}, {p.area}</TableCell>
+                      <TableCell>
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">{p.units?.length || 0}</span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-xs ${statusColors[pStatus] || "text-muted-foreground"}`}>
+                          {statusLabels[pStatus] || pStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{assessmentBadge(p.assessment_status || "pending")}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => openDetail(p)} className="gap-1">
+                            <Eye className="h-3.5 w-3.5" /> View
+                          </Button>
+                          {(p.assessment_status || "pending") !== "approved" && (
+                            <Button size="sm" variant="ghost" onClick={() => openAssessmentForm(p.id)} className="gap-1 text-primary">
+                              <ClipboardCheck className="h-3.5 w-3.5" /> Assess
+                            </Button>
+                          )}
+                          {pStatus === "pending_identity_review" && (
+                            <Button size="sm" variant="ghost" onClick={() => handleChangeStatus(p.id, "pending_assessment")} className="gap-1 text-success">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Clear
+                            </Button>
+                          )}
+                          {pStatus === "live" && (
+                            <Button size="sm" variant="ghost" onClick={() => handleChangeStatus(p.id, "suspended")} className="gap-1 text-destructive">
+                              <Ban className="h-3.5 w-3.5" /> Suspend
+                            </Button>
+                          )}
+                          {pStatus === "suspended" && (
+                            <Button size="sm" variant="ghost" onClick={() => handleChangeStatus(p.id, "approved")} className="gap-1 text-success">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Reinstate
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -321,7 +401,12 @@ const RegulatorProperties = () => {
                   <div><span className="text-muted-foreground">Condition:</span> <span className="font-semibold">{detailProperty.property_condition || "—"}</span></div>
                   <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold">{detailProperty.gps_location || "—"}</span></div>
                   <div><span className="text-muted-foreground">Ghana Post GPS:</span> <span className="font-semibold">{detailProperty.ghana_post_gps || "—"}</span></div>
-                  <div><span className="text-muted-foreground">Status:</span> {assessmentBadge(detailProperty.assessment_status || "pending")}</div>
+                  <div><span className="text-muted-foreground">Assessment:</span> {assessmentBadge(detailProperty.assessment_status || "pending")}</div>
+                  <div><span className="text-muted-foreground">Property Status:</span>{" "}
+                    <Badge variant="outline" className={`text-xs ${statusColors[detailProperty.property_status || "pending_assessment"] || ""}`}>
+                      {statusLabels[detailProperty.property_status || "pending_assessment"] || detailProperty.property_status}
+                    </Badge>
+                  </div>
                   {(detailProperty as any).approved_rent && (
                     <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold text-success">GH₵ {Number((detailProperty as any).approved_rent).toLocaleString()}</span></div>
                   )}

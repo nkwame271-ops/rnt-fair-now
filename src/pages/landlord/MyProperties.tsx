@@ -46,11 +46,13 @@ interface Property {
   region: string;
   area: string;
   gps_location: string | null;
+  ghana_post_gps: string | null;
   property_condition: string | null;
   property_category: string;
   assessment_status: string;
   property_status: string;
   listed_on_marketplace: boolean;
+  approved_rent: number | null;
   units: Unit[];
   tenancyCount: number;
 }
@@ -194,6 +196,7 @@ const MyProperties = () => {
 
   const handleToggleListing = async (property: Property) => {
     if (property.listed_on_marketplace) {
+      // Delist flow
       setListingId(property.id);
       const { error } = await supabase.from("properties").update({
         listed_on_marketplace: false,
@@ -201,11 +204,77 @@ const MyProperties = () => {
       } as any).eq("id", property.id);
       if (error) toast.error(error.message);
       else {
+        // Log delist event
+        await supabase.from("property_events").insert({
+          property_id: property.id,
+          event_type: "delisting",
+          old_value: { status: "live" },
+          new_value: { status: "off_market" },
+          performed_by: user!.id,
+          reason: "Landlord delisted property",
+        } as any);
         setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: false, property_status: "off_market" } : p));
         toast.success("Property delisted from marketplace");
       }
       setListingId(null);
     } else {
+      // Compliance checks before listing
+      const complianceErrors: string[] = [];
+
+      if (!property.ghana_post_gps) {
+        complianceErrors.push("Ghana Post GPS code is required");
+      }
+      if (!property.gps_location) {
+        complianceErrors.push("Map location pin is required");
+      }
+      if (property.units.length === 0) {
+        complianceErrors.push("At least one unit must be registered");
+      }
+      if (!["approved", "off_market", "live"].includes(property.property_status)) {
+        complianceErrors.push("Property must be approved before listing");
+      }
+
+      // Check if KYC is verified for this landlord
+      const { data: kyc } = await supabase
+        .from("kyc_verifications")
+        .select("status")
+        .eq("user_id", user!.id)
+        .eq("status", "verified")
+        .limit(1);
+
+      if (!kyc || kyc.length === 0) {
+        complianceErrors.push("Ownership identity verification (KYC) is required");
+      }
+
+      // Check if property was previously listed at a higher rent (anti-evasion relist check)
+      if (property.property_status === "off_market" && (property as any).approved_rent) {
+        const currentMaxRent = Math.max(...property.units.map(u => u.monthly_rent));
+        const approvedRent = Number((property as any).approved_rent);
+        if (currentMaxRent > approvedRent) {
+          // Check if there's an approved rent increase request
+          const { data: approvedIncrease } = await supabase
+            .from("rent_increase_requests")
+            .select("id")
+            .eq("property_id", property.id)
+            .eq("status", "approved")
+            .gte("reviewed_at", new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString())
+            .limit(1);
+
+          if (!approvedIncrease || approvedIncrease.length === 0) {
+            complianceErrors.push("Unit rent exceeds previously approved rent. Submit a Rent Increase Request first.");
+          }
+        }
+      }
+
+      if (complianceErrors.length > 0) {
+        toast.error(
+          `Cannot list property:\n• ${complianceErrors.join("\n• ")}`,
+          { duration: 6000 }
+        );
+        return;
+      }
+
+      // Proceed with listing
       setListingId(property.id);
       try {
         const { data, error } = await supabase.functions.invoke("paystack-checkout", {
@@ -220,6 +289,17 @@ const MyProperties = () => {
             property_status: "live",
           } as any).eq("id", property.id);
           if (updateErr) throw new Error(updateErr.message);
+
+          // Log listing event
+          await supabase.from("property_events").insert({
+            property_id: property.id,
+            event_type: "listing",
+            old_value: { status: property.property_status },
+            new_value: { status: "live" },
+            performed_by: user!.id,
+            reason: "Property listed on marketplace (fee waived)",
+          } as any);
+
           setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: true, property_status: "live" } : p));
           toast.success(data.message || "Property listed on marketplace!");
           setListingId(null);

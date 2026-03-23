@@ -332,6 +332,21 @@ const AddTenant = () => {
       // Mark unit as occupied
       await supabase.from("units").update({ status: "occupied" }).eq("id", unit.id);
 
+      // Update property status to occupied
+      await supabase.from("properties").update({
+        property_status: "occupied",
+      } as any).eq("id", property.id);
+
+      // Log property event
+      await supabase.from("property_events").insert({
+        property_id: property.id,
+        event_type: "status_change",
+        old_value: { status: "live" },
+        new_value: { status: "occupied" },
+        performed_by: user.id,
+        reason: `Tenancy created for unit ${unit.unit_name}`,
+      } as any);
+
       // Send multi-channel notification to both tenant and landlord
       const { data: tenantProfile } = await supabase.from("profiles").select("phone, email, full_name").eq("user_id", foundTenant.userId).maybeSingle();
       const { data: landlordProfile } = await supabase.from("profiles").select("phone, email, full_name").eq("user_id", user.id).maybeSingle();

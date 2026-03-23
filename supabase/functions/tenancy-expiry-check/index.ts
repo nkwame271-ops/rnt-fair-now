@@ -139,6 +139,36 @@ Deno.serve(async (req) => {
 
       await supabase.from("units").update({ status: "vacant" }).eq("id", t.unit_id);
 
+      // Update property status to off_market when tenancy expires
+      const { data: unitData } = await supabase.from("units").select("property_id").eq("id", t.unit_id).single();
+      if (unitData?.property_id) {
+        // Check if any other units on this property are still occupied
+        const { data: otherOccupied } = await supabase
+          .from("units")
+          .select("id")
+          .eq("property_id", unitData.property_id)
+          .eq("status", "occupied")
+          .neq("id", t.unit_id)
+          .limit(1);
+
+        if (!otherOccupied || otherOccupied.length === 0) {
+          await supabase.from("properties").update({
+            property_status: "off_market",
+            listed_on_marketplace: false,
+          }).eq("id", unitData.property_id);
+
+          // Log property event
+          await supabase.from("property_events").insert({
+            property_id: unitData.property_id,
+            event_type: "status_change",
+            old_value: { status: "occupied" },
+            new_value: { status: "off_market" },
+            performed_by: null,
+            reason: "All tenancies expired — property moved to off-market",
+          });
+        }
+      }
+
       await supabase.from("notifications").insert([
         { user_id: t.tenant_user_id, title: "Tenancy Expired", body: `Your tenancy ${t.registration_code} has expired. The unit is now unlocked.`, link: "/tenant/my-agreements" },
         { user_id: t.landlord_user_id, title: "Tenancy Expired", body: `Tenancy ${t.registration_code} has expired. The unit is now vacant.`, link: "/landlord/agreements" },

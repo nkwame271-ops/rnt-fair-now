@@ -24,11 +24,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch all non-deleted properties to compare against
+    // Fetch ALL properties including archived for anti-evasion detection
     const { data: existing } = await supabaseAdmin
       .from("properties")
-      .select("id, gps_location, ghana_post_gps, normalized_address, region, area, landlord_user_id, property_status, property_fingerprint")
-      .neq("property_status", "archived");
+      .select("id, gps_location, ghana_post_gps, normalized_address, region, area, landlord_user_id, property_status, property_fingerprint");
 
     if (!existing || existing.length === 0) {
       return new Response(JSON.stringify({ match: "low", confidence: 0 }), {
@@ -103,6 +102,7 @@ Deno.serve(async (req) => {
       match,
       confidence: bestMatch.score,
       existingPropertyId: match !== "low" ? bestMatch.id : undefined,
+      propertyStatus: match !== "low" ? existing.find(p => p.id === bestMatch.id)?.property_status : undefined,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
