@@ -459,26 +459,33 @@ const RegisterProperty = () => {
             <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-card-foreground">Units ({units.length})</h2>
-                <Button type="button" variant="outline" size="sm" onClick={addUnit}>
-                  <PlusCircle className="h-4 w-4 mr-1" /> Add Unit
-                </Button>
+                {propertyStructure === "multi_unit" && (
+                  <Button type="button" variant="outline" size="sm" onClick={addUnit}>
+                    <PlusCircle className="h-4 w-4 mr-1" /> Add Unit
+                  </Button>
+                )}
               </div>
               <div className="space-y-4">
                 {units.map((unit, i) => (
                   <div key={i} className="bg-muted rounded-lg p-4 space-y-3">
-                    <div className="grid sm:grid-cols-4 gap-3 items-end">
-                      <div className="space-y-1">
+                    <div className="flex items-end gap-3 flex-wrap">
+                      <div className="space-y-1 flex-1 min-w-[120px]">
                         <Label className="text-xs">Unit Name</Label>
                         <Input value={unit.name} onChange={(e) => updateUnit(i, { name: e.target.value })} />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Type</Label>
-                        <Select value={unit.type} onValueChange={(v) => updateUnit(i, { type: v as PropertyType })}>
-                          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>{propertyTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                        </Select>
+                      <div className="space-y-1 flex-1 min-w-[180px]">
+                        <Label className="text-xs">Unit Type</Label>
+                        <Input
+                          value={unit.type}
+                          onChange={(e) => updateUnit(i, { type: e.target.value })}
+                          placeholder="e.g. 3-Bedroom Duplex with BQ"
+                        />
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 w-24">
+                        <Label className="text-xs">Bedrooms</Label>
+                        <Input type="number" value={unit.bedroomCount} onChange={(e) => updateUnit(i, { bedroomCount: e.target.value })} placeholder="0" min="0" />
+                      </div>
+                      <div className="space-y-1 w-28">
                         <Label className="text-xs">Rent (GH₵)</Label>
                         <Input
                           type="number"
@@ -488,9 +495,29 @@ const RegisterProperty = () => {
                           placeholder="e.g. 1200"
                         />
                       </div>
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeUnit(i)} disabled={units.length === 1} className="text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {propertyStructure === "multi_unit" && (
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeUnit(i)} disabled={units.length === 1} className="text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Quick-select type presets */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {unitTypePresets.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => updateUnit(i, { type: preset })}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                            unit.type === preset
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
                     </div>
 
                     {/* Benchmark feedback */}
