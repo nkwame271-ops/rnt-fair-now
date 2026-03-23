@@ -133,10 +133,10 @@ const RegulatorProperties = () => {
 
       toast.success(`Property approved with rent GH₵ ${approvedRent.toLocaleString()}`);
       setProperties((prev) =>
-        prev.map((p) => p.id === propertyId ? { ...p, assessment_status: "approved", approved_rent: approvedRent } : p)
+        prev.map((p) => p.id === propertyId ? { ...p, assessment_status: "approved", property_status: "approved", approved_rent: approvedRent } : p)
       );
       if (detailProperty?.id === propertyId) {
-        setDetailProperty({ ...detailProperty, assessment_status: "approved", approved_rent: approvedRent });
+        setDetailProperty({ ...detailProperty, assessment_status: "approved", property_status: "approved", approved_rent: approvedRent });
       }
     } catch (err: any) {
       toast.error(err.message);
