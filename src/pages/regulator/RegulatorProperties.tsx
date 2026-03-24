@@ -393,7 +393,7 @@ const RegulatorProperties = () => {
                           <Button size="sm" variant="ghost" onClick={() => openDetail(p)} className="gap-1">
                             <Eye className="h-3.5 w-3.5" /> View
                           </Button>
-                          {(p.assessment_status || "pending") !== "approved" && (
+                          {((p.assessment_status || "pending") !== "approved" || pStatus === "pending_assessment") && (
                             <Button size="sm" variant="ghost" onClick={() => openAssessmentForm(p.id)} className="gap-1 text-primary">
                               <ClipboardCheck className="h-3.5 w-3.5" /> Assess
                             </Button>
