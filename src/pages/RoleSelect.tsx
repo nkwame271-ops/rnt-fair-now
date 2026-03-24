@@ -1,13 +1,91 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Building2, Users, ArrowRight, Lock, Shield, Scale, Phone, Mail, MapPin, Code2, Database, FileJson } from "lucide-react";
+import { Building2, Users, ArrowRight, Lock, Shield, Scale, Phone, Mail, MapPin, Code2, Database, FileJson, Send } from "lucide-react";
 import LiveChatWidget from "@/components/LiveChatWidget";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import heroBg from "@/assets/hero-bg.jpg";
 import rcdLogo from "@/assets/rcd-logo.png";
 import coatOfArms from "@/assets/ghana-coat-of-arms.png";
 import cfledLogo from "@/assets/cfled-logo.png";
+
+const ContactForm = () => {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    setSending(true);
+    const { error } = await supabase.from("contact_submissions" as any).insert({
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim() || null,
+      message: message.trim(),
+    } as any);
+    if (error) {
+      toast.error("Failed to send message. Please try again.");
+    } else {
+      toast.success("Message sent! We'll get back to you soon.");
+      setName(""); setEmail(""); setPhone(""); setMessage("");
+    }
+    setSending(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="max-w-lg mx-auto bg-card border border-border rounded-xl p-6 space-y-4">
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Name *</label>
+          <input
+            value={name} onChange={(e) => setName(e.target.value)}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="Your full name" required maxLength={100}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Email *</label>
+          <input
+            type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="your@email.com" required maxLength={255}
+          />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-foreground">Phone</label>
+        <input
+          value={phone} onChange={(e) => setPhone(e.target.value)}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          placeholder="+233 XXX XXX XXX" maxLength={20}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-foreground">Message *</label>
+        <textarea
+          value={message} onChange={(e) => setMessage(e.target.value)}
+          className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          placeholder="How can we help you?" required maxLength={1000}
+        />
+      </div>
+      <button
+        type="submit" disabled={sending}
+        className="w-full h-10 rounded-md bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        <Send className="h-4 w-4" />
+        {sending ? "Sending..." : "Send Message"}
+      </button>
+    </form>
+  );
+};
 
 const RoleSelect = () => {
   const navigate = useNavigate();
@@ -244,6 +322,20 @@ const RoleSelect = () => {
           </div>
         </section>
 
+        {/* Contact Form Section */}
+        <section className="max-w-6xl mx-auto px-4 py-12 sm:py-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Contact Us</h2>
+            <p className="text-muted-foreground text-sm">Have a question or need assistance? Send us a message.</p>
+          </motion.div>
+          <ContactForm />
+        </section>
+
         {/* Footer */}
         <footer className="border-t border-border bg-card/50 mt-8">
           <div className="max-w-6xl mx-auto px-4 py-10">
@@ -261,7 +353,6 @@ const RoleSelect = () => {
                 <h4 className="font-semibold text-foreground text-sm mb-3">Contact</h4>
                 <div className="space-y-2 text-muted-foreground text-xs">
                   <div className="flex items-center gap-2"><Phone className="h-3 w-3" /> +233 303 960 792</div>
-                  <div className="flex items-center gap-2"><Mail className="h-3 w-3" /> rentcontroldepart@gmail.com</div>
                   <div className="flex items-center gap-2"><MapPin className="h-3 w-3" /> Accra, Greater Accra Region</div>
                 </div>
               </div>

@@ -6,9 +6,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, Save, Lock, AlertTriangle } from "lucide-react";
+import { Loader2, ArrowLeft, Save, Lock, AlertTriangle, Building2 } from "lucide-react";
 import { regions, areasByRegion } from "@/data/dummyData";
+
+const unitTypePresets = [
+  "Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom",
+  "Self-Contained", "Apartment", "Hostel Room", "Shop", "Office",
+];
+
+interface EditableUnit {
+  id: string;
+  unit_name: string;
+  unit_type: string;
+  monthly_rent: number;
+  bedroom_count: string;
+  bathroom_count: string;
+  has_toilet_bathroom: boolean;
+  has_kitchen: boolean;
+  water_available: boolean;
+  electricity_available: boolean;
+  has_borehole: boolean;
+  has_polytank: boolean;
+  amenities: string[];
+  custom_amenities: string;
+}
+
+const amenityOptions = ["Security", "Parking", "Balcony", "Compound", "AC", "Generator", "Pool", "Gym"];
 
 const EditProperty = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,36 +54,65 @@ const EditProperty = () => {
   const [locationLocked, setLocationLocked] = useState(false);
   const [propertyStatus, setPropertyStatus] = useState("");
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
+  const [units, setUnits] = useState<EditableUnit[]>([]);
 
   useEffect(() => {
     if (!user || !id) return;
-    const fetch = async () => {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("*")
-        .eq("id", id)
-        .eq("landlord_user_id", user.id)
-        .single();
-      if (error || !data) {
+    const fetchData = async () => {
+      const [{ data: prop, error: propErr }, { data: unitData }] = await Promise.all([
+        supabase.from("properties").select("*").eq("id", id).eq("landlord_user_id", user.id).single(),
+        supabase.from("units").select("*").eq("property_id", id),
+      ]);
+      if (propErr || !prop) {
         toast.error("Property not found");
         navigate("/landlord/my-properties");
         return;
       }
-      setPropertyName(data.property_name || "");
-      setAddress(data.address);
-      setRegion(data.region);
-      setArea(data.area);
-      setCondition(data.property_condition || "");
-      setGhanaPostGps(data.ghana_post_gps || "");
-      setPropertyCategory(((data as any).property_category as "residential" | "commercial") || "residential");
-      setOwnershipType((data as any).ownership_type || "owner");
-      setLocationLocked(data.location_locked || false);
-      setPropertyStatus((data as any).property_status || "");
-      setSuggestedPrice((data as any).suggested_price ? Number((data as any).suggested_price) : null);
+      setPropertyName(prop.property_name || "");
+      setAddress(prop.address);
+      setRegion(prop.region);
+      setArea(prop.area);
+      setCondition(prop.property_condition || "");
+      setGhanaPostGps(prop.ghana_post_gps || "");
+      setPropertyCategory(((prop as any).property_category as "residential" | "commercial") || "residential");
+      setOwnershipType((prop as any).ownership_type || "owner");
+      setLocationLocked(prop.location_locked || false);
+      setPropertyStatus((prop as any).property_status || "");
+      setSuggestedPrice((prop as any).suggested_price ? Number((prop as any).suggested_price) : null);
+      setUnits((unitData || []).map((u: any) => ({
+        id: u.id,
+        unit_name: u.unit_name || "",
+        unit_type: u.unit_type || "",
+        monthly_rent: u.monthly_rent || 0,
+        bedroom_count: u.room_count?.toString() || "",
+        bathroom_count: u.bathroom_count?.toString() || "",
+        has_toilet_bathroom: u.has_toilet_bathroom || false,
+        has_kitchen: u.has_kitchen || false,
+        water_available: u.water_available || false,
+        electricity_available: u.electricity_available || false,
+        has_borehole: u.has_borehole || false,
+        has_polytank: u.has_polytank || false,
+        amenities: u.amenities || [],
+        custom_amenities: u.custom_amenities || "",
+      })));
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, [user, id, navigate]);
+
+  const updateUnit = (i: number, updates: Partial<EditableUnit>) => {
+    const updated = [...units];
+    updated[i] = { ...updated[i], ...updates };
+    setUnits(updated);
+  };
+
+  const toggleAmenity = (i: number, amenity: string) => {
+    const unit = units[i];
+    const newAmenities = unit.amenities.includes(amenity)
+      ? unit.amenities.filter(a => a !== amenity)
+      : [...unit.amenities, amenity];
+    updateUnit(i, { amenities: newAmenities });
+  };
 
   const handleSave = async () => {
     if (!address || !region || !area) {
@@ -84,10 +139,32 @@ const EditProperty = () => {
 
     if (error) {
       toast.error(error.message);
-    } else {
-      toast.success("Property updated successfully");
-      navigate("/landlord/my-properties");
+      setSaving(false);
+      return;
     }
+
+    // Save unit changes
+    for (const unit of units) {
+      const { error: unitErr } = await supabase.from("units").update({
+        unit_name: unit.unit_name,
+        unit_type: unit.unit_type,
+        monthly_rent: unit.monthly_rent,
+        has_toilet_bathroom: unit.has_toilet_bathroom,
+        has_kitchen: unit.has_kitchen,
+        water_available: unit.water_available,
+        electricity_available: unit.electricity_available,
+        has_borehole: unit.has_borehole,
+        has_polytank: unit.has_polytank,
+        amenities: unit.amenities,
+        custom_amenities: unit.custom_amenities || null,
+      } as any).eq("id", unit.id);
+      if (unitErr) {
+        toast.error(`Failed to update ${unit.unit_name}: ${unitErr.message}`);
+      }
+    }
+
+    toast.success("Property updated successfully");
+    navigate("/landlord/my-properties");
     setSaving(false);
   };
 
@@ -116,7 +193,7 @@ const EditProperty = () => {
 
       <div>
         <h1 className="text-2xl font-bold text-foreground">Edit Property</h1>
-        <p className="text-muted-foreground mt-1">Update your property details</p>
+        <p className="text-muted-foreground mt-1">Update your property details and units</p>
       </div>
 
       {/* Needs Update banner */}
@@ -129,13 +206,17 @@ const EditProperty = () => {
               <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">
                 Suggested monthly rent: <strong>GH₵ {suggestedPrice.toLocaleString()}</strong>
               </p>
-              <p className="text-xs text-muted-foreground mt-1">Adjust your unit rents in the unit management section, then resubmit.</p>
+              <p className="text-xs text-muted-foreground mt-1">Adjust your unit rents below, then resubmit for assessment.</p>
             </div>
           </div>
         </div>
       )}
 
+      {/* Property Details */}
       <div className="bg-card rounded-xl p-6 border border-border space-y-4">
+        <h2 className="font-semibold text-card-foreground flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-primary" /> Property Details
+        </h2>
         <div className="space-y-2">
           <Label>Property Name</Label>
           <Input value={propertyName} onChange={(e) => setPropertyName(e.target.value)} placeholder="e.g. Asante Villa" />
@@ -170,7 +251,6 @@ const EditProperty = () => {
             </SelectContent>
           </Select>
         </div>
-
         <div className="space-y-2">
           <Label>Ownership Type</Label>
           <Select value={ownershipType} onValueChange={setOwnershipType}>
@@ -182,7 +262,6 @@ const EditProperty = () => {
             </SelectContent>
           </Select>
         </div>
-
         <div className="space-y-2">
           <Label>Property Condition</Label>
           <Input value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="e.g. Newly built, Good condition" />
@@ -200,18 +279,120 @@ const EditProperty = () => {
           />
           {locationLocked && <p className="text-xs text-muted-foreground">Location is locked after approval. Contact admin to change.</p>}
         </div>
+      </div>
 
-        <div className="flex gap-3">
-          <Button onClick={handleSave} disabled={saving} className="flex-1">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
-          {propertyStatus === "needs_update" && (
-            <Button onClick={handleResubmit} disabled={saving} variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50">
-              Resubmit for Assessment
-            </Button>
-          )}
+      {/* Units Section */}
+      {units.length > 0 && (
+        <div className="bg-card rounded-xl p-6 border border-border space-y-4">
+          <h2 className="font-semibold text-card-foreground flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-primary" /> Units ({units.length})
+          </h2>
+          {units.map((unit, i) => (
+            <div key={unit.id} className="bg-muted rounded-lg p-4 space-y-3">
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="space-y-1 flex-1 min-w-[120px]">
+                  <Label className="text-xs">Unit Name</Label>
+                  <Input value={unit.unit_name} onChange={(e) => updateUnit(i, { unit_name: e.target.value })} />
+                </div>
+                <div className="space-y-1 flex-1 min-w-[180px]">
+                  <Label className="text-xs">Unit Type</Label>
+                  <Input
+                    value={unit.unit_type}
+                    onChange={(e) => updateUnit(i, { unit_type: e.target.value })}
+                    placeholder="e.g. 3-Bedroom Duplex with BQ"
+                  />
+                </div>
+              </div>
+
+              {/* Quick type presets */}
+              <div className="flex flex-wrap gap-1">
+                {unitTypePresets.map((preset) => (
+                  <Badge
+                    key={preset}
+                    variant={unit.unit_type === preset ? "default" : "outline"}
+                    className="cursor-pointer text-xs"
+                    onClick={() => updateUnit(i, { unit_type: preset })}
+                  >
+                    {preset}
+                  </Badge>
+                ))}
+              </div>
+
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="space-y-1 w-24">
+                  <Label className="text-xs">Bedrooms</Label>
+                  <Input type="number" value={unit.bedroom_count} onChange={(e) => updateUnit(i, { bedroom_count: e.target.value })} placeholder="0" min="0" />
+                </div>
+                <div className="space-y-1 w-24">
+                  <Label className="text-xs">Bathrooms</Label>
+                  <Input type="number" value={unit.bathroom_count} onChange={(e) => updateUnit(i, { bathroom_count: e.target.value })} placeholder="0" min="0" />
+                </div>
+                <div className="space-y-1 w-32">
+                  <Label className="text-xs flex items-center gap-1">
+                    Rent (GH₵)
+                    {propertyStatus === "needs_update" && suggestedPrice && (
+                      <span className="text-orange-600 text-[10px]">Suggested: {suggestedPrice.toLocaleString()}</span>
+                    )}
+                  </Label>
+                  <Input
+                    type="number"
+                    value={unit.monthly_rent}
+                    onChange={(e) => updateUnit(i, { monthly_rent: Number(e.target.value) })}
+                    placeholder="e.g. 1200"
+                    className={propertyStatus === "needs_update" ? "border-orange-300 focus:ring-orange-400" : ""}
+                  />
+                </div>
+              </div>
+
+              {/* Facilities */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { key: "has_toilet_bathroom" as const, label: "Toilet/Bathroom" },
+                  { key: "has_kitchen" as const, label: "Kitchen" },
+                  { key: "water_available" as const, label: "Water" },
+                  { key: "electricity_available" as const, label: "Electricity" },
+                  { key: "has_borehole" as const, label: "Borehole" },
+                  { key: "has_polytank" as const, label: "Polytank" },
+                ].map((fac) => (
+                  <label key={fac.key} className="flex items-center gap-2 text-xs cursor-pointer">
+                    <Checkbox
+                      checked={unit[fac.key]}
+                      onCheckedChange={(c) => updateUnit(i, { [fac.key]: !!c })}
+                    />
+                    {fac.label}
+                  </label>
+                ))}
+              </div>
+
+              {/* Amenities */}
+              <div className="flex flex-wrap gap-1">
+                {amenityOptions.map((a) => (
+                  <Badge
+                    key={a}
+                    variant={unit.amenities.includes(a) ? "default" : "outline"}
+                    className="cursor-pointer text-xs"
+                    onClick={() => toggleAmenity(i, a)}
+                  >
+                    {a}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-3">
+        <Button onClick={handleSave} disabled={saving} className="flex-1">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+          {saving ? "Saving..." : "Save Changes"}
+        </Button>
+        {propertyStatus === "needs_update" && (
+          <Button onClick={handleResubmit} disabled={saving} variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50">
+            Resubmit for Assessment
+          </Button>
+        )}
       </div>
     </div>
   );

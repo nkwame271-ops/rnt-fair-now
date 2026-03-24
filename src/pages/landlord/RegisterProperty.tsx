@@ -27,6 +27,7 @@ interface UnitForm {
   type: string;
   rent: string;
   bedroomCount: string;
+  bathroomCount: string;
   hasToiletBathroom: boolean;
   hasKitchen: boolean;
   waterAvailable: boolean;
@@ -42,7 +43,7 @@ const amenityOptions = ["Security", "Parking", "Balcony", "Compound", "AC", "Gen
 
 const createEmptyUnit = (index: number): UnitForm => ({
   name: index === 0 ? "Unit A" : `Unit ${String.fromCharCode(65 + index)}`,
-  type: "", rent: "", bedroomCount: "",
+  type: "", rent: "", bedroomCount: "", bathroomCount: "",
   hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
   electricityAvailable: false, hasBorehole: false, hasPolytank: false,
   amenities: [], customAmenities: "",
@@ -484,6 +485,10 @@ const RegisterProperty = () => {
                       <div className="space-y-1 w-24">
                         <Label className="text-xs">Bedrooms</Label>
                         <Input type="number" value={unit.bedroomCount} onChange={(e) => updateUnit(i, { bedroomCount: e.target.value })} placeholder="0" min="0" />
+                      </div>
+                      <div className="space-y-1 w-24">
+                        <Label className="text-xs">Bathrooms</Label>
+                        <Input type="number" value={(unit as any).bathroomCount || ""} onChange={(e) => updateUnit(i, { bathroomCount: e.target.value } as any)} placeholder="0" min="0" />
                       </div>
                       <div className="space-y-1 w-28">
                         <Label className="text-xs">Rent (GH₵)</Label>
