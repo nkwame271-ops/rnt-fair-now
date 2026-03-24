@@ -511,7 +511,7 @@ const RegulatorProperties = () => {
                   </div>
                 </div>
 
-                {(detailProperty.assessment_status || "pending") !== "approved" && (
+                {((detailProperty.assessment_status || "pending") !== "approved" || (detailProperty as any).property_status === "pending_assessment") && (
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => { setDetailProperty(null); openAssessmentForm(detailProperty.id); }}>
                       <ClipboardCheck className="h-4 w-4 mr-2" /> Assess Property
@@ -526,7 +526,7 @@ const RegulatorProperties = () => {
                     </Button>
                   </div>
                 )}
-                {detailProperty.assessment_status === "approved" && (
+                {detailProperty.assessment_status === "approved" && (detailProperty as any).property_status !== "pending_assessment" && (
                   <div className="bg-success/5 border border-success/20 rounded-lg p-3 flex items-center gap-2 text-success text-sm font-medium">
                     <CheckCircle2 className="h-4 w-4" /> This property has been assessed and approved.
                     {(detailProperty as any).approved_rent && <span className="ml-auto font-bold">GH₵ {Number((detailProperty as any).approved_rent).toLocaleString()}/mo</span>}

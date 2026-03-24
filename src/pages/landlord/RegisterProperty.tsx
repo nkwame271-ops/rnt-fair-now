@@ -43,7 +43,7 @@ const amenityOptions = ["Security", "Parking", "Balcony", "Compound", "AC", "Gen
 
 const createEmptyUnit = (index: number): UnitForm => ({
   name: index === 0 ? "Unit A" : `Unit ${String.fromCharCode(65 + index)}`,
-  type: "", rent: "", bedroomCount: "",
+  type: "", rent: "", bedroomCount: "", bathroomCount: "",
   hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
   electricityAvailable: false, hasBorehole: false, hasPolytank: false,
   amenities: [], customAmenities: "",
