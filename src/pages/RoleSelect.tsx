@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Building2, Users, ArrowRight, Lock, Shield, Scale, Phone, Mail, MapPin, Code2, Database, FileJson } from "lucide-react";
+import { Building2, Users, ArrowRight, Lock, Shield, Scale, Phone, Mail, MapPin, Code2, Database, FileJson, Send } from "lucide-react";
 import LiveChatWidget from "@/components/LiveChatWidget";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import heroBg from "@/assets/hero-bg.jpg";
 import rcdLogo from "@/assets/rcd-logo.png";
 import coatOfArms from "@/assets/ghana-coat-of-arms.png";
