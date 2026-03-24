@@ -246,6 +246,20 @@ const RoleSelect = () => {
           </div>
         </section>
 
+        {/* Contact Form Section */}
+        <section className="max-w-6xl mx-auto px-4 py-12 sm:py-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Contact Us</h2>
+            <p className="text-muted-foreground text-sm">Have a question or need assistance? Send us a message.</p>
+          </motion.div>
+          <ContactForm />
+        </section>
+
         {/* Footer */}
         <footer className="border-t border-border bg-card/50 mt-8">
           <div className="max-w-6xl mx-auto px-4 py-10">
@@ -263,7 +277,6 @@ const RoleSelect = () => {
                 <h4 className="font-semibold text-foreground text-sm mb-3">Contact</h4>
                 <div className="space-y-2 text-muted-foreground text-xs">
                   <div className="flex items-center gap-2"><Phone className="h-3 w-3" /> +233 303 960 792</div>
-                  <div className="flex items-center gap-2"><Mail className="h-3 w-3" /> rentcontroldepart@gmail.com</div>
                   <div className="flex items-center gap-2"><MapPin className="h-3 w-3" /> Accra, Greater Accra Region</div>
                 </div>
               </div>
