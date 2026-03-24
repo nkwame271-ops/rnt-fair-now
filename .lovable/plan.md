@@ -1,76 +1,28 @@
 
 
-# Multi-Portal Fixes: Admin Assess/Approve, Edit Property Units, Bathrooms, Contact Form
+# Fix: SMS Not Received After Signup
 
-## Issues Identified
+## Root Cause
 
-1. **Admin Portal**: After landlord resubmits (status becomes `pending_assessment`), the "Assess" and "Suggest Relist" buttons only show when `assessment_status !== "approved"`. But for resubmitted properties, the assessment was already approved previously. The condition on line 396 hides the buttons. Need to also show Assess/Approve for properties with `property_status === "pending_assessment"` regardless of prior `assessment_status`.
+The `send-notification` edge function (which handles post-signup SMS) only calls the Arkesel **V2 API**. The separate `send-sms` edge function has a V1 fallback for when V2 fails due to DNS/network issues on the platform, but `send-notification` does not.
 
-2. **Landlord Edit Property**: The edit page only has property-level fields (name, address, region, etc.) but no unit editing. Landlords cannot change unit rents to match the suggested price. Need to add unit management (rent editing, type, facilities) to EditProperty.tsx.
+When V2 fails silently (network error caught and logged), no SMS is delivered and no fallback is attempted.
 
-3. **Missing bathroom count**: The `UnitForm` interface has `bedroomCount` but no `bathroomCount`. Need to add it to registration and edit forms.
+## Fix
 
-4. **Homepage contact**: Replace email with a contact form that sends submissions to admin (store in a `contact_submissions` table).
+### `supabase/functions/send-notification/index.ts`
 
----
+Update the `sendSms` function (lines 241-258) to mirror the V2-then-V1 fallback pattern already used in `send-sms/index.ts`:
 
-## Database Changes
+1. Try Arkesel V2 API first (`https://api.arkesel.com/api/v2/sms/send`)
+2. On failure, fall back to V1 API (`https://sms.arkesel.com/sms/api?action=send-sms&...`)
+3. Log which path succeeded for debugging
 
-### New table: `contact_submissions`
-| Column | Type |
+This is a single-function change with no database or UI impact.
+
+## Files Changed
+
+| File | Change |
 |---|---|
-| id | UUID PK |
-| name | TEXT |
-| email | TEXT |
-| phone | TEXT |
-| message | TEXT |
-| status | TEXT DEFAULT 'new' |
-| created_at | TIMESTAMPTZ |
-
-RLS: anon/public can insert; regulators can read all.
-
----
-
-## Changes by File
-
-### `RegulatorProperties.tsx`
-- Change the condition on line 396 from `(p.assessment_status || "pending") !== "approved"` to also show Assess/Approve when `pStatus === "pending_assessment"` (resubmitted properties)
-- Same logic in detail dialog (line 514): show Assess/Quick Approve buttons when property is `pending_assessment` even if previously approved
-- Show "Suggest Relist" for `pending_assessment` status (already works)
-
-### `EditProperty.tsx`
-- Fetch units for the property alongside property data
-- Add unit editing section: for each unit, allow editing rent, unit type (with preset chips), bedroom count, bathroom count, and facilities checkboxes
-- Save unit changes alongside property changes
-- When in `needs_update` status, highlight the rent field with the suggested price as guidance
-
-### `RegisterProperty.tsx`
-- Add `bathroomCount` to `UnitForm` interface and `createEmptyUnit`
-- Add bathroom count input next to bedroom count in the unit form
-
-### `RoleSelect.tsx`
-- Remove email line from footer contact section (keep phone and address)
-- Replace the Contact column in the footer with a contact form (name, email, phone, message) that inserts into `contact_submissions`
-- Or add a "Contact Us" section above the footer with the form
-
-### `RegulatorDashboard.tsx` or `RegulatorFeedback.tsx`
-- Add a way for admin to view contact submissions (can piggyback on existing feedback page or add a tab)
-
----
-
-## Technical Details
-
-### Admin Assess button visibility fix
-```typescript
-// Change from:
-{(p.assessment_status || "pending") !== "approved" && (
-// To:
-{((p.assessment_status || "pending") !== "approved" || pStatus === "pending_assessment") && (
-```
-
-### Edit Property unit management
-Fetch units on load, render editable unit cards with rent, type, bedrooms, bathrooms, facilities. On save, batch update all changed units.
-
-### Contact form
-Simple form in footer area that posts to `contact_submissions` table. No auth required (anon insert policy).
+| `supabase/functions/send-notification/index.ts` | Add V1 fallback to `sendSms` function |
 
