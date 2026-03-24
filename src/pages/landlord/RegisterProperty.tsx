@@ -27,6 +27,7 @@ interface UnitForm {
   type: string;
   rent: string;
   bedroomCount: string;
+  bathroomCount: string;
   hasToiletBathroom: boolean;
   hasKitchen: boolean;
   waterAvailable: boolean;
