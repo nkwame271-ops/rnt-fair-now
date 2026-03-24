@@ -485,6 +485,10 @@ const RegisterProperty = () => {
                         <Label className="text-xs">Bedrooms</Label>
                         <Input type="number" value={unit.bedroomCount} onChange={(e) => updateUnit(i, { bedroomCount: e.target.value })} placeholder="0" min="0" />
                       </div>
+                      <div className="space-y-1 w-24">
+                        <Label className="text-xs">Bathrooms</Label>
+                        <Input type="number" value={(unit as any).bathroomCount || ""} onChange={(e) => updateUnit(i, { bathroomCount: e.target.value } as any)} placeholder="0" min="0" />
+                      </div>
                       <div className="space-y-1 w-28">
                         <Label className="text-xs">Rent (GH₵)</Label>
                         <Input
