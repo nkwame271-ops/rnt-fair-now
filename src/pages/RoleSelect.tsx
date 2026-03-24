@@ -87,6 +87,7 @@ const ContactForm = () => {
   );
 };
 
+const RoleSelect = () => {
   const navigate = useNavigate();
   const { user, role, loading } = useAuth();
 
