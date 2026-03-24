@@ -244,16 +244,39 @@ async function sendSms(phone: string, message: string): Promise<void> {
     console.error("ARKESEL_API_KEY not configured, skipping SMS");
     return;
   }
+  const normalized = normalizePhone(phone);
+  // Try V2 first
   try {
+    console.log("Trying Arkesel V2...");
     const res = await fetch("https://api.arkesel.com/api/v2/sms/send", {
       method: "POST",
       headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ sender: "RentGhana", message, recipients: [normalizePhone(phone)] }),
+      body: JSON.stringify({ sender: "RentGhana", message, recipients: [normalized] }),
     });
+    const data = await res.json();
+    if (data.status !== "success") throw new Error(data.message || "V2 SMS failed");
+    console.log("V2 SMS succeeded");
+    return;
+  } catch (v2Err) {
+    const v2Msg = v2Err instanceof Error ? v2Err.message : String(v2Err);
+    console.warn("V2 failed:", v2Msg, "— trying V1 fallback...");
+  }
+  // V1 fallback
+  try {
+    const params = new URLSearchParams({
+      action: "send-sms",
+      api_key: ARKESEL_API_KEY,
+      to: normalized,
+      from: "RentGhana",
+      sms: message,
+    });
+    const res = await fetch(`https://sms.arkesel.com/sms/api?${params.toString()}`);
     const text = await res.text();
-    console.log("Arkesel response:", text);
-  } catch (e) {
-    console.error("SMS send error:", e);
+    console.log("V1 fallback response:", text);
+    if (!res.ok) throw new Error("V1 HTTP " + res.status + ": " + text);
+    console.log("V1 SMS fallback succeeded");
+  } catch (v1Err) {
+    console.error("Both V2 and V1 SMS failed:", v1Err);
   }
 }
 
