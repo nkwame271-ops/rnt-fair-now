@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useFeeConfig } from "@/hooks/useFeatureFlag";
+import { useFeeConfig, useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Briefcase, UserPlus, Lock } from "lucide-react";
+import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Briefcase, UserPlus, Lock, Globe, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,12 +12,15 @@ import { sendNotification } from "@/lib/notificationService";
 import FormField from "@/components/FormField";
 import { formatPhone, isValidPhone } from "@/lib/formatters";
 import { regions } from "@/data/dummyData";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Switch } from "@/components/ui/switch";
 
 const steps = ["Account", "Contact", "Your ID"];
 
 const RegisterTenant = () => {
   const navigate = useNavigate();
   const { amount: regFee, enabled: regFeeEnabled } = useFeeConfig("tenant_registration_fee");
+  const { enabled: otpEnabled } = useFeatureFlag("phone_otp_verification");
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -25,12 +28,63 @@ const RegisterTenant = () => {
   const [email, setEmail] = useState("");
   const [region, setRegion] = useState("");
   const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [occupation, setOccupation] = useState("");
   const [workAddress, setWorkAddress] = useState("");
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [generatedId, setGeneratedId] = useState("");
   const [payingRegistration, setPayingRegistration] = useState(false);
+
+  // Citizenship
+  const [isCitizen, setIsCitizen] = useState(true);
+  const [nationality, setNationality] = useState("");
+  const [residencePermitNo, setResidencePermitNo] = useState("");
+
+  // OTP
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+
+  const handleSendOtp = async () => {
+    setSendingOtp(true);
+    try {
+      const phoneDigits = phone.replace(/\s/g, "");
+      const { data, error } = await supabase.functions.invoke("send-otp", { body: { phone: phoneDigits } });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setOtpSent(true);
+      toast.success("Verification code sent to your phone!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async (code: string) => {
+    if (code.length !== 6) return;
+    setVerifyingOtp(true);
+    try {
+      const phoneDigits = phone.replace(/\s/g, "");
+      const { data, error } = await supabase.functions.invoke("verify-otp", { body: { phone: phoneDigits, code } });
+      if (error) throw new Error(error.message);
+      if (data?.verified) {
+        setPhoneVerified(true);
+        toast.success("Phone number verified!");
+      } else {
+        toast.error(data?.error || "Invalid code");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Verification failed");
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
 
   const handlePayRegistration = async () => {
     if (!regFeeEnabled) {
@@ -62,8 +116,13 @@ const RegisterTenant = () => {
 
   const canProceed = () => {
     switch (step) {
-      case 0: return fullName.length > 2 && isValidPhone(phone) && !!region;
-      case 1: return true; // contact step is all optional
+      case 0: {
+        const baseValid = fullName.length > 2 && isValidPhone(phone) && !!region && password.length >= 8 && password === confirmPassword;
+        const citizenValid = isCitizen || (nationality.length > 1 && residencePermitNo.length > 2);
+        const otpValid = !otpEnabled || phoneVerified;
+        return baseValid && citizenValid && otpValid;
+      }
+      case 1: return true;
       default: return true;
     }
   };
@@ -78,7 +137,6 @@ const RegisterTenant = () => {
     try {
       const phoneDigits = phone.replace(/\s/g, "");
       const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
-      const tempPassword = phoneDigits;
 
       // Pre-check: deactivated account
       const { data: existingProfile } = await supabase.from("profiles").select("user_id").eq("phone", phoneDigits).maybeSingle();
@@ -104,7 +162,7 @@ const RegisterTenant = () => {
       let userId: string;
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: syntheticEmail,
-        password: tempPassword,
+        password: password,
         options: {
           data: { full_name: fullName, phone: phoneDigits, role: "tenant" },
         },
@@ -133,6 +191,9 @@ const RegisterTenant = () => {
         occupation, work_address: workAddress,
         emergency_contact_name: emergencyName,
         emergency_contact_phone: emergencyPhone.replace(/\s/g, ""),
+        is_citizen: isCitizen,
+        nationality: isCitizen ? "Ghanaian" : nationality,
+        residence_permit_no: isCitizen ? null : residencePermitNo,
       }).eq("user_id", userId);
 
       if (profileError) {
@@ -161,17 +222,11 @@ const RegisterTenant = () => {
 
       setGeneratedId(tenantId);
 
-      // Send multi-channel notification (non-blocking)
       sendNotification("account_created", {
         phone: phoneDigits,
         email: email || undefined,
         user_id: userId,
-        data: {
-          name: fullName,
-          role: "Tenant",
-          id: tenantId,
-          phone: phoneDigits,
-        },
+        data: { name: fullName, role: "Tenant", id: tenantId, phone: phoneDigits },
       });
 
       setStep(2);
@@ -231,12 +286,7 @@ const RegisterTenant = () => {
             <span>{progressPercent}% complete</span>
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-primary rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${progressPercent}%` }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-            />
+            <motion.div className="h-full bg-primary rounded-full" initial={{ width: 0 }} animate={{ width: `${progressPercent}%` }} transition={{ duration: 0.4, ease: "easeOut" }} />
           </div>
         </div>
 
@@ -275,18 +325,98 @@ const RegisterTenant = () => {
                         <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Kwame Mensah" className="pl-10" />
                       </div>
                     </FormField>
+
+                    {/* Citizenship toggle */}
+                    <div className="space-y-3 border border-border rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium text-foreground">Ghanaian Citizen</span>
+                        </div>
+                        <Switch checked={isCitizen} onCheckedChange={(v) => { setIsCitizen(v); if (v) { setNationality(""); setResidencePermitNo(""); } }} />
+                      </div>
+                      {!isCitizen && (
+                        <div className="space-y-3 pt-2 border-t border-border">
+                          <FormField label="Nationality" valid={nationality.length > 1}>
+                            <Input value={nationality} onChange={(e) => setNationality(e.target.value)} placeholder="e.g. Nigerian, British" />
+                          </FormField>
+                          <FormField label="Residence Permit Number" valid={residencePermitNo.length > 2}>
+                            <Input value={residencePermitNo} onChange={(e) => setResidencePermitNo(e.target.value)} placeholder="e.g. RP-2026-XXXXX" />
+                          </FormField>
+                        </div>
+                      )}
+                    </div>
+
                     <FormField label="Phone Number" valid={isValidPhone(phone)} hint="10 digits, e.g. 024 555 1234">
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="024 555 1234" className="pl-10" maxLength={12} />
+                        <Input value={phone} onChange={(e) => { setPhone(formatPhone(e.target.value)); setPhoneVerified(false); setOtpSent(false); setOtpCode(""); }} placeholder="024 555 1234" className="pl-10" maxLength={12} />
                       </div>
                     </FormField>
+
+                    {/* OTP Verification */}
+                    {otpEnabled && isValidPhone(phone) && (
+                      <div className="space-y-3 border border-border rounded-lg p-4">
+                        {!phoneVerified ? (
+                          <>
+                            {!otpSent ? (
+                              <Button variant="outline" size="sm" onClick={handleSendOtp} disabled={sendingOtp} className="w-full">
+                                {sendingOtp ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Sending...</> : "Verify Phone Number"}
+                              </Button>
+                            ) : (
+                              <div className="space-y-3">
+                                <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to <strong>{phone}</strong></p>
+                                <div className="flex justify-center">
+                                  <InputOTP maxLength={6} value={otpCode} onChange={(v) => { setOtpCode(v); if (v.length === 6) handleVerifyOtp(v); }}>
+                                    <InputOTPGroup>
+                                      <InputOTPSlot index={0} />
+                                      <InputOTPSlot index={1} />
+                                      <InputOTPSlot index={2} />
+                                      <InputOTPSlot index={3} />
+                                      <InputOTPSlot index={4} />
+                                      <InputOTPSlot index={5} />
+                                    </InputOTPGroup>
+                                  </InputOTP>
+                                </div>
+                                {verifyingOtp && <p className="text-xs text-muted-foreground text-center"><Loader2 className="h-3 w-3 animate-spin inline mr-1" />Verifying...</p>}
+                                <Button variant="ghost" size="sm" onClick={handleSendOtp} disabled={sendingOtp} className="w-full text-xs">
+                                  Resend Code
+                                </Button>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-2 text-success text-sm">
+                            <CheckCircle2 className="h-4 w-4" /> Phone number verified
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <FormField label="Email (Optional)" optional error={email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "Enter a valid email" : undefined}>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="kwame@example.com" className="pl-10" type="email" />
                       </div>
                     </FormField>
+
+                    {/* Password */}
+                    <FormField label="Password" valid={password.length >= 8} hint="Minimum 8 characters">
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create a password" className="pl-10 pr-10" type={showPassword ? "text" : "password"} />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </FormField>
+                    <FormField label="Confirm Password" valid={confirmPassword.length >= 8 && confirmPassword === password} error={confirmPassword && confirmPassword !== password ? "Passwords don't match" : undefined}>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm password" className="pl-10" type={showPassword ? "text" : "password"} />
+                      </div>
+                    </FormField>
+
                     <FormField label="Region of Stay" valid={!!region}>
                       <Select value={region} onValueChange={setRegion}>
                         <SelectTrigger><SelectValue placeholder="Select your region" /></SelectTrigger>
@@ -364,11 +494,10 @@ const RegisterTenant = () => {
                         <span className="font-medium text-foreground">{phone}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Temp Password:</span>
-                        <span className="font-medium text-foreground">Your full phone number</span>
+                        <span className="text-muted-foreground">Password:</span>
+                        <span className="font-medium text-foreground">The password you created</span>
                       </div>
                     </div>
-                    <p className="text-xs text-destructive font-medium">⚠️ Change your password immediately after logging in. Do not share it with anyone.</p>
                   </div>
 
                   <div className="bg-muted rounded-xl p-5 text-left space-y-3 max-w-sm mx-auto">

@@ -208,9 +208,9 @@ const AddTenant = () => {
   const toLandlord = monthlyRent * (1 - taxRate);
   const maxAdvance = templateConfig?.max_advance_months ?? 6;
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!property || !unit || !foundTenant) return;
-    const doc = generateAgreementPdf({
+    const doc = await generateAgreementPdf({
       registrationCode,
       landlordName,
       tenantName: foundTenant.name,
@@ -227,6 +227,7 @@ const AddTenant = () => {
       templateConfig: templateConfig || undefined,
       customFields: customFields.length > 0 ? customFields : undefined,
       customFieldValues: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
+      landlordSignature: { name: landlordName, signedAt: new Date().toISOString(), method: "Digital (Auto)" },
     });
     doc.save(`Tenancy_Agreement_${foundTenant.id}.pdf`);
     toast.success("Agreement PDF downloaded!");

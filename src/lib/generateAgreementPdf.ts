@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import QRCode from "qrcode";
 
 export interface TemplateConfig {
   max_advance_months: number;
@@ -14,6 +15,12 @@ export interface CustomFieldDef {
   label: string;
   type: "text" | "number" | "date";
   required: boolean;
+}
+
+export interface SignatureData {
+  name: string;
+  signedAt: string;
+  method?: string;
 }
 
 export interface AgreementPdfData {
@@ -33,6 +40,10 @@ export interface AgreementPdfData {
   templateConfig?: TemplateConfig;
   customFields?: CustomFieldDef[];
   customFieldValues?: Record<string, string>;
+  landlordSignature?: SignatureData;
+  tenantSignature?: SignatureData;
+  serialCode?: string;
+  version?: number;
 }
 
 const DEFAULT_TERMS = [
@@ -44,12 +55,22 @@ const DEFAULT_TERMS = [
   "The tenancy is only valid for months where the 8% tax has been paid.",
 ];
 
-export const generateAgreementPdf = (data: AgreementPdfData) => {
+const generateSerialCode = (registrationCode: string): string => {
+  const year = new Date().getFullYear();
+  const random = String(Math.floor(10000 + Math.random() * 90000));
+  const check = String(Math.floor(1000 + Math.random() * 9000));
+  return `AGR-${year}-${random}-${check}`;
+};
+
+export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPDF> => {
   const doc = new jsPDF();
   const w = doc.internal.pageSize.getWidth();
+  const h = doc.internal.pageSize.getHeight();
   let y = 20;
   const taxRate = (data.templateConfig?.tax_rate ?? 8) / 100;
   const terms = data.templateConfig?.terms ?? DEFAULT_TERMS;
+  const serialCode = data.serialCode || generateSerialCode(data.registrationCode);
+  const version = data.version || 1;
 
   const center = (text: string, yPos: number, size = 12, style: "normal" | "bold" = "normal") => {
     doc.setFontSize(size);
@@ -68,6 +89,17 @@ export const generateAgreementPdf = (data: AgreementPdfData) => {
     doc.setLineWidth(0.5);
     doc.line(20, yPos, w - 20, yPos);
   };
+
+  const checkPage = (needed: number) => {
+    if (y + needed > h - 40) { doc.addPage(); y = 20; }
+  };
+
+  // Generate QR code
+  const verifyUrl = `https://www.rentcontrolghana.com/verify/tenancy/${data.registrationCode}`;
+  let qrDataUrl = "";
+  try {
+    qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 200, margin: 1, errorCorrectionLevel: "H" });
+  } catch { /* QR generation failed, continue without */ }
 
   // Header
   doc.setFillColor(34, 87, 45);
@@ -88,14 +120,35 @@ export const generateAgreementPdf = (data: AgreementPdfData) => {
   center("TENANCY AGREEMENT", y, 18, "bold");
   y += 6;
   center("(Pursuant to the Rent Act, 1963 — Act 220)", y, 10);
-  y += 12;
+  y += 6;
+  if (version > 1) {
+    doc.setTextColor(34, 87, 45);
+    center(`EXECUTED — Version ${version}`, y, 9, "bold");
+    doc.setTextColor(0);
+  }
+  y += 10;
 
-  // Registration
+  // Serial & QR section
   doc.setFillColor(245, 245, 245);
-  doc.rect(20, y - 4, w - 40, 12, "F");
+  doc.rect(20, y - 4, w - 40, 30, "F");
+  doc.setDrawColor(34, 87, 45);
+  doc.setLineWidth(0.3);
+  doc.rect(20, y - 4, w - 40, 30, "S");
+
   left(`Registration Code: ${data.registrationCode}`, y + 3, 11, "bold");
-  doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, w - 20, y + 3, { align: "right" });
-  y += 18;
+  doc.setFontSize(9);
+  doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, w - 25, y + 3, { align: "right" });
+  left(`Serial: ${serialCode}`, y + 11, 9, "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text("ORIGINAL DOCUMENT — Unique serial. Verify at rentcontrolghana.com/verify", 20, y + 19);
+  doc.setTextColor(0);
+
+  // QR code in top-right corner
+  if (qrDataUrl) {
+    doc.addImage(qrDataUrl, "PNG", w - 50, y - 2, 24, 24);
+  }
+  y += 36;
 
   // Parties
   left("PARTIES TO THIS AGREEMENT", y, 13, "bold");
@@ -132,6 +185,7 @@ export const generateAgreementPdf = (data: AgreementPdfData) => {
   const taxAmount = data.monthlyRent * taxRate;
   const toLandlord = data.monthlyRent * (1 - taxRate);
 
+  checkPage(60);
   left("FINANCIAL TERMS", y, 13, "bold");
   y += 10;
   const financial = [
@@ -153,7 +207,8 @@ export const generateAgreementPdf = (data: AgreementPdfData) => {
   line(y);
   y += 10;
 
-  // Terms - use dynamic terms from config
+  // Terms
+  checkPage(20);
   left("KEY TERMS & CONDITIONS", y, 13, "bold");
   y += 10;
 
@@ -162,18 +217,15 @@ export const generateAgreementPdf = (data: AgreementPdfData) => {
     const lines = doc.splitTextToSize(numberedTerm, w - 45);
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    if (y + lines.length * 5 > doc.internal.pageSize.getHeight() - 40) {
-      doc.addPage();
-      y = 20;
-    }
+    checkPage(lines.length * 5 + 5);
     doc.text(lines, 20, y);
     y += lines.length * 5 + 3;
   });
 
-  // Additional Information (custom fields)
+  // Custom fields
   if (data.customFields && data.customFields.length > 0 && data.customFieldValues) {
     y += 5;
-    if (y > doc.internal.pageSize.getHeight() - 60) { doc.addPage(); y = 20; }
+    checkPage(30);
     line(y);
     y += 10;
     left("ADDITIONAL INFORMATION", y, 13, "bold");
@@ -184,27 +236,56 @@ export const generateAgreementPdf = (data: AgreementPdfData) => {
       doc.setFont("helvetica", "normal");
       doc.text(value, 85, y);
       y += 7;
-      if (y > doc.internal.pageSize.getHeight() - 40) { doc.addPage(); y = 20; }
+      checkPage(10);
     });
   }
 
-  // Signatures
+  // Signatures section
   y += 5;
-  if (y > doc.internal.pageSize.getHeight() - 50) {
-    doc.addPage();
-    y = 20;
-  }
+  checkPage(70);
   line(y);
-  y += 15;
-  left("____________________________", y);
-  doc.text("____________________________", w - 20, y, { align: "right" });
-  y += 6;
-  left("Landlord Signature", y, 9);
-  doc.setFontSize(9);
-  doc.text("Tenant Signature", w - 20, y, { align: "right" });
+  y += 10;
+  left("SIGNATURES", y, 13, "bold");
+  y += 12;
+
+  // Landlord signature
+  if (data.landlordSignature) {
+    left("Landlord:", y, 10, "bold");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.text(data.landlordSignature.name, 20, y + 8);
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text(`Signed: ${new Date(data.landlordSignature.signedAt).toLocaleString("en-GB")} • Method: ${data.landlordSignature.method || "Digital"}`, 20, y + 14);
+    doc.setTextColor(0);
+    y += 20;
+  } else {
+    left("____________________________", y);
+    y += 6;
+    left("Landlord Signature", y, 9);
+    y += 10;
+  }
+
+  // Tenant signature
+  if (data.tenantSignature) {
+    left("Tenant:", y, 10, "bold");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.text(data.tenantSignature.name, 20, y + 8);
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text(`Signed: ${new Date(data.tenantSignature.signedAt).toLocaleString("en-GB")} • Method: ${data.tenantSignature.method || "Digital"}`, 20, y + 14);
+    doc.setTextColor(0);
+    y += 20;
+  } else {
+    left("____________________________", y);
+    y += 6;
+    left("Tenant Signature", y, 9);
+    y += 10;
+  }
 
   // Footer
-  y = doc.internal.pageSize.getHeight() - 20;
+  y = h - 20;
   doc.setFillColor(252, 209, 22);
   doc.rect(0, y + 5, w, 4, "F");
   doc.setFillColor(34, 87, 45);
@@ -214,7 +295,7 @@ export const generateAgreementPdf = (data: AgreementPdfData) => {
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100);
   center("This is an electronically generated agreement by the Rent Control Department of Ghana.", y);
-  center(`Verification: ${data.registrationCode} • rentcontrol.gov.gh/verify`, y + 4);
+  center(`Serial: ${serialCode} • Verification: ${data.registrationCode} • rentcontrolghana.com/verify`, y + 4);
 
   return doc;
 };

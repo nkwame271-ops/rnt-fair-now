@@ -76,7 +76,7 @@ const RegulatorAgreements = () => {
     return a.registration_code?.toLowerCase().includes(s) || a._tenantName?.toLowerCase().includes(s) || a._landlordName?.toLowerCase().includes(s) || a._propertyName?.toLowerCase().includes(s);
   });
 
-  const downloadPdf = (a: any) => {
+  const downloadPdf = async (a: any) => {
     const data: AgreementPdfData = {
       registrationCode: a.registration_code,
       landlordName: a._landlordName,
@@ -92,7 +92,7 @@ const RegulatorAgreements = () => {
       endDate: a.end_date,
       region: a._region,
     };
-    const doc = generateAgreementPdf(data);
+    const doc = await generateAgreementPdf(data);
     doc.save(`Agreement_${a.registration_code}.pdf`);
   };
 

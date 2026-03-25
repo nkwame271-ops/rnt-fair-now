@@ -197,6 +197,45 @@ export type Database = {
         }
         Relationships: []
       }
+      complaint_schedules: {
+        Row: {
+          available_slots: Json
+          complaint_id: string
+          complaint_type: string
+          created_at: string
+          created_by: string
+          id: string
+          selected_at: string | null
+          selected_by: string | null
+          selected_slot: Json | null
+          status: string
+        }
+        Insert: {
+          available_slots?: Json
+          complaint_id: string
+          complaint_type?: string
+          created_at?: string
+          created_by: string
+          id?: string
+          selected_at?: string | null
+          selected_by?: string | null
+          selected_slot?: Json | null
+          status?: string
+        }
+        Update: {
+          available_slots?: Json
+          complaint_id?: string
+          complaint_type?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          selected_at?: string | null
+          selected_by?: string | null
+          selected_slot?: Json | null
+          status?: string
+        }
+        Relationships: []
+      }
       complaints: {
         Row: {
           audio_url: string | null
@@ -735,6 +774,33 @@ export type Database = {
           read?: boolean
           title?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      otp_verifications: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string
+          id: string
+          phone: string
+          verified: boolean
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          phone: string
+          verified?: boolean
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          phone?: string
+          verified?: boolean
         }
         Relationships: []
       }
@@ -1826,16 +1892,20 @@ export type Database = {
           advance_months: number
           agreed_rent: number
           agreement_pdf_url: string | null
+          agreement_version: number
           compliance_status: string
           created_at: string
           custom_field_values: Json | null
           end_date: string
+          execution_timestamp: string | null
           existing_advance_paid: number | null
           existing_agreement_url: string | null
           existing_start_date: string | null
           existing_voice_url: string | null
+          final_agreement_pdf_url: string | null
           id: string
           landlord_accepted: boolean | null
+          landlord_signed_at: string | null
           landlord_user_id: string
           move_in_date: string
           previous_tenancy_id: string | null
@@ -1851,6 +1921,7 @@ export type Database = {
           tenancy_type: string
           tenant_accepted: boolean | null
           tenant_id_code: string
+          tenant_signed_at: string | null
           tenant_user_id: string
           terminated_at: string | null
           termination_reason: string | null
@@ -1861,16 +1932,20 @@ export type Database = {
           advance_months?: number
           agreed_rent: number
           agreement_pdf_url?: string | null
+          agreement_version?: number
           compliance_status?: string
           created_at?: string
           custom_field_values?: Json | null
           end_date: string
+          execution_timestamp?: string | null
           existing_advance_paid?: number | null
           existing_agreement_url?: string | null
           existing_start_date?: string | null
           existing_voice_url?: string | null
+          final_agreement_pdf_url?: string | null
           id?: string
           landlord_accepted?: boolean | null
+          landlord_signed_at?: string | null
           landlord_user_id: string
           move_in_date: string
           previous_tenancy_id?: string | null
@@ -1886,6 +1961,7 @@ export type Database = {
           tenancy_type?: string
           tenant_accepted?: boolean | null
           tenant_id_code: string
+          tenant_signed_at?: string | null
           tenant_user_id: string
           terminated_at?: string | null
           termination_reason?: string | null
@@ -1896,16 +1972,20 @@ export type Database = {
           advance_months?: number
           agreed_rent?: number
           agreement_pdf_url?: string | null
+          agreement_version?: number
           compliance_status?: string
           created_at?: string
           custom_field_values?: Json | null
           end_date?: string
+          execution_timestamp?: string | null
           existing_advance_paid?: number | null
           existing_agreement_url?: string | null
           existing_start_date?: string | null
           existing_voice_url?: string | null
+          final_agreement_pdf_url?: string | null
           id?: string
           landlord_accepted?: boolean | null
+          landlord_signed_at?: string | null
           landlord_user_id?: string
           move_in_date?: string
           previous_tenancy_id?: string | null
@@ -1921,6 +2001,7 @@ export type Database = {
           tenancy_type?: string
           tenant_accepted?: boolean | null
           tenant_id_code?: string
+          tenant_signed_at?: string | null
           tenant_user_id?: string
           terminated_at?: string | null
           termination_reason?: string | null
@@ -1947,6 +2028,50 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenancy_signatures: {
+        Row: {
+          device_info: Json | null
+          id: string
+          ip_address: string | null
+          signature_hash: string | null
+          signature_method: string
+          signed_at: string
+          signer_role: string
+          signer_user_id: string
+          tenancy_id: string
+        }
+        Insert: {
+          device_info?: Json | null
+          id?: string
+          ip_address?: string | null
+          signature_hash?: string | null
+          signature_method?: string
+          signed_at?: string
+          signer_role: string
+          signer_user_id: string
+          tenancy_id: string
+        }
+        Update: {
+          device_info?: Json | null
+          id?: string
+          ip_address?: string | null
+          signature_hash?: string | null
+          signature_method?: string
+          signed_at?: string
+          signer_role?: string
+          signer_user_id?: string
+          tenancy_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenancy_signatures_tenancy_id_fkey"
+            columns: ["tenancy_id"]
+            isOneToOne: false
+            referencedRelation: "tenancies"
             referencedColumns: ["id"]
           },
         ]
