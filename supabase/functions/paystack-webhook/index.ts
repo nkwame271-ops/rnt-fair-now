@@ -1,39 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createHmac } from "node:crypto";
 
-// Split rules (must match checkout)
-const SPLIT_RULES: Record<string, { splits: { recipient: string; amount: number; description: string }[] }> = {
-  tenant_registration: {
-    splits: [
-      { recipient: "rent_control", amount: 15, description: "Rent Control registration fee" },
-      { recipient: "admin", amount: 15, description: "Admin registration fee" },
-      { recipient: "platform", amount: 10, description: "Platform fee" },
-    ],
-  },
-  landlord_registration: {
-    splits: [
-      { recipient: "rent_control", amount: 13, description: "Rent Control registration fee" },
-      { recipient: "admin", amount: 7, description: "Admin registration fee" },
-      { recipient: "platform", amount: 10, description: "Platform fee" },
-    ],
-  },
-  rent_card: {
-    splits: [
-      { recipient: "rent_control", amount: 15, description: "Rent Control - Rent Card" },
-      { recipient: "admin", amount: 10, description: "Admin - Rent Card" },
-    ],
-  },
-  agreement_sale: {
-    splits: [
-      { recipient: "rent_control", amount: 10, description: "Rent Control - Agreement" },
-      { recipient: "admin", amount: 20, description: "Admin - Agreement" },
-    ],
-  },
-  complaint_fee: { splits: [{ recipient: "platform", amount: 2, description: "Complaint filing fee" }] },
-  listing_fee: { splits: [{ recipient: "platform", amount: 2, description: "Listing fee" }] },
-  viewing_fee: { splits: [{ recipient: "platform", amount: 2, description: "Viewing fee" }] },
-};
-
 // Notification messages for each payment type
 const NOTIFICATION_MESSAGES: Record<string, { title: string; body: (amt: number, meta?: any) => string; link?: string }> = {
   tenant_registration: { title: "Registration Confirmed!", body: () => "Your tenant registration payment has been confirmed. Your account is now active.", link: "/tenant/dashboard" },
@@ -87,7 +54,6 @@ Deno.serve(async (req) => {
       const reference = data.reference || "";
       const amountFailed = (data.amount || 0) / 100;
 
-      // Update escrow transaction to failed
       const { data: escrowTx } = await supabase
         .from("escrow_transactions")
         .update({ status: "failed" })
@@ -99,7 +65,6 @@ Deno.serve(async (req) => {
         const userId = escrowTx.user_id;
         const paymentLabel = (escrowTx.payment_type || "payment").replace(/_/g, " ");
 
-        // In-app notification
         await supabase.from("notifications").insert({
           user_id: userId,
           title: "Payment Failed",
@@ -107,7 +72,6 @@ Deno.serve(async (req) => {
           link: "/",
         });
 
-        // SMS notification
         try {
           const { data: profile } = await supabase.from("profiles").select("phone").eq("user_id", userId).single();
           if (profile?.phone) {
@@ -150,10 +114,11 @@ Deno.serve(async (req) => {
           .from("escrow_transactions")
           .update({ status: "completed", completed_at: new Date().toISOString(), paystack_transaction_id: transactionId })
           .eq("reference", ref)
-          .select("id")
+          .select("id, office_id, case_id, metadata")
           .maybeSingle();
 
         const escrowId = escrowTx?.id;
+        const officeId = escrowTx?.office_id || (escrowTx?.metadata as any)?.office_id || null;
 
         if (escrowId && splits.length > 0) {
           await supabase.from("escrow_splits").insert(
@@ -164,8 +129,14 @@ Deno.serve(async (req) => {
               description: s.description,
               disbursement_status: s.recipient === "landlord" ? "held" : "released",
               released_at: s.recipient !== "landlord" ? new Date().toISOString() : null,
+              office_id: officeId,
             }))
           );
+        }
+
+        // Update case status
+        if (escrowTx?.case_id) {
+          await supabase.from("cases").update({ status: "completed", updated_at: new Date().toISOString() }).eq("id", escrowTx.case_id);
         }
 
         const { data: profile } = await supabase.from("profiles").select("full_name, email").eq("user_id", userId).single();
@@ -183,6 +154,7 @@ Deno.serve(async (req) => {
           tenancy_id: tenancyId || null,
           qr_code_data: `${Deno.env.get("SUPABASE_URL")}/verify-receipt?ref=${ref}`,
           status: "active",
+          office_id: officeId,
         };
 
         const { data: receipt } = await supabase.from("payment_receipts").insert(receiptData).select("receipt_number").single();
@@ -252,13 +224,11 @@ Deno.serve(async (req) => {
       }
     };
 
-    // ── Helper: Send SMS + Email for payment (combined) ──
     const sendPaymentNotifications = async (userId: string, amount: number, description: string, receiptNo: string) => {
       await sendPaymentSms(userId, amount, description, receiptNo);
       await sendPaymentEmail(userId, amount, description, receiptNo);
     };
 
-    // ── Helper: Send in-app notification ──
     const sendNotification = async (userId: string, paymentType: string, amount: number, meta?: any) => {
       const config = NOTIFICATION_MESSAGES[paymentType];
       if (!config) return;
@@ -274,9 +244,17 @@ Deno.serve(async (req) => {
       }
     };
 
-    // ── Determine payment type from reference and process ──
-    const metadataType = data.metadata?.type || "";
+    // ── Helper: Get splits from escrow metadata (stored by checkout) ──
+    const getSplitsFromEscrow = async (ref: string): Promise<{ recipient: string; amount: number; description: string }[]> => {
+      try {
+        const { data: escrowTx } = await supabase.from("escrow_transactions").select("metadata").eq("reference", ref).single();
+        const splitPlan = (escrowTx?.metadata as any)?.split_plan;
+        if (Array.isArray(splitPlan) && splitPlan.length > 0) return splitPlan;
+      } catch {}
+      return [];
+    };
 
+    // ── Determine payment type from reference and process ──
     if (reference.startsWith("rentbulk_")) {
       const tenancyId = reference.split("_")[1];
       const { error } = await supabase
@@ -288,7 +266,9 @@ Deno.serve(async (req) => {
 
       const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", tenancyId).single();
       const userId = tenancy?.tenant_user_id || data.metadata?.userId;
-      const splits = [{ recipient: "rent_control", amount: amountPaid, description: "Rent tax (bulk advance)" }];
+      const splits = (await getSplitsFromEscrow(reference)).length > 0
+        ? await getSplitsFromEscrow(reference)
+        : [{ recipient: "rent_control", amount: amountPaid, description: "Rent tax (bulk advance)" }];
       const receiptNo = await completeEscrow(reference, userId, "rent_tax_bulk", amountPaid, splits, tenancyId);
       if (userId) {
         await sendPaymentNotifications(userId, amountPaid, "Bulk advance rent tax", receiptNo);
@@ -306,7 +286,9 @@ Deno.serve(async (req) => {
       const { data: payment } = await supabase.from("rent_payments").select("tenancy_id").eq("id", paymentId).single();
       const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", payment?.tenancy_id).single();
       const userId = tenancy?.tenant_user_id || data.metadata?.userId;
-      const splits = [{ recipient: "rent_control", amount: amountPaid, description: "Rent tax" }];
+      const splits = (await getSplitsFromEscrow(reference)).length > 0
+        ? await getSplitsFromEscrow(reference)
+        : [{ recipient: "rent_control", amount: amountPaid, description: "Rent tax" }];
       const receiptNo = await completeEscrow(reference, userId, "rent_tax", amountPaid, splits, payment?.tenancy_id);
       if (userId) {
         await sendPaymentNotifications(userId, amountPaid, "Rent tax payment", receiptNo);
@@ -317,7 +299,9 @@ Deno.serve(async (req) => {
       const tenancyId = reference.split("_")[1];
       const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", tenancyId).single();
       const userId = tenancy?.tenant_user_id || data.metadata?.userId;
-      const splits = [{ recipient: "landlord", amount: amountPaid, description: "Monthly rent (held in escrow)" }];
+      const splits = (await getSplitsFromEscrow(reference)).length > 0
+        ? await getSplitsFromEscrow(reference)
+        : [{ recipient: "landlord", amount: amountPaid, description: "Monthly rent (held in escrow)" }];
       const receiptNo = await completeEscrow(reference, userId, "rent_payment", amountPaid, splits, tenancyId);
       if (userId) {
         await sendPaymentNotifications(userId, amountPaid, "Monthly rent", receiptNo);
@@ -326,10 +310,9 @@ Deno.serve(async (req) => {
 
     } else if (reference.startsWith("rentcombo_")) {
       const tenancyId = reference.split("_")[1];
-      const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id, agreed_rent, unit_id").eq("id", tenancyId).single();
+      const { data: tenancy } = await supabase.from("tenancies").select("tenant_user_id").eq("id", tenancyId).single();
       const userId = tenancy?.tenant_user_id || data.metadata?.userId;
-      const { data: escrowTx } = await supabase.from("escrow_transactions").select("metadata").eq("reference", reference).single();
-      const splitPlan = (escrowTx?.metadata as any)?.split_plan || [];
+      const splitPlan = await getSplitsFromEscrow(reference);
       if (splitPlan.length > 0) {
         const receiptNo = await completeEscrow(reference, userId, "rent_combined", amountPaid, splitPlan, tenancyId);
         if (userId) {
@@ -344,7 +327,10 @@ Deno.serve(async (req) => {
         .from("tenants")
         .update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() })
         .eq("user_id", userId);
-      const receiptNo = await completeEscrow(reference, userId, "tenant_registration", amountPaid, SPLIT_RULES.tenant_registration.splits);
+      const splits = (await getSplitsFromEscrow(reference)).length > 0
+        ? await getSplitsFromEscrow(reference)
+        : [{ recipient: "platform", amount: 10, description: "Platform fixed fee" }, { recipient: "rent_control", amount: amountPaid * 0.65 - 6.5, description: "IGF" }, { recipient: "admin", amount: amountPaid * 0.25 - 2.5, description: "Admin" }];
+      const receiptNo = await completeEscrow(reference, userId, "tenant_registration", amountPaid, splits);
       await sendPaymentNotifications(userId, amountPaid, "Tenant registration", receiptNo);
       await sendNotification(userId, "tenant_registration", amountPaid);
 
@@ -354,7 +340,10 @@ Deno.serve(async (req) => {
         .from("landlords")
         .update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() })
         .eq("user_id", userId);
-      const receiptNo = await completeEscrow(reference, userId, "landlord_registration", amountPaid, SPLIT_RULES.landlord_registration.splits);
+      const splits = (await getSplitsFromEscrow(reference)).length > 0
+        ? await getSplitsFromEscrow(reference)
+        : [{ recipient: "platform", amount: 10, description: "Platform fixed fee" }, { recipient: "rent_control", amount: 13, description: "IGF" }, { recipient: "admin", amount: 5, description: "Admin" }, { recipient: "platform", amount: 2, description: "Platform share" }];
+      const receiptNo = await completeEscrow(reference, userId, "landlord_registration", amountPaid, splits);
       await sendPaymentNotifications(userId, amountPaid, "Landlord registration", receiptNo);
       await sendNotification(userId, "landlord_registration", amountPaid);
 
@@ -362,21 +351,24 @@ Deno.serve(async (req) => {
       const userId = reference.split("_")[1];
       const { data: escrowTx } = await supabase.from("escrow_transactions").select("metadata, id").eq("reference", reference).single();
       const qty = (escrowTx?.metadata as any)?.quantity || 1;
-      const cardCount = qty * 2; // Each purchase = 2 cards (Landlord Copy + Tenant Copy)
+      const cardCount = qty * 2;
       const escrowId = escrowTx?.id || null;
       const rentCards = [];
       for (let i = 0; i < cardCount; i++) {
         rentCards.push({ landlord_user_id: userId, status: "valid", escrow_transaction_id: escrowId });
       }
       await supabase.from("rent_cards").insert(rentCards);
-      const splits = SPLIT_RULES.rent_card.splits.map(s => ({ ...s, amount: s.amount * qty }));
+      const splits = (await getSplitsFromEscrow(reference)).length > 0
+        ? await getSplitsFromEscrow(reference)
+        : [{ recipient: "rent_control", amount: 15 * qty, description: "Rent Control" }, { recipient: "admin", amount: 10 * qty, description: "Admin" }];
       const receiptNo = await completeEscrow(reference, userId, "rent_card", amountPaid, splits);
       await sendPaymentNotifications(userId, amountPaid, `Rent Card purchase (${qty} pair${qty > 1 ? "s" : ""}, ${cardCount} cards)`, receiptNo);
       await sendNotification(userId, "rent_card", amountPaid, { quantity: cardCount });
 
     } else if (reference.startsWith("agrsale_")) {
       const userId = data.metadata?.userId || "";
-      const receiptNo = await completeEscrow(reference, userId, "agreement_sale", amountPaid, SPLIT_RULES.agreement_sale.splits);
+      const splits = await getSplitsFromEscrow(reference);
+      const receiptNo = await completeEscrow(reference, userId, "agreement_sale", amountPaid, splits.length > 0 ? splits : [{ recipient: "rent_control", amount: 10, description: "Rent Control" }, { recipient: "admin", amount: 20, description: "Admin" }]);
       await sendPaymentNotifications(userId, amountPaid, "Agreement form purchase", receiptNo);
       if (userId) await sendNotification(userId, "agreement_sale", amountPaid);
 
@@ -384,7 +376,8 @@ Deno.serve(async (req) => {
       const complaintId = reference.replace("comp_", "");
       await supabase.from("complaints").update({ status: "submitted" }).eq("id", complaintId);
       const userId = data.metadata?.userId || "";
-      const receiptNo = await completeEscrow(reference, userId, "complaint_fee", amountPaid, SPLIT_RULES.complaint_fee.splits);
+      const splits = await getSplitsFromEscrow(reference);
+      const receiptNo = await completeEscrow(reference, userId, "complaint_fee", amountPaid, splits.length > 0 ? splits : [{ recipient: "platform", amount: amountPaid, description: "Complaint filing fee" }]);
       if (userId) {
         await sendPaymentNotifications(userId, amountPaid, "Complaint filing fee", receiptNo);
         await sendNotification(userId, "complaint_fee", amountPaid);
@@ -394,7 +387,8 @@ Deno.serve(async (req) => {
       const propertyId = reference.split("_")[1];
       await supabase.from("properties").update({ listed_on_marketplace: true }).eq("id", propertyId);
       const userId = data.metadata?.userId || "";
-      const receiptNo = await completeEscrow(reference, userId, "listing_fee", amountPaid, SPLIT_RULES.listing_fee.splits);
+      const splits = await getSplitsFromEscrow(reference);
+      const receiptNo = await completeEscrow(reference, userId, "listing_fee", amountPaid, splits.length > 0 ? splits : [{ recipient: "platform", amount: amountPaid, description: "Listing fee" }]);
       if (userId) {
         await sendPaymentNotifications(userId, amountPaid, "Marketplace listing fee", receiptNo);
         await sendNotification(userId, "listing_fee", amountPaid);
@@ -404,7 +398,8 @@ Deno.serve(async (req) => {
       const viewingRequestId = reference.replace("view_", "");
       await supabase.from("viewing_requests").update({ status: "pending" }).eq("id", viewingRequestId).eq("status", "awaiting_payment");
       const userId = data.metadata?.userId || "";
-      const receiptNo = await completeEscrow(reference, userId, "viewing_fee", amountPaid, SPLIT_RULES.viewing_fee.splits);
+      const splits = await getSplitsFromEscrow(reference);
+      const receiptNo = await completeEscrow(reference, userId, "viewing_fee", amountPaid, splits.length > 0 ? splits : [{ recipient: "platform", amount: amountPaid, description: "Viewing fee" }]);
       if (userId) {
         await sendPaymentNotifications(userId, amountPaid, "Property viewing fee", receiptNo);
         await sendNotification(userId, "viewing_fee", amountPaid);
@@ -441,6 +436,7 @@ Deno.serve(async (req) => {
             previous_tenancy_id: tenancyId,
             tenant_accepted: true,
             landlord_accepted: true,
+            office_id: oldTenancy.office_id || null,
           })
           .select("id")
           .single();
@@ -471,22 +467,22 @@ Deno.serve(async (req) => {
           ]);
         }
 
-        const splits = [{ recipient: "rent_control", amount: amountPaid, description: `Renewal tax (${advanceMonths} months)` }];
-        const receiptNo = await completeEscrow(reference, oldTenancy.tenant_user_id, "renewal_payment", amountPaid, splits, tenancyId);
+        const splits = await getSplitsFromEscrow(reference);
+        const receiptNo = await completeEscrow(reference, oldTenancy.tenant_user_id, "renewal_payment", amountPaid, splits.length > 0 ? splits : [{ recipient: "rent_control", amount: amountPaid, description: `Renewal tax` }], tenancyId);
         await sendPaymentNotifications(oldTenancy.tenant_user_id, amountPaid, "Tenancy renewal", receiptNo);
       }
 
     } else if (reference.startsWith("addten_")) {
       const userId = reference.split("_")[1];
-      const splits = [{ recipient: "platform", amount: amountPaid, description: "Add tenant fee" }];
-      const receiptNo = await completeEscrow(reference, userId, "add_tenant_fee", amountPaid, splits);
+      const splits = await getSplitsFromEscrow(reference);
+      const receiptNo = await completeEscrow(reference, userId, "add_tenant_fee", amountPaid, splits.length > 0 ? splits : [{ recipient: "platform", amount: amountPaid, description: "Add tenant fee" }]);
       await sendPaymentNotifications(userId, amountPaid, "Add tenant fee", receiptNo);
       await sendNotification(userId, "add_tenant_fee", amountPaid);
 
     } else if (reference.startsWith("term_")) {
       const userId = reference.split("_")[1];
-      const splits = [{ recipient: "platform", amount: amountPaid, description: "Termination request fee" }];
-      const receiptNo = await completeEscrow(reference, userId, "termination_fee", amountPaid, splits);
+      const splits = await getSplitsFromEscrow(reference);
+      const receiptNo = await completeEscrow(reference, userId, "termination_fee", amountPaid, splits.length > 0 ? splits : [{ recipient: "platform", amount: amountPaid, description: "Termination request fee" }]);
       await sendPaymentNotifications(userId, amountPaid, "Termination request fee", receiptNo);
       await sendNotification(userId, "termination_fee", amountPaid);
 

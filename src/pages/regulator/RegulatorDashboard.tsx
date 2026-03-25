@@ -5,29 +5,65 @@ import { supabase } from "@/integrations/supabase/client";
 import PageTransition from "@/components/PageTransition";
 import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import AnimatedCounter from "@/components/AnimatedCounter";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
 
 const RegulatorDashboard = () => {
+  const { profile } = useAdminProfile();
   const [stats, setStats] = useState({
     totalTenants: 0, totalLandlords: 0, totalProperties: 0,
     totalComplaints: 0, activeTenancies: 0, pendingComplaints: 0,
     pendingTerminations: 0, reportedSidePayments: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [offices, setOffices] = useState<{ id: string; name: string }[]>([]);
+  const [selectedOffice, setSelectedOffice] = useState<string>("all");
+
+  // Sub admins are locked to their office
+  const effectiveOffice = profile && !profile.isMainAdmin && profile.officeId
+    ? profile.officeId
+    : selectedOffice;
+
+  useEffect(() => {
+    const fetchOffices = async () => {
+      const { data } = await supabase.from("offices").select("id, name").order("name");
+      setOffices(data || []);
+    };
+    fetchOffices();
+  }, []);
 
   useEffect(() => {
     const fetchStats = async () => {
+      setLoading(true);
+      const officeFilter = effectiveOffice !== "all" ? effectiveOffice : null;
+
+      // Build queries with optional office filter
+      let tenantsQ = supabase.from("tenants").select("id", { count: "exact", head: true });
+      let landlordsQ = supabase.from("landlords").select("id", { count: "exact", head: true });
+      let propertiesQ = supabase.from("properties").select("id", { count: "exact", head: true });
+      let complaintsQ = supabase.from("complaints").select("id", { count: "exact", head: true });
+      let tenanciesQ = supabase.from("tenancies").select("id", { count: "exact", head: true }).eq("status", "active");
+
+      if (officeFilter) {
+        propertiesQ = propertiesQ.eq("office_id", officeFilter);
+        complaintsQ = complaintsQ.eq("office_id", officeFilter);
+        tenanciesQ = tenanciesQ.eq("office_id", officeFilter);
+      }
+
       const [tenants, landlords, properties, complaints, tenancies] = await Promise.all([
-        supabase.from("tenants").select("id", { count: "exact", head: true }),
-        supabase.from("landlords").select("id", { count: "exact", head: true }),
-        supabase.from("properties").select("id", { count: "exact", head: true }),
-        supabase.from("complaints").select("id", { count: "exact", head: true }),
-        supabase.from("tenancies").select("id", { count: "exact", head: true }).eq("status", "active"),
+        tenantsQ, landlordsQ, propertiesQ, complaintsQ, tenanciesQ,
       ]);
 
+      let pendingComplaintsQ = supabase.from("complaints").select("id", { count: "exact", head: true }).in("status", ["submitted", "under_review"]);
+      let pendingTerminationsQ = supabase.from("termination_applications").select("id", { count: "exact", head: true }).in("status", ["pending", "under_review", "mediation"]);
+      let reportedSidePaymentsQ = supabase.from("side_payment_declarations").select("id", { count: "exact", head: true }).in("status", ["reported", "under_investigation"]);
+
+      if (officeFilter) {
+        pendingComplaintsQ = pendingComplaintsQ.eq("office_id", officeFilter);
+      }
+
       const [pendingComplaints, pendingTerminations, reportedSidePayments] = await Promise.all([
-        supabase.from("complaints").select("id", { count: "exact", head: true }).in("status", ["submitted", "under_review"]),
-        supabase.from("termination_applications").select("id", { count: "exact", head: true }).in("status", ["pending", "under_review", "mediation"]),
-        supabase.from("side_payment_declarations").select("id", { count: "exact", head: true }).in("status", ["reported", "under_investigation"]),
+        pendingComplaintsQ, pendingTerminationsQ, reportedSidePaymentsQ,
       ]);
 
       setStats({
@@ -39,7 +75,7 @@ const RegulatorDashboard = () => {
       setLoading(false);
     };
     fetchStats();
-  }, []);
+  }, [effectiveOffice]);
 
   const statCards = [
     { label: "Registered Tenants", value: stats.totalTenants, icon: Users, color: "text-primary" },
@@ -52,71 +88,99 @@ const RegulatorDashboard = () => {
     { label: "Side Payment Reports", value: stats.reportedSidePayments, icon: ShieldAlert, color: "text-warning" },
   ];
 
-  if (loading) return <LogoLoader message="Loading dashboard..." />;
+  if (loading && offices.length === 0) return <LogoLoader message="Loading dashboard..." />;
 
   return (
     <PageTransition>
       <div className="max-w-6xl mx-auto space-y-8">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Shield className="h-6 w-6 text-primary" />
-            <h1 className="text-3xl font-bold text-foreground">Rent Control Office</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <Shield className="h-6 w-6 text-primary" />
+              <h1 className="text-3xl font-bold text-foreground">Rent Control Office</h1>
+            </div>
+            <p className="text-muted-foreground">System overview and compliance monitoring</p>
           </div>
-          <p className="text-muted-foreground">System overview and compliance monitoring</p>
+
+          {profile?.isMainAdmin && (
+            <Select value={selectedOffice} onValueChange={setSelectedOffice}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="All Offices (National)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Offices (National)</SelectItem>
+                {offices.map(o => (
+                  <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {profile && !profile.isMainAdmin && profile.officeName && (
+            <div className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-lg border border-border">
+              📍 {profile.officeName}
+            </div>
+          )}
         </div>
 
-        <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          {statCards.map((stat) => (
-            <StaggeredItem key={stat.label}>
-              <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
-                <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
-                <div className="text-2xl font-bold text-card-foreground">
-                  <AnimatedCounter value={stat.value} />
+        {loading ? (
+          <LogoLoader message="Loading stats..." />
+        ) : (
+          <>
+            <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              {statCards.map((stat) => (
+                <StaggeredItem key={stat.label}>
+                  <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
+                    <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
+                    <div className="text-2xl font-bold text-card-foreground">
+                      <AnimatedCounter value={stat.value} />
+                    </div>
+                    <div className="text-xs text-muted-foreground">{stat.label}</div>
+                  </div>
+                </StaggeredItem>
+              ))}
+            </StaggeredGrid>
+
+            <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Quick Summary
+              </h2>
+              <div className="grid sm:grid-cols-2 gap-6 text-sm">
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Registration Revenue (est.)</span>
+                    <span className="font-semibold text-foreground">
+                      GH₵ <AnimatedCounter value={(stats.totalTenants * 40) + (stats.totalLandlords * 30)} />
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Occupancy Rate</span>
+                    <span className="font-semibold text-foreground">
+                      {stats.totalProperties > 0
+                        ? <><AnimatedCounter value={Math.round((stats.activeTenancies / Math.max(stats.totalProperties, 1)) * 100)} suffix="%" /></>
+                        : "N/A"}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground">{stat.label}</div>
-              </div>
-            </StaggeredItem>
-          ))}
-        </StaggeredGrid>
-
-        <div className="bg-card rounded-xl p-6 shadow-card border border-border">
-          <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Quick Summary
-          </h2>
-          <div className="grid sm:grid-cols-2 gap-6 text-sm">
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Registration Revenue (est.)</span>
-                <span className="font-semibold text-foreground">
-                  GH₵ <AnimatedCounter value={(stats.totalTenants * 40) + (stats.totalLandlords * 30)} />
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Occupancy Rate</span>
-                <span className="font-semibold text-foreground">
-                  {stats.totalProperties > 0
-                    ? <><AnimatedCounter value={Math.round((stats.activeTenancies / Math.max(stats.totalProperties, 1)) * 100)} suffix="%" /></>
-                    : "N/A"}
-                </span>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Complaint Resolution Rate</span>
+                    <span className="font-semibold text-foreground">
+                      {stats.totalComplaints > 0
+                        ? <><AnimatedCounter value={Math.round(((stats.totalComplaints - stats.pendingComplaints) / stats.totalComplaints) * 100)} suffix="%" /></>
+                        : "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">System Status</span>
+                    <span className="font-semibold text-success">Operational</span>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Complaint Resolution Rate</span>
-                <span className="font-semibold text-foreground">
-                  {stats.totalComplaints > 0
-                    ? <><AnimatedCounter value={Math.round(((stats.totalComplaints - stats.pendingComplaints) / stats.totalComplaints) * 100)} suffix="%" /></>
-                    : "N/A"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">System Status</span>
-                <span className="font-semibold text-success">Operational</span>
-              </div>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </PageTransition>
   );

@@ -197,6 +197,59 @@ export type Database = {
         }
         Relationships: []
       }
+      cases: {
+        Row: {
+          case_number: string
+          case_type: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          office_id: string
+          related_complaint_id: string | null
+          related_property_id: string | null
+          related_tenancy_id: string | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          case_number: string
+          case_type: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          office_id: string
+          related_complaint_id?: string | null
+          related_property_id?: string | null
+          related_tenancy_id?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          case_number?: string
+          case_type?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          office_id?: string
+          related_complaint_id?: string | null
+          related_property_id?: string | null
+          related_tenancy_id?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cases_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       complaint_schedules: {
         Row: {
           available_slots: Json
@@ -249,6 +302,7 @@ export type Database = {
           gps_location: string | null
           id: string
           landlord_name: string
+          office_id: string | null
           property_address: string
           region: string
           status: string
@@ -267,6 +321,7 @@ export type Database = {
           gps_location?: string | null
           id?: string
           landlord_name: string
+          office_id?: string | null
           property_address: string
           region: string
           status?: string
@@ -285,6 +340,7 @@ export type Database = {
           gps_location?: string | null
           id?: string
           landlord_name?: string
+          office_id?: string | null
           property_address?: string
           region?: string
           status?: string
@@ -330,6 +386,7 @@ export type Database = {
           disbursement_status: string
           escrow_transaction_id: string
           id: string
+          office_id: string | null
           recipient: string
           released_at: string | null
         }
@@ -339,6 +396,7 @@ export type Database = {
           disbursement_status?: string
           escrow_transaction_id: string
           id?: string
+          office_id?: string | null
           recipient: string
           released_at?: string | null
         }
@@ -348,6 +406,7 @@ export type Database = {
           disbursement_status?: string
           escrow_transaction_id?: string
           id?: string
+          office_id?: string | null
           recipient?: string
           released_at?: string | null
         }
@@ -363,11 +422,13 @@ export type Database = {
       }
       escrow_transactions: {
         Row: {
+          case_id: string | null
           completed_at: string | null
           created_at: string
           currency: string
           id: string
           metadata: Json | null
+          office_id: string | null
           payment_type: string
           paystack_transaction_id: string | null
           reference: string | null
@@ -379,11 +440,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          case_id?: string | null
           completed_at?: string | null
           created_at?: string
           currency?: string
           id?: string
           metadata?: Json | null
+          office_id?: string | null
           payment_type: string
           paystack_transaction_id?: string | null
           reference?: string | null
@@ -395,11 +458,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          case_id?: string | null
           completed_at?: string | null
           created_at?: string
           currency?: string
           id?: string
           metadata?: Json | null
+          office_id?: string | null
           payment_type?: string
           paystack_transaction_id?: string | null
           reference?: string | null
@@ -410,7 +475,15 @@ export type Database = {
           total_amount?: number
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "escrow_transactions_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       feature_flags: {
         Row: {
@@ -587,6 +660,7 @@ export type Database = {
           evidence_urls: string[] | null
           id: string
           landlord_user_id: string
+          office_id: string | null
           property_address: string
           region: string
           status: string
@@ -602,6 +676,7 @@ export type Database = {
           evidence_urls?: string[] | null
           id?: string
           landlord_user_id: string
+          office_id?: string | null
           property_address: string
           region: string
           status?: string
@@ -617,6 +692,7 @@ export type Database = {
           evidence_urls?: string[] | null
           id?: string
           landlord_user_id?: string
+          office_id?: string | null
           property_address?: string
           region?: string
           status?: string
@@ -777,6 +853,27 @@ export type Database = {
         }
         Relationships: []
       }
+      offices: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          region: string
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+          name: string
+          region: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          region?: string
+        }
+        Relationships: []
+      }
       otp_verifications: {
         Row: {
           code: string
@@ -810,6 +907,7 @@ export type Database = {
           description: string | null
           escrow_transaction_id: string | null
           id: string
+          office_id: string | null
           payer_email: string | null
           payer_name: string | null
           payment_type: string
@@ -826,6 +924,7 @@ export type Database = {
           description?: string | null
           escrow_transaction_id?: string | null
           id?: string
+          office_id?: string | null
           payer_email?: string | null
           payer_name?: string | null
           payment_type: string
@@ -842,6 +941,7 @@ export type Database = {
           description?: string | null
           escrow_transaction_id?: string | null
           id?: string
+          office_id?: string | null
           payer_email?: string | null
           payer_name?: string | null
           payment_type?: string
@@ -955,6 +1055,7 @@ export type Database = {
           location_locked_by: string | null
           normalized_address: string | null
           occupancy_type: string | null
+          office_id: string | null
           ownership_type: string | null
           property_category: string
           property_code: string
@@ -993,6 +1094,7 @@ export type Database = {
           location_locked_by?: string | null
           normalized_address?: string | null
           occupancy_type?: string | null
+          office_id?: string | null
           ownership_type?: string | null
           property_category?: string
           property_code: string
@@ -1031,6 +1133,7 @@ export type Database = {
           location_locked_by?: string | null
           normalized_address?: string | null
           occupancy_type?: string | null
+          office_id?: string | null
           ownership_type?: string | null
           property_category?: string
           property_code?: string
@@ -1908,6 +2011,7 @@ export type Database = {
           landlord_signed_at: string | null
           landlord_user_id: string
           move_in_date: string
+          office_id: string | null
           previous_tenancy_id: string | null
           proposed_rent: number | null
           registration_code: string
@@ -1948,6 +2052,7 @@ export type Database = {
           landlord_signed_at?: string | null
           landlord_user_id: string
           move_in_date: string
+          office_id?: string | null
           previous_tenancy_id?: string | null
           proposed_rent?: number | null
           registration_code: string
@@ -1988,6 +2093,7 @@ export type Database = {
           landlord_signed_at?: string | null
           landlord_user_id?: string
           move_in_date?: string
+          office_id?: string | null
           previous_tenancy_id?: string | null
           proposed_rent?: number | null
           registration_code?: string
@@ -2370,6 +2476,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_case_number: { Args: never; Returns: string }
       generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
       has_role: {
@@ -2383,6 +2490,10 @@ export type Database = {
       recalculate_compliance_score: {
         Args: { p_landlord_user_id: string }
         Returns: undefined
+      }
+      resolve_office_id: {
+        Args: { p_area?: string; p_region: string }
+        Returns: string
       }
     }
     Enums: {
