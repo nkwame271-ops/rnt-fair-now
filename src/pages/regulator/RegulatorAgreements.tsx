@@ -92,7 +92,7 @@ const RegulatorAgreements = () => {
       endDate: a.end_date,
       region: a._region,
     };
-    const doc = generateAgreementPdf(data);
+    const doc = await generateAgreementPdf(data);
     doc.save(`Agreement_${a.registration_code}.pdf`);
   };
 
