@@ -34,11 +34,11 @@ const AppointmentSlotPicker = ({ complaintTable, userIdColumn }: Props) => {
     if (!user) return;
     const fetchSchedules = async () => {
       // Get complaints with schedule_complainant status for this user
-      const { data: complaints } = await supabase
+      const { data: complaints } = await (supabase
         .from(complaintTable)
-        .select("id, complaint_code" as any)
-        .eq(userIdColumn as any, user.id)
-        .eq("status" as any, "schedule_complainant") as any;
+        .select("id, complaint_code") as any)
+        .eq(userIdColumn, user.id)
+        .eq("status", "schedule_complainant");
 
       if (!complaints || complaints.length === 0) {
         setLoading(false);
