@@ -36,24 +36,6 @@ const statusLabel: Record<string, string> = {
   closed: "Closed",
 };
 
-const statusColors: Record<string, string> = {
-  pending_payment: "bg-warning/10 text-warning",
-  submitted: "bg-info/10 text-info",
-  under_review: "bg-warning/10 text-warning",
-  in_progress: "bg-primary/10 text-primary",
-  resolved: "bg-success/10 text-success",
-  closed: "bg-muted text-muted-foreground",
-};
-
-const statusLabel: Record<string, string> = {
-  pending_payment: "Awaiting Payment",
-  submitted: "Submitted",
-  under_review: "Under Review",
-  in_progress: "In Progress",
-  resolved: "Resolved",
-  closed: "Closed",
-};
-
 const MyCases = () => {
   const { user } = useAuth();
   const [complaints, setComplaints] = useState<any[]>([]);
