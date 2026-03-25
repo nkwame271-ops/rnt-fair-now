@@ -1,188 +1,103 @@
 
 
-# Escrow, Revenue & Case-Based Office Mapping
+# Database Optimization Plan
 
-## Overview
+## Key Findings
 
-Introduce a **Cases** table as the central coordination point for all platform activity. Every paid action and every complaint creates or attaches to a Case. Each Case is mapped to an office (derived from property location). The internal ledger tracks allocations per office even though all money flows through one Paystack account. Dashboards support national vs office-level views.
+**Critical**: The `user_roles` table has **1.47 million sequential scans** because every RLS policy calls `has_role()`, which does a full table scan each time. This is the single biggest performance bottleneck.
+
+**Missing indexes**: All newly added `office_id` columns (cases, escrow_transactions, complaints, tenancies, properties, etc.) have zero indexes — every office-filtered dashboard query triggers sequential scans.
+
+**Duplicate index**: `feature_flags` has two identical unique indexes on `feature_key` (`feature_flags_feature_key_key` and `feature_flags_feature_key_unique`).
+
+**No vacuum**: Several tables with dead tuples have never been vacuumed manually.
 
 ---
 
-## Database Changes (3 migrations)
+## Migration: Add Missing Indexes + Remove Duplicates
 
-### Migration 1: `offices` table + `cases` table
+One migration with all changes:
 
+### 1. Fix the has_role() bottleneck
 ```sql
--- Offices reference table
-CREATE TABLE public.offices (
-  id text PRIMARY KEY,
-  name text NOT NULL,
-  region text NOT NULL,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE public.offices ENABLE ROW LEVEL SECURITY;
--- Populate from GHANA_OFFICES list (68 offices)
-INSERT INTO public.offices (id, name, region) VALUES
-  ('accra_central', 'Accra Central Office', 'Greater Accra'),
-  ('accra_north', 'Accra North Office', 'Greater Accra'),
-  ... (all 68 offices);
+-- Composite index on user_roles for has_role() function
+CREATE INDEX IF NOT EXISTS idx_user_roles_user_role 
+  ON public.user_roles(user_id, role);
+```
+This directly targets the `has_role(user_id, role)` lookup pattern used in every RLS policy.
 
--- Cases table
-CREATE TABLE public.cases (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  case_number text NOT NULL UNIQUE,
-  office_id text NOT NULL REFERENCES public.offices(id),
-  user_id uuid NOT NULL,
-  case_type text NOT NULL, -- registration, tenancy, complaint, rent_card, listing, viewing, termination, renewal
-  related_property_id uuid,
-  related_tenancy_id uuid,
-  related_complaint_id uuid,
-  status text NOT NULL DEFAULT 'open',
-  metadata jsonb DEFAULT '{}'::jsonb,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-ALTER TABLE public.cases ENABLE ROW LEVEL SECURITY;
--- RLS: users read own, regulators read all, service_role manages all
+### 2. Index all office_id columns (dashboard filtering)
+```sql
+CREATE INDEX IF NOT EXISTS idx_cases_office_id ON public.cases(office_id);
+CREATE INDEX IF NOT EXISTS idx_cases_user_id ON public.cases(user_id);
+CREATE INDEX IF NOT EXISTS idx_cases_case_type ON public.cases(case_type);
+CREATE INDEX IF NOT EXISTS idx_escrow_transactions_office_id ON public.escrow_transactions(office_id);
+CREATE INDEX IF NOT EXISTS idx_escrow_transactions_status ON public.escrow_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_escrow_splits_office_id ON public.escrow_splits(office_id);
+CREATE INDEX IF NOT EXISTS idx_escrow_splits_escrow_tx ON public.escrow_splits(escrow_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_escrow_splits_recipient ON public.escrow_splits(recipient);
+CREATE INDEX IF NOT EXISTS idx_complaints_office_id ON public.complaints(office_id);
+CREATE INDEX IF NOT EXISTS idx_landlord_complaints_office_id ON public.landlord_complaints(office_id);
+CREATE INDEX IF NOT EXISTS idx_landlord_complaints_landlord ON public.landlord_complaints(landlord_user_id);
+CREATE INDEX IF NOT EXISTS idx_tenancies_office_id ON public.tenancies(office_id);
+CREATE INDEX IF NOT EXISTS idx_properties_office_id ON public.properties(office_id);
+CREATE INDEX IF NOT EXISTS idx_admin_staff_office_id ON public.admin_staff(office_id);
 ```
 
-### Migration 2: Add `office_id` and `case_id` to existing tables
-
+### 3. Index rent_cards status (1036 rows, 323 seq scans)
 ```sql
-ALTER TABLE public.escrow_transactions ADD COLUMN office_id text REFERENCES public.offices(id);
-ALTER TABLE public.escrow_transactions ADD COLUMN case_id uuid;
-ALTER TABLE public.escrow_splits ADD COLUMN office_id text;
-ALTER TABLE public.payment_receipts ADD COLUMN office_id text;
-ALTER TABLE public.complaints ADD COLUMN office_id text;
-ALTER TABLE public.landlord_complaints ADD COLUMN office_id text;
-ALTER TABLE public.tenancies ADD COLUMN office_id text;
-ALTER TABLE public.properties ADD COLUMN office_id text;
+CREATE INDEX IF NOT EXISTS idx_rent_cards_status ON public.rent_cards(status);
+CREATE INDEX IF NOT EXISTS idx_rent_cards_purchase_id ON public.rent_cards(purchase_id);
 ```
 
-### Migration 3: Case number sequence + office resolver function
-
+### 4. Index complaint_schedules and tenancy_signatures for join queries
 ```sql
-CREATE SEQUENCE case_number_seq START 1;
+CREATE INDEX IF NOT EXISTS idx_complaint_schedules_complaint ON public.complaint_schedules(complaint_id);
+CREATE INDEX IF NOT EXISTS idx_tenancy_signatures_tenancy ON public.tenancy_signatures(tenancy_id);
+```
 
-CREATE OR REPLACE FUNCTION public.generate_case_number()
-RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
-BEGIN
-  RETURN 'CASE-' || to_char(now(), 'YYYYMMDD') || '-' || lpad(nextval('case_number_seq')::text, 5, '0');
-END;
-$$;
+### 5. Index payment_receipts for receipt lookups
+```sql
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_escrow_tx ON public.payment_receipts(escrow_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_receipt_number ON public.payment_receipts(receipt_number);
+```
 
--- Function to resolve office from property region/area
-CREATE OR REPLACE FUNCTION public.resolve_office_id(p_region text, p_area text DEFAULT NULL)
-RETURNS text LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
-DECLARE
-  resolved text;
-BEGIN
-  -- Try exact area match first
-  IF p_area IS NOT NULL THEN
-    SELECT id INTO resolved FROM offices
-    WHERE lower(replace(name, ' Office', '')) = lower(p_area)
-    LIMIT 1;
-    IF resolved IS NOT NULL THEN RETURN resolved; END IF;
-  END IF;
-  -- Fallback to region-based match
-  SELECT id INTO resolved FROM offices
-  WHERE lower(region) = lower(p_region)
-  LIMIT 1;
-  RETURN COALESCE(resolved, 'accra_central'); -- default fallback
-END;
-$$;
+### 6. Remove duplicate index
+```sql
+DROP INDEX IF EXISTS public.feature_flags_feature_key_unique;
+```
+
+### 7. Analyze tables to update query planner statistics
+```sql
+ANALYZE public.user_roles;
+ANALYZE public.feature_flags;
+ANALYZE public.escrow_transactions;
+ANALYZE public.cases;
+ANALYZE public.complaints;
+ANALYZE public.tenancies;
+ANALYZE public.properties;
+ANALYZE public.rent_cards;
+ANALYZE public.notifications;
+ANALYZE public.profiles;
 ```
 
 ---
 
-## Split Logic Update: Platform Fee Isolation
+## Expected Impact
 
-### Rule
-- **10 GHS** is always extracted first as a fixed platform fee from any registration payment
-- The remainder is split by configured percentages for IGF, admin, platform
-
-### Example: Landlord registration = 30 GHS
-1. Platform fixed fee: 10 GHS → `platform`
-2. Remaining 20 GHS split by percentages (e.g., 65% IGF, 25% admin, 10% platform):
-   - IGF (rent_control): 13 GHS
-   - Admin: 5 GHS
-   - Platform: 2 GHS
-
-### Implementation
-- Update `paystack-checkout/index.ts`: New split calculation function that isolates 10 GHS platform fee first, then applies percentage splits on remainder
-- Update `paystack-webhook/index.ts`: Use split plan from escrow metadata (already stored), add `office_id` to splits
-- Add `gra` as a new recipient type for future GRA allocations
+| Issue | Before | After |
+|---|---|---|
+| `has_role()` per RLS check | Seq scan on user_roles | Index scan on (user_id, role) |
+| Office-filtered dashboards | Seq scan every table | Index scan on office_id |
+| Escrow dashboard aggregations | Seq scan splits | Index on recipient + office_id |
+| Duplicate index overhead | 2 identical indexes | 1 index (saves write overhead) |
+| Query planner accuracy | Stale statistics | Fresh ANALYZE |
 
 ---
 
-## Case Creation Flow
+## Summary
 
-### Where cases are created (in `paystack-checkout/index.ts`):
-
-Before initializing Paystack, the backend:
-1. Resolves the office from the property (for tenancy/listing/viewing) or user's region (for registration)
-2. Creates a Case record with `case_number`, `office_id`, `case_type`
-3. Stores `case_id` and `office_id` in the escrow transaction metadata
-4. Passes `case_id` and `office_id` to Paystack metadata
-
-### For complaints (no payment):
-- Case is created when complaint is submitted (in `FileComplaint.tsx` / `LandlordComplaints.tsx`)
-- Office resolved from complaint's `region` field
-
-### Office resolution priority:
-1. Property → property.area/region → office
-2. Complaint → complaint.region → office
-3. Registration → user's `delivery_region` from profiles → office
-4. Fallback → `accra_central`
-
----
-
-## Dashboard Changes
-
-### National Dashboard (Main Admin)
-- **RegulatorDashboard.tsx**: Add office dropdown filter at top. Default = "All Offices (National)". When an office is selected, all queries filter by `office_id`
-- **EscrowDashboard.tsx**: Add office dropdown. Show total collected + internal balances per office. Add "Office Breakdown" table showing revenue per office
-
-### Office Dashboard (Sub Admin)
-- Automatically filters everything by `admin_staff.office_id`
-- Sub admins see only their office's cases, transactions, complaints, tenancies
-
-### New sections on EscrowDashboard:
-- **Allocation Summary**: Platform Fixed Fee | IGF | Admin | GRA | Landlord (Held) — per office
-- **Office Revenue Table**: Rows = offices, Columns = total collected, IGF share, admin share, platform share
-- **Actual vs Internal**: "Total Collected (Paystack)" vs "Internal Allocations" comparison
-
----
-
-## Engine Room Integration
-
-### New feature flags:
-- `case_management` — Enable/disable case-based tracking
-- `office_escrow_view` — Allow office-level escrow visibility
-
-### Invite Staff update:
-- Add "escrow" to `FEATURE_ROUTE_MAP` (already exists)
-- When inviting sub_admin with "escrow" in allowed_features, they see only their office's financial data
-
----
-
-## Files Changed
-
-| Area | Files |
-|---|---|
-| Database | 3 migrations: offices + cases tables, alter existing tables, functions |
-| Backend | `paystack-checkout/index.ts` — case creation + split logic rewrite |
-| Backend | `paystack-webhook/index.ts` — persist office_id on splits/receipts |
-| Frontend | `EscrowDashboard.tsx` — office filter, allocation breakdown, office revenue table |
-| Frontend | `RegulatorDashboard.tsx` — office filter dropdown |
-| Frontend | `useAdminProfile.ts` — move GHANA_OFFICES to use DB `offices` table (or keep static for now) |
-| Frontend | `EngineRoom.tsx` — new feature flags |
-| Frontend | `FileComplaint.tsx` — create case on complaint submit |
-
-### Key architectural decisions:
-- Single Paystack account stays — only the internal ledger changes
-- Cases are the universal join point for all activity
-- Office is derived from property/region, never manually entered by users
-- 10 GHS platform fee is always isolated before percentage splits
-- `offices` table matches existing `GHANA_OFFICES` constant
+- **1 migration** with ~25 CREATE INDEX statements, 1 DROP INDEX, and ANALYZE commands
+- No schema changes, no code changes, no downtime
+- All indexes use `IF NOT EXISTS` for safety
 
