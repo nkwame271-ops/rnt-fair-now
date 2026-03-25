@@ -25,6 +25,7 @@ import TourGuide from "@/components/TourGuide";
 import { regulatorTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
+import CommandSearch from "@/components/CommandSearch";
 
 const allNavItems = [
   { to: "/regulator/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -134,6 +135,9 @@ const RegulatorLayout = () => {
             <Menu className="h-5 w-5" />
           </button>
           <span className="font-bold text-sm lg:hidden">Rent Control — Admin</span>
+          <div className="flex-1 flex justify-center max-w-md mx-4">
+            <CommandSearch items={navItems} />
+          </div>
           <div className="ml-auto">
             <NotificationBell />
           </div>

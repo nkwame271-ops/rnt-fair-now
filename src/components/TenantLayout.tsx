@@ -23,6 +23,7 @@ import TourGuide from "@/components/TourGuide";
 import { tenantTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
+import CommandSearch from "@/components/CommandSearch";
 import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 
 const navItems = [
@@ -115,6 +116,9 @@ const TenantLayout = () => {
             <Menu className="h-5 w-5" />
           </button>
           <span className="font-bold text-sm lg:hidden">Rent Control</span>
+          <div className="flex-1 flex justify-center max-w-md mx-4">
+            <CommandSearch items={filteredNav} />
+          </div>
           <div className="ml-auto">
             <NotificationBell />
           </div>
