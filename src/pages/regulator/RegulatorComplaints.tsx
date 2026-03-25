@@ -11,7 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 
+const allStatuses = ["submitted", "under_review", "in_progress", "schedule_complainant", "resolved", "closed"];
+
 const RegulatorComplaints = () => {
+  const { user } = useAuth();
   const [complaints, setComplaints] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
