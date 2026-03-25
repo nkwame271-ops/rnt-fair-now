@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { AlertTriangle, Plus, Loader2, Upload, X, Clock, CheckCircle2, Image, Mic, Square, Play, Trash2 } from "lucide-react";
+import { AlertTriangle, Plus, Loader2, Upload, X, Clock, CheckCircle2, Image, Mic, Square, Play, Trash2, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { regions } from "@/data/dummyData";
+import AppointmentSlotPicker from "@/components/AppointmentSlotPicker";
 
 const complaintTypes = [
   "Tenant refusing to vacate",
@@ -25,6 +26,7 @@ const statusConfig: Record<string, string> = {
   submitted: "bg-info/10 text-info",
   under_review: "bg-warning/10 text-warning",
   in_progress: "bg-primary/10 text-primary",
+  schedule_complainant: "bg-accent/10 text-accent-foreground",
   resolved: "bg-success/10 text-success",
   closed: "bg-muted text-muted-foreground",
 };
@@ -175,6 +177,9 @@ const LandlordComplaints = () => {
           <Plus className="h-4 w-4 mr-1" /> File Complaint
         </Button>
       </div>
+
+      {/* Appointment scheduling cards */}
+      <AppointmentSlotPicker complaintTable="landlord_complaints" userIdColumn="landlord_user_id" />
 
       {complaints.length === 0 ? (
         <div className="bg-card rounded-xl p-8 text-center border border-border">

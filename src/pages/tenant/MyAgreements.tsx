@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { FileText, CheckCircle2, Clock, Download, Shield, AlertTriangle, CreditCard, Loader2 } from "lucide-react";
+import { FileText, CheckCircle2, Download, Shield, AlertTriangle, CreditCard, Loader2, XCircle, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateAgreementPdf } from "@/lib/generateAgreementPdf";
 import { toast } from "sonner";
@@ -8,6 +8,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import RatingDialog from "@/components/RatingDialog";
+import DigitalSignatureDialog from "@/components/DigitalSignatureDialog";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 
 interface CustomFieldDef {
   label: string;
@@ -35,88 +37,113 @@ interface TenancyView {
   totalPayments: number;
   customFieldValues: Record<string, string>;
   landlord_user_id: string;
+  landlord_signed_at: string | null;
+  tenant_signed_at: string | null;
 }
 
 const MyAgreements = () => {
   const { user } = useAuth();
+  const { enabled: digitalSignaturesEnabled } = useFeatureFlag("digital_signatures");
   const [tenancies, setTenancies] = useState<TenancyView[]>([]);
   const [loading, setLoading] = useState(true);
-  const [accepting, setAccepting] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState("");
   const [tenantIdCode, setTenantIdCode] = useState("");
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
+  const [signingTenancyId, setSigningTenancyId] = useState<string | null>(null);
+  const [payingTax, setPayingTax] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchData = async () => {
     if (!user) return;
-    const fetch = async () => {
-      // Get tenant info
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
-      setTenantName(profile?.full_name || "");
-      const { data: tenantRec } = await supabase.from("tenants").select("tenant_id").eq("user_id", user.id).single();
-      setTenantIdCode(tenantRec?.tenant_id || "");
+    const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
+    setTenantName(profile?.full_name || "");
+    const { data: tenantRec } = await supabase.from("tenants").select("tenant_id").eq("user_id", user.id).single();
+    setTenantIdCode(tenantRec?.tenant_id || "");
 
-      // Get template config for custom field labels
-      const { data: configData } = await supabase.from("agreement_template_config").select("*").limit(1).single();
-      if (configData) setCustomFields((configData as any).custom_fields || []);
+    const { data: configData } = await supabase.from("agreement_template_config").select("*").limit(1).single();
+    if (configData) setCustomFields((configData as any).custom_fields || []);
 
-      const { data: ts } = await supabase
-        .from("tenancies")
-        .select("*, unit:units(unit_name, unit_type, property_id)")
-        .eq("tenant_user_id", user.id)
-        .order("created_at", { ascending: false });
+    const { data: ts } = await supabase
+      .from("tenancies")
+      .select("*, unit:units(unit_name, unit_type, property_id)")
+      .eq("tenant_user_id", user.id)
+      .order("created_at", { ascending: false });
 
-      if (!ts || ts.length === 0) { setLoading(false); return; }
+    if (!ts || ts.length === 0) { setLoading(false); return; }
 
-      const results: TenancyView[] = [];
-      for (const t of ts as any[]) {
-        const { data: prop } = await supabase.from("properties").select("property_name, address, region").eq("id", t.unit.property_id).single();
-        const { data: landlordProfile } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
-        const { data: payments } = await supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed").eq("tenancy_id", t.id);
-        const paidCount = (payments || []).filter((p: any) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed").length;
+    const results: TenancyView[] = [];
+    for (const t of ts as any[]) {
+      const { data: prop } = await supabase.from("properties").select("property_name, address, region").eq("id", t.unit.property_id).single();
+      const { data: landlordProfile } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
+      const { data: payments } = await supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed").eq("tenancy_id", t.id);
+      const paidCount = (payments || []).filter((p: any) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed").length;
 
-        results.push({
-          id: t.id,
-          registration_code: t.registration_code,
-          agreed_rent: t.agreed_rent,
-          advance_months: t.advance_months,
-          start_date: t.start_date,
-          end_date: t.end_date,
-          status: t.status,
-          tenant_accepted: t.tenant_accepted,
-          landlord_accepted: t.landlord_accepted,
-          landlordName: landlordProfile?.full_name || "Unknown",
-          propertyName: prop?.property_name || "Property",
-          propertyAddress: prop?.address || "",
-          unitName: t.unit.unit_name,
-          unitType: t.unit.unit_type,
-          region: prop?.region || "",
-          paidCount,
-          totalPayments: (payments || []).length,
-          customFieldValues: (t as any).custom_field_values || {},
-          landlord_user_id: t.landlord_user_id,
-        });
-      }
-      setTenancies(results);
-      setLoading(false);
-    };
-    fetch();
-  }, [user]);
+      results.push({
+        id: t.id,
+        registration_code: t.registration_code,
+        agreed_rent: t.agreed_rent,
+        advance_months: t.advance_months,
+        start_date: t.start_date,
+        end_date: t.end_date,
+        status: t.status,
+        tenant_accepted: t.tenant_accepted,
+        landlord_accepted: t.landlord_accepted,
+        landlordName: landlordProfile?.full_name || "Unknown",
+        propertyName: prop?.property_name || "Property",
+        propertyAddress: prop?.address || "",
+        unitName: t.unit.unit_name,
+        unitType: t.unit.unit_type,
+        region: prop?.region || "",
+        paidCount,
+        totalPayments: (payments || []).length,
+        customFieldValues: (t as any).custom_field_values || {},
+        landlord_user_id: t.landlord_user_id,
+        landlord_signed_at: t.landlord_signed_at || null,
+        tenant_signed_at: t.tenant_signed_at || null,
+      });
+    }
+    setTenancies(results);
+    setLoading(false);
+  };
 
-  const handleAccept = async (tenancyId: string) => {
-    setAccepting(tenancyId);
+  useEffect(() => { fetchData(); }, [user]);
+
+  const handleReject = async (tenancyId: string) => {
+    setRejecting(tenancyId);
     try {
-      const { error } = await supabase.from("tenancies").update({
-        tenant_accepted: true,
-        status: "active",
-      }).eq("id", tenancyId);
-      if (error) throw error;
+      await supabase.from("tenancies").update({ status: "rejected", tenant_accepted: false } as any).eq("id", tenancyId);
+      setTenancies(prev => prev.map(t => t.id === tenancyId ? { ...t, status: "rejected", tenant_accepted: false } : t));
+      toast.success("Agreement rejected. Your landlord has been notified.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject");
+    } finally {
+      setRejecting(null);
+    }
+  };
 
-      setTenancies(prev => prev.map(t => t.id === tenancyId ? { ...t, tenant_accepted: true, status: "active" } : t));
-      toast.success("Agreement accepted! Pay the 8% tax to validate your tenancy.");
+  const handleAcceptAndPay = async (tenancyId: string) => {
+    setPayingTax(tenancyId);
+    try {
+      // Mark as accepted but pending payment
+      await supabase.from("tenancies").update({
+        tenant_accepted: true,
+        status: digitalSignaturesEnabled ? "pending" : "active",
+      }).eq("id", tenancyId);
+
+      if (digitalSignaturesEnabled) {
+        // Move to signing step
+        setPayingTax(null);
+        setSigningTenancyId(tenancyId);
+        setTenancies(prev => prev.map(t => t.id === tenancyId ? { ...t, tenant_accepted: true } : t));
+      } else {
+        // Legacy: just accept
+        setTenancies(prev => prev.map(t => t.id === tenancyId ? { ...t, tenant_accepted: true, status: "active" } : t));
+        toast.success("Agreement accepted! Pay the 8% tax to validate your tenancy.");
+        setPayingTax(null);
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to accept");
-    } finally {
-      setAccepting(null);
+      setPayingTax(null);
     }
   };
 
@@ -135,6 +162,8 @@ const MyAgreements = () => {
       startDate: t.start_date,
       endDate: t.end_date,
       region: t.region,
+      landlordSignature: t.landlord_signed_at ? { name: t.landlordName, signedAt: t.landlord_signed_at, method: "Digital (Auto)" } : undefined,
+      tenantSignature: t.tenant_signed_at ? { name: tenantName, signedAt: t.tenant_signed_at, method: "Digital" } : undefined,
     });
     doc.save(`Tenancy_Agreement_${t.registration_code}.pdf`);
     toast.success("Agreement PDF downloaded!");
@@ -144,6 +173,7 @@ const MyAgreements = () => {
 
   const pending = tenancies.filter(t => !t.tenant_accepted && t.status === "pending");
   const active = tenancies.filter(t => t.tenant_accepted || t.status === "active");
+  const rejected = tenancies.filter(t => t.status === "rejected");
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -160,8 +190,14 @@ const MyAgreements = () => {
             <h2 className="text-lg font-semibold text-card-foreground">Pending Agreement — Action Required</h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            Your landlord <strong>{t.landlordName}</strong> has created a tenancy agreement for you. Review and accept to proceed.
+            Your landlord <strong>{t.landlordName}</strong> has created a tenancy agreement for you. Review and accept or reject.
           </p>
+          {t.landlord_signed_at && (
+            <div className="flex items-center gap-2 text-xs text-success bg-success/5 border border-success/20 rounded-lg px-3 py-2">
+              <PenLine className="h-3.5 w-3.5" />
+              <span>Landlord signed on {new Date(t.landlord_signed_at).toLocaleDateString("en-GB")}</span>
+            </div>
+          )}
           <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
             {[
               ["Property", t.propertyName],
@@ -179,9 +215,17 @@ const MyAgreements = () => {
           </div>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <Button variant="outline" onClick={() => handleDownload(t)}><Download className="h-4 w-4 mr-1" /> Download PDF</Button>
-            <Button onClick={() => handleAccept(t.id)} disabled={accepting === t.id}>
+            <Button
+              variant="destructive"
+              onClick={() => handleReject(t.id)}
+              disabled={rejecting === t.id}
+            >
+              <XCircle className="h-4 w-4 mr-1" />
+              {rejecting === t.id ? "Rejecting..." : "Reject"}
+            </Button>
+            <Button onClick={() => handleAcceptAndPay(t.id)} disabled={payingTax === t.id}>
               <CheckCircle2 className="h-4 w-4 mr-1" />
-              {accepting === t.id ? "Processing..." : "Accept Agreement"}
+              {payingTax === t.id ? "Processing..." : digitalSignaturesEnabled ? "Accept & Sign" : "Accept Agreement"}
             </Button>
           </div>
         </motion.div>
@@ -209,6 +253,17 @@ const MyAgreements = () => {
                   <div><div className="text-muted-foreground">Registration</div><div className="font-semibold text-xs">{t.registration_code}</div></div>
                   <div><div className="text-muted-foreground">Validity</div><div className="font-semibold">{t.paidCount}/{t.totalPayments} months</div></div>
                 </div>
+                {/* Signature status */}
+                {(t.landlord_signed_at || t.tenant_signed_at) && (
+                  <div className="flex gap-4 text-xs">
+                    {t.landlord_signed_at && (
+                      <span className="flex items-center gap-1 text-success"><PenLine className="h-3 w-3" /> Landlord signed {new Date(t.landlord_signed_at).toLocaleDateString("en-GB")}</span>
+                    )}
+                    {t.tenant_signed_at && (
+                      <span className="flex items-center gap-1 text-success"><PenLine className="h-3 w-3" /> Tenant signed {new Date(t.tenant_signed_at).toLocaleDateString("en-GB")}</span>
+                    )}
+                  </div>
+                )}
                 <div>
                   <div className="flex justify-between text-xs text-muted-foreground mb-1"><span>{t.paidCount} of {t.totalPayments} months validated</span><span>{t.totalPayments > 0 ? Math.round((t.paidCount / t.totalPayments) * 100) : 0}%</span></div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -232,6 +287,19 @@ const MyAgreements = () => {
           <h3 className="font-semibold text-card-foreground">No agreements yet</h3>
           <p className="text-sm text-muted-foreground mt-1">Your landlord will create a tenancy agreement for you once you're assigned to a unit.</p>
         </div>
+      )}
+
+      {/* Digital Signature Dialog */}
+      {signingTenancyId && (
+        <DigitalSignatureDialog
+          open={!!signingTenancyId}
+          onOpenChange={(open) => { if (!open) setSigningTenancyId(null); }}
+          tenancyId={signingTenancyId}
+          onSigned={() => {
+            setSigningTenancyId(null);
+            fetchData();
+          }}
+        />
       )}
     </div>
   );

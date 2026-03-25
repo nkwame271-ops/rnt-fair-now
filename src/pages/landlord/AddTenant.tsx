@@ -261,6 +261,7 @@ const AddTenant = () => {
           tenant_accepted: false,
           custom_field_values: customFieldValues,
           rent_card_id: selectedRentCardId,
+          landlord_signed_at: new Date().toISOString(),
         } as any).select().single();
 
         if (error) {
@@ -274,6 +275,20 @@ const AddTenant = () => {
         tenancy = data;
         break;
       }
+
+      if (!tenancy) throw new Error("Failed to create tenancy after multiple attempts");
+      setRegistrationCode(regCode);
+
+      // Record landlord signature
+      await supabase.from("tenancy_signatures").insert({
+        tenancy_id: tenancy.id,
+        signer_user_id: user.id,
+        signer_role: "landlord",
+        signature_method: "auto",
+        device_info: { userAgent: navigator.userAgent, platform: navigator.platform },
+        signed_at: new Date().toISOString(),
+        signature_hash: btoa(`${tenancy.id}:${user.id}:landlord:${Date.now()}`),
+      } as any);
 
       if (!tenancy) throw new Error("Failed to create tenancy after multiple attempts");
       setRegistrationCode(regCode);

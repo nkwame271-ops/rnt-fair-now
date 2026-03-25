@@ -1,17 +1,39 @@
 import { useEffect, useState } from "react";
-import { FileText, Clock, CheckCircle2, AlertTriangle, Loader2, CreditCard } from "lucide-react";
+import { FileText, Clock, CheckCircle2, AlertTriangle, Loader2, CreditCard, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import AppointmentSlotPicker from "@/components/AppointmentSlotPicker";
 
 const statusIcon: Record<string, React.ReactNode> = {
   pending_payment: <CreditCard className="h-4 w-4 text-warning" />,
   submitted: <Clock className="h-4 w-4 text-info" />,
   under_review: <AlertTriangle className="h-4 w-4 text-warning" />,
   in_progress: <Clock className="h-4 w-4 text-primary" />,
+  schedule_complainant: <CalendarDays className="h-4 w-4 text-accent-foreground" />,
   resolved: <CheckCircle2 className="h-4 w-4 text-success" />,
   closed: <CheckCircle2 className="h-4 w-4 text-muted-foreground" />,
+};
+
+const statusColors: Record<string, string> = {
+  pending_payment: "bg-warning/10 text-warning",
+  submitted: "bg-info/10 text-info",
+  under_review: "bg-warning/10 text-warning",
+  in_progress: "bg-primary/10 text-primary",
+  schedule_complainant: "bg-accent/10 text-accent-foreground",
+  resolved: "bg-success/10 text-success",
+  closed: "bg-muted text-muted-foreground",
+};
+
+const statusLabel: Record<string, string> = {
+  pending_payment: "Awaiting Payment",
+  submitted: "Submitted",
+  under_review: "Under Review",
+  in_progress: "In Progress",
+  schedule_complainant: "Scheduling",
+  resolved: "Resolved",
+  closed: "Closed",
 };
 
 const statusColors: Record<string, string> = {
@@ -84,6 +106,9 @@ const MyCases = () => {
         <h1 className="text-3xl font-bold text-foreground">My Cases</h1>
         <p className="text-muted-foreground mt-1">Track the status of your complaints</p>
       </div>
+
+      {/* Appointment scheduling cards */}
+      <AppointmentSlotPicker complaintTable="complaints" userIdColumn="tenant_user_id" />
 
       {complaints.length === 0 ? (
         <div className="bg-card rounded-xl p-8 text-center border border-border">
