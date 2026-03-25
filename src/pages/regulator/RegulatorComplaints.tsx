@@ -10,6 +10,15 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import ScheduleComplainantDialog from "@/components/ScheduleComplainantDialog";
+
+interface SchedulingTarget {
+  id: string;
+  type: "tenant" | "landlord";
+  userId: string;
+  name: string;
+  phone?: string;
+}
 
 const allStatuses = ["submitted", "under_review", "in_progress", "schedule_complainant", "resolved", "closed"];
 
@@ -20,6 +29,7 @@ const RegulatorComplaints = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [schedulingComplaint, setSchedulingComplaint] = useState<SchedulingTarget | null>(null);
 
   const fetchComplaints = async () => {
     const { data } = await supabase
