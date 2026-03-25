@@ -142,6 +142,7 @@ const RegulatorComplaints = () => {
     submitted: "bg-info/10 text-info",
     under_review: "bg-warning/10 text-warning",
     in_progress: "bg-primary/10 text-primary",
+    schedule_complainant: "bg-accent/10 text-accent-foreground",
     resolved: "bg-success/10 text-success",
     closed: "bg-muted text-muted-foreground",
   };
@@ -176,8 +177,8 @@ const RegulatorComplaints = () => {
       {activeTab === "tenant" && (
         <>
           {/* Status summary cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            {["submitted", "under_review", "in_progress", "resolved", "closed"].map(s => (
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+            {allStatuses.map(s => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(statusFilter === s ? "all" : s)}
@@ -186,7 +187,7 @@ const RegulatorComplaints = () => {
                 }`}
               >
                 <div className="text-2xl font-bold text-foreground">{statusCounts[s] || 0}</div>
-                <div className="text-xs text-muted-foreground capitalize">{s.replace("_", " ")}</div>
+                <div className="text-xs text-muted-foreground capitalize">{s.replace(/_/g, " ")}</div>
               </button>
             ))}
           </div>
