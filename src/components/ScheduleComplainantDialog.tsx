@@ -72,10 +72,10 @@ const ScheduleComplainantDialog = ({
       });
 
       if (complainantPhone) {
-        sendNotification("generic_sms", {
+        sendNotification("complaint_reminder", {
           phone: complainantPhone,
           user_id: complainantUserId,
-          data: { message: `RentControlGhana: You have ${validSlots.length} appointment slot(s) available. Log in to select your preferred time.` },
+          data: { message: `You have ${validSlots.length} appointment slot(s) available. Log in to select your preferred time.` },
         });
       }
 
