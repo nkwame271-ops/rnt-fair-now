@@ -378,6 +378,23 @@ const RegulatorComplaints = () => {
           ))}
         </div>
       )}
+
+      {schedulingComplaint && (
+        <ScheduleComplainantDialog
+          open={!!schedulingComplaint}
+          onOpenChange={(open) => { if (!open) setSchedulingComplaint(null); }}
+          complaintId={schedulingComplaint.id}
+          complaintType={schedulingComplaint.type}
+          complainantUserId={schedulingComplaint.userId}
+          complainantName={schedulingComplaint.name}
+          complainantPhone={schedulingComplaint.phone}
+          onScheduled={() => {
+            setSchedulingComplaint(null);
+            fetchComplaints();
+            fetchLandlordComplaints();
+          }}
+        />
+      )}
     </div>
   );
 };
