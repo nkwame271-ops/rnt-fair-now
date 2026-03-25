@@ -138,7 +138,11 @@ const LandlordComplaints = () => {
 
       const code = `LC-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
 
-      const { error } = await supabase.from("landlord_complaints").insert({
+      // Resolve office
+      const { data: officeId } = await supabase.rpc("resolve_office_id", { p_region: region, p_area: null });
+      const resolvedOffice = officeId || "accra_central";
+
+      const { data: complaint, error } = await supabase.from("landlord_complaints").insert({
         landlord_user_id: user.id,
         complaint_code: code,
         complaint_type: complaintType,
@@ -148,9 +152,23 @@ const LandlordComplaints = () => {
         description,
         evidence_urls: evidenceUrls,
         audio_url: uploadedAudioUrl,
-      } as any);
+        office_id: resolvedOffice,
+      } as any).select("id").single();
 
       if (error) throw error;
+
+      // Create case
+      try {
+        const { data: caseNumber } = await supabase.rpc("generate_case_number");
+        await supabase.from("cases").insert({
+          case_number: caseNumber || `CASE-${Date.now()}`,
+          office_id: resolvedOffice,
+          user_id: user.id,
+          case_type: "complaint",
+          related_complaint_id: complaint?.id || null,
+          metadata: { complaint_code: code },
+        } as any);
+      } catch (e) { console.error("Case creation error:", e); }
       toast.success(`Complaint filed! Code: ${code}`);
       setDialogOpen(false);
       resetForm();
