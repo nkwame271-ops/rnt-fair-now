@@ -1,103 +1,60 @@
 
 
-# Database Optimization Plan
+# Universal Search / Command Palette
 
-## Key Findings
+## Problem
+The platform has 50+ pages across three portals (Admin, Landlord, Tenant). Users struggle to find specific features. A search bar at the top of every dashboard lets them type a keyword and jump directly to the right page.
 
-**Critical**: The `user_roles` table has **1.47 million sequential scans** because every RLS policy calls `has_role()`, which does a full table scan each time. This is the single biggest performance bottleneck.
+## Solution
+A **Command Palette** (Ctrl+K / Cmd+K shortcut + clickable search bar in the header) that indexes all navigation items across the active portal. Users type a keyword, see matching pages with descriptions, and click to navigate instantly.
 
-**Missing indexes**: All newly added `office_id` columns (cases, escrow_transactions, complaints, tenancies, properties, etc.) have zero indexes — every office-filtered dashboard query triggers sequential scans.
+## Implementation
 
-**Duplicate index**: `feature_flags` has two identical unique indexes on `feature_key` (`feature_flags_feature_key_key` and `feature_flags_feature_key_unique`).
+### New Component: `CommandSearch.tsx`
+- Uses the existing `cmdk`-based `Command` UI components already in the project (`src/components/ui/command.tsx`)
+- Renders a small search input in the header bar (magnifying glass icon + "Search features..." placeholder)
+- On click or Ctrl+K, opens a full command dialog overlay
+- Each portal layout passes its nav items + extra keyword metadata to the search component
+- Items include: route, label, icon, and **search keywords** (e.g., "Rent Cards" also matches "serial", "purchase", "stock")
 
-**No vacuum**: Several tables with dead tuples have never been vacuumed manually.
+### Search Data Registry
+A static map of all routes with enriched descriptions and keywords:
 
----
-
-## Migration: Add Missing Indexes + Remove Duplicates
-
-One migration with all changes:
-
-### 1. Fix the has_role() bottleneck
-```sql
--- Composite index on user_roles for has_role() function
-CREATE INDEX IF NOT EXISTS idx_user_roles_user_role 
-  ON public.user_roles(user_id, role);
-```
-This directly targets the `has_role(user_id, role)` lookup pattern used in every RLS policy.
-
-### 2. Index all office_id columns (dashboard filtering)
-```sql
-CREATE INDEX IF NOT EXISTS idx_cases_office_id ON public.cases(office_id);
-CREATE INDEX IF NOT EXISTS idx_cases_user_id ON public.cases(user_id);
-CREATE INDEX IF NOT EXISTS idx_cases_case_type ON public.cases(case_type);
-CREATE INDEX IF NOT EXISTS idx_escrow_transactions_office_id ON public.escrow_transactions(office_id);
-CREATE INDEX IF NOT EXISTS idx_escrow_transactions_status ON public.escrow_transactions(status);
-CREATE INDEX IF NOT EXISTS idx_escrow_splits_office_id ON public.escrow_splits(office_id);
-CREATE INDEX IF NOT EXISTS idx_escrow_splits_escrow_tx ON public.escrow_splits(escrow_transaction_id);
-CREATE INDEX IF NOT EXISTS idx_escrow_splits_recipient ON public.escrow_splits(recipient);
-CREATE INDEX IF NOT EXISTS idx_complaints_office_id ON public.complaints(office_id);
-CREATE INDEX IF NOT EXISTS idx_landlord_complaints_office_id ON public.landlord_complaints(office_id);
-CREATE INDEX IF NOT EXISTS idx_landlord_complaints_landlord ON public.landlord_complaints(landlord_user_id);
-CREATE INDEX IF NOT EXISTS idx_tenancies_office_id ON public.tenancies(office_id);
-CREATE INDEX IF NOT EXISTS idx_properties_office_id ON public.properties(office_id);
-CREATE INDEX IF NOT EXISTS idx_admin_staff_office_id ON public.admin_staff(office_id);
+```text
+Route                          Label                Keywords
+/regulator/rent-cards          Rent Cards           serial, purchase, stock, assign, batch
+/regulator/complaints          Complaints           dispute, case, hearing, schedule
+/regulator/escrow              Escrow & Revenue     payment, split, IGF, revenue, office
+/tenant/file-complaint         File Complaint       dispute, issue, landlord problem
+/landlord/add-tenant           Add Tenant           tenancy, agreement, new tenant
+... (all routes get keywords)
 ```
 
-### 3. Index rent_cards status (1036 rows, 323 seq scans)
-```sql
-CREATE INDEX IF NOT EXISTS idx_rent_cards_status ON public.rent_cards(status);
-CREATE INDEX IF NOT EXISTS idx_rent_cards_purchase_id ON public.rent_cards(purchase_id);
-```
+### Integration Points
+- **RegulatorLayout.tsx**: Add `<CommandSearch items={navItems} />` in the header bar (line ~130, next to `NotificationBell`)
+- **LandlordLayout.tsx**: Same placement in header
+- **TenantLayout.tsx**: Same placement in header
+- Each layout already has a `navItems` array — these are passed directly to the search component, augmented with keyword metadata
 
-### 4. Index complaint_schedules and tenancy_signatures for join queries
-```sql
-CREATE INDEX IF NOT EXISTS idx_complaint_schedules_complaint ON public.complaint_schedules(complaint_id);
-CREATE INDEX IF NOT EXISTS idx_tenancy_signatures_tenancy ON public.tenancy_signatures(tenancy_id);
-```
+### Keyboard Shortcut
+- Ctrl+K (Windows) / Cmd+K (Mac) opens the palette from anywhere within the portal
+- Escape closes it
 
-### 5. Index payment_receipts for receipt lookups
-```sql
-CREATE INDEX IF NOT EXISTS idx_payment_receipts_escrow_tx ON public.payment_receipts(escrow_transaction_id);
-CREATE INDEX IF NOT EXISTS idx_payment_receipts_receipt_number ON public.payment_receipts(receipt_number);
-```
+### UX Details
+- Search input in header: compact, shows "Search features... ⌘K" hint
+- Dialog shows grouped results by category (Navigation, Actions)
+- Each result shows icon + label + short description
+- Clicking a result navigates to that route and closes the dialog
+- Empty state: "No matching features found"
 
-### 6. Remove duplicate index
-```sql
-DROP INDEX IF EXISTS public.feature_flags_feature_key_unique;
-```
+## Files Changed
 
-### 7. Analyze tables to update query planner statistics
-```sql
-ANALYZE public.user_roles;
-ANALYZE public.feature_flags;
-ANALYZE public.escrow_transactions;
-ANALYZE public.cases;
-ANALYZE public.complaints;
-ANALYZE public.tenancies;
-ANALYZE public.properties;
-ANALYZE public.rent_cards;
-ANALYZE public.notifications;
-ANALYZE public.profiles;
-```
+| File | Change |
+|---|---|
+| `src/components/CommandSearch.tsx` | **New** — Command palette component with route registry |
+| `src/components/RegulatorLayout.tsx` | Add CommandSearch to header |
+| `src/components/LandlordLayout.tsx` | Add CommandSearch to header |
+| `src/components/TenantLayout.tsx` | Add CommandSearch to header |
 
----
-
-## Expected Impact
-
-| Issue | Before | After |
-|---|---|---|
-| `has_role()` per RLS check | Seq scan on user_roles | Index scan on (user_id, role) |
-| Office-filtered dashboards | Seq scan every table | Index scan on office_id |
-| Escrow dashboard aggregations | Seq scan splits | Index on recipient + office_id |
-| Duplicate index overhead | 2 identical indexes | 1 index (saves write overhead) |
-| Query planner accuracy | Stale statistics | Fresh ANALYZE |
-
----
-
-## Summary
-
-- **1 migration** with ~25 CREATE INDEX statements, 1 DROP INDEX, and ANALYZE commands
-- No schema changes, no code changes, no downtime
-- All indexes use `IF NOT EXISTS` for safety
+No database changes. No new dependencies (uses existing `cmdk` package).
 
