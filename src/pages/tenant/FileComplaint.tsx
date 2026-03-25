@@ -172,6 +172,10 @@ const FileComplaint = () => {
     try {
       const complaintCode = `RC-${new Date().getFullYear()}-${String(Math.floor(10000 + Math.random() * 90000))}`;
 
+      // Resolve office from complaint region/area
+      const { data: officeId } = await supabase.rpc("resolve_office_id", { p_region: form.region, p_area: form.area || null });
+      const resolvedOffice = officeId || "accra_central";
+
       const { data: complaint, error } = await supabase.from("complaints").insert({
         tenant_user_id: user.id,
         complaint_code: complaintCode,
@@ -184,10 +188,26 @@ const FileComplaint = () => {
         gps_location: form.gpsLocation || null,
         gps_confirmed: form.gpsConfirmed,
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
-      }).select("id").single();
+        office_id: resolvedOffice,
+      } as any).select("id").single();
 
       if (error) throw error;
       if (!complaint?.id) throw new Error("Complaint was not created properly");
+
+      // Create a case record for this complaint
+      try {
+        const { data: caseNumber } = await supabase.rpc("generate_case_number");
+        await supabase.from("cases").insert({
+          case_number: caseNumber || `CASE-${Date.now()}`,
+          office_id: resolvedOffice,
+          user_id: user.id,
+          case_type: "complaint",
+          related_complaint_id: complaint.id,
+          metadata: { complaint_code: complaintCode },
+        } as any);
+      } catch (e) {
+        console.error("Case creation error:", e);
+      }
 
       // Upload evidence files
       if (imageFiles.length > 0 || audioBlob) {
