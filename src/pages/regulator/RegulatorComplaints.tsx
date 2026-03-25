@@ -10,6 +10,15 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import ScheduleComplainantDialog from "@/components/ScheduleComplainantDialog";
+
+interface SchedulingTarget {
+  id: string;
+  type: "tenant" | "landlord";
+  userId: string;
+  name: string;
+  phone?: string;
+}
 
 const allStatuses = ["submitted", "under_review", "in_progress", "schedule_complainant", "resolved", "closed"];
 
@@ -20,6 +29,7 @@ const RegulatorComplaints = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [schedulingComplaint, setSchedulingComplaint] = useState<SchedulingTarget | null>(null);
 
   const fetchComplaints = async () => {
     const { data } = await supabase
@@ -198,14 +208,12 @@ const RegulatorComplaints = () => {
               <Input placeholder="Search by code, name, landlord, type..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="under_review">Under Review</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="resolved">Resolved</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
+                {allStatuses.map(s => (
+                  <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -290,11 +298,17 @@ const RegulatorComplaints = () => {
                       </div>
                       <div className="flex items-center gap-3 pt-3 border-t border-border">
                         <span className="text-sm font-medium text-muted-foreground">Update status:</span>
-                        <Select value={c.status} onValueChange={(v) => updateStatus(c.id, v)}>
+                        <Select value={c.status} onValueChange={(v) => {
+                          if (v === "schedule_complainant") {
+                            setSchedulingComplaint({ id: c.id, type: "tenant", userId: c.tenant_user_id, name: c._tenantProfile?.full_name || "Unknown", phone: c._tenantProfile?.phone });
+                          } else {
+                            updateStatus(c.id, v);
+                          }
+                        }}>
                           <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {["submitted", "under_review", "in_progress", "resolved", "closed"].map((s) => (
-                              <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>
+                            {allStatuses.map((s) => (
+                              <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -345,11 +359,17 @@ const RegulatorComplaints = () => {
               )}
               <div className="flex items-center gap-3 pt-2 border-t border-border">
                 <span className="text-sm font-medium text-muted-foreground">Status:</span>
-                <Select value={c.status} onValueChange={(v) => updateLandlordComplaintStatus(c.id, v)}>
+                <Select value={c.status} onValueChange={(v) => {
+                  if (v === "schedule_complainant") {
+                    setSchedulingComplaint({ id: c.id, type: "landlord", userId: c.landlord_user_id, name: c._landlordProfile?.full_name || "Unknown", phone: c._landlordProfile?.phone });
+                  } else {
+                    updateLandlordComplaintStatus(c.id, v);
+                  }
+                }}>
                   <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {["submitted", "under_review", "in_progress", "resolved", "closed"].map((s) => (
-                      <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>
+                    {allStatuses.map((s) => (
+                      <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -357,6 +377,23 @@ const RegulatorComplaints = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {schedulingComplaint && (
+        <ScheduleComplainantDialog
+          open={!!schedulingComplaint}
+          onOpenChange={(open) => { if (!open) setSchedulingComplaint(null); }}
+          complaintId={schedulingComplaint.id}
+          complaintType={schedulingComplaint.type}
+          complainantUserId={schedulingComplaint.userId}
+          complainantName={schedulingComplaint.name}
+          complainantPhone={schedulingComplaint.phone}
+          onScheduled={() => {
+            setSchedulingComplaint(null);
+            fetchComplaints();
+            fetchLandlordComplaints();
+          }}
+        />
       )}
     </div>
   );
