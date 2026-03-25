@@ -120,8 +120,8 @@ const MyAgreements = () => {
     }
   };
 
-  const handleDownload = (t: TenancyView) => {
-    const doc = generateAgreementPdf({
+  const handleDownload = async (t: TenancyView) => {
+    const doc = await generateAgreementPdf({
       registrationCode: t.registration_code,
       landlordName: t.landlordName,
       tenantName,
