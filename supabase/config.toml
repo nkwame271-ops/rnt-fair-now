@@ -43,3 +43,5 @@ project_id = "qjrvwcwmhuxygdanbxsz"
     verify_jwt = false
   [functions.verify-otp]
     verify_jwt = false
+  [functions.verify-ghana-card]
+    verify_jwt = false

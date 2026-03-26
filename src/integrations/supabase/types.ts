@@ -563,6 +563,8 @@ export type Database = {
           ghana_card_front_url: string | null
           ghana_card_number: string
           id: string
+          nia_response: Json | null
+          nia_verified: boolean | null
           reviewed_at: string | null
           reviewer_notes: string | null
           reviewer_user_id: string | null
@@ -579,6 +581,8 @@ export type Database = {
           ghana_card_front_url?: string | null
           ghana_card_number: string
           id?: string
+          nia_response?: Json | null
+          nia_verified?: boolean | null
           reviewed_at?: string | null
           reviewer_notes?: string | null
           reviewer_user_id?: string | null
@@ -595,6 +599,8 @@ export type Database = {
           ghana_card_front_url?: string | null
           ghana_card_number?: string
           id?: string
+          nia_response?: Json | null
+          nia_verified?: boolean | null
           reviewed_at?: string | null
           reviewer_notes?: string | null
           reviewer_user_id?: string | null

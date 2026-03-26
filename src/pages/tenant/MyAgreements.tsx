@@ -124,19 +124,37 @@ const MyAgreements = () => {
   const handleAcceptAndPay = async (tenancyId: string) => {
     setPayingTax(tenancyId);
     try {
-      // Mark as accepted but pending payment
-      await supabase.from("tenancies").update({
-        tenant_accepted: true,
-        status: digitalSignaturesEnabled ? "pending" : "active",
-      }).eq("id", tenancyId);
-
       if (digitalSignaturesEnabled) {
+        // Check if rent tax has been paid before allowing signing
+        const { data: payments } = await supabase
+          .from("rent_payments")
+          .select("id, status")
+          .eq("tenancy_id", tenancyId)
+          .eq("status", "confirmed")
+          .limit(1);
+
+        if (!payments || payments.length === 0) {
+          toast.error("You must pay rent tax before signing the agreement. Go to Payments to pay your first month's tax.");
+          setPayingTax(null);
+          return;
+        }
+
+        // Mark as accepted
+        await supabase.from("tenancies").update({
+          tenant_accepted: true,
+          status: "pending",
+        }).eq("id", tenancyId);
+
         // Move to signing step
         setPayingTax(null);
         setSigningTenancyId(tenancyId);
         setTenancies(prev => prev.map(t => t.id === tenancyId ? { ...t, tenant_accepted: true } : t));
       } else {
         // Legacy: just accept
+        await supabase.from("tenancies").update({
+          tenant_accepted: true,
+          status: "active",
+        }).eq("id", tenancyId);
         setTenancies(prev => prev.map(t => t.id === tenancyId ? { ...t, tenant_accepted: true, status: "active" } : t));
         toast.success("Agreement accepted! Pay the 8% tax to validate your tenancy.");
         setPayingTax(null);

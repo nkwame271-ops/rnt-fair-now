@@ -44,6 +44,7 @@ export interface AgreementPdfData {
   tenantSignature?: SignatureData;
   serialCode?: string;
   version?: number;
+  rentCardSerials?: { landlord?: string; tenant?: string };
 }
 
 const DEFAULT_TERMS = [
@@ -238,6 +239,28 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
       y += 7;
       checkPage(10);
     });
+  }
+
+  // Rent Card Serials
+  if (data.rentCardSerials && (data.rentCardSerials.landlord || data.rentCardSerials.tenant)) {
+    y += 5;
+    checkPage(30);
+    line(y);
+    y += 10;
+    left("RENT CARDS ASSIGNED TO THIS TENANCY", y, 13, "bold");
+    y += 10;
+    if (data.rentCardSerials.landlord) {
+      left("Rent Card (Landlord Copy):", y, 10, "bold");
+      doc.setFont("helvetica", "normal");
+      doc.text(data.rentCardSerials.landlord, 85, y);
+      y += 7;
+    }
+    if (data.rentCardSerials.tenant) {
+      left("Rent Card (Tenant Copy):", y, 10, "bold");
+      doc.setFont("helvetica", "normal");
+      doc.text(data.rentCardSerials.tenant, 85, y);
+      y += 7;
+    }
   }
 
   // Signatures section

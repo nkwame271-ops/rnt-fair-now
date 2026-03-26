@@ -61,6 +61,13 @@ const DEFAULT_SPLIT_RULES: Record<string, { total: number; splits: { recipient: 
     total: 5,
     splits: [{ recipient: "platform", amount: 5, description: "Termination request fee" }],
   },
+  archive_search_fee: {
+    total: 20,
+    splits: [
+      { recipient: "rent_control", amount: 12, description: "Rent Control - Archive Search" },
+      { recipient: "admin", amount: 8, description: "Admin - Archive Search" },
+    ],
+  },
 };
 
 // Calculate registration splits with platform fee isolation

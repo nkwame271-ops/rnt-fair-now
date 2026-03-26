@@ -6,6 +6,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { generateAgreementPdf } from "@/lib/generateAgreementPdf";
 
 interface Props {
   open: boolean;
@@ -13,6 +14,68 @@ interface Props {
   tenancyId: string;
   onSigned: () => void;
 }
+
+const generateAndUploadFinalPdf = async (tenancyId: string, userId: string) => {
+  try {
+    // Fetch full tenancy data for PDF generation
+    const { data: tenancy } = await supabase.from("tenancies").select("*, unit:units(unit_name, unit_type, property_id)").eq("id", tenancyId).single();
+    if (!tenancy) return;
+
+    const t = tenancy as any;
+    const { data: prop } = await supabase.from("properties").select("property_name, address, region").eq("id", t.unit.property_id).single();
+    const { data: tenantProfile } = await supabase.from("profiles").select("full_name").eq("user_id", t.tenant_user_id).single();
+    const { data: landlordProfile } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
+    const { data: tenantRec } = await supabase.from("tenants").select("tenant_id").eq("user_id", t.tenant_user_id).single();
+
+    // Fetch rent card serials
+    let rentCardSerials: { landlord?: string; tenant?: string } = {};
+    if (t.rent_card_id || t.rent_card_id_2) {
+      const cardIds = [t.rent_card_id, t.rent_card_id_2].filter(Boolean);
+      const { data: cards } = await supabase.from("rent_cards").select("id, serial_number, card_role").in("id", cardIds);
+      if (cards) {
+        for (const c of cards) {
+          if (c.card_role === "landlord" || c.id === t.rent_card_id) rentCardSerials.landlord = c.serial_number || undefined;
+          if (c.card_role === "tenant" || c.id === t.rent_card_id_2) rentCardSerials.tenant = c.serial_number || undefined;
+        }
+      }
+    }
+
+    const doc = await generateAgreementPdf({
+      registrationCode: t.registration_code,
+      landlordName: landlordProfile?.full_name || "Unknown",
+      tenantName: tenantProfile?.full_name || "Unknown",
+      tenantId: tenantRec?.tenant_id || t.tenant_id_code,
+      propertyName: prop?.property_name || "Property",
+      propertyAddress: prop?.address || "",
+      unitName: t.unit.unit_name,
+      unitType: t.unit.unit_type,
+      monthlyRent: t.agreed_rent,
+      advanceMonths: t.advance_months,
+      startDate: t.start_date,
+      endDate: t.end_date,
+      region: prop?.region || "",
+      landlordSignature: t.landlord_signed_at ? { name: landlordProfile?.full_name || "Landlord", signedAt: t.landlord_signed_at, method: "Digital (Auto)" } : undefined,
+      tenantSignature: { name: tenantProfile?.full_name || "Tenant", signedAt: new Date().toISOString(), method: "Digital" },
+      version: 2,
+      rentCardSerials: (rentCardSerials.landlord || rentCardSerials.tenant) ? rentCardSerials : undefined,
+    });
+
+    // Convert to blob and upload
+    const pdfBlob = doc.output("blob");
+    const storagePath = `agreements/${tenancyId}/final_v2_${Date.now()}.pdf`;
+    const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(storagePath, pdfBlob, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+
+    if (!uploadErr) {
+      const { data: { publicUrl } } = supabase.storage.from("application-evidence").getPublicUrl(storagePath);
+      await supabase.from("tenancies").update({ final_agreement_pdf_url: publicUrl }).eq("id", tenancyId);
+    }
+  } catch (err) {
+    console.error("Failed to generate/upload final PDF:", err);
+  }
+};
 
 const DigitalSignatureDialog = ({ open, onOpenChange, tenancyId, onSigned }: Props) => {
   const { user } = useAuth();
@@ -79,6 +142,9 @@ const DigitalSignatureDialog = ({ open, onOpenChange, tenancyId, onSigned }: Pro
         status: "active",
         tenant_accepted: true,
       }).eq("id", tenancyId);
+
+      // Generate and upload final signed PDF
+      await generateAndUploadFinalPdf(tenancyId, user.id);
 
       setStep("done");
       toast.success("Agreement signed successfully!");
@@ -149,6 +215,9 @@ const DigitalSignatureDialog = ({ open, onOpenChange, tenancyId, onSigned }: Pro
         status: "active",
         tenant_accepted: true,
       }).eq("id", tenancyId);
+
+      // Generate and upload final signed PDF
+      await generateAndUploadFinalPdf(tenancyId, user.id);
 
       setStep("done");
       toast.success("Agreement signed with passkey!");

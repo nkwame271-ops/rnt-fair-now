@@ -29,6 +29,7 @@ interface TenancyView {
   unitType: string;
   propertyName: string;
   customFieldValues: Record<string, string>;
+  final_agreement_pdf_url: string | null;
   payments: {
     id: string;
     month_label: string;
@@ -84,6 +85,7 @@ const Agreements = () => {
           unitType: t.unit.unit_type,
           propertyName: prop?.property_name || "Property",
           customFieldValues: (t as any).custom_field_values || {},
+          final_agreement_pdf_url: t.final_agreement_pdf_url || null,
           payments: (payments || []) as any[],
         });
       }
@@ -173,11 +175,20 @@ const Agreements = () => {
                       </div>
                     )}
                   </div>
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                    t.status === "active" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
-                  }`}>
-                    {t.status === "active" ? "Active" : t.tenant_accepted ? "Accepted" : "Pending Acceptance"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {t.final_agreement_pdf_url && (
+                      <a href={t.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="default" className="text-xs">
+                          <FileCheck className="h-3 w-3 mr-1" /> Signed Copy
+                        </Button>
+                      </a>
+                    )}
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                      t.status === "active" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                    }`}>
+                      {t.status === "active" ? "Active" : t.tenant_accepted ? "Accepted" : "Pending Acceptance"}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Payments awaiting confirmation */}
