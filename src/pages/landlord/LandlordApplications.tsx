@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ClipboardList, Plus, Loader2, Mic, MicOff, Upload, X, Image, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { ClipboardList, Plus, Loader2, Mic, MicOff, Upload, X, Image, Clock, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,11 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 
 const applicationTypes = [
   { value: "rent_increase", label: "Rent Increase Request" },
   { value: "tenant_ejection", label: "Tenant Ejection Request" },
   { value: "regulatory_request", label: "Regulatory Request" },
+  { value: "archive_search", label: "Archive Search" },
   { value: "other", label: "Other" },
 ];
 
@@ -92,8 +94,40 @@ const LandlordApplications = () => {
     setImages([]); setAudioBlob(null);
   };
 
+  const { amount: archiveFee, enabled: archiveFeeEnabled } = useFeeConfig("archive_search_fee");
+
   const handleSubmit = async () => {
     if (!user) return;
+
+    // Archive search paywall
+    if (appType === "archive_search" && archiveFeeEnabled && archiveFee > 0) {
+      setSubmitting(true);
+      try {
+        // Save form data to sessionStorage for post-payment restoration
+        sessionStorage.setItem("archive_search_form", JSON.stringify({ subject, description }));
+
+        const { data, error } = await supabase.functions.invoke("paystack-checkout", {
+          body: {
+            type: "archive_search_fee",
+            userId: user.id,
+            email: user.email,
+            callbackUrl: window.location.href,
+          },
+        });
+        if (error) throw error;
+        if (data?.status === "skipped") {
+          // Fee is 0 or disabled, proceed directly
+        } else if (data?.authorization_url) {
+          window.location.href = data.authorization_url;
+          return;
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Payment initiation failed");
+        setSubmitting(false);
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       // Upload images
