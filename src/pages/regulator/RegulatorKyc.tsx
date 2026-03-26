@@ -137,6 +137,13 @@ const RegulatorKyc = () => {
     return <Badge variant="outline">AI: Unclear ({score}%)</Badge>;
   };
 
+  const niaBadge = (record: any) => {
+    if (record.nia_verified === true) return <Badge className="bg-success/10 text-success">NIA: Verified</Badge>;
+    if (record.nia_response?.stub) return <Badge variant="outline">NIA: Not Configured</Badge>;
+    if (record.nia_response) return <Badge variant="destructive">NIA: Failed</Badge>;
+    return null;
+  };
+
   const filtered = records.filter((r) => {
     if (!search) return true;
     const s = search.toLowerCase();
@@ -196,6 +203,7 @@ const RegulatorKyc = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     {aiMatchBadge(r.ai_match_result, r.ai_match_score)}
+                    {niaBadge(r)}
                     {statusBadge(r.status)}
                     <Button variant="outline" size="sm" onClick={() => { setSelectedRecord(r); setNotes(r.reviewer_notes || ""); generateSignedUrls(r); }}>
                       <Eye className="h-4 w-4 mr-1" /> Review
