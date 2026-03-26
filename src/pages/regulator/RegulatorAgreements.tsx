@@ -195,6 +195,13 @@ const RegulatorAgreements = () => {
                 </div>
               </div>
               <div className="flex gap-2 shrink-0">
+                {a.final_agreement_pdf_url && (
+                  <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="default">
+                      <Download className="h-3.5 w-3.5 mr-1" /> Final Signed
+                    </Button>
+                  </a>
+                )}
                 <Button size="sm" variant="outline" onClick={() => downloadPdf(a)}>
                   <Download className="h-3.5 w-3.5 mr-1" /> PDF
                 </Button>
