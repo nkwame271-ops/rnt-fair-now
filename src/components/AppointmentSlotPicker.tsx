@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { CalendarDays, Clock, CheckCircle2, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,19 +32,18 @@ const AppointmentSlotPicker = ({ complaintTable, userIdColumn }: Props) => {
   useEffect(() => {
     if (!user) return;
     const fetchSchedules = async () => {
-      // Get complaints with schedule_complainant status for this user
+      // Get ALL complaints for this user (not filtered by status)
       const { data: complaints } = await (supabase
         .from(complaintTable)
         .select("id, complaint_code") as any)
-        .eq(userIdColumn, user.id)
-        .eq("status", "schedule_complainant");
+        .eq(userIdColumn, user.id);
 
       if (!complaints || complaints.length === 0) {
         setLoading(false);
         return;
       }
 
-      const complaintIds = complaints.map(c => c.id);
+      const complaintIds = complaints.map((c: any) => c.id);
       const { data: schedulesData } = await supabase
         .from("complaint_schedules")
         .select("*")

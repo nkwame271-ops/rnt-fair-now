@@ -29,10 +29,11 @@ interface RevenueByType {
 }
 
 const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string }[] = [
-  { label: "Rent Card Sales", types: ["rent_card"], color: "bg-primary/10 border-primary/20 text-primary" },
+  { label: "Rent Card Sales", types: ["rent_card", "rent_card_bulk"], color: "bg-primary/10 border-primary/20 text-primary" },
   { label: "Registrations", types: ["tenant_registration", "landlord_registration", "tenant_registration_fee", "landlord_registration_fee"], color: "bg-info/10 border-info/20 text-info" },
   { label: "Quit Notices / Ejection", types: ["termination_fee"], color: "bg-destructive/10 border-destructive/20 text-destructive" },
   { label: "Tenancy Agreement Fee", types: ["agreement_sale", "add_tenant_fee"], color: "bg-success/10 border-success/20 text-success" },
+  { label: "Rent Tax", types: ["rent_tax", "rent_tax_bulk"], color: "bg-accent/10 border-accent/20 text-accent-foreground" },
   { label: "Other", types: ["complaint_fee", "listing_fee", "viewing_fee", "archive_search_fee"], color: "bg-muted border-border text-muted-foreground" },
 ];
 
