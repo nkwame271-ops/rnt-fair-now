@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { FileCheck, CheckCircle2, Info, Loader2, XCircle, Clock, TrendingUp } from "lucide-react";
+import { FileCheck, CheckCircle2, Info, Loader2, XCircle, Clock, TrendingUp, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

@@ -158,20 +158,48 @@ const MyAgreements = () => {
     }
   };
 
+  const verifyPayment = async (tenancyId: string): Promise<boolean> => {
+    // Check rent_payments for tenant_paid or confirmed
+    const { data: payments } = await supabase
+      .from("rent_payments")
+      .select("id, status")
+      .eq("tenancy_id", tenancyId)
+      .in("status", ["confirmed", "tenant_paid"])
+      .limit(1);
+    if (payments && payments.length > 0) return true;
+
+    // Fallback: check escrow_transactions for completed rent_tax_bulk
+    const { data: escrow } = await supabase
+      .from("escrow_transactions")
+      .select("id, status")
+      .eq("related_tenancy_id", tenancyId)
+      .eq("payment_type", "rent_tax_bulk")
+      .eq("status", "completed")
+      .limit(1);
+    if (escrow && escrow.length > 0) return true;
+
+    return false;
+  };
+
   const handleAcceptAndPay = async (tenancyId: string) => {
     setPayingTax(tenancyId);
     try {
       if (digitalSignaturesEnabled) {
-        // Check if rent tax has been paid before allowing signing
-        const { data: payments } = await supabase
-          .from("rent_payments")
-          .select("id, status")
-          .eq("tenancy_id", tenancyId)
-          .in("status", ["confirmed", "tenant_paid"])
-          .limit(1);
+        // Check if rent tax has been paid, with polling retry for webhook delay
+        let paid = await verifyPayment(tenancyId);
 
-        if (!payments || payments.length === 0) {
-          toast.error("You must pay rent tax before signing the agreement. Go to Payments to pay your first month's tax.");
+        if (!paid) {
+          // Poll up to 5 times with 3s interval
+          toast.info("Verifying payment... please wait.");
+          for (let i = 0; i < 5; i++) {
+            await new Promise(r => setTimeout(r, 3000));
+            paid = await verifyPayment(tenancyId);
+            if (paid) break;
+          }
+        }
+
+        if (!paid) {
+          toast.error("Payment not yet confirmed. Please go to Payments to pay your first month's tax, then return here.");
           setPayingTax(null);
           return;
         }
