@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
       const { tenancyId } = body;
       if (!tenancyId) throw new Error("tenancyId is required");
 
-      const { data: tenancy, error: tErr } = await supabase
+      const { data: tenancy, error: tErr } = await supabaseAdmin
         .from("tenancies")
         .select("id, tenant_user_id, registration_code, advance_months, agreed_rent, unit_id")
         .eq("id", tenancyId)
@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
 
       const maxLawful = Number((tenancy as any).agreed_rent) * 6;
 
-      const { data: unpaidPayments, error: pErr } = await supabase
+      const { data: unpaidPayments, error: pErr } = await supabaseAdmin
         .from("rent_payments")
         .select("id, tax_amount, tenant_marked_paid")
         .eq("tenancy_id", tenancyId)
@@ -298,7 +298,7 @@ Deno.serve(async (req) => {
       const { paymentId } = body;
       if (!paymentId) throw new Error("paymentId is required");
 
-      const { data: payment, error: payErr } = await supabase
+      const { data: payment, error: payErr } = await supabaseAdmin
         .from("rent_payments")
         .select("*, tenancy:tenancies(tenant_user_id, registration_code, unit_id)")
         .eq("id", paymentId)
@@ -623,6 +623,18 @@ Deno.serve(async (req) => {
       reference = `renew_${tenancyId}_${Date.now()}`;
       callbackPath = "/tenant/renewal?status=success";
       relatedTenancyId = tenancyId;
+
+    } else if (type === "archive_search_fee") {
+      officeId = await resolveOffice(supabaseAdmin, { userId });
+      caseType = "archive_search";
+
+      const fee = await getDynamicFee(supabaseAdmin, "archive_search_fee");
+      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Archive search fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      totalAmount = fee.total;
+      splitPlan = fee.splits;
+      description = `Archive Search Fee (GH₵ ${fee.total})`;
+      reference = `archsearch_${userId}_${Date.now()}`;
+      callbackPath = "/landlord/applications?status=success";
 
     } else {
       throw new Error("Invalid payment type");
