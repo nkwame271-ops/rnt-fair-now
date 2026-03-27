@@ -359,10 +359,17 @@ const RegulatorProperties = () => {
                       <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
                       <TableCell className="font-medium">
                         {p.property_name || "—"}
-                        {pStatus === "pending_identity_review" && (
-                          <Badge variant="outline" className="ml-1 text-[10px] bg-orange-100 text-orange-700 border-orange-200 gap-0.5">
-                            <AlertTriangle className="h-2.5 w-2.5" /> Duplicate Risk
-                          </Badge>
+                        {(pStatus === "pending_identity_review" || (p as any).duplicate_of_property_id) && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Badge variant="outline" className="text-[10px] bg-orange-100 text-orange-700 border-orange-200 gap-0.5">
+                              <AlertTriangle className="h-2.5 w-2.5" /> Duplicate Risk
+                            </Badge>
+                            {(p as any).duplicate_old_rent && (
+                              <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground border-border">
+                                Old Rent: GH₵ {Number((p as any).duplicate_old_rent).toLocaleString()}
+                              </Badge>
+                            )}
+                          </div>
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
