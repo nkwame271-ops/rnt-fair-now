@@ -145,7 +145,10 @@ const RegulatorProperties = () => {
     setApproving(false);
   };
 
+  const [statusFilter, setStatusFilter] = useState("all");
+
   const filtered = properties.filter((p) => {
+    if (statusFilter !== "all" && (p.property_status || "pending_assessment") !== statusFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return p.property_name?.toLowerCase().includes(s) || p.address?.toLowerCase().includes(s) || p.region?.toLowerCase().includes(s) || p.property_code?.toLowerCase().includes(s);
@@ -310,9 +313,25 @@ const RegulatorProperties = () => {
         </div>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search by name, code, or region..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="flex gap-3 items-center flex-wrap">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search by name, code, or region..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All Statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses ({properties.length})</SelectItem>
+            {Object.entries(statusLabels).map(([key, label]) => {
+              const count = properties.filter(p => (p.property_status || "pending_assessment") === key).length;
+              return count > 0 ? (
+                <SelectItem key={key} value={key}>{label} ({count})</SelectItem>
+              ) : null;
+            })}
+          </SelectContent>
+        </Select>
       </div>
 
       {view === "map" ? (

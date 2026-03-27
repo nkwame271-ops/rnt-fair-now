@@ -111,7 +111,44 @@ const MyAgreements = () => {
   const handleReject = async (tenancyId: string) => {
     setRejecting(tenancyId);
     try {
+      // Update tenancy status
       await supabase.from("tenancies").update({ status: "rejected", tenant_accepted: false } as any).eq("id", tenancyId);
+
+      // Get the tenancy's unit_id and property_id to cascade updates
+      const tenancy = tenancies.find(t => t.id === tenancyId);
+      if (tenancy) {
+        const { data: tenancyData } = await supabase
+          .from("tenancies")
+          .select("unit_id, unit:units(property_id)")
+          .eq("id", tenancyId)
+          .single();
+
+        if (tenancyData) {
+          const unitId = tenancyData.unit_id;
+          const propertyId = (tenancyData as any).unit?.property_id;
+
+          // Reset unit to vacant
+          await supabase.from("units").update({ status: "vacant" }).eq("id", unitId);
+
+          if (propertyId) {
+            // Check if any other units are still occupied
+            const { data: occupiedUnits } = await supabase
+              .from("units")
+              .select("id")
+              .eq("property_id", propertyId)
+              .eq("status", "occupied");
+
+            // If no occupied units remain, set property back to live
+            if (!occupiedUnits || occupiedUnits.length === 0) {
+              await supabase.from("properties").update({
+                property_status: "live",
+                listed_on_marketplace: true,
+              } as any).eq("id", propertyId);
+            }
+          }
+        }
+      }
+
       setTenancies(prev => prev.map(t => t.id === tenancyId ? { ...t, status: "rejected", tenant_accepted: false } : t));
       toast.success("Agreement rejected. Your landlord has been notified.");
     } catch (err: any) {
