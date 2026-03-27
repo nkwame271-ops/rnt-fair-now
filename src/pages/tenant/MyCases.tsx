@@ -41,6 +41,7 @@ const MyCases = () => {
   const [complaints, setComplaints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
 
   const fetchComplaints = async () => {
     if (!user) return;
@@ -50,6 +51,22 @@ const MyCases = () => {
       .eq("tenant_user_id", user.id)
       .order("created_at", { ascending: false });
     setComplaints(data || []);
+
+    // Fetch schedules for all complaints
+    if (data && data.length > 0) {
+      const ids = data.map((c: any) => c.id);
+      const { data: schedules } = await supabase
+        .from("complaint_schedules")
+        .select("*")
+        .in("complaint_id", ids)
+        .in("status", ["pending_selection", "confirmed"]);
+      if (schedules) {
+        const map: Record<string, any> = {};
+        schedules.forEach((s: any) => { map[s.complaint_id] = s; });
+        setScheduleMap(map);
+      }
+    }
+
     setLoading(false);
   };
 
@@ -68,10 +85,8 @@ const MyCases = () => {
           }
         } catch (_) {}
         setSearchParams({}, { replace: true });
-        // Delay fetch to let status update propagate
         await new Promise((r) => setTimeout(r, 1500));
         await fetchComplaints();
-        // Safety net re-fetch
         setTimeout(() => fetchComplaints(), 3000);
       };
       verifyPayment();
@@ -123,6 +138,27 @@ const MyCases = () => {
                 <div>Filed: <span className="text-card-foreground font-medium">{new Date(c.created_at).toLocaleDateString()}</span></div>
                 <div>Updated: <span className="text-card-foreground font-medium">{new Date(c.updated_at).toLocaleDateString()}</span></div>
               </div>
+
+              {/* Appointment info */}
+              {scheduleMap[c.id] && (
+                <div className="mt-3 bg-primary/5 border border-primary/20 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <CalendarDays className="h-4 w-4 text-primary" /> Appointment
+                  </div>
+                  {scheduleMap[c.id].status === "confirmed" && scheduleMap[c.id].selected_slot ? (
+                    <div className="text-sm mt-1">
+                      <span className="font-medium text-foreground">
+                        {new Date(scheduleMap[c.id].selected_slot.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                      </span>{" "}
+                      <span className="text-muted-foreground">{scheduleMap[c.id].selected_slot.time_start} — {scheduleMap[c.id].selected_slot.time_end}</span>
+                      <span className="ml-2 text-xs font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full">Confirmed</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm mt-1 text-warning font-medium">Awaiting your slot selection (check above)</div>
+                  )}
+                </div>
+              )}
+
               <p className="text-sm text-muted-foreground mt-3 border-t border-border pt-3">{c.description}</p>
             </div>
           ))}
