@@ -1,48 +1,35 @@
 
 
-# Fixes: Payment Processing, Platform Revenue, Duplicate Comparison, Status Filters, Rejection Flow
+# Fixes: Payment Flow, Rejection Cascade, Archive Search Fee
 
-## 1. Payment "keeps asking to pay again" after successful payment
+## 1. Payment "keeps asking to pay again" — Unable to Sign Agreement
 
-**Root cause**: `MyAgreements.tsx` line 170 checks `eq("status", "confirmed")` — but the webhook only sets status to `"tenant_paid"`. The payment is never `"confirmed"` until the **landlord** confirms it. So the tenant can never proceed to sign.
+**Root cause**: The flow is: tenant pays on Payments page → webhook updates `rent_payments` to `tenant_paid` → tenant goes to MyAgreements → clicks "Accept & Sign" → system checks for `tenant_paid` payments. The problem is a **timing issue** — the Paystack webhook may not have processed by the time the user clicks "Accept & Sign". Additionally, there's no feedback loop between the Payments page and MyAgreements.
 
-**Fix**: Change `MyAgreements.tsx` `handleAcceptAndPay` to also accept `tenant_paid` status as valid proof of payment:
-```
-.in("status", ["confirmed", "tenant_paid"])
-```
-This allows signing once payment is verified by Paystack, without waiting for landlord confirmation.
+**Fix** (two-part):
+1. In `MyAgreements.tsx` `handleAcceptAndPay`: Instead of only checking `rent_payments` status, **also check `escrow_transactions`** for a completed `rent_tax_bulk` transaction for this tenancy. If either source shows payment, allow signing.
+2. Add a **retry mechanism with polling**: When the payment check fails, show a "Verifying payment..." state that polls every 3 seconds (up to 5 attempts) before showing the error. This handles the webhook delay gracefully.
+3. After the Payments page callback redirect (`?status=success`), also set a `sessionStorage` flag. In MyAgreements, if this flag exists, automatically trigger the verification polling.
 
-## 2. Archive Search Fee in Engine Room
+**Files**: `src/pages/tenant/MyAgreements.tsx`
 
-The `archive_search_fee` feature flag was inserted in a previous migration. The Engine Room already dynamically renders all flags from `feature_flags` table with `category = 'fees'`. Need to verify the insert actually persisted. If not, re-insert via the insert tool.
+---
 
-## 3. Remove "Platform Revenue" visibility from Escrow Dashboard
+## 2. Tenant Rejection → Remove from Landlord Agreements
 
-**Current**: `EscrowDashboard.tsx` line 158 already hides Platform for non-main admins. But the user wants it completely removed from this dashboard view.
+**Current state**: The rejection cascade (unit → vacant, property → live) is already implemented. The landlord Agreements page already shows "Rejected" badge. However, the user wants rejected agreements **removed** from the landlord view (not just badged).
 
-**Fix**: Remove the Platform allocation card entirely from the `allocationCards` array in `EscrowDashboard.tsx`. Platform revenue tracking stays in the system (escrow_splits still record it) but is not shown on this page. For CFLECD-only access, suggest a separate `/regulator/platform-revenue` page gated behind `isMainAdmin`.
+**Fix**: In `src/pages/landlord/Agreements.tsx`, filter out `rejected` tenancies from the main display, or move them to a collapsible "Rejected" section so they don't clutter the active view. The cascading updates to unit/property status are already working.
 
-## 4. Duplicate Property — Comparison Button (persistent)
+**Files**: `src/pages/landlord/Agreements.tsx`
 
-**Current**: The duplicate tag shows with old rent, but there's no comparison view. The "Clear" button on line 438 allows removing the `pending_identity_review` status.
+---
 
-**Fix**:
-- Add a "Compare" button next to duplicate-flagged properties that opens a dialog showing the **original property details** (fetched by `duplicate_of_property_id`) side-by-side with the new one, including unit rents
-- The "Compare" button appears whenever `duplicate_of_property_id` is set — regardless of status changes
-- Remove the "Clear" button's ability to erase duplicate data (keep `duplicate_of_property_id` and `duplicate_old_rent` columns untouched)
+## 3. Archive Search Fee — Changeable in Engine Room
 
-## 5. Property Status Filter Menus
+**Current state**: The `archive_search_fee` feature flag was inserted in a previous migration with `category = 'fees'`. The Engine Room page dynamically renders all flags from the `feature_flags` table. This should already work — verify the flag exists with correct category, and if not, insert it.
 
-**Already implemented** in previous changes (line 321-334). The status filter dropdown with counts is present. No changes needed here.
-
-## 6. Tenant Rejection → Cascading Updates
-
-**Already implemented** in previous changes (line 111-158 of `MyAgreements.tsx`). The `handleReject` function already:
-- Updates tenancy to `rejected`
-- Resets unit to `vacant`
-- Sets property back to `live` + `listed_on_marketplace: true` if no other occupied units
-
-The landlord `Agreements.tsx` already shows "Rejected" badge (line 188). No changes needed here.
+**Action**: Verify via database query. If missing, insert using the insert tool.
 
 ---
 
@@ -50,7 +37,7 @@ The landlord `Agreements.tsx` already shows "Rejected" badge (line 188). No chan
 
 | File | Change |
 |---|---|
-| `src/pages/tenant/MyAgreements.tsx` | Accept `tenant_paid` status as valid for signing |
-| `src/pages/regulator/EscrowDashboard.tsx` | Remove Platform card entirely from allocation display |
-| `src/pages/regulator/RegulatorProperties.tsx` | Add "Compare" dialog for duplicate properties; keep duplicate tag permanent |
+| `src/pages/tenant/MyAgreements.tsx` | Add escrow_transactions fallback check + polling retry for payment verification |
+| `src/pages/landlord/Agreements.tsx` | Filter rejected tenancies into a separate collapsed section |
+| Database (verify/insert) | Ensure `archive_search_fee` flag exists with `category = 'fees'` |
 
