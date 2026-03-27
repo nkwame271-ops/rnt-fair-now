@@ -48,7 +48,6 @@ Deno.serve(async (req) => {
         const [lat2, lng2] = prop.gps_location.split(",").map((s: string) => parseFloat(s.trim()));
         if (!isNaN(lat1) && !isNaN(lng1) && !isNaN(lat2) && !isNaN(lng2)) {
           const dist = Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(lng1 - lng2, 2));
-          // ~0.0001 degrees ≈ 11m
           if (dist < 0.0002) score += 30;
           else if (dist < 0.001) score += 20;
           else if (dist < 0.005) score += 10;
@@ -69,7 +68,6 @@ Deno.serve(async (req) => {
         if (normalized_address === prop.normalized_address) {
           score += 25;
         } else {
-          // Simple substring match
           const shorter = normalized_address.length < prop.normalized_address.length ? normalized_address : prop.normalized_address;
           const longer = normalized_address.length >= prop.normalized_address.length ? normalized_address : prop.normalized_address;
           if (longer.includes(shorter) && shorter.length > 10) score += 15;
@@ -98,11 +96,26 @@ Deno.serve(async (req) => {
     if (bestMatch.score >= 80) match = "high";
     else if (bestMatch.score >= 50) match = "medium";
 
+    // Fetch old rent from matched property's units
+    let existingRent: number | null = null;
+    if (match !== "low" && bestMatch.id) {
+      const { data: units } = await supabaseAdmin
+        .from("units")
+        .select("monthly_rent")
+        .eq("property_id", bestMatch.id)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      if (units && units.length > 0) {
+        existingRent = Number(units[0].monthly_rent);
+      }
+    }
+
     return new Response(JSON.stringify({
       match,
       confidence: bestMatch.score,
       existingPropertyId: match !== "low" ? bestMatch.id : undefined,
       propertyStatus: match !== "low" ? existing.find(p => p.id === bestMatch.id)?.property_status : undefined,
+      existingRent: match !== "low" ? existingRent : undefined,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

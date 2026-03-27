@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { CreditCard, CheckCircle2, Clock, Info, Wallet, FileText, Shield, Loader2, AlertTriangle } from "lucide-react";
+import { CreditCard, CheckCircle2, Clock, Info, Wallet, FileText, Shield, Loader2, AlertTriangle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,66 +33,68 @@ interface Tenancy {
 
 const Payments = () => {
   const { user } = useAuth();
-  const [tenancy, setTenancy] = useState<Tenancy | null>(null);
+  const [tenancies, setTenancies] = useState<Tenancy[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    const fetch = async () => {
-      const { data: tenancies } = await supabase
+    const fetchAll = async () => {
+      const { data: rawTenancies } = await supabase
         .from("tenancies")
         .select("*, unit:units(unit_name, unit_type, property_id)")
         .eq("tenant_user_id", user.id)
         .in("status", ["active", "pending"])
-        .order("created_at", { ascending: false })
-        .limit(1);
+        .order("created_at", { ascending: false });
 
-      if (!tenancies || tenancies.length === 0) { setLoading(false); return; }
-      const t = tenancies[0] as any;
+      if (!rawTenancies || rawTenancies.length === 0) { setLoading(false); return; }
 
-      const { data: prop } = await supabase.from("properties").select("property_name, address").eq("id", t.unit.property_id).single();
-      const { data: landlordProfile } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
+      const built: Tenancy[] = [];
+      for (const t of rawTenancies as any[]) {
+        const { data: prop } = await supabase.from("properties").select("property_name, address").eq("id", t.unit.property_id).single();
+        const { data: landlordProfile } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
+        const { data: payments } = await supabase
+          .from("rent_payments")
+          .select("*")
+          .eq("tenancy_id", t.id)
+          .order("due_date", { ascending: true });
 
-      const { data: payments } = await supabase
-        .from("rent_payments")
-        .select("*")
-        .eq("tenancy_id", t.id)
-        .order("due_date", { ascending: true });
-
-      setTenancy({
-        ...t,
-        property: prop || { property_name: null, address: "" },
-        landlordName: landlordProfile?.full_name || "Unknown",
-        payments: (payments || []) as Payment[],
-      });
+        built.push({
+          ...t,
+          property: prop || { property_name: null, address: "" },
+          landlordName: landlordProfile?.full_name || "Unknown",
+          payments: (payments || []) as Payment[],
+        });
+      }
+      setTenancies(built);
       setLoading(false);
     };
-    fetch();
+    fetchAll();
   }, [user]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("status") === "success") {
-      toast.success("Payment processing! It may take a moment to confirm.");
+      toast.success("Payment received! It may take a moment to confirm.");
       window.history.replaceState({}, "", window.location.pathname);
+      // Auto-refresh after delays
+      const t1 = setTimeout(() => window.location.reload(), 4000);
+      return () => clearTimeout(t1);
     } else if (params.get("status") === "cancelled") {
       toast.error("Payment was cancelled.");
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
 
-  const handlePayBulkTax = async () => {
-    if (!tenancy) return;
+  const handlePayBulkTax = async (tenancyId: string) => {
     setPaying(true);
     try {
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
-        body: { type: "rent_tax_bulk", tenancyId: tenancy.id },
+        body: { type: "rent_tax_bulk", tenancyId },
       });
-
       if (error) throw new Error(error.message || "Payment initiation failed");
       if (data?.error) throw new Error(data.error);
-
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
@@ -106,7 +108,7 @@ const Payments = () => {
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
-  if (!tenancy) return (
+  if (tenancies.length === 0) return (
     <div className="max-w-4xl mx-auto py-20 text-center">
       <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
       <h2 className="text-xl font-bold text-foreground">No active tenancy</h2>
@@ -114,6 +116,7 @@ const Payments = () => {
     </div>
   );
 
+  const tenancy = tenancies[selectedIdx];
   const isPaid = (p: Payment) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed";
   const paidCount = tenancy.payments.filter(p => isPaid(p)).length;
   const totalMonths = tenancy.payments.length;
@@ -123,12 +126,9 @@ const Payments = () => {
   const totalArrears = overduePayments.reduce((sum, p) => sum + p.tax_amount, 0);
   const isOverdue = (p: Payment) => !isPaid(p) && new Date(p.due_date) < today;
 
-  // Advance rent aggregation
   const advanceMonths = tenancy.advance_months;
   const advancePayments = tenancy.payments.slice(0, advanceMonths);
   const totalAdvanceRent = advancePayments.reduce((sum, p) => sum + p.monthly_rent, 0);
-  const totalAdvanceTax = advancePayments.reduce((sum, p) => sum + p.tax_amount, 0);
-  const totalAdvanceToLandlord = advancePayments.reduce((sum, p) => sum + p.amount_to_landlord, 0);
   const advancePaidCount = advancePayments.filter(p => isPaid(p)).length;
   const unpaidAdvanceTax = advancePayments.filter(p => !isPaid(p)).reduce((sum, p) => sum + p.tax_amount, 0);
   const allAdvancePaid = advancePaidCount === advanceMonths;
@@ -139,6 +139,28 @@ const Payments = () => {
         <h1 className="text-3xl font-bold text-foreground">Pay Rent</h1>
         <p className="text-muted-foreground mt-1">Validate your tenancy by paying the 8% rent tax through Rent Control</p>
       </div>
+
+      {/* Tenancy selector when multiple */}
+      {tenancies.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {tenancies.map((t, i) => {
+            const tUnpaid = t.payments.slice(0, t.advance_months).filter(p => !(p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed")).length;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setSelectedIdx(i)}
+                className={`text-left rounded-lg border p-3 text-sm transition-all ${i === selectedIdx ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/30"}`}
+              >
+                <div className="font-semibold text-card-foreground">{t.property.property_name || t.unit.unit_name}</div>
+                <div className="text-xs text-muted-foreground">{t.registration_code}</div>
+                {tUnpaid > 0 && (
+                  <span className="text-xs font-medium text-warning mt-1 block">{tUnpaid} unpaid month(s)</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Agreement Overview */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-elevated border border-border">
@@ -208,7 +230,7 @@ const Payments = () => {
               </div>
             )}
           </div>
-          <Button className="w-full" size="lg" onClick={handlePayBulkTax} disabled={paying}>
+          <Button className="w-full" size="lg" onClick={() => handlePayBulkTax(tenancy.id)} disabled={paying}>
             <CreditCard className="h-4 w-4 mr-2" />
             {paying ? "Redirecting..." : `Pay GH₵ ${unpaidAdvanceTax.toLocaleString()} Online`}
           </Button>

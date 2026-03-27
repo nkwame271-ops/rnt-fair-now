@@ -359,10 +359,17 @@ const RegulatorProperties = () => {
                       <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
                       <TableCell className="font-medium">
                         {p.property_name || "—"}
-                        {pStatus === "pending_identity_review" && (
-                          <Badge variant="outline" className="ml-1 text-[10px] bg-orange-100 text-orange-700 border-orange-200 gap-0.5">
-                            <AlertTriangle className="h-2.5 w-2.5" /> Duplicate Risk
-                          </Badge>
+                        {(pStatus === "pending_identity_review" || (p as any).duplicate_of_property_id) && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Badge variant="outline" className="text-[10px] bg-orange-100 text-orange-700 border-orange-200 gap-0.5">
+                              <AlertTriangle className="h-2.5 w-2.5" /> Duplicate Risk
+                            </Badge>
+                            {(p as any).duplicate_old_rent && (
+                              <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground border-border">
+                                Old Rent: GH₵ {Number((p as any).duplicate_old_rent).toLocaleString()}
+                              </Badge>
+                            )}
+                          </div>
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
@@ -480,6 +487,18 @@ const RegulatorProperties = () => {
                   </div>
                   {(detailProperty as any).approved_rent && (
                     <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold text-success">GH₵ {Number((detailProperty as any).approved_rent).toLocaleString()}</span></div>
+                  )}
+                  {(detailProperty as any).duplicate_of_property_id && (
+                    <div className="col-span-2 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-orange-700">
+                        <AlertTriangle className="h-4 w-4" /> Duplicate Property Detected
+                      </div>
+                      {(detailProperty as any).duplicate_old_rent && (
+                        <div className="text-sm mt-1 text-orange-600">
+                          Previous listing rent: <span className="font-bold">GH₵ {Number((detailProperty as any).duplicate_old_rent).toLocaleString()}/mo</span>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 

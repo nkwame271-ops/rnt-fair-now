@@ -1047,6 +1047,8 @@ export type Database = {
           assessment_status: string
           bathroom_count: number | null
           created_at: string
+          duplicate_of_property_id: string | null
+          duplicate_old_rent: number | null
           furnishing_status: string | null
           ghana_post_gps: string | null
           gps_confirmed: boolean
@@ -1086,6 +1088,8 @@ export type Database = {
           assessment_status?: string
           bathroom_count?: number | null
           created_at?: string
+          duplicate_of_property_id?: string | null
+          duplicate_old_rent?: number | null
           furnishing_status?: string | null
           ghana_post_gps?: string | null
           gps_confirmed?: boolean
@@ -1125,6 +1129,8 @@ export type Database = {
           assessment_status?: string
           bathroom_count?: number | null
           created_at?: string
+          duplicate_of_property_id?: string | null
+          duplicate_old_rent?: number | null
           furnishing_status?: string | null
           ghana_post_gps?: string | null
           gps_confirmed?: boolean

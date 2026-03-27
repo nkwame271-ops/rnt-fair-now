@@ -166,6 +166,7 @@ const RegisterProperty = () => {
         return;
       } else if (dupCheck?.match === "medium") {
         propertyStatus = "pending_identity_review";
+        existingPropertyId = dupCheck.existingPropertyId;
         toast.info("This property may already exist (including archived records). It will be reviewed by an administrator.");
       }
 
@@ -192,6 +193,8 @@ const RegisterProperty = () => {
         property_structure: propertyStructure,
         normalized_address: normalizedAddr,
         property_fingerprint: fingerprint,
+        ...(existingPropertyId ? { duplicate_of_property_id: existingPropertyId } : {}),
+        ...(dupCheck?.existingRent ? { duplicate_old_rent: dupCheck.existingRent } : {}),
       } as any).select().single();
 
       if (propErr) throw propErr;

@@ -255,12 +255,14 @@ Deno.serve(async (req) => {
 
       const maxLawful = Number((tenancy as any).agreed_rent) * 6;
 
+      const advanceMonths = Number((tenancy as any).advance_months) || 6;
       const { data: unpaidPayments, error: pErr } = await supabaseAdmin
         .from("rent_payments")
         .select("id, tax_amount, tenant_marked_paid")
         .eq("tenancy_id", tenancyId)
         .eq("tenant_marked_paid", false)
-        .order("due_date", { ascending: true });
+        .order("due_date", { ascending: true })
+        .limit(advanceMonths);
 
       if (pErr) throw new Error("Failed to fetch payments");
       if (!unpaidPayments || unpaidPayments.length === 0) throw new Error("No unpaid payments found");
