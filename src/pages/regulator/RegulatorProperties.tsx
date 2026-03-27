@@ -711,6 +711,76 @@ const RegulatorProperties = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Duplicate Comparison Dialog */}
+      <Dialog open={showCompare} onOpenChange={(open) => { if (!open) { setShowCompare(false); setCompareProperty(null); setOriginalProperty(null); } }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitCompare className="h-5 w-5 text-primary" /> Duplicate Property Comparison
+            </DialogTitle>
+          </DialogHeader>
+          {loadingCompare ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : (
+            <div className="grid grid-cols-2 gap-6">
+              {/* New (Flagged) Property */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-destructive flex items-center gap-1"><AlertTriangle className="h-4 w-4" /> New (Flagged)</h3>
+                <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 space-y-2 text-sm">
+                  <div><span className="text-muted-foreground">Code:</span> <span className="font-semibold">{compareProperty?.property_code}</span></div>
+                  <div><span className="text-muted-foreground">Name:</span> <span className="font-semibold">{compareProperty?.property_name || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Address:</span> <span className="font-semibold">{compareProperty?.address}</span></div>
+                  <div><span className="text-muted-foreground">Region:</span> <span className="font-semibold">{compareProperty?.region}, {compareProperty?.area}</span></div>
+                  <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold">{compareProperty?.gps_location || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Category:</span> <span className="font-semibold capitalize">{compareProperty?.property_category || "residential"}</span></div>
+                  <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold">{compareProperty?.approved_rent ? `GH₵ ${Number(compareProperty.approved_rent).toLocaleString()}` : "—"}</span></div>
+                  {compareProperty?.units?.length > 0 && (
+                    <div className="pt-2 border-t border-border">
+                      <span className="text-muted-foreground text-xs font-medium">Units:</span>
+                      {compareProperty.units.map((u: any) => (
+                        <div key={u.id} className="flex justify-between text-xs mt-1">
+                          <span>{u.unit_name} ({u.unit_type})</span>
+                          <span className="font-semibold">GH₵ {Number(u.monthly_rent).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Original Property */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-success flex items-center gap-1"><CheckCircle2 className="h-4 w-4" /> Original (On Record)</h3>
+                {originalProperty ? (
+                  <div className="bg-success/5 border border-success/20 rounded-lg p-4 space-y-2 text-sm">
+                    <div><span className="text-muted-foreground">Code:</span> <span className="font-semibold">{originalProperty.property_code}</span></div>
+                    <div><span className="text-muted-foreground">Name:</span> <span className="font-semibold">{originalProperty.property_name || "—"}</span></div>
+                    <div><span className="text-muted-foreground">Address:</span> <span className="font-semibold">{originalProperty.address}</span></div>
+                    <div><span className="text-muted-foreground">Region:</span> <span className="font-semibold">{originalProperty.region}, {originalProperty.area}</span></div>
+                    <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold">{originalProperty.gps_location || "—"}</span></div>
+                    <div><span className="text-muted-foreground">Category:</span> <span className="font-semibold capitalize">{originalProperty.property_category || "residential"}</span></div>
+                    <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold">{originalProperty.approved_rent ? `GH₵ ${Number(originalProperty.approved_rent).toLocaleString()}` : "—"}</span></div>
+                    {originalProperty.units?.length > 0 && (
+                      <div className="pt-2 border-t border-border">
+                        <span className="text-muted-foreground text-xs font-medium">Units:</span>
+                        {originalProperty.units.map((u: any) => (
+                          <div key={u.id} className="flex justify-between text-xs mt-1">
+                            <span>{u.unit_name} ({u.unit_type})</span>
+                            <span className="font-semibold">GH₵ {Number(u.monthly_rent).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-muted rounded-lg p-4 text-center text-sm text-muted-foreground">Original property not found</div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
