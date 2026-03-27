@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, Building2, FileText, AlertTriangle, TrendingUp, Shield, Gavel, ShieldAlert, CalendarDays } from "lucide-react";
+import { Users, Building2, FileText, AlertTriangle, TrendingUp, Shield, Gavel, ShieldAlert } from "lucide-react";
 import LogoLoader from "@/components/LogoLoader";
 import { supabase } from "@/integrations/supabase/client";
 import PageTransition from "@/components/PageTransition";
@@ -7,18 +7,6 @@ import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
-import { Badge } from "@/components/ui/badge";
-
-interface ScheduleItem {
-  id: string;
-  complaint_id: string;
-  complaint_code: string;
-  complainant_name: string;
-  complaint_type: string;
-  status: string;
-  selected_slot: any;
-  available_slots: any;
-}
 
 const RegulatorDashboard = () => {
   const { profile } = useAdminProfile();
@@ -30,7 +18,6 @@ const RegulatorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [offices, setOffices] = useState<{ id: string; name: string }[]>([]);
   const [selectedOffice, setSelectedOffice] = useState<string>("all");
-  const [upcomingSchedules, setUpcomingSchedules] = useState<ScheduleItem[]>([]);
 
   // Sub admins are locked to their office
   const effectiveOffice = profile && !profile.isMainAdmin && profile.officeId
@@ -50,7 +37,6 @@ const RegulatorDashboard = () => {
       setLoading(true);
       const officeFilter = effectiveOffice !== "all" ? effectiveOffice : null;
 
-      // Build queries with optional office filter
       let tenantsQ = supabase.from("tenants").select("id", { count: "exact", head: true });
       let landlordsQ = supabase.from("landlords").select("id", { count: "exact", head: true });
       let propertiesQ = supabase.from("properties").select("id", { count: "exact", head: true });
@@ -85,54 +71,6 @@ const RegulatorDashboard = () => {
         activeTenancies: tenancies.count || 0, pendingComplaints: pendingComplaints.count || 0,
         pendingTerminations: pendingTerminations.count || 0, reportedSidePayments: reportedSidePayments.count || 0,
       });
-
-      // Fetch upcoming appointment schedules
-      const { data: schedules } = await supabase
-        .from("complaint_schedules")
-        .select("*")
-        .in("status", ["pending_selection", "confirmed"])
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (schedules && schedules.length > 0) {
-        const complaintIds = schedules.map((s: any) => s.complaint_id);
-        // Fetch from both complaint tables
-        const [{ data: tenantComplaints }, { data: landlordComplaints }] = await Promise.all([
-          supabase.from("complaints").select("id, complaint_code, tenant_user_id").in("id", complaintIds),
-          supabase.from("landlord_complaints").select("id, complaint_code, landlord_user_id").in("id", complaintIds),
-        ]);
-
-        const userIds = [
-          ...(tenantComplaints || []).map((c: any) => c.tenant_user_id),
-          ...(landlordComplaints || []).map((c: any) => c.landlord_user_id),
-        ];
-        const { data: profiles } = userIds.length > 0
-          ? await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds)
-          : { data: [] };
-        const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
-
-        const tcMap = new Map((tenantComplaints || []).map((c: any) => [c.id, { code: c.complaint_code, userId: c.tenant_user_id }]));
-        const lcMap = new Map((landlordComplaints || []).map((c: any) => [c.id, { code: c.complaint_code, userId: c.landlord_user_id }]));
-
-        const items: ScheduleItem[] = schedules.map((s: any) => {
-          const tc = tcMap.get(s.complaint_id);
-          const lc = lcMap.get(s.complaint_id);
-          const info = tc || lc;
-          return {
-            id: s.id,
-            complaint_id: s.complaint_id,
-            complaint_code: info?.code || "—",
-            complainant_name: profileMap.get(info?.userId) || "Unknown",
-            complaint_type: s.complaint_type,
-            status: s.status,
-            selected_slot: s.selected_slot,
-            available_slots: s.available_slots,
-          };
-        });
-        setUpcomingSchedules(items);
-      } else {
-        setUpcomingSchedules([]);
-      }
 
       setLoading(false);
     };
@@ -202,43 +140,6 @@ const RegulatorDashboard = () => {
                 </StaggeredItem>
               ))}
             </StaggeredGrid>
-
-            {/* Upcoming Appointments */}
-            {upcomingSchedules.length > 0 && (
-              <div className="bg-card rounded-xl p-6 shadow-card border border-border">
-                <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <CalendarDays className="h-5 w-5 text-primary" />
-                  Upcoming Appointments
-                </h2>
-                <div className="space-y-3">
-                  {upcomingSchedules.map((s) => {
-                    const slotDate = s.selected_slot?.date
-                      ? new Date(s.selected_slot.date).toLocaleDateString("en-GB")
-                      : "Pending selection";
-                    const slotTime = s.selected_slot?.time || "";
-                    return (
-                      <div key={s.id} className="flex items-center justify-between bg-muted/50 rounded-lg p-3 border border-border/50">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <CalendarDays className="h-4 w-4 text-primary" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-semibold text-card-foreground">{s.complaint_code}</div>
-                            <div className="text-xs text-muted-foreground">{s.complainant_name} • {s.complaint_type === "landlord" ? "Landlord" : "Tenant"}</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-card-foreground">{slotDate} {slotTime}</div>
-                          <Badge className={s.status === "confirmed" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}>
-                            {s.status === "confirmed" ? "Confirmed" : "Awaiting Selection"}
-                          </Badge>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
