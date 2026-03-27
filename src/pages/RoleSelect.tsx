@@ -215,6 +215,9 @@ const RoleSelect = () => {
           </div>
         </section>
 
+        {/* Feature Showcase */}
+        <FeatureShowcase />
+
         {/* API Services Section */}
         <section className="bg-muted/30 border-y border-border">
           <div className="max-w-6xl mx-auto px-4 py-16 sm:py-20">
