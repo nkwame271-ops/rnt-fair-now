@@ -145,7 +145,10 @@ const RegulatorProperties = () => {
     setApproving(false);
   };
 
+  const [statusFilter, setStatusFilter] = useState("all");
+
   const filtered = properties.filter((p) => {
+    if (statusFilter !== "all" && (p.property_status || "pending_assessment") !== statusFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return p.property_name?.toLowerCase().includes(s) || p.address?.toLowerCase().includes(s) || p.region?.toLowerCase().includes(s) || p.property_code?.toLowerCase().includes(s);

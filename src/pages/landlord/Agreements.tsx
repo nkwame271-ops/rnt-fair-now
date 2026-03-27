@@ -184,9 +184,11 @@ const Agreements = () => {
                       </a>
                     )}
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                      t.status === "active" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                      t.status === "active" ? "bg-success/10 text-success" 
+                        : t.status === "rejected" ? "bg-destructive/10 text-destructive" 
+                        : "bg-warning/10 text-warning"
                     }`}>
-                      {t.status === "active" ? "Active" : t.tenant_accepted ? "Accepted" : "Pending Acceptance"}
+                      {t.status === "active" ? "Active" : t.status === "rejected" ? "Rejected" : t.tenant_accepted ? "Accepted" : "Pending Acceptance"}
                     </span>
                   </div>
                 </div>
