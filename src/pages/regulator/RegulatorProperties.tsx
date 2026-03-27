@@ -488,6 +488,18 @@ const RegulatorProperties = () => {
                   {(detailProperty as any).approved_rent && (
                     <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold text-success">GH₵ {Number((detailProperty as any).approved_rent).toLocaleString()}</span></div>
                   )}
+                  {(detailProperty as any).duplicate_of_property_id && (
+                    <div className="col-span-2 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-orange-700">
+                        <AlertTriangle className="h-4 w-4" /> Duplicate Property Detected
+                      </div>
+                      {(detailProperty as any).duplicate_old_rent && (
+                        <div className="text-sm mt-1 text-orange-600">
+                          Previous listing rent: <span className="font-bold">GH₵ {Number((detailProperty as any).duplicate_old_rent).toLocaleString()}/mo</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
