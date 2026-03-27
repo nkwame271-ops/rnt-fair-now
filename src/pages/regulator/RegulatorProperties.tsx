@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban } from "lucide-react";
+import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban, GitCompare } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -192,6 +192,29 @@ const RegulatorProperties = () => {
   const [suggestNotes, setSuggestNotes] = useState("");
   const [submittingSuggest, setSubmittingSuggest] = useState(false);
 
+  // Duplicate comparison state
+  const [showCompare, setShowCompare] = useState(false);
+  const [compareProperty, setCompareProperty] = useState<any>(null);
+  const [originalProperty, setOriginalProperty] = useState<any>(null);
+  const [loadingCompare, setLoadingCompare] = useState(false);
+
+  const openCompare = async (property: any) => {
+    setCompareProperty(property);
+    setShowCompare(true);
+    setLoadingCompare(true);
+    try {
+      const { data: original } = await supabase
+        .from("properties")
+        .select("*, units(id, unit_name, unit_type, monthly_rent, status)")
+        .eq("id", property.duplicate_of_property_id)
+        .single();
+      setOriginalProperty(original);
+    } catch {
+      setOriginalProperty(null);
+    }
+    setLoadingCompare(false);
+  };
+
   const handleSuggestRelisting = async () => {
     if (!suggestedPrice || !suggestPropertyId) return;
     setSubmittingSuggest(true);
@@ -378,9 +401,9 @@ const RegulatorProperties = () => {
                       <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
                       <TableCell className="font-medium">
                         {p.property_name || "—"}
-                        {(pStatus === "pending_identity_review" || (p as any).duplicate_of_property_id) && (
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Badge variant="outline" className="text-[10px] bg-orange-100 text-orange-700 border-orange-200 gap-0.5">
+                        {(p as any).duplicate_of_property_id && (
+                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                            <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20 gap-0.5">
                               <AlertTriangle className="h-2.5 w-2.5" /> Duplicate Risk
                             </Badge>
                             {(p as any).duplicate_old_rent && (
@@ -388,6 +411,9 @@ const RegulatorProperties = () => {
                                 Old Rent: GH₵ {Number((p as any).duplicate_old_rent).toLocaleString()}
                               </Badge>
                             )}
+                            <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] gap-0.5 text-primary" onClick={(e) => { e.stopPropagation(); openCompare(p); }}>
+                              <GitCompare className="h-2.5 w-2.5" /> Compare
+                            </Button>
                           </div>
                         )}
                       </TableCell>
@@ -683,6 +709,76 @@ const RegulatorProperties = () => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Duplicate Comparison Dialog */}
+      <Dialog open={showCompare} onOpenChange={(open) => { if (!open) { setShowCompare(false); setCompareProperty(null); setOriginalProperty(null); } }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitCompare className="h-5 w-5 text-primary" /> Duplicate Property Comparison
+            </DialogTitle>
+          </DialogHeader>
+          {loadingCompare ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : (
+            <div className="grid grid-cols-2 gap-6">
+              {/* New (Flagged) Property */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-destructive flex items-center gap-1"><AlertTriangle className="h-4 w-4" /> New (Flagged)</h3>
+                <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 space-y-2 text-sm">
+                  <div><span className="text-muted-foreground">Code:</span> <span className="font-semibold">{compareProperty?.property_code}</span></div>
+                  <div><span className="text-muted-foreground">Name:</span> <span className="font-semibold">{compareProperty?.property_name || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Address:</span> <span className="font-semibold">{compareProperty?.address}</span></div>
+                  <div><span className="text-muted-foreground">Region:</span> <span className="font-semibold">{compareProperty?.region}, {compareProperty?.area}</span></div>
+                  <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold">{compareProperty?.gps_location || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Category:</span> <span className="font-semibold capitalize">{compareProperty?.property_category || "residential"}</span></div>
+                  <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold">{compareProperty?.approved_rent ? `GH₵ ${Number(compareProperty.approved_rent).toLocaleString()}` : "—"}</span></div>
+                  {compareProperty?.units?.length > 0 && (
+                    <div className="pt-2 border-t border-border">
+                      <span className="text-muted-foreground text-xs font-medium">Units:</span>
+                      {compareProperty.units.map((u: any) => (
+                        <div key={u.id} className="flex justify-between text-xs mt-1">
+                          <span>{u.unit_name} ({u.unit_type})</span>
+                          <span className="font-semibold">GH₵ {Number(u.monthly_rent).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Original Property */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-success flex items-center gap-1"><CheckCircle2 className="h-4 w-4" /> Original (On Record)</h3>
+                {originalProperty ? (
+                  <div className="bg-success/5 border border-success/20 rounded-lg p-4 space-y-2 text-sm">
+                    <div><span className="text-muted-foreground">Code:</span> <span className="font-semibold">{originalProperty.property_code}</span></div>
+                    <div><span className="text-muted-foreground">Name:</span> <span className="font-semibold">{originalProperty.property_name || "—"}</span></div>
+                    <div><span className="text-muted-foreground">Address:</span> <span className="font-semibold">{originalProperty.address}</span></div>
+                    <div><span className="text-muted-foreground">Region:</span> <span className="font-semibold">{originalProperty.region}, {originalProperty.area}</span></div>
+                    <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold">{originalProperty.gps_location || "—"}</span></div>
+                    <div><span className="text-muted-foreground">Category:</span> <span className="font-semibold capitalize">{originalProperty.property_category || "residential"}</span></div>
+                    <div><span className="text-muted-foreground">Approved Rent:</span> <span className="font-semibold">{originalProperty.approved_rent ? `GH₵ ${Number(originalProperty.approved_rent).toLocaleString()}` : "—"}</span></div>
+                    {originalProperty.units?.length > 0 && (
+                      <div className="pt-2 border-t border-border">
+                        <span className="text-muted-foreground text-xs font-medium">Units:</span>
+                        {originalProperty.units.map((u: any) => (
+                          <div key={u.id} className="flex justify-between text-xs mt-1">
+                            <span>{u.unit_name} ({u.unit_type})</span>
+                            <span className="font-semibold">GH₵ {Number(u.monthly_rent).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-muted rounded-lg p-4 text-center text-sm text-muted-foreground">Original property not found</div>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

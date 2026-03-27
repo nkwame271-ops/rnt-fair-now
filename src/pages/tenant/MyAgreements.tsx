@@ -167,7 +167,7 @@ const MyAgreements = () => {
           .from("rent_payments")
           .select("id, status")
           .eq("tenancy_id", tenancyId)
-          .eq("status", "confirmed")
+          .in("status", ["confirmed", "tenant_paid"])
           .limit(1);
 
         if (!payments || payments.length === 0) {

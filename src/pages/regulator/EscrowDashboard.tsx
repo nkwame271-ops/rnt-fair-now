@@ -155,7 +155,6 @@ const EscrowDashboard = () => {
   const allocationCards = [
     { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary" },
     { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info" },
-    ...(isMainAdmin ? [{ label: "Platform", amount: stats.platform, color: "bg-success/10 border-success/20 text-success" }] : []),
     { label: "GRA", amount: stats.gra, color: "bg-accent/10 border-accent/20 text-accent-foreground" },
     { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning" },
   ];
@@ -242,7 +241,7 @@ const EscrowDashboard = () => {
             {/* Revenue Breakdown (IGF) */}
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4">Allocation Summary (Internal Ledger)</h2>
-              <div className={`grid grid-cols-2 ${isMainAdmin ? "lg:grid-cols-5" : "lg:grid-cols-4"} gap-4`}>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {allocationCards.map(r => (
                   <div key={r.label} className={`border rounded-lg p-4 text-center ${r.color}`}>
                     <div className="text-2xl font-bold">GH₵ {r.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
@@ -271,7 +270,7 @@ const EscrowDashboard = () => {
                         <th className="text-right py-2 px-2">Total</th>
                         <th className="text-right py-2 px-2">IGF</th>
                         <th className="text-right py-2 px-2">Admin</th>
-                        {isMainAdmin && <th className="text-right py-2 px-2">Platform</th>}
+                        
                         <th className="text-right py-2 px-2">GRA</th>
                         <th className="text-right py-2 pl-2">Landlord</th>
                       </tr>
@@ -283,7 +282,7 @@ const EscrowDashboard = () => {
                           <td className="text-right py-2 px-2 font-semibold">₵{o.total.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-primary">₵{o.igf.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-info">₵{o.admin.toFixed(2)}</td>
-                          {isMainAdmin && <td className="text-right py-2 px-2 text-success">₵{o.platform.toFixed(2)}</td>}
+                          
                           <td className="text-right py-2 px-2">₵{o.gra.toFixed(2)}</td>
                           <td className="text-right py-2 pl-2 text-warning">₵{o.landlord.toFixed(2)}</td>
                         </tr>
