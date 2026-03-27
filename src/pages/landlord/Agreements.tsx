@@ -154,13 +154,13 @@ const Agreements = () => {
         <span>Confirm payments after verifying the tenant has paid. This validates their tenancy for that month.</span>
       </div>
 
-      {tenancies.length === 0 ? (
+      {activeTenancies.length === 0 && rejectedTenancies.length === 0 ? (
         <div className="bg-card rounded-xl p-8 text-center border border-border">
           <p className="text-muted-foreground">No tenancy agreements yet. Add a tenant from the Add Tenant page.</p>
         </div>
       ) : (
         <div className="space-y-5">
-          {tenancies.map(t => {
+          {activeTenancies.map(t => {
             const awaitingConfirm = t.payments.filter(p => p.tenant_marked_paid && !p.landlord_confirmed && p.status !== "confirmed");
             return (
               <div key={t.id} className="bg-card rounded-xl p-5 shadow-card border border-border space-y-4">
@@ -186,10 +186,9 @@ const Agreements = () => {
                     )}
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                       t.status === "active" ? "bg-success/10 text-success" 
-                        : t.status === "rejected" ? "bg-destructive/10 text-destructive" 
                         : "bg-warning/10 text-warning"
                     }`}>
-                      {t.status === "active" ? "Active" : t.status === "rejected" ? "Rejected" : t.tenant_accepted ? "Accepted" : "Pending Acceptance"}
+                      {t.status === "active" ? "Active" : t.tenant_accepted ? "Accepted" : "Pending Acceptance"}
                     </span>
                   </div>
                 </div>
@@ -232,6 +231,29 @@ const Agreements = () => {
               </div>
             );
           })}
+
+          {/* Rejected tenancies - collapsible section */}
+          {rejectedTenancies.length > 0 && (
+            <Collapsible>
+              <CollapsibleTrigger className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+                <ChevronDown className="h-4 w-4" />
+                Rejected Agreements ({rejectedTenancies.length})
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-2">
+                {rejectedTenancies.map(t => (
+                  <div key={t.id} className="bg-card rounded-xl p-4 shadow-card border border-destructive/20 opacity-70 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold text-card-foreground">{t.propertyName} — {t.unitName}</h3>
+                        <div className="text-sm text-muted-foreground">Tenant: {t.tenantName} ({t.tenantIdCode}) • GH₵ {t.agreed_rent}/mo</div>
+                      </div>
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-destructive/10 text-destructive">Rejected</span>
+                    </div>
+                  </div>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </div>
       )}
 
