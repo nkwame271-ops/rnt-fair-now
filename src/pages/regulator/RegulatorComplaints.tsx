@@ -30,6 +30,7 @@ const RegulatorComplaints = () => {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [schedulingComplaint, setSchedulingComplaint] = useState<SchedulingTarget | null>(null);
+  const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
 
   const fetchComplaints = async () => {
     const { data } = await supabase
@@ -92,7 +93,20 @@ const RegulatorComplaints = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetchComplaints(); }, []);
+  const fetchSchedules = async () => {
+    const { data } = await supabase
+      .from("complaint_schedules")
+      .select("*")
+      .in("status", ["pending_selection", "confirmed"])
+      .order("created_at", { ascending: false });
+    if (data) {
+      const map: Record<string, any> = {};
+      data.forEach((s: any) => { map[s.complaint_id] = s; });
+      setScheduleMap(map);
+    }
+  };
+
+  useEffect(() => { fetchComplaints(); fetchSchedules(); }, []);
 
   const updateStatus = async (id: string, newStatus: string) => {
     await supabase.from("complaints").update({ status: newStatus }).eq("id", id);
@@ -296,6 +310,34 @@ const RegulatorComplaints = () => {
                           )}
                         </div>
                       </div>
+                      {/* Appointment Schedule Info */}
+                      {scheduleMap[c.id] && (
+                        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-1">
+                          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4 text-primary" /> Appointment
+                          </h3>
+                          {scheduleMap[c.id].status === "confirmed" && scheduleMap[c.id].selected_slot ? (
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">Date:</span>{" "}
+                              <span className="font-medium text-foreground">
+                                {new Date(scheduleMap[c.id].selected_slot.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                              </span>
+                              <span className="text-muted-foreground ml-3">Time:</span>{" "}
+                              <span className="font-medium text-foreground">
+                                {scheduleMap[c.id].selected_slot.time_start} — {scheduleMap[c.id].selected_slot.time_end}
+                              </span>
+                              <span className="ml-2 text-xs font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full">Confirmed</span>
+                            </div>
+                          ) : (
+                            <div className="text-sm">
+                              <span className="text-warning font-medium">Awaiting complainant selection</span>
+                              <span className="text-muted-foreground ml-2">
+                                ({(scheduleMap[c.id].available_slots || []).length} slot(s) offered)
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center gap-3 pt-3 border-t border-border">
                         <span className="text-sm font-medium text-muted-foreground">Update status:</span>
                         <Select value={c.status} onValueChange={(v) => {
@@ -348,6 +390,25 @@ const RegulatorComplaints = () => {
               </div>
               <div className="text-sm text-foreground">{c.description}</div>
               {c.tenant_name && <div className="text-sm text-muted-foreground">Regarding tenant: <strong className="text-foreground">{c.tenant_name}</strong></div>}
+              {/* Appointment Schedule Info */}
+              {scheduleMap[c.id] && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1">
+                  <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-primary" /> Appointment
+                  </div>
+                  {scheduleMap[c.id].status === "confirmed" && scheduleMap[c.id].selected_slot ? (
+                    <div className="text-sm">
+                      <span className="font-medium text-foreground">
+                        {new Date(scheduleMap[c.id].selected_slot.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                      </span>{" "}
+                      <span className="text-muted-foreground">{scheduleMap[c.id].selected_slot.time_start} — {scheduleMap[c.id].selected_slot.time_end}</span>
+                      <span className="ml-2 text-xs font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full">Confirmed</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-warning font-medium">Awaiting complainant selection</div>
+                  )}
+                </div>
+              )}
               {c.evidence_urls?.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {c.evidence_urls.map((url: string, i: number) => (
@@ -392,6 +453,7 @@ const RegulatorComplaints = () => {
             setSchedulingComplaint(null);
             fetchComplaints();
             fetchLandlordComplaints();
+            fetchSchedules();
           }}
         />
       )}
