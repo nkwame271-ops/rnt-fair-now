@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Building2, Users, ArrowRight, Lock, Shield, Scale, Phone, Mail, MapPin, Code2, Database, FileJson, Send } from "lucide-react";
 import LiveChatWidget from "@/components/LiveChatWidget";
+import FeatureShowcase from "@/components/landing/FeatureShowcase";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -213,6 +214,9 @@ const RoleSelect = () => {
             ))}
           </div>
         </section>
+
+        {/* Feature Showcase */}
+        <FeatureShowcase />
 
         {/* API Services Section */}
         <section className="bg-muted/30 border-y border-border">
