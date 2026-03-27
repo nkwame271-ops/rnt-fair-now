@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban } from "lucide-react";
+import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban, GitCompare } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -191,6 +191,29 @@ const RegulatorProperties = () => {
   const [suggestedPrice, setSuggestedPrice] = useState("");
   const [suggestNotes, setSuggestNotes] = useState("");
   const [submittingSuggest, setSubmittingSuggest] = useState(false);
+
+  // Duplicate comparison state
+  const [showCompare, setShowCompare] = useState(false);
+  const [compareProperty, setCompareProperty] = useState<any>(null);
+  const [originalProperty, setOriginalProperty] = useState<any>(null);
+  const [loadingCompare, setLoadingCompare] = useState(false);
+
+  const openCompare = async (property: any) => {
+    setCompareProperty(property);
+    setShowCompare(true);
+    setLoadingCompare(true);
+    try {
+      const { data: original } = await supabase
+        .from("properties")
+        .select("*, units(id, unit_name, unit_type, monthly_rent, status)")
+        .eq("id", property.duplicate_of_property_id)
+        .single();
+      setOriginalProperty(original);
+    } catch {
+      setOriginalProperty(null);
+    }
+    setLoadingCompare(false);
+  };
 
   const handleSuggestRelisting = async () => {
     if (!suggestedPrice || !suggestPropertyId) return;
