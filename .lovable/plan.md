@@ -1,47 +1,56 @@
 
 
-# Tenancy Rejection Flow + Admin Property Status Filters
+# Fixes: Payment Processing, Platform Revenue, Duplicate Comparison, Status Filters, Rejection Flow
 
-## 1. Tenant Rejects Agreement — Cascading Updates
+## 1. Payment "keeps asking to pay again" after successful payment
 
-**Current behavior**: `handleReject` in `MyAgreements.tsx` (line 111-122) only updates the tenancy to `status: "rejected"` and `tenant_accepted: false`. It does NOT:
-- Update the unit status back to `vacant`
-- Update the property status back to `live`
-- Re-enable marketplace listing
+**Root cause**: `MyAgreements.tsx` line 170 checks `eq("status", "confirmed")` — but the webhook only sets status to `"tenant_paid"`. The payment is never `"confirmed"` until the **landlord** confirms it. So the tenant can never proceed to sign.
 
-**Fix in `MyAgreements.tsx` — `handleReject` function**:
-After updating the tenancy, also:
-1. Fetch the tenancy's `unit_id` and the unit's `property_id`
-2. Update the unit status to `vacant`: `supabase.from("units").update({ status: "vacant" }).eq("id", unitId)`
-3. Check if the property has any remaining occupied units — if none, update property to `live` and `listed_on_marketplace: true`: `supabase.from("properties").update({ property_status: "live", listed_on_marketplace: true }).eq("id", propertyId)`
-
-**Fix in `Agreements.tsx` (landlord)**: The landlord agreements page already shows tenancy status. After rejection, it should display "Rejected" badge instead of "Pending Acceptance". The current code uses `t.status` which will show correctly once the DB updates — just need to add `rejected` to the status badge rendering logic.
-
-**Landlord Agreements.tsx** — add rejected status display:
-```tsx
-// Add to status badge rendering
-t.status === "rejected" ? "bg-destructive/10 text-destructive" : ...
+**Fix**: Change `MyAgreements.tsx` `handleAcceptAndPay` to also accept `tenant_paid` status as valid proof of payment:
 ```
+.in("status", ["confirmed", "tenant_paid"])
+```
+This allows signing once payment is verified by Paystack, without waiting for landlord confirmation.
 
-## 2. Admin Properties — Status Filter Menus
+## 2. Archive Search Fee in Engine Room
 
-**Current behavior**: `RegulatorProperties.tsx` has search by name/code/region (line 148-152) but no status filter dropdown.
+The `archive_search_fee` feature flag was inserted in a previous migration. The Engine Room already dynamically renders all flags from `feature_flags` table with `category = 'fees'`. Need to verify the insert actually persisted. If not, re-insert via the insert tool.
 
-**Fix**: Add a status filter `Select` dropdown next to the search bar. The `statusLabels` object (line 256-268) already defines all possible statuses. Add a `statusFilter` state and filter `filtered` results by `property_status`.
+## 3. Remove "Platform Revenue" visibility from Escrow Dashboard
 
-**Changes**:
-- Add `const [statusFilter, setStatusFilter] = useState("all")`
-- Add a `Select` dropdown with options: All, Draft, Identity Review, Under Assessment, Approved, Live, Occupied, Off Market, Rent Review, Suspended, Archived, Needs Update
-- Update `filtered` to also filter by `statusFilter` when not "all"
-- Show count per status in the dropdown labels (e.g., "Live (12)")
+**Current**: `EscrowDashboard.tsx` line 158 already hides Platform for non-main admins. But the user wants it completely removed from this dashboard view.
+
+**Fix**: Remove the Platform allocation card entirely from the `allocationCards` array in `EscrowDashboard.tsx`. Platform revenue tracking stays in the system (escrow_splits still record it) but is not shown on this page. For CFLECD-only access, suggest a separate `/regulator/platform-revenue` page gated behind `isMainAdmin`.
+
+## 4. Duplicate Property — Comparison Button (persistent)
+
+**Current**: The duplicate tag shows with old rent, but there's no comparison view. The "Clear" button on line 438 allows removing the `pending_identity_review` status.
+
+**Fix**:
+- Add a "Compare" button next to duplicate-flagged properties that opens a dialog showing the **original property details** (fetched by `duplicate_of_property_id`) side-by-side with the new one, including unit rents
+- The "Compare" button appears whenever `duplicate_of_property_id` is set — regardless of status changes
+- Remove the "Clear" button's ability to erase duplicate data (keep `duplicate_of_property_id` and `duplicate_old_rent` columns untouched)
+
+## 5. Property Status Filter Menus
+
+**Already implemented** in previous changes (line 321-334). The status filter dropdown with counts is present. No changes needed here.
+
+## 6. Tenant Rejection → Cascading Updates
+
+**Already implemented** in previous changes (line 111-158 of `MyAgreements.tsx`). The `handleReject` function already:
+- Updates tenancy to `rejected`
+- Resets unit to `vacant`
+- Sets property back to `live` + `listed_on_marketplace: true` if no other occupied units
+
+The landlord `Agreements.tsx` already shows "Rejected" badge (line 188). No changes needed here.
 
 ---
 
-## Files Changed
+## Files to Change
 
 | File | Change |
 |---|---|
-| `src/pages/tenant/MyAgreements.tsx` | Expand `handleReject` to update unit → vacant, property → live |
-| `src/pages/landlord/Agreements.tsx` | Add "Rejected" status badge styling |
-| `src/pages/regulator/RegulatorProperties.tsx` | Add status filter dropdown |
+| `src/pages/tenant/MyAgreements.tsx` | Accept `tenant_paid` status as valid for signing |
+| `src/pages/regulator/EscrowDashboard.tsx` | Remove Platform card entirely from allocation display |
+| `src/pages/regulator/RegulatorProperties.tsx` | Add "Compare" dialog for duplicate properties; keep duplicate tag permanent |
 
