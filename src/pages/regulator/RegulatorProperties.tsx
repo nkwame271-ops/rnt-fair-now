@@ -401,9 +401,9 @@ const RegulatorProperties = () => {
                       <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
                       <TableCell className="font-medium">
                         {p.property_name || "—"}
-                        {(pStatus === "pending_identity_review" || (p as any).duplicate_of_property_id) && (
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Badge variant="outline" className="text-[10px] bg-orange-100 text-orange-700 border-orange-200 gap-0.5">
+                        {(p as any).duplicate_of_property_id && (
+                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                            <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20 gap-0.5">
                               <AlertTriangle className="h-2.5 w-2.5" /> Duplicate Risk
                             </Badge>
                             {(p as any).duplicate_old_rent && (
@@ -411,6 +411,9 @@ const RegulatorProperties = () => {
                                 Old Rent: GH₵ {Number((p as any).duplicate_old_rent).toLocaleString()}
                               </Badge>
                             )}
+                            <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] gap-0.5 text-primary" onClick={(e) => { e.stopPropagation(); openCompare(p); }}>
+                              <GitCompare className="h-2.5 w-2.5" /> Compare
+                            </Button>
                           </div>
                         )}
                       </TableCell>
