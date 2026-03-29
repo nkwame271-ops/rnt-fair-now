@@ -11,18 +11,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) throw new Error("Not authenticated");
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) throw new Error("Not authenticated");
-
     const { reference } = await req.json();
     if (!reference) throw new Error("reference is required");
 
@@ -30,6 +18,19 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // Try to authenticate (optional — may fail after redirect)
+    let userId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const supabaseUser = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data: { user } } = await supabaseUser.auth.getUser();
+      userId = user?.id ?? null;
+    }
 
     // 1. Check if escrow exists
     const { data: escrow } = await supabaseAdmin
@@ -39,7 +40,9 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!escrow) throw new Error("Transaction not found");
-    if (escrow.user_id !== user.id) throw new Error("Unauthorized");
+
+    // If authenticated, verify ownership
+    if (userId && escrow.user_id !== userId) throw new Error("Unauthorized");
 
     // Already completed — just confirm
     if (escrow.status === "completed") {
@@ -66,6 +69,7 @@ Deno.serve(async (req) => {
     // 3. Payment is verified — finalize
     const amountPaid = (paystackData.data.amount || 0) / 100;
     const transactionId = String(paystackData.data.id || "");
+    const escrowUserId = escrow.user_id;
 
     // Update escrow to completed (idempotent — only if still pending)
     await supabaseAdmin
@@ -76,16 +80,14 @@ Deno.serve(async (req) => {
 
     // 4. Handle payment-type-specific finalization
     const paymentType = escrow.payment_type;
-    const userId = escrow.user_id;
     const meta = (escrow.metadata as any) || {};
 
     if (paymentType === "tenant_registration") {
       const { data: tenant } = await supabaseAdmin
         .from("tenants")
         .select("registration_fee_paid")
-        .eq("user_id", userId)
+        .eq("user_id", escrowUserId)
         .single();
-
       if (tenant && !tenant.registration_fee_paid) {
         await supabaseAdmin
           .from("tenants")
@@ -94,15 +96,14 @@ Deno.serve(async (req) => {
             registration_date: new Date().toISOString(),
             expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
           })
-          .eq("user_id", userId);
+          .eq("user_id", escrowUserId);
       }
     } else if (paymentType === "landlord_registration") {
       const { data: landlord } = await supabaseAdmin
         .from("landlords")
         .select("registration_fee_paid")
-        .eq("user_id", userId)
+        .eq("user_id", escrowUserId)
         .single();
-
       if (landlord && !landlord.registration_fee_paid) {
         await supabaseAdmin
           .from("landlords")
@@ -111,10 +112,9 @@ Deno.serve(async (req) => {
             registration_date: new Date().toISOString(),
             expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
           })
-          .eq("user_id", userId);
+          .eq("user_id", escrowUserId);
       }
     } else if (paymentType === "listing_fee") {
-      // Mark property as listed
       const propertyId = escrow.related_property_id;
       if (propertyId) {
         await supabaseAdmin
@@ -123,7 +123,6 @@ Deno.serve(async (req) => {
           .eq("id", propertyId);
       }
     } else if (paymentType === "complaint_fee") {
-      // Update complaint status from pending_payment to submitted
       const complaintId = meta?.complaintId;
       if (complaintId) {
         await supabaseAdmin
@@ -133,7 +132,6 @@ Deno.serve(async (req) => {
           .eq("status", "pending_payment");
       }
     } else if (paymentType === "viewing_fee") {
-      // Update viewing request status from awaiting_payment to pending
       const viewingRequestId = meta?.viewingRequestId;
       if (viewingRequestId) {
         await supabaseAdmin
@@ -143,8 +141,7 @@ Deno.serve(async (req) => {
           .eq("status", "awaiting_payment");
       }
     } else if (paymentType === "rent_tax_bulk") {
-      // Update rent_payments for bulk tax
-      const tenancyId = (escrow as any).related_tenancy_id;
+      const tenancyId = escrow.related_tenancy_id;
       if (tenancyId) {
         await supabaseAdmin
           .from("rent_payments")
@@ -159,7 +156,6 @@ Deno.serve(async (req) => {
           .eq("tenant_marked_paid", false);
       }
     } else if (paymentType === "rent_tax") {
-      // Update single rent_payment
       const paymentIds = meta?.paymentIds;
       if (Array.isArray(paymentIds) && paymentIds.length > 0) {
         await supabaseAdmin
@@ -174,8 +170,7 @@ Deno.serve(async (req) => {
           })
           .in("id", paymentIds);
       } else {
-        // Fallback: extract payment ID from reference
-        const ref = (escrow as any).reference || "";
+        const ref = escrow.reference || "";
         if (ref.startsWith("rent_")) {
           const paymentId = ref.replace("rent_", "");
           await supabaseAdmin
@@ -192,8 +187,6 @@ Deno.serve(async (req) => {
         }
       }
     } else if (paymentType === "rent_card_bulk" || paymentType === "rent_card") {
-      // Create rent cards with awaiting_serial status (no serial number yet)
-      // Each purchase = 2 physical cards (Landlord Copy + Tenant Copy)
       const qty = meta?.quantity || 1;
       const cardCount = qty * 2;
       const { data: existingCards } = await supabaseAdmin
@@ -202,14 +195,12 @@ Deno.serve(async (req) => {
         .eq("escrow_transaction_id", escrow.id);
 
       if (!existingCards || existingCards.length === 0) {
-        // Generate a purchase_id for the batch
         const { data: purchaseIdData } = await supabaseAdmin.rpc("generate_purchase_id");
         const purchaseId = purchaseIdData || `PUR-${Date.now()}`;
-        
         const rentCards = [];
         for (let i = 0; i < cardCount; i++) {
           rentCards.push({
-            landlord_user_id: userId,
+            landlord_user_id: escrowUserId,
             status: "awaiting_serial",
             escrow_transaction_id: escrow.id,
             serial_number: null,
@@ -231,7 +222,7 @@ Deno.serve(async (req) => {
       const { data: profile } = await supabaseAdmin
         .from("profiles")
         .select("full_name, email")
-        .eq("user_id", userId)
+        .eq("user_id", escrowUserId)
         .single();
 
       const splitPlan = meta?.split_plan || [];
@@ -239,7 +230,7 @@ Deno.serve(async (req) => {
 
       await supabaseAdmin.from("payment_receipts").insert({
         escrow_transaction_id: escrow.id,
-        user_id: userId,
+        user_id: escrowUserId,
         payer_name: profile?.full_name || "Customer",
         payer_email: profile?.email || "",
         total_amount: amountPaid,
@@ -251,11 +242,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 6. Send notification if not already sent for this escrow
+    // 6. Send notification if not already sent
     const { data: existingNotif } = await supabaseAdmin
       .from("notifications")
       .select("id")
-      .eq("user_id", userId)
+      .eq("user_id", escrowUserId)
       .ilike("body", `%${reference.slice(0, 12)}%`)
       .maybeSingle();
 
@@ -273,7 +264,7 @@ Deno.serve(async (req) => {
       const notif = notifMap[paymentType];
       if (notif) {
         await supabaseAdmin.from("notifications").insert({
-          user_id: userId,
+          user_id: escrowUserId,
           title: notif.title,
           body: notif.body,
           link: notif.link,

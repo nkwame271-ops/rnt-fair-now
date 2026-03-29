@@ -74,7 +74,7 @@ const Payments = () => {
     fetchAll();
   }, [user]);
 
-  // Handle post-redirect payment verification — wait for auth to be ready
+  // Handle post-redirect payment verification — auth-optional (edge function handles it)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
@@ -85,9 +85,6 @@ const Payments = () => {
     }
 
     if (params.get("status") !== "success") return;
-
-    // Must wait for user session to be restored before calling edge functions
-    if (!user) return;
 
     window.history.replaceState({}, "", window.location.pathname);
     sessionStorage.setItem("paymentSuccessRedirected", "true");
@@ -101,34 +98,45 @@ const Payments = () => {
     if (pendingRef) {
       toast.info("Payment received! Verifying with server...");
 
-      supabase.functions.invoke("verify-payment", { body: { reference: pendingRef } })
-        .then(({ data: vData, error: fnError }) => {
+      const verifyWithRetry = async (attempt = 1) => {
+        try {
+          const { data: vData, error: fnError } = await supabase.functions.invoke("verify-payment", { body: { reference: pendingRef } });
           if (fnError) {
-            console.error("verify-payment edge function error:", fnError);
-            toast.error("Verification call failed. Please refresh the page.");
+            console.error(`verify-payment attempt ${attempt} error:`, fnError);
+            if (attempt < 2) {
+              await new Promise(r => setTimeout(r, 3000));
+              return verifyWithRetry(attempt + 1);
+            }
+            toast.error("Verification failed. Please refresh the page.");
             return;
           }
           if (vData?.verified) {
             toast.success("Payment confirmed!");
             sessionStorage.removeItem("pendingPaymentReference");
+            sessionStorage.removeItem("pendingPaymentTenancyId");
           } else {
             console.warn("verify-payment returned unverified:", vData);
             toast.info("Payment is still processing. Please refresh in a moment.");
           }
-        })
-        .catch((err) => {
-          console.error("verify-payment call exception:", err);
+        } catch (err) {
+          console.error(`verify-payment attempt ${attempt} exception:`, err);
+          if (attempt < 2) {
+            await new Promise(r => setTimeout(r, 3000));
+            return verifyWithRetry(attempt + 1);
+          }
           toast.error("Could not verify payment. Please refresh.");
-        })
-        .finally(() => {
-          setTimeout(() => window.location.reload(), 3000);
-        });
+        }
+      };
+
+      verifyWithRetry().finally(() => {
+        setTimeout(() => window.location.reload(), 3000);
+      });
     } else {
       toast.success("Payment received! Refreshing...");
       const t1 = setTimeout(() => window.location.reload(), 4000);
       return () => clearTimeout(t1);
     }
-  }, [user]);
+  }, []);
 
   const handlePayBulkTax = async (tenancyId: string) => {
     setPaying(true);
