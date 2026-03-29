@@ -859,6 +859,100 @@ export type Database = {
         }
         Relationships: []
       }
+      office_fund_requests: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          office_id: string
+          payout_reference: string | null
+          purpose: string
+          requested_by: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_notes: string | null
+          status: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          office_id: string
+          payout_reference?: string | null
+          purpose: string
+          requested_by: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          office_id?: string
+          payout_reference?: string | null
+          purpose?: string
+          requested_by?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_fund_requests_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      office_payout_accounts: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          bank_name: string | null
+          id: string
+          momo_number: string | null
+          momo_provider: string | null
+          office_id: string
+          payment_method: string
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          bank_name?: string | null
+          id?: string
+          momo_number?: string | null
+          momo_provider?: string | null
+          office_id: string
+          payment_method?: string
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          bank_name?: string | null
+          id?: string
+          momo_number?: string | null
+          momo_provider?: string | null
+          office_id?: string
+          payment_method?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_payout_accounts_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: true
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offices: {
         Row: {
           created_at: string | null
