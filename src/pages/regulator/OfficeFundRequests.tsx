@@ -147,7 +147,7 @@ const OfficeFundRequests = () => {
   };
 
   const statusBadge = (status: string) => {
-    if (status === "approved") return <Badge className="bg-green-600/20 text-green-400 border-green-600/30"><CheckCircle2 className="h-3 w-3 mr-1" />Approved</Badge>;
+    if (status === "approved") return <Badge className="bg-primary/20 text-primary border-primary/30"><CheckCircle2 className="h-3 w-3 mr-1" />Approved</Badge>;
     if (status === "rejected") return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejected</Badge>;
     return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
   };
@@ -253,9 +253,11 @@ const OfficeFundRequests = () => {
       {confirmAction && (
         <AdminPasswordConfirm
           open={!!confirmAction}
-          onClose={() => setConfirmAction(null)}
-          onConfirm={() => handleReview(confirmAction.action)}
+          onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
+          title={confirmAction.action === "approve" ? "Approve Payout" : "Reject Request"}
+          description={confirmAction.action === "approve" ? "Confirm your identity to approve this payout" : "Confirm your identity to reject this request"}
           actionLabel={confirmAction.action === "approve" ? "Approve Payout" : "Reject Request"}
+          onConfirm={async (_password, _reason) => { await handleReview(confirmAction.action); }}
         />
       )}
     </div>
