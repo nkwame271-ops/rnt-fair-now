@@ -84,11 +84,27 @@ const Payments = () => {
         sessionStorage.setItem("paymentSuccessTenancyId", pendingTenancyId);
       }
 
-      toast.success("Payment received! It may take a moment to confirm.");
+      toast.success("Payment received! Verifying...");
       window.history.replaceState({}, "", window.location.pathname);
-      // Auto-refresh after delays
-      const t1 = setTimeout(() => window.location.reload(), 4000);
-      return () => clearTimeout(t1);
+
+      // Call verify-payment to force-finalize the payment server-side
+      const pendingRef = sessionStorage.getItem("pendingPaymentReference");
+      if (pendingRef) {
+        supabase.functions.invoke("verify-payment", { body: { reference: pendingRef } })
+          .then(({ data: vData }) => {
+            if (vData?.verified) {
+              toast.success("Payment confirmed!");
+              sessionStorage.removeItem("pendingPaymentReference");
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            setTimeout(() => window.location.reload(), 2000);
+          });
+      } else {
+        const t1 = setTimeout(() => window.location.reload(), 4000);
+        return () => clearTimeout(t1);
+      }
     } else if (params.get("status") === "cancelled") {
       toast.error("Payment was cancelled.");
       window.history.replaceState({}, "", window.location.pathname);
@@ -106,6 +122,10 @@ const Payments = () => {
       if (error) throw new Error(error.message || "Payment initiation failed");
       if (data?.error) throw new Error(data.error);
       if (data?.authorization_url) {
+        // Store reference for verify-payment call on redirect
+        if (data.reference) {
+          sessionStorage.setItem("pendingPaymentReference", data.reference);
+        }
         window.location.href = data.authorization_url;
       } else {
         throw new Error("No checkout URL received");

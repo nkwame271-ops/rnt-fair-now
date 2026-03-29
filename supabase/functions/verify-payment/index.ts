@@ -142,6 +142,55 @@ Deno.serve(async (req) => {
           .eq("id", viewingRequestId)
           .eq("status", "awaiting_payment");
       }
+    } else if (paymentType === "rent_tax_bulk") {
+      // Update rent_payments for bulk tax
+      const tenancyId = (escrow as any).related_tenancy_id;
+      if (tenancyId) {
+        await supabaseAdmin
+          .from("rent_payments")
+          .update({
+            tenant_marked_paid: true,
+            status: "tenant_paid",
+            paid_date: new Date().toISOString(),
+            payment_method: "Paystack",
+            receiver: transactionId,
+          })
+          .eq("tenancy_id", tenancyId)
+          .eq("tenant_marked_paid", false);
+      }
+    } else if (paymentType === "rent_tax") {
+      // Update single rent_payment
+      const paymentIds = meta?.paymentIds;
+      if (Array.isArray(paymentIds) && paymentIds.length > 0) {
+        await supabaseAdmin
+          .from("rent_payments")
+          .update({
+            tenant_marked_paid: true,
+            status: "tenant_paid",
+            paid_date: new Date().toISOString(),
+            payment_method: "Paystack",
+            amount_paid: amountPaid,
+            receiver: transactionId,
+          })
+          .in("id", paymentIds);
+      } else {
+        // Fallback: extract payment ID from reference
+        const ref = (escrow as any).reference || "";
+        if (ref.startsWith("rent_")) {
+          const paymentId = ref.replace("rent_", "");
+          await supabaseAdmin
+            .from("rent_payments")
+            .update({
+              tenant_marked_paid: true,
+              status: "tenant_paid",
+              paid_date: new Date().toISOString(),
+              payment_method: "Paystack",
+              amount_paid: amountPaid,
+              receiver: transactionId,
+            })
+            .eq("id", paymentId);
+        }
+      }
     } else if (paymentType === "rent_card_bulk" || paymentType === "rent_card") {
       // Create rent cards with awaiting_serial status (no serial number yet)
       // Each purchase = 2 physical cards (Landlord Copy + Tenant Copy)
