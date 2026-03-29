@@ -37,6 +37,7 @@ const Payments = () => {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const isPaid = (p: Payment) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed" || p.status === "tenant_paid";
 
   useEffect(() => {
     if (!user) return;
@@ -76,6 +77,13 @@ const Payments = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("status") === "success") {
+      sessionStorage.setItem("paymentSuccessRedirected", "true");
+
+      const pendingTenancyId = sessionStorage.getItem("pendingPaymentTenancyId");
+      if (pendingTenancyId) {
+        sessionStorage.setItem("paymentSuccessTenancyId", pendingTenancyId);
+      }
+
       toast.success("Payment received! It may take a moment to confirm.");
       window.history.replaceState({}, "", window.location.pathname);
       // Auto-refresh after delays
@@ -90,6 +98,8 @@ const Payments = () => {
   const handlePayBulkTax = async (tenancyId: string) => {
     setPaying(true);
     try {
+      sessionStorage.setItem("pendingPaymentTenancyId", tenancyId);
+
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "rent_tax_bulk", tenancyId },
       });
@@ -101,6 +111,7 @@ const Payments = () => {
         throw new Error("No checkout URL received");
       }
     } catch (err: any) {
+      sessionStorage.removeItem("pendingPaymentTenancyId");
       toast.error(err.message || "Payment failed");
       setPaying(false);
     }
@@ -117,7 +128,6 @@ const Payments = () => {
   );
 
   const tenancy = tenancies[selectedIdx];
-  const isPaid = (p: Payment) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed";
   const paidCount = tenancy.payments.filter(p => isPaid(p)).length;
   const totalMonths = tenancy.payments.length;
 

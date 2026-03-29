@@ -163,7 +163,8 @@ const Agreements = () => {
       ) : (
         <div className="space-y-5">
           {activeTenancies.map(t => {
-            const awaitingConfirm = t.payments.filter(p => p.tenant_marked_paid && !p.landlord_confirmed && p.status !== "confirmed");
+            const awaitingConfirm = t.payments.filter(p => (p.tenant_marked_paid || p.status === "tenant_paid") && !p.landlord_confirmed && p.status !== "confirmed");
+            const unpaidCount = t.payments.filter(p => !p.tenant_marked_paid && !p.landlord_confirmed && p.status !== "confirmed" && p.status !== "tenant_paid").length;
             return (
               <div key={t.id} className="bg-card rounded-xl p-5 shadow-card border border-border space-y-4">
                 <div className="flex items-start justify-between">
@@ -218,7 +219,7 @@ const Agreements = () => {
                 <div className="flex items-center gap-3 text-xs">
                   <span className="flex items-center gap-1 text-success"><CheckCircle2 className="h-3 w-3" /> {t.payments.filter(p => p.landlord_confirmed || p.status === "confirmed").length} confirmed</span>
                   <span className="flex items-center gap-1 text-info"><Clock className="h-3 w-3" /> {awaitingConfirm.length} awaiting</span>
-                  <span className="flex items-center gap-1 text-muted-foreground"><XCircle className="h-3 w-3" /> {t.payments.filter(p => !p.tenant_marked_paid && !p.landlord_confirmed).length} unpaid</span>
+                  <span className="flex items-center gap-1 text-muted-foreground"><XCircle className="h-3 w-3" /> {unpaidCount} unpaid</span>
                   {rentAssessmentEnabled && t.status === "active" && (
                     <Button
                       size="sm"

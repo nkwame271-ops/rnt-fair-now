@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { FileText, CheckCircle2, Download, Shield, AlertTriangle, CreditCard, Loader2, XCircle, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,18 @@ const MyAgreements = () => {
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
   const [signingTenancyId, setSigningTenancyId] = useState<string | null>(null);
   const [payingTax, setPayingTax] = useState<string | null>(null);
+  const [verifyingTenancyId, setVerifyingTenancyId] = useState<string | null>(null);
+  const autoVerificationTriggeredRef = useRef(false);
+
+  const isPaidRecord = (payment: { status: string; tenant_marked_paid: boolean | null; landlord_confirmed: boolean | null }) => {
+    return payment.tenant_marked_paid || payment.landlord_confirmed || payment.status === "confirmed" || payment.status === "tenant_paid";
+  };
+
+  const clearPaymentRedirectFlags = () => {
+    sessionStorage.removeItem("paymentSuccessRedirected");
+    sessionStorage.removeItem("paymentSuccessTenancyId");
+    sessionStorage.removeItem("pendingPaymentTenancyId");
+  };
 
   const fetchData = async () => {
     if (!user) return;
@@ -76,7 +88,7 @@ const MyAgreements = () => {
       const { data: prop } = await supabase.from("properties").select("property_name, address, region").eq("id", t.unit.property_id).single();
       const { data: landlordProfile } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
       const { data: payments } = await supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed").eq("tenancy_id", t.id);
-      const paidCount = (payments || []).filter((p: any) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed").length;
+      const paidCount = (payments || []).filter((p: any) => isPaidRecord(p)).length;
 
       results.push({
         id: t.id,
@@ -181,39 +193,49 @@ const MyAgreements = () => {
     return false;
   };
 
+  const verifyPaymentWithRetry = async (tenancyId: string) => {
+    setVerifyingTenancyId(tenancyId);
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const paid = await verifyPayment(tenancyId);
+      if (paid) return true;
+
+      if (attempt === 0) {
+        toast.info("Verifying payment... please wait.");
+      }
+
+      if (attempt < 4) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+    }
+
+    return false;
+  };
+
+  const markAgreementAccepted = async (tenancyId: string) => {
+    await supabase.from("tenancies").update({
+      tenant_accepted: true,
+      status: "pending",
+    }).eq("id", tenancyId);
+
+    setTenancies(prev => prev.map(t => t.id === tenancyId ? { ...t, tenant_accepted: true } : t));
+    setSigningTenancyId(tenancyId);
+  };
+
   const handleAcceptAndPay = async (tenancyId: string) => {
     setPayingTax(tenancyId);
     try {
       if (digitalSignaturesEnabled) {
-        // Check if rent tax has been paid, with polling retry for webhook delay
-        let paid = await verifyPayment(tenancyId);
+        const paid = await verifyPaymentWithRetry(tenancyId);
 
         if (!paid) {
-          // Poll up to 5 times with 3s interval
-          toast.info("Verifying payment... please wait.");
-          for (let i = 0; i < 5; i++) {
-            await new Promise(r => setTimeout(r, 3000));
-            paid = await verifyPayment(tenancyId);
-            if (paid) break;
-          }
-        }
-
-        if (!paid) {
+          clearPaymentRedirectFlags();
           toast.error("Payment not yet confirmed. Please go to Payments to pay your first month's tax, then return here.");
-          setPayingTax(null);
           return;
         }
 
-        // Mark as accepted
-        await supabase.from("tenancies").update({
-          tenant_accepted: true,
-          status: "pending",
-        }).eq("id", tenancyId);
-
-        // Move to signing step
-        setPayingTax(null);
-        setSigningTenancyId(tenancyId);
-        setTenancies(prev => prev.map(t => t.id === tenancyId ? { ...t, tenant_accepted: true } : t));
+        clearPaymentRedirectFlags();
+        await markAgreementAccepted(tenancyId);
       } else {
         // Legacy: just accept
         await supabase.from("tenancies").update({
@@ -226,9 +248,30 @@ const MyAgreements = () => {
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to accept");
+    } finally {
       setPayingTax(null);
+      setVerifyingTenancyId(null);
     }
   };
+
+  useEffect(() => {
+    if (loading || !digitalSignaturesEnabled || autoVerificationTriggeredRef.current) return;
+
+    const paymentRedirected = sessionStorage.getItem("paymentSuccessRedirected") === "true";
+    if (!paymentRedirected) return;
+
+    const targetTenancyId = sessionStorage.getItem("paymentSuccessTenancyId");
+    const targetTenancy = tenancies.find((tenancy) => tenancy.id === targetTenancyId && !tenancy.tenant_accepted && tenancy.status === "pending")
+      || tenancies.find((tenancy) => !tenancy.tenant_accepted && tenancy.status === "pending");
+
+    if (!targetTenancy) {
+      clearPaymentRedirectFlags();
+      return;
+    }
+
+    autoVerificationTriggeredRef.current = true;
+    void handleAcceptAndPay(targetTenancy.id);
+  }, [digitalSignaturesEnabled, loading, tenancies]);
 
   const handleDownload = async (t: TenancyView) => {
     const doc = await generateAgreementPdf({
@@ -308,7 +351,7 @@ const MyAgreements = () => {
             </Button>
             <Button onClick={() => handleAcceptAndPay(t.id)} disabled={payingTax === t.id}>
               <CheckCircle2 className="h-4 w-4 mr-1" />
-              {payingTax === t.id ? "Processing..." : digitalSignaturesEnabled ? "Accept & Sign" : "Accept Agreement"}
+              {verifyingTenancyId === t.id ? "Verifying payment..." : payingTax === t.id ? "Processing..." : digitalSignaturesEnabled ? "Accept & Sign" : "Accept Agreement"}
             </Button>
           </div>
         </motion.div>
