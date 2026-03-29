@@ -87,6 +87,8 @@ const EscrowDashboard = lazy(() => import("./pages/regulator/EscrowDashboard"));
 const RegulatorRentCards = lazy(() => import("./pages/regulator/RegulatorRentCards"));
 const SmsBroadcast = lazy(() => import("./pages/regulator/SmsBroadcast"));
 const RegulatorRentReviews = lazy(() => import("./pages/regulator/RegulatorRentReviews"));
+const OfficeFundRequests = lazy(() => import("./pages/regulator/OfficeFundRequests"));
+const OfficePayoutSettings = lazy(() => import("./pages/regulator/OfficePayoutSettings"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -189,6 +191,8 @@ const App = () => (
                 <Route path="rent-cards" element={<RegulatorRentCards />} />
                 <Route path="sms-broadcast" element={<SmsBroadcast />} />
                 <Route path="rent-reviews" element={<RegulatorRentReviews />} />
+                <Route path="office-fund-requests" element={<OfficeFundRequests />} />
+                <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

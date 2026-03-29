@@ -49,6 +49,8 @@ const allNavItems = [
   { to: "/regulator/support-chats", label: "Support Chats", icon: MessageSquare },
   { to: "/regulator/sms-broadcast", label: "SMS Broadcast", icon: Send },
   { to: "/regulator/api-keys", label: "Agency APIs", icon: Shield },
+  { to: "/regulator/office-fund-requests", label: "Office Wallet", icon: BarChart3 },
+  { to: "/regulator/office-payout-settings", label: "Payout Settings", icon: Settings },
 ];
 
 const RegulatorLayout = () => {
