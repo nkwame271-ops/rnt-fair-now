@@ -1,43 +1,22 @@
 
+Goal: fix the real cause of the rent-tax loop and align the agreement rejection behavior with your latest correction.
 
-# Fixes: Payment Flow, Rejection Cascade, Archive Search Fee
+1. Fix the actual payment failure point
+- The problem is not just delay/retry. The database shows recent `rent_tax_bulk` escrow records staying `pending`, and the related `rent_payments` rows remain `pending` with `tenant_marked_paid = false`.
+- That means the checkout redirect succeeds, but the payment completion callback is not updating records.
+- I will inspect and correct the backend payment completion path so successful Paystack payments reliably:
+  - mark the matching `escrow_transactions` row as `completed`
+  - mark the correct `rent_payments` rows as `tenant_paid`
+  - store `paid_date` and transaction reference
+- I will also harden the reference-matching logic for bulk rent tax payments so the tenancy/payment lookup cannot silently miss.
 
-## 1. Payment "keeps asking to pay again" — Unable to Sign Agreement
+2. Keep the tenant flow from sending people back to pay again
+- In `MyAgreements.tsx`, keep the verification step but change it to treat a completed bulk tax payment as valid as soon as either:
+  - the matching `rent_payments` are `tenant_paid/confirmed`, or
+  - the matching escrow payment is completed
+- Add a clearer “payment is still being confirmed” state and prevent the user from being pushed back into another payment attempt while verification is in progress.
+- Keep the handoff from Payments → Agreements so a successful return can automatically re-check payment status.
 
-**Root cause**: The flow is: tenant pays on Payments page → webhook updates `rent_payments` to `tenant_paid` → tenant goes to MyAgreements → clicks "Accept & Sign" → system checks for `tenant_paid` payments. The problem is a **timing issue** — the Paystack webhook may not have processed by the time the user clicks "Accept & Sign". Additionally, there's no feedback loop between the Payments page and MyAgreements.
-
-**Fix** (two-part):
-1. In `MyAgreements.tsx` `handleAcceptAndPay`: Instead of only checking `rent_payments` status, **also check `escrow_transactions`** for a completed `rent_tax_bulk` transaction for this tenancy. If either source shows payment, allow signing.
-2. Add a **retry mechanism with polling**: When the payment check fails, show a "Verifying payment..." state that polls every 3 seconds (up to 5 attempts) before showing the error. This handles the webhook delay gracefully.
-3. After the Payments page callback redirect (`?status=success`), also set a `sessionStorage` flag. In MyAgreements, if this flag exists, automatically trigger the verification polling.
-
-**Files**: `src/pages/tenant/MyAgreements.tsx`
-
----
-
-## 2. Tenant Rejection → Remove from Landlord Agreements
-
-**Current state**: The rejection cascade (unit → vacant, property → live) is already implemented. The landlord Agreements page already shows "Rejected" badge. However, the user wants rejected agreements **removed** from the landlord view (not just badged).
-
-**Fix**: In `src/pages/landlord/Agreements.tsx`, filter out `rejected` tenancies from the main display, or move them to a collapsible "Rejected" section so they don't clutter the active view. The cascading updates to unit/property status are already working.
-
-**Files**: `src/pages/landlord/Agreements.tsx`
-
----
-
-## 3. Archive Search Fee — Changeable in Engine Room
-
-**Current state**: The `archive_search_fee` feature flag was inserted in a previous migration with `category = 'fees'`. The Engine Room page dynamically renders all flags from the `feature_flags` table. This should already work — verify the flag exists with correct category, and if not, insert it.
-
-**Action**: Verify via database query. If missing, insert using the insert tool.
-
----
-
-## Files to Change
-
-| File | Change |
-|---|---|
-| `src/pages/tenant/MyAgreements.tsx` | Add escrow_transactions fallback check + polling retry for payment verification |
-| `src/pages/landlord/Agreements.tsx` | Filter rejected tenancies into a separate collapsed section |
-| Database (verify/insert) | Ensure `archive_search_fee` flag exists with `category = 'fees'` |
-
+3. Make landlord Agreements remove rejected items from the active list
+- The rejection cascade logic already updates tenancy/unit/property state.
+- I will change the landlord Agreements screen so rejected agreements are no longer shown in the active/pending agreements list.
