@@ -1,22 +1,39 @@
 
-Goal: fix the real cause of the rent-tax loop and align the agreement rejection behavior with your latest correction.
 
-1. Fix the actual payment failure point
-- The problem is not just delay/retry. The database shows recent `rent_tax_bulk` escrow records staying `pending`, and the related `rent_payments` rows remain `pending` with `tenant_marked_paid = false`.
-- That means the checkout redirect succeeds, but the payment completion callback is not updating records.
-- I will inspect and correct the backend payment completion path so successful Paystack payments reliably:
-  - mark the matching `escrow_transactions` row as `completed`
-  - mark the correct `rent_payments` rows as `tenant_paid`
-  - store `paid_date` and transaction reference
-- I will also harden the reference-matching logic for bulk rent tax payments so the tenancy/payment lookup cannot silently miss.
+# Fix: Payment Not Processing After Successful Checkout
 
-2. Keep the tenant flow from sending people back to pay again
-- In `MyAgreements.tsx`, keep the verification step but change it to treat a completed bulk tax payment as valid as soon as either:
-  - the matching `rent_payments` are `tenant_paid/confirmed`, or
-  - the matching escrow payment is completed
-- Add a clearer “payment is still being confirmed” state and prevent the user from being pushed back into another payment attempt while verification is in progress.
-- Keep the handoff from Payments → Agreements so a successful return can automatically re-check payment status.
+## Root Cause (confirmed via database inspection)
 
-3. Make landlord Agreements remove rejected items from the active list
-- The rejection cascade logic already updates tenancy/unit/property state.
-- I will change the landlord Agreements screen so rejected agreements are no longer shown in the active/pending agreements list.
+All 11 `rent_tax_bulk` escrow transactions are stuck at `pending` — zero have ever completed. The Paystack webhook has no recent logs, suggesting webhooks either aren't reaching the function or aren't configured in Paystack for this environment.
+
+The backup mechanism (`verify-payment` edge function) also has **zero logs**, meaning it's never being called successfully. The client-side code in `Payments.tsx` calls `verify-payment` inside a `useEffect` that runs immediately on mount — **before the Supabase auth session has been restored from localStorage** after the Paystack redirect. The call fails with a 401 auth error, which is silently swallowed by `.catch(() => {})`. The page then reloads, perpetuating the cycle.
+
+## Fixes
+
+### 1. Fix `Payments.tsx` — wait for auth before verifying payment
+
+The success-redirect `useEffect` (line 77) runs on mount without waiting for the authenticated user. It must:
+- Depend on `user` being available before calling `verify-payment`
+- Not swallow errors silently — log them and show user feedback
+- Not auto-reload until verification completes or definitively fails
+- After successful verification, reload the page to reflect updated payment state
+
+### 2. Fix `MyAgreements.tsx` — same auth timing issue
+
+The auto-verification effect (line 271) properly waits for `loading` to be false, but the `verifyPayment` function's call to `supabase.functions.invoke("verify-payment")` may still fail if the auth token isn't ready. Add explicit error logging and retry.
+
+### 3. Landlord Agreements — already fixed
+
+Rejected tenancies are already filtered out of the active list (line 144) and shown in a collapsible section. No changes needed.
+
+### 4. Archive Search Fee — already working
+
+The `archive_search_fee` flag exists in `feature_flags` with `category = 'fees'`, `fee_amount = 20`, `is_enabled = true`. Engine Room dynamically renders all flags including this one.
+
+## Files to Change
+
+| File | Change |
+|---|---|
+| `src/pages/tenant/Payments.tsx` | Make verify-payment call wait for authenticated user; add error logging; prevent reload until verified |
+| `src/pages/tenant/MyAgreements.tsx` | Add error logging to verify-payment calls; improve retry resilience |
+
