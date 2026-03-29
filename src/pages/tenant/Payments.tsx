@@ -74,42 +74,61 @@ const Payments = () => {
     fetchAll();
   }, [user]);
 
+  // Handle post-redirect payment verification — wait for auth to be ready
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("status") === "success") {
-      sessionStorage.setItem("paymentSuccessRedirected", "true");
 
-      const pendingTenancyId = sessionStorage.getItem("pendingPaymentTenancyId");
-      if (pendingTenancyId) {
-        sessionStorage.setItem("paymentSuccessTenancyId", pendingTenancyId);
-      }
-
-      toast.success("Payment received! Verifying...");
-      window.history.replaceState({}, "", window.location.pathname);
-
-      // Call verify-payment to force-finalize the payment server-side
-      const pendingRef = sessionStorage.getItem("pendingPaymentReference");
-      if (pendingRef) {
-        supabase.functions.invoke("verify-payment", { body: { reference: pendingRef } })
-          .then(({ data: vData }) => {
-            if (vData?.verified) {
-              toast.success("Payment confirmed!");
-              sessionStorage.removeItem("pendingPaymentReference");
-            }
-          })
-          .catch(() => {})
-          .finally(() => {
-            setTimeout(() => window.location.reload(), 2000);
-          });
-      } else {
-        const t1 = setTimeout(() => window.location.reload(), 4000);
-        return () => clearTimeout(t1);
-      }
-    } else if (params.get("status") === "cancelled") {
+    if (params.get("status") === "cancelled") {
       toast.error("Payment was cancelled.");
       window.history.replaceState({}, "", window.location.pathname);
+      return;
     }
-  }, []);
+
+    if (params.get("status") !== "success") return;
+
+    // Must wait for user session to be restored before calling edge functions
+    if (!user) return;
+
+    window.history.replaceState({}, "", window.location.pathname);
+    sessionStorage.setItem("paymentSuccessRedirected", "true");
+
+    const pendingTenancyId = sessionStorage.getItem("pendingPaymentTenancyId");
+    if (pendingTenancyId) {
+      sessionStorage.setItem("paymentSuccessTenancyId", pendingTenancyId);
+    }
+
+    const pendingRef = sessionStorage.getItem("pendingPaymentReference");
+    if (pendingRef) {
+      toast.info("Payment received! Verifying with server...");
+
+      supabase.functions.invoke("verify-payment", { body: { reference: pendingRef } })
+        .then(({ data: vData, error: fnError }) => {
+          if (fnError) {
+            console.error("verify-payment edge function error:", fnError);
+            toast.error("Verification call failed. Please refresh the page.");
+            return;
+          }
+          if (vData?.verified) {
+            toast.success("Payment confirmed!");
+            sessionStorage.removeItem("pendingPaymentReference");
+          } else {
+            console.warn("verify-payment returned unverified:", vData);
+            toast.info("Payment is still processing. Please refresh in a moment.");
+          }
+        })
+        .catch((err) => {
+          console.error("verify-payment call exception:", err);
+          toast.error("Could not verify payment. Please refresh.");
+        })
+        .finally(() => {
+          setTimeout(() => window.location.reload(), 3000);
+        });
+    } else {
+      toast.success("Payment received! Refreshing...");
+      const t1 = setTimeout(() => window.location.reload(), 4000);
+      return () => clearTimeout(t1);
+    }
+  }, [user]);
 
   const handlePayBulkTax = async (tenancyId: string) => {
     setPaying(true);
