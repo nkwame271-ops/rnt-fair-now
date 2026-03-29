@@ -175,14 +175,22 @@ const MyAgreements = () => {
     const pendingRef = sessionStorage.getItem("pendingPaymentReference");
     if (pendingRef) {
       try {
-        const { data: vData } = await supabase.functions.invoke("verify-payment", {
+        console.log("[verifyPayment] Calling verify-payment with reference:", pendingRef);
+        const { data: vData, error: fnError } = await supabase.functions.invoke("verify-payment", {
           body: { reference: pendingRef },
         });
-        if (vData?.verified) {
+        if (fnError) {
+          console.error("[verifyPayment] Edge function error:", fnError);
+        } else if (vData?.verified) {
+          console.log("[verifyPayment] Server confirmed payment for ref:", pendingRef);
           sessionStorage.removeItem("pendingPaymentReference");
           return true;
+        } else {
+          console.warn("[verifyPayment] verify-payment returned:", vData);
         }
-      } catch {}
+      } catch (err) {
+        console.error("[verifyPayment] Exception calling verify-payment:", err);
+      }
     }
 
     // Check rent_payments for tenant_paid or confirmed
