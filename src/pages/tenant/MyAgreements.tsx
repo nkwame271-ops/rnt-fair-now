@@ -171,6 +171,20 @@ const MyAgreements = () => {
   };
 
   const verifyPayment = async (tenancyId: string): Promise<boolean> => {
+    // First, try to force-verify via the verify-payment edge function using stored reference
+    const pendingRef = sessionStorage.getItem("pendingPaymentReference");
+    if (pendingRef) {
+      try {
+        const { data: vData } = await supabase.functions.invoke("verify-payment", {
+          body: { reference: pendingRef },
+        });
+        if (vData?.verified) {
+          sessionStorage.removeItem("pendingPaymentReference");
+          return true;
+        }
+      } catch {}
+    }
+
     // Check rent_payments for tenant_paid or confirmed
     const { data: payments } = await supabase
       .from("rent_payments")
