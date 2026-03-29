@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     // 1. Check if escrow exists
     const { data: escrow } = await supabaseAdmin
       .from("escrow_transactions")
-      .select("id, status, payment_type, user_id, total_amount, related_property_id, metadata")
+      .select("id, status, payment_type, user_id, total_amount, related_property_id, related_tenancy_id, reference, metadata")
       .eq("reference", reference)
       .maybeSingle();
 
