@@ -159,6 +159,9 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   support_chats: ["/regulator/support-chats"],
   sms_broadcast: ["/regulator/sms-broadcast"],
   api_keys: ["/regulator/api-keys"],
+  office_wallet: ["/regulator/office-fund-requests"],
+  payout_settings: ["/regulator/office-payout-settings"],
+  rent_reviews: ["/regulator/rent-reviews"],
 };
 
 // Reverse: route → feature key
