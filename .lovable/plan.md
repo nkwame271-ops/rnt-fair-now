@@ -1,58 +1,50 @@
 
 
-# Plan: Admin Fund Requests, Multi-Tenancy Dashboard, Renewal Selector, Payments Post-Tax, Rejection Cascade Fix
+# Plan: Fix Rejection Cascade Trigger + Verify Existing Implementations
 
-## 1. Office Fund Requests — Staff Submit Access
+## Problem Analysis
 
-**Current state**: `OfficeFundRequests.tsx` already has the submit form for sub-admins (`!isMainAdmin && officeId` condition on line 167) and review UI for main admins. The page is already routed and in nav.
+1. **Rejection cascade trigger missing**: The `on_tenancy_rejected` trigger does NOT exist in the database (confirmed via `pg_trigger` query). The function `handle_tenancy_rejection()` exists, but the trigger was never created despite the migration. The migration likely failed silently.
 
-**Problem**: The user says "there should be a place where staff submit requests" — this already exists but may not be visible because the sub-admin's `allowed_features` doesn't include `office_wallet`. The `FEATURE_ROUTE_MAP` was updated in the last iteration.
+2. **Dashboard, Payments, Renewal**: These were all fixed in the previous iteration. The code already:
+   - Shows all tenancy cards (no `.limit(1)`)
+   - Shows post-tax "Remaining Balance" UI with two options
+   - Allows selecting from multiple tenancies for renewal
+   
+   If the user is still seeing issues, it may be because the previous build hasn't fully deployed, or there's a data issue (e.g., only one tenancy exists for the test user).
 
-**Fix**: No code changes needed — the feature is already built. If sub-admins can't see it, the main admin needs to add `office_wallet` to their `allowed_features` via Invite Staff. This is already supported.
+3. **Office Fund Requests**: Already built in `OfficeFundRequests.tsx` with sub-admin submit form and main admin review UI.
 
-**No changes required.**
+## Changes Required
 
-## 2. Tenant Dashboard — Show ALL Tenancy Cards
+### 1. Re-create the rejection trigger via new migration
 
-**Problem**: The query on line 38 uses `.limit(1)`, so only the most recent tenancy card shows. Old ones are dismissed.
+The previous migration's `CREATE TRIGGER` statement failed. We'll use a new migration with explicit schema qualification and verify it works.
 
-**Fix**: Remove `.limit(1)`, change state from single `tenancyCardData` to an array `tenancyCards: TenancyCardData[]`, and render all of them in the dashboard.
+```sql
+DROP TRIGGER IF EXISTS on_tenancy_rejected ON public.tenancies;
 
-**File**: `src/pages/tenant/TenantDashboard.tsx`
+CREATE TRIGGER on_tenancy_rejected
+  AFTER UPDATE OF status ON public.tenancies
+  FOR EACH ROW
+  WHEN (NEW.status = 'rejected' AND OLD.status IS DISTINCT FROM 'rejected')
+  EXECUTE FUNCTION public.handle_tenancy_rejection();
+```
 
-## 3. Renewal — Show All Active Tenancies for Selection
+Key differences from previous attempt:
+- Schema-qualify table and function as `public.tenancies` / `public.handle_tenancy_rejection()`
+- Use `AFTER UPDATE OF status` to only fire on status column changes
+- Add `WHEN` clause directly on the trigger (more efficient than checking inside the function)
 
-**Problem**: `RequestRenewal.tsx` fetches only 1 tenancy (`.limit(1)` on line 43). Tenants with multiple active tenancies can't choose which one to renew.
+### 2. Verify landlord Agreements page filters correctly
 
-**Fix**: Remove `.limit(1)`, fetch all eligible tenancies, show a selector if multiple exist, and let the tenant pick which one to renew.
-
-**File**: `src/pages/tenant/RequestRenewal.tsx`
-
-## 4. Payments — Post-Tax Flow Already Implemented
-
-**Current state**: Lines 296-323 already show "Advance Tax Paid ✓" with "Remaining Balance to Landlord" and two buttons: "Pay Landlord on Platform (Coming Soon)" and "I Paid My Landlord Off-Platform". This matches the requirement.
-
-**No changes required.**
-
-## 5. Rejection Cascade — Debug Trigger
-
-**Problem**: The migration created both the function and trigger, and the function is visible in `db-functions`. However, `db-triggers` says "no triggers." The trigger may have failed to apply.
-
-**Root cause**: The `handleReject` code on line 127 uses `.update(...)` but doesn't check the response for errors — if the update itself fails (e.g., RLS blocks it), the cascade never fires.
-
-**Fix**:
-- Add proper error checking to `handleReject` — capture the `{ error }` from the update and show it
-- Re-apply the trigger via a new migration (the previous one may have failed silently)
-- Also add `tenant_accepted: false` to the update is already there, but the `as any` cast may mask type issues
-
-**Files**: `src/pages/tenant/MyAgreements.tsx` (add error handling), new migration (re-create trigger with `DROP TRIGGER IF EXISTS` first)
+The landlord `Agreements.tsx` already filters: `activeTenancies = tenancies.filter(t => t.status !== "rejected")` — so rejected agreements are removed from the active list. No change needed once the trigger works.
 
 ## Files to Change
 
 | File | Change |
 |---|---|
-| `src/pages/tenant/TenantDashboard.tsx` | Remove `.limit(1)`, show all tenancy cards as an array |
-| `src/pages/tenant/RequestRenewal.tsx` | Remove `.limit(1)`, add tenancy selector dropdown for multiple active tenancies |
-| `src/pages/tenant/MyAgreements.tsx` | Add error checking to `handleReject` update call |
-| New migration | Re-create `on_tenancy_rejected` trigger with `DROP TRIGGER IF EXISTS` safety |
+| New migration | Create `on_tenancy_rejected` trigger with schema-qualified names |
+
+No frontend changes needed — all UI corrections from the previous iteration are already in place.
 
