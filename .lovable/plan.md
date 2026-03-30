@@ -1,50 +1,52 @@
 
 
-# Plan: Fix Rejection Cascade Trigger + Verify Existing Implementations
+# Plan: Fix Rejection Constraint, Dashboard Card Visibility, Payments Post-Tax
 
-## Problem Analysis
+## Root Cause Analysis
 
-1. **Rejection cascade trigger missing**: The `on_tenancy_rejected` trigger does NOT exist in the database (confirmed via `pg_trigger` query). The function `handle_tenancy_rejection()` exists, but the trigger was never created despite the migration. The migration likely failed silently.
-
-2. **Dashboard, Payments, Renewal**: These were all fixed in the previous iteration. The code already:
-   - Shows all tenancy cards (no `.limit(1)`)
-   - Shows post-tax "Remaining Balance" UI with two options
-   - Allows selecting from multiple tenancies for renewal
-   
-   If the user is still seeing issues, it may be because the previous build hasn't fully deployed, or there's a data issue (e.g., only one tenancy exists for the test user).
-
-3. **Office Fund Requests**: Already built in `OfficeFundRequests.tsx` with sub-admin submit form and main admin review UI.
-
-## Changes Required
-
-### 1. Re-create the rejection trigger via new migration
-
-The previous migration's `CREATE TRIGGER` statement failed. We'll use a new migration with explicit schema qualification and verify it works.
-
-```sql
-DROP TRIGGER IF EXISTS on_tenancy_rejected ON public.tenancies;
-
-CREATE TRIGGER on_tenancy_rejected
-  AFTER UPDATE OF status ON public.tenancies
-  FOR EACH ROW
-  WHEN (NEW.status = 'rejected' AND OLD.status IS DISTINCT FROM 'rejected')
-  EXECUTE FUNCTION public.handle_tenancy_rejection();
+The `tenancies` table has a CHECK constraint that only allows these status values:
+```
+'pending', 'active', 'completed', 'terminated', 'disputed'
 ```
 
-Key differences from previous attempt:
-- Schema-qualify table and function as `public.tenancies` / `public.handle_tenancy_rejection()`
-- Use `AFTER UPDATE OF status` to only fire on status column changes
-- Add `WHEN` clause directly on the trigger (more efficient than checking inside the function)
+The value `'rejected'` is **not permitted** by this constraint. That is why rejecting an agreement fails with the error. Similarly, statuses like `'renewal_window'`, `'existing_declared'`, `'awaiting_verification'`, `'verified_existing'` used elsewhere in the app are also not in this constraint — queries filtering on them would return no results.
 
-### 2. Verify landlord Agreements page filters correctly
+## Changes
 
-The landlord `Agreements.tsx` already filters: `activeTenancies = tenancies.filter(t => t.status !== "rejected")` — so rejected agreements are removed from the active list. No change needed once the trigger works.
+### 1. Database Migration — Expand status check constraint
+
+Drop the existing `tenancies_status_check` and re-create it with all statuses the application uses:
+
+```sql
+ALTER TABLE public.tenancies DROP CONSTRAINT tenancies_status_check;
+ALTER TABLE public.tenancies ADD CONSTRAINT tenancies_status_check
+  CHECK (status = ANY (ARRAY[
+    'pending', 'active', 'completed', 'terminated', 'disputed',
+    'rejected', 'renewal_window', 'existing_declared',
+    'awaiting_verification', 'verified_existing', 'expired'
+  ]));
+```
+
+This immediately fixes the rejection cascade — the trigger function `handle_tenancy_rejection()` already exists and will fire correctly once the status value is allowed.
+
+### 2. Dashboard — Only show tenancy cards after tenant has signed
+
+Currently the query fetches all tenancies with `status IN (active, pending, ...)`. The user wants cards to appear only after the tenant has signed (i.e., tax is paid and agreement is signed).
+
+**Fix**: Add `.not("tenant_signed_at", "is", null)` to the tenancy query in `TenantDashboard.tsx`. This ensures only signed agreements produce tenancy cards.
+
+### 3. Payments — Post-tax flow (already implemented)
+
+The code at lines 296-323 of `Payments.tsx` already shows "Advance Tax Paid ✓" with "Remaining Balance to Landlord" and two buttons (pay on platform / off-platform) when all advance tax is paid. No changes needed.
+
+### 4. Office Fund Requests (already implemented)
+
+`OfficeFundRequests.tsx` already has the submit form for sub-admins and review/approval UI for main admins. No changes needed.
 
 ## Files to Change
 
 | File | Change |
 |---|---|
-| New migration | Create `on_tenancy_rejected` trigger with schema-qualified names |
-
-No frontend changes needed — all UI corrections from the previous iteration are already in place.
+| New migration | Drop and re-create `tenancies_status_check` with all valid statuses |
+| `src/pages/tenant/TenantDashboard.tsx` | Add `tenant_signed_at IS NOT NULL` filter to tenancy query |
 
