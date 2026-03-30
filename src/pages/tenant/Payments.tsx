@@ -268,8 +268,8 @@ const Payments = () => {
         </div>
       </div>
 
-      {/* Pay All Advance Tax */}
-      {!allAdvancePaid && (
+      {/* Pay All Advance Tax — or Remaining Balance after tax paid */}
+      {!allAdvancePaid ? (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl p-6 shadow-elevated border-2 border-primary/30">
           <div className="flex items-center gap-2 mb-4">
             <Wallet className="h-5 w-5 text-primary" />
@@ -292,6 +292,33 @@ const Payments = () => {
             {paying ? "Redirecting..." : `Pay GH₵ ${unpaidAdvanceTax.toLocaleString()} Online`}
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-3">After online payment, settle the remaining balance directly with {tenancy.landlordName}</p>
+        </motion.div>
+      ) : (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl p-6 shadow-elevated border-2 border-success/30">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle2 className="h-5 w-5 text-success" />
+            <h2 className="text-lg font-semibold text-card-foreground">Advance Tax Paid ✓</h2>
+          </div>
+          <div className="bg-muted rounded-lg p-4 space-y-3 mb-5">
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Advance ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tax Paid (8%)</span><span className="font-semibold text-success">GH₵ {advancePayments.reduce((s, p) => s + p.tax_amount, 0).toLocaleString()}</span></div>
+            <div className="border-t border-border pt-2">
+              <div className="flex justify-between text-sm"><span className="text-primary font-medium">Remaining Balance to Landlord</span><span className="text-xl font-bold text-primary">GH₵ {advancePayments.reduce((s, p) => s + p.amount_to_landlord, 0).toLocaleString()}</span></div>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <Button className="w-full" size="lg" variant="outline" disabled>
+              <Wallet className="h-4 w-4 mr-2" />
+              Pay Landlord on Platform (Coming Soon)
+            </Button>
+            <Button className="w-full" size="lg" variant="secondary" onClick={() => {
+              toast.success("Noted! Make sure to get a receipt from your landlord.");
+            }}>
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              I Paid My Landlord Off-Platform
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground text-center mt-3">Pay the remaining GH₵ {advancePayments.reduce((s, p) => s + p.amount_to_landlord, 0).toLocaleString()} directly to {tenancy.landlordName}</p>
         </motion.div>
       )}
 

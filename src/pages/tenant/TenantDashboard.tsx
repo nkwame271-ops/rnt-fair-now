@@ -35,7 +35,7 @@ const TenantDashboard = () => {
         supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
         supabase.from("tenants").select("registration_fee_paid").eq("user_id", user.id).maybeSingle(),
         supabase.from("complaints").select("id", { count: "exact", head: true }).eq("tenant_user_id", user.id).not("status", "in", '("resolved","closed")'),
-        supabase.from("tenancies").select("*, unit:units(unit_name, unit_type, property_id)").eq("tenant_user_id", user.id).in("status", ["active", "pending", "renewal_window", "existing_declared", "awaiting_verification", "verified_existing"]).limit(1),
+        supabase.from("tenancies").select("*, unit:units(unit_name, unit_type, property_id)").eq("tenant_user_id", user.id).in("status", ["active", "pending", "renewal_window", "existing_declared", "awaiting_verification", "verified_existing"]).order("created_at", { ascending: false }).limit(1),
       ]);
 
       const profile = profileRes.data;
@@ -58,6 +58,26 @@ const TenantDashboard = () => {
 
         const paid = (payments || []).filter((p: any) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed").length;
         const nextP = (payments || []).find((p: any) => !p.tenant_marked_paid && !p.landlord_confirmed && p.status !== "confirmed");
+
+        // Fetch rent card serials if linked
+        let rentCardSerial: string | undefined;
+        let rentCardSerial2: string | undefined;
+        let rentCardRole: string | undefined;
+        let rentCardRole2: string | undefined;
+
+        const cardIds = [t.rent_card_id, t.rent_card_id_2].filter(Boolean);
+        if (cardIds.length > 0) {
+          const { data: cards } = await supabase
+            .from("rent_cards")
+            .select("id, serial_number, card_role")
+            .in("id", cardIds);
+          if (cards) {
+            const card1 = cards.find((c: any) => c.id === t.rent_card_id);
+            const card2 = cards.find((c: any) => c.id === t.rent_card_id_2);
+            if (card1) { rentCardSerial = card1.serial_number || undefined; rentCardRole = card1.card_role || undefined; }
+            if (card2) { rentCardSerial2 = card2.serial_number || undefined; rentCardRole2 = card2.card_role || undefined; }
+          }
+        }
 
         setTenancy({
           propertyAddress: prop?.address || "",
@@ -82,6 +102,10 @@ const TenantDashboard = () => {
           expiryDate: t.end_date,
           complianceStatus: t.compliance_status || "compliant",
           status: t.status,
+          rentCardSerial,
+          rentCardSerial2,
+          rentCardRole,
+          rentCardRole2,
         });
       }
       setLoading(false);
