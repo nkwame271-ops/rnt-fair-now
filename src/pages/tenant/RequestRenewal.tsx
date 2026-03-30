@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, LogOut, CheckCircle2, Clock, AlertTriangle, CreditCard } from "lucide-react";
 import PageTransition from "@/components/PageTransition";
@@ -29,7 +30,8 @@ const RequestRenewal = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [tenancy, setTenancy] = useState<TenancyRenewal | null>(null);
+  const [tenancies, setTenancies] = useState<TenancyRenewal[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -39,8 +41,7 @@ const RequestRenewal = () => {
         .select("id, registration_code, agreed_rent, start_date, end_date, status, landlord_user_id, proposed_rent, renewal_duration_months, unit_id")
         .eq("tenant_user_id", user.id)
         .in("status", ["active", "renewal_window", "renewal_pending", "renewal_pending_assessment", "renewal_pending_confirmation", "renewal_pending_payment"])
-        .order("end_date", { ascending: false })
-        .limit(1);
+        .order("end_date", { ascending: false });
 
       if (error) {
         console.error(error);
@@ -49,26 +50,30 @@ const RequestRenewal = () => {
       }
 
       if (data && data.length > 0) {
-        const t = data[0] as any;
-        // Fetch property address and landlord name
-        const { data: unit } = await supabase.from("units").select("property_id").eq("id", t.unit_id).single();
-        let propertyAddress = "";
-        if (unit) {
-          const { data: prop } = await supabase.from("properties").select("address").eq("id", unit.property_id).single();
-          propertyAddress = prop?.address || "";
+        const results: TenancyRenewal[] = [];
+        for (const t of data as any[]) {
+          const { data: unit } = await supabase.from("units").select("property_id").eq("id", t.unit_id).single();
+          let propertyAddress = "";
+          if (unit) {
+            const { data: prop } = await supabase.from("properties").select("address").eq("id", unit.property_id).single();
+            propertyAddress = prop?.address || "";
+          }
+          const { data: landlord } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
+          results.push({ ...t, propertyAddress, landlordName: landlord?.full_name || "Unknown" });
         }
-        const { data: landlord } = await supabase.from("profiles").select("full_name").eq("user_id", t.landlord_user_id).single();
-
-        setTenancy({
-          ...t,
-          propertyAddress,
-          landlordName: landlord?.full_name || "Unknown",
-        });
+        setTenancies(results);
+        setSelectedId(results[0].id);
       }
       setLoading(false);
     };
     fetchTenancy();
   }, [user]);
+
+  const tenancy = tenancies.find(t => t.id === selectedId) || null;
+
+  const updateTenancy = (id: string, updates: Partial<TenancyRenewal>) => {
+    setTenancies(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  };
 
   const handleRequestRenewal = async () => {
     if (!tenancy || !user) return;
@@ -94,7 +99,7 @@ const RequestRenewal = () => {
       });
 
       toast.success("Renewal request submitted!");
-      setTenancy({ ...tenancy, status: "renewal_pending" });
+      updateTenancy(tenancy.id, { status: "renewal_pending" });
     } catch (err: any) {
       toast.error(err.message || "Failed to submit request");
     } finally {
@@ -125,7 +130,7 @@ const RequestRenewal = () => {
       });
 
       toast.success("Exit notice submitted. Your landlord has been notified.");
-      setTenancy({ ...tenancy, status: "terminated" });
+      updateTenancy(tenancy.id, { status: "terminated" });
     } catch (err: any) {
       toast.error(err.message || "Failed to submit exit notice");
     } finally {
@@ -186,7 +191,7 @@ const RequestRenewal = () => {
       });
 
       toast.success("You have declined the renewal.");
-      setTenancy({ ...tenancy, status: "terminated" });
+      updateTenancy(tenancy.id, { status: "terminated" });
     } catch (err: any) {
       toast.error(err.message || "Failed to decline");
     } finally {
@@ -196,7 +201,7 @@ const RequestRenewal = () => {
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
-  if (!tenancy) {
+  if (tenancies.length === 0) {
     return (
       <PageTransition>
         <div className="max-w-2xl mx-auto">
@@ -211,6 +216,8 @@ const RequestRenewal = () => {
     );
   }
 
+  if (!tenancy) return null;
+
   const daysLeft = differenceInDays(new Date(tenancy.end_date), new Date());
   const isRenewalWindow = tenancy.status === "active" || tenancy.status === "renewal_window";
   const isPending = tenancy.status === "renewal_pending" || tenancy.status === "renewal_pending_assessment";
@@ -222,6 +229,24 @@ const RequestRenewal = () => {
     <PageTransition>
       <div className="max-w-2xl mx-auto space-y-6">
         <h1 className="text-2xl font-bold text-foreground">Tenancy Renewal</h1>
+
+        {tenancies.length > 1 && (
+          <div>
+            <label className="text-sm text-muted-foreground mb-1 block">Select tenancy</label>
+            <Select value={selectedId || ""} onValueChange={setSelectedId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a tenancy" />
+              </SelectTrigger>
+              <SelectContent>
+                {tenancies.map(t => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.registration_code} — {t.propertyAddress || "Property"} (GH₵ {t.agreed_rent.toLocaleString()})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <Card>
           <CardHeader>
