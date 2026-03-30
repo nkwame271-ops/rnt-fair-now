@@ -1,68 +1,58 @@
 
 
-# Plan: Admin Fund Requests, Tenancy Card Fixes, Payment Flow Post-Tax, Rejection Cascade
+# Plan: Admin Fund Requests, Multi-Tenancy Dashboard, Renewal Selector, Payments Post-Tax, Rejection Cascade Fix
 
-## 1. Office Fund Requests — Sub Admin Submit Access
+## 1. Office Fund Requests — Staff Submit Access
 
-**Problem**: Sub admins need a place to submit fund requests. The `OfficeFundRequests.tsx` page already exists and supports both sub admin (submit) and main admin (review) flows. It's already in the nav as "Office Wallet".
+**Current state**: `OfficeFundRequests.tsx` already has the submit form for sub-admins (`!isMainAdmin && officeId` condition on line 167) and review UI for main admins. The page is already routed and in nav.
 
-**Fix**: The `FEATURE_ROUTE_MAP` is missing entries for `office_fund_requests` and `office_payout_settings`, so sub admins can't be granted access to these features via Invite Staff.
+**Problem**: The user says "there should be a place where staff submit requests" — this already exists but may not be visible because the sub-admin's `allowed_features` doesn't include `office_wallet`. The `FEATURE_ROUTE_MAP` was updated in the last iteration.
 
-**Changes**:
-- Add `office_wallet` and `payout_settings` keys to `FEATURE_ROUTE_MAP` in `useAdminProfile.ts`
+**Fix**: No code changes needed — the feature is already built. If sub-admins can't see it, the main admin needs to add `office_wallet` to their `allowed_features` via Invite Staff. This is already supported.
 
-## 2. Invite Staff — Add New Features to Feature Visibility
+**No changes required.**
 
-**Problem**: New features (Office Wallet, Payout Settings, Rent Reviews) are missing from `FEATURE_ROUTE_MAP`, so they don't appear in the Invite Staff feature checklist.
+## 2. Tenant Dashboard — Show ALL Tenancy Cards
 
-**Fix**: Already covered by adding the new keys in step 1. The Invite Staff page dynamically reads `Object.keys(FEATURE_ROUTE_MAP)`.
+**Problem**: The query on line 38 uses `.limit(1)`, so only the most recent tenancy card shows. Old ones are dismissed.
 
-## 3. Tenant Dashboard — Show Tenancy Card After Agreement Signed
+**Fix**: Remove `.limit(1)`, change state from single `tenancyCardData` to an array `tenancyCards: TenancyCardData[]`, and render all of them in the dashboard.
 
-**Problem**: The dashboard query filters for `status IN (active, pending, renewal_window, ...)` but doesn't fetch rent card serials. After signing, the tenancy card shows but without rent card data.
+**File**: `src/pages/tenant/TenantDashboard.tsx`
+
+## 3. Renewal — Show All Active Tenancies for Selection
+
+**Problem**: `RequestRenewal.tsx` fetches only 1 tenancy (`.limit(1)` on line 43). Tenants with multiple active tenancies can't choose which one to renew.
+
+**Fix**: Remove `.limit(1)`, fetch all eligible tenancies, show a selector if multiple exist, and let the tenant pick which one to renew.
+
+**File**: `src/pages/tenant/RequestRenewal.tsx`
+
+## 4. Payments — Post-Tax Flow Already Implemented
+
+**Current state**: Lines 296-323 already show "Advance Tax Paid ✓" with "Remaining Balance to Landlord" and two buttons: "Pay Landlord on Platform (Coming Soon)" and "I Paid My Landlord Off-Platform". This matches the requirement.
+
+**No changes required.**
+
+## 5. Rejection Cascade — Debug Trigger
+
+**Problem**: The migration created both the function and trigger, and the function is visible in `db-functions`. However, `db-triggers` says "no triggers." The trigger may have failed to apply.
+
+**Root cause**: The `handleReject` code on line 127 uses `.update(...)` but doesn't check the response for errors — if the update itself fails (e.g., RLS blocks it), the cascade never fires.
 
 **Fix**:
-- In `TenantDashboard.tsx`, fetch `rent_card_id` and `rent_card_id_2` from the tenancy
-- For each rent card ID, fetch the serial number from `rent_cards` table
-- Pass `rentCardSerial`, `rentCardSerial2`, `rentCardRole`, `rentCardRole2` to `TenancyCardData`
+- Add proper error checking to `handleReject` — capture the `{ error }` from the update and show it
+- Re-apply the trigger via a new migration (the previous one may have failed silently)
+- Also add `tenant_accepted: false` to the update is already there, but the `as any` cast may mask type issues
 
-## 4. Tenancy Card — Rename "Advance Paid" → "Advance" + Show Rent Cards
-
-**Problem**: Label says "Advance Paid" but should say "Advance". Rent card serials need to be displayed.
-
-**Fix**:
-- In `TenancyCard.tsx`, change line 82 label from "Advance Paid" to "Advance"
-- Rent card serials are already rendered (lines 86-97) when passed via props — the fix is in the data-fetching (step 3)
-
-## 5. Payments — Hide Tax Card After Payment, Show Remaining Balance Options
-
-**Problem**: After paying advance tax, the "Pay All Advance Tax" card still shows. Should instead show two options: pay remaining balance to landlord on-platform, or mark as paid off-platform.
-
-**Fix**:
-- In `Payments.tsx`, when `allAdvancePaid === true`, replace the tax payment card with a new "Remaining Balance" card showing:
-  - Total advance rent minus total tax = amount owed to landlord
-  - Option 1: "Pay Landlord on Platform" (future Paystack transfer, for now show as coming soon or direct link)
-  - Option 2: "I Paid Off-Platform" button that marks the advance as settled
-- Keep the payment schedule below for visibility
-
-## 6. Rejection Cascade — Server-Side Fix
-
-**Problem**: When tenant rejects agreement, the client-side code updates `units` and `properties` tables, but tenants lack RLS permissions to update those tables. The updates silently fail.
-
-**Fix**: Create a database trigger `on_tenancy_rejected` that fires on `UPDATE` of `tenancies` table. When `NEW.status = 'rejected'` and `OLD.status != 'rejected'`:
-- Set the unit (`units.status`) to `'vacant'`
-- Check if property has any remaining occupied units; if not, set `properties.property_status = 'live'` and `properties.listed_on_marketplace = true`
-
-This runs as `SECURITY DEFINER`, bypassing RLS. The client code in `MyAgreements.tsx` can then be simplified to only update the tenancy status — the trigger handles the cascade.
+**Files**: `src/pages/tenant/MyAgreements.tsx` (add error handling), new migration (re-create trigger with `DROP TRIGGER IF EXISTS` first)
 
 ## Files to Change
 
 | File | Change |
 |---|---|
-| `src/hooks/useAdminProfile.ts` | Add `office_wallet`, `payout_settings`, `rent_reviews` to `FEATURE_ROUTE_MAP` |
-| `src/components/TenancyCard.tsx` | Rename "Advance Paid" → "Advance" |
-| `src/pages/tenant/TenantDashboard.tsx` | Fetch rent card serials for tenancy card display |
-| `src/pages/tenant/Payments.tsx` | After all advance tax paid, show remaining balance options instead of tax card |
-| `src/pages/tenant/MyAgreements.tsx` | Simplify rejection to only update tenancy status (trigger handles cascade) |
-| Database migration | Create `on_tenancy_rejected` trigger for cascading unit/property reset |
+| `src/pages/tenant/TenantDashboard.tsx` | Remove `.limit(1)`, show all tenancy cards as an array |
+| `src/pages/tenant/RequestRenewal.tsx` | Remove `.limit(1)`, add tenancy selector dropdown for multiple active tenancies |
+| `src/pages/tenant/MyAgreements.tsx` | Add error checking to `handleReject` update call |
+| New migration | Re-create `on_tenancy_rejected` trigger with `DROP TRIGGER IF EXISTS` safety |
 
