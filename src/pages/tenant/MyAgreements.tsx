@@ -124,7 +124,8 @@ const MyAgreements = () => {
     setRejecting(tenancyId);
     try {
       // Update tenancy status — the DB trigger handles cascading unit/property reset
-      await supabase.from("tenancies").update({ status: "rejected", tenant_accepted: false } as any).eq("id", tenancyId);
+      const { error } = await supabase.from("tenancies").update({ status: "rejected", tenant_accepted: false } as any).eq("id", tenancyId);
+      if (error) throw error;
 
       setTenancies(prev => prev.map(t => t.id === tenancyId ? { ...t, status: "rejected", tenant_accepted: false } : t));
       toast.success("Agreement rejected. Your landlord has been notified.");
