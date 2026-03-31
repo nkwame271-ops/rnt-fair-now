@@ -301,7 +301,7 @@ const Payments = () => {
           </div>
           <div className="bg-muted rounded-lg p-4 space-y-3 mb-5">
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Advance ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tax Paid (8%)</span><span className="font-semibold text-success">GH₵ {advancePayments.reduce((s, p) => s + p.tax_amount, 0).toLocaleString()}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tax Paid</span><span className="font-semibold text-success">GH₵ {advancePayments.reduce((s, p) => s + p.tax_amount, 0).toLocaleString()}</span></div>
             <div className="border-t border-border pt-2">
               <div className="flex justify-between text-sm"><span className="text-primary font-medium">Remaining Balance to Landlord</span><span className="text-xl font-bold text-primary">GH₵ {advancePayments.reduce((s, p) => s + p.amount_to_landlord, 0).toLocaleString()}</span></div>
             </div>

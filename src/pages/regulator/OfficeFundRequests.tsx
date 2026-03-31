@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +29,11 @@ interface FundRequest {
   officeName?: string;
 }
 
+interface Office {
+  id: string;
+  name: string;
+}
+
 const OfficeFundRequests = () => {
   const { user } = useAuth();
   const { profile } = useAdminProfile();
@@ -44,8 +50,24 @@ const OfficeFundRequests = () => {
   const [reviewNotes, setReviewNotes] = useState("");
   const [confirmAction, setConfirmAction] = useState<{ id: string; action: "approve" | "reject" } | null>(null);
 
+  // For main admin: list of offices to pick from
+  const [offices, setOffices] = useState<Office[]>([]);
+  const [selectedOfficeId, setSelectedOfficeId] = useState<string>("");
+
+  // Effective office for the submit form
+  const effectiveOfficeId = isMainAdmin ? selectedOfficeId : officeId;
+
   const fetchData = async () => {
     if (!user) return;
+
+    // Fetch offices for main admin selector
+    if (isMainAdmin) {
+      const { data: officeList } = await supabase.from("offices").select("id, name").order("name");
+      setOffices(officeList || []);
+      if (!selectedOfficeId && officeList && officeList.length > 0) {
+        setSelectedOfficeId(officeList[0].id);
+      }
+    }
 
     // Fetch requests
     const { data: reqs } = await supabase
@@ -53,7 +75,6 @@ const OfficeFundRequests = () => {
       .select("*")
       .order("created_at", { ascending: false });
 
-    // Fetch profiles for requester names
     const enriched: FundRequest[] = [];
     for (const r of (reqs || []) as any[]) {
       const { data: prof } = await supabase.from("profiles").select("full_name").eq("user_id", r.requested_by).single();
@@ -65,17 +86,10 @@ const OfficeFundRequests = () => {
       });
     }
 
-    // Filter for sub admins
     if (!isMainAdmin && officeId) {
       setRequests(enriched.filter(r => r.office_id === officeId));
     } else {
       setRequests(enriched);
-    }
-
-    // Calculate balance for the relevant office
-    const targetOfficeId = isMainAdmin ? null : officeId;
-    if (targetOfficeId) {
-      await calculateBalance(targetOfficeId);
     }
 
     setLoading(false);
@@ -102,8 +116,18 @@ const OfficeFundRequests = () => {
 
   useEffect(() => { fetchData(); }, [user, profile]);
 
+  // Recalculate balance when effective office changes
+  useEffect(() => {
+    if (effectiveOfficeId) {
+      calculateBalance(effectiveOfficeId);
+    }
+  }, [effectiveOfficeId, requests]);
+
   const handleSubmit = async () => {
-    if (!user || !officeId) return;
+    if (!user || !effectiveOfficeId) {
+      toast.error("Please select an office");
+      return;
+    }
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) { toast.error("Enter a valid amount"); return; }
     if (amt > balance) { toast.error("Amount exceeds available balance"); return; }
@@ -111,7 +135,7 @@ const OfficeFundRequests = () => {
 
     setSubmitting(true);
     const { error } = await supabase.from("office_fund_requests").insert({
-      office_id: officeId,
+      office_id: effectiveOfficeId,
       requested_by: user.id,
       amount: amt,
       purpose: purpose.trim(),
@@ -157,43 +181,58 @@ const OfficeFundRequests = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><Wallet className="h-7 w-7" /> Office Fund Requests</h1>
+        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><Wallet className="h-7 w-7" /> Office Wallet</h1>
         <p className="text-muted-foreground mt-1">
-          {isMainAdmin ? "Review and process office withdrawal requests" : "Submit withdrawal requests from your office escrow balance"}
+          {isMainAdmin
+            ? "Submit fund requests and review/approve office withdrawal requests"
+            : "Submit withdrawal requests from your office escrow balance"}
         </p>
       </div>
 
-      {/* Sub admin: show balance & submit form */}
-      {!isMainAdmin && officeId && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Your Office Balance</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-3xl font-bold text-primary">GH₵ {balance.toFixed(2)}</div>
-            <p className="text-sm text-muted-foreground">Available for withdrawal requests</p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
-              <div>
-                <label className="text-sm font-medium text-foreground">Amount (GH₵)</label>
-                <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" min="0" step="0.01" />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-sm font-medium text-foreground">Purpose</label>
-                <Textarea value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="e.g., Office supplies, inspection travel costs..." rows={2} />
-              </div>
-              <div className="sm:col-span-2">
-                <Button onClick={handleSubmit} disabled={submitting} className="w-full sm:w-auto">
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-                  Submit Request
-                </Button>
-              </div>
+      {/* Fund Request Submission — available to ALL admins */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Request Funds</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Main admin: pick office */}
+          {isMainAdmin && (
+            <div>
+              <label className="text-sm font-medium text-foreground">Office</label>
+              <Select value={selectedOfficeId} onValueChange={setSelectedOfficeId}>
+                <SelectTrigger><SelectValue placeholder="Select an office" /></SelectTrigger>
+                <SelectContent>
+                  {offices.map(o => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
 
-      {/* Request history */}
+          <div className="text-3xl font-bold text-primary">GH₵ {balance.toFixed(2)}</div>
+          <p className="text-sm text-muted-foreground">Available balance{isMainAdmin && selectedOfficeId ? ` for selected office` : ""}</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
+            <div>
+              <label className="text-sm font-medium text-foreground">Amount (GH₵)</label>
+              <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" min="0" step="0.01" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-sm font-medium text-foreground">Purpose</label>
+              <Textarea value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="e.g., Office supplies, inspection travel costs..." rows={2} />
+            </div>
+            <div className="sm:col-span-2">
+              <Button onClick={handleSubmit} disabled={submitting || !effectiveOfficeId} className="w-full sm:w-auto">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                Submit Request
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Request history & approval */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">{isMainAdmin ? "All Office Requests" : "Your Requests"}</CardTitle>
@@ -209,7 +248,7 @@ const OfficeFundRequests = () => {
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
                       <span className="font-semibold text-foreground">GH₵ {Number(r.amount).toFixed(2)}</span>
-                      {isMainAdmin && <span className="ml-2 text-sm text-muted-foreground">— {r.officeName}</span>}
+                      <span className="ml-2 text-sm text-muted-foreground">— {r.officeName}</span>
                     </div>
                     {statusBadge(r.status)}
                   </div>
