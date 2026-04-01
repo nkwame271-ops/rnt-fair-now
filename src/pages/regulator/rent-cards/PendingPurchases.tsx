@@ -508,13 +508,13 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
         })}
       </div>
 
-      {/* Serial Mapping Dialog */}
+      {/* Simplified Assignment Dialog */}
       <Dialog open={mappingCards.length > 0} onOpenChange={open => { if (!open && !assigning) setMappingCards([]); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Assign Serials — {mappingCards.length} card{mappingCards.length !== 1 ? "s" : ""}</DialogTitle>
             <DialogDescription>
-              Pick a specific serial number for each rent card.
+              The system will automatically select the next {mappingCards.length} available serial{mappingCards.length !== 1 ? "s" : ""} from office stock.
             </DialogDescription>
           </DialogHeader>
 
@@ -525,41 +525,30 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
-                  {availableSerials.length} serial(s) available in office stock
-                </p>
-                <Button variant="outline" size="sm" onClick={handleAutoFill}>
-                  <Wand2 className="h-3 w-3 mr-1" /> Auto-fill sequential
-                </Button>
+              <div className="bg-muted/30 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Cards to assign:</span>
+                  <span className="font-semibold text-card-foreground">{mappingCards.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Available serials:</span>
+                  <span className="font-semibold text-card-foreground">{availableSerials.length}</span>
+                </div>
+                {availableSerials.length > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Serial range:</span>
+                    <span className="font-mono text-xs text-card-foreground">
+                      {availableSerials[0]?.serial_number} → {availableSerials[Math.min(mappingCards.length - 1, availableSerials.length - 1)]?.serial_number}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-3">
-                {mappingCards.map((card, idx) => {
-                  const currentVal = serialMap[card.id] || "";
-                  const options = availableSerials.filter(
-                    s => !selectedSerialSet.has(s.serial_number) || s.serial_number === currentVal
-                  );
-                  return (
-                    <div key={card.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
-                    <div className="min-w-0 flex-shrink-0">
-                        <span className="text-xs font-medium text-muted-foreground">Card {idx + 1}</span>
-                        <p className="font-mono text-xs text-card-foreground truncate max-w-[140px]" title={card.id}>
-                          {card.id.slice(0, 8)}…
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">{card.purchase_id}</p>
-                      </div>
-                      <div className="flex-1">
-                        <SerialSearchPicker
-                          options={options}
-                          value={currentVal}
-                          onChange={val => setSerialMap(prev => ({ ...prev, [card.id]: val }))}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              {availableSerials.length < mappingCards.length && (
+                <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-lg">
+                  Not enough serials available. Need {mappingCards.length}, only {availableSerials.length} available.
+                </div>
+              )}
             </div>
           )}
 
@@ -567,11 +556,25 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
             <Button variant="outline" onClick={() => setMappingCards([])} disabled={assigning}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmAssign} disabled={!allMapped || assigning}>
+            <Button
+              onClick={() => {
+                // Auto-fill then confirm
+                const newMap: Record<string, string> = {};
+                for (let i = 0; i < mappingCards.length && i < availableSerials.length; i++) {
+                  newMap[mappingCards[i].id] = availableSerials[i].serial_number;
+                }
+                setSerialMap(newMap);
+                // Trigger assignment immediately
+                setTimeout(() => {
+                  handleConfirmAssign();
+                }, 100);
+              }}
+              disabled={availableSerials.length < mappingCards.length || assigning || loadingSerials}
+            >
               {assigning ? (
                 <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Assigning…</>
               ) : (
-                <><CheckCircle className="h-4 w-4 mr-1" /> Confirm Assignment ({mappingCards.length})</>
+                <><CheckCircle className="h-4 w-4 mr-1" /> Confirm Auto-Assignment ({mappingCards.length})</>
               )}
             </Button>
           </DialogFooter>
