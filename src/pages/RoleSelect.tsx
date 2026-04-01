@@ -323,6 +323,9 @@ const RoleSelect = () => {
           </div>
         </section>
 
+        {/* Office Locator Section */}
+        <OfficeLocator />
+
         {/* Contact Form Section */}
         <section className="max-w-6xl mx-auto px-4 py-12 sm:py-16">
           <motion.div
