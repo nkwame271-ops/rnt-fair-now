@@ -21,6 +21,8 @@ interface OfficeRevenue {
   gra: number;
   autoReleased: number;
   manualReleased: number;
+  walletBalance: number;
+  released: number;
 }
 
 interface RevenueByType {
