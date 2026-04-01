@@ -6,6 +6,7 @@ import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import { Loader2, CreditCard, Shield, CheckCircle2, IdCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { formatGHSDecimal, formatGHS } from "@/lib/formatters";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -214,7 +215,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
           <div className="bg-card rounded-xl border border-border p-5 space-y-4">
             <div className="text-center">
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Registration Fee</p>
-              <p className="text-3xl font-extrabold text-primary">GH₵ {regFee.toFixed(2)}</p>
+              <p className="text-3xl font-extrabold text-primary">{formatGHSDecimal(regFee)}</p>
               <p className="text-xs text-muted-foreground">Per year</p>
             </div>
 
@@ -233,7 +234,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
 
           <Button onClick={handlePay} disabled={payingFee} className="w-full h-12 text-base font-semibold">
             <CreditCard className="mr-2 h-5 w-5" />
-            {payingFee ? "Redirecting to payment..." : `Pay GH₵ ${regFee.toFixed(0)} & Activate Account`}
+            {payingFee ? "Redirecting to payment..." : `Pay ${formatGHS(regFee)} & Activate Account`}
           </Button>
 
           <p className="text-xs text-center text-muted-foreground">

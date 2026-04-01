@@ -2,6 +2,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Printer, Download } from "lucide-react";
+import { formatGHSDecimal } from "@/lib/formatters";
 
 interface Split {
   recipient: string;
@@ -68,18 +69,18 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
           {splits.map((s, i) => (
             <div key={i} className="px-4 py-2.5 flex justify-between text-sm border-t border-border">
               <span className="text-card-foreground">{recipientLabels[s.recipient] || s.recipient}</span>
-              <span className="font-semibold text-card-foreground">GH₵ {s.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span className="font-semibold text-card-foreground">{formatGHSDecimal(s.amount)}</span>
             </div>
           ))}
           <div className="px-4 py-3 flex justify-between text-sm border-t-2 border-primary bg-primary/5">
             <span className="font-bold text-foreground">Total</span>
-            <span className="font-bold text-primary text-base">GH₵ {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <span className="font-bold text-primary text-base">{formatGHSDecimal(totalAmount)}</span>
           </div>
         </div>
       ) : (
         <div className="px-4 py-3 flex justify-between text-sm border border-border rounded-lg bg-primary/5">
           <span className="font-bold text-foreground">Total Paid</span>
-          <span className="font-bold text-primary text-base">GH₵ {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          <span className="font-bold text-primary text-base">{formatGHSDecimal(totalAmount)}</span>
         </div>
       )}
 

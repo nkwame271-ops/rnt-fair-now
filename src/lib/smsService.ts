@@ -22,7 +22,7 @@ const SMS_TEMPLATES: Record<SmsEvent, (data: Record<string, string>) => string> 
     `RentGhana: A property viewing has been ${d.action} for ${d.property} on ${d.date}${d.time ? " at " + d.time : ""}. Log in for details.`,
 
   payment_confirmed: (d) =>
-    `RentGhana: Your payment of GH₵ ${d.amount} for ${d.description} has been confirmed. Reference: ${d.reference}. Thank you!`,
+    `RentGhana: Your payment of GHS ${d.amount} for ${d.description} has been confirmed. Reference: ${d.reference}. Thank you!`,
 
   application_updated: (d) =>
     `RentGhana: Your application "${d.subject}" has been ${d.status}. ${d.notes ? "Notes: " + d.notes : ""}Log in for details.`,

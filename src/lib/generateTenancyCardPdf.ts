@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { formatGHS } from "@/lib/formatters";
 import type { TenancyCardData } from "@/components/TenancyCard";
 
 export const generateTenancyCardPdf = (data: TenancyCardData): jsPDF => {
@@ -24,8 +25,8 @@ export const generateTenancyCardPdf = (data: TenancyCardData): jsPDF => {
     ["Digital Address", data.digitalAddress || "—"],
     ["Landlord", data.landlordName],
     ["Tenant", data.tenantName],
-    ["Monthly Rent", `GH₵ ${data.monthlyRent.toLocaleString()}`],
-    ["Max Lawful Advance", `GH₵ ${data.maxLawfulAdvance.toLocaleString()}`],
+    ["Monthly Rent", formatGHS(data.monthlyRent)],
+    ["Max Lawful Advance", formatGHS(data.maxLawfulAdvance)],
     ["Advance Paid", `${data.advancePaid} month(s)`],
     ["Start Date", data.startDate],
     ["Expiry Date", data.expiryDate],

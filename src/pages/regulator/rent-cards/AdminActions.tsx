@@ -36,7 +36,7 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
 
   // --- Account Management ---
   const [accountSearch, setAccountSearch] = useState("");
-  const [accountType, setAccountType] = useState<"landlord" | "tenant">("landlord");
+  const [accountType, setAccountType] = useState<"landlord" | "tenant" | "admin">("landlord");
   const [accountResult, setAccountResult] = useState<any>(null);
   const [accountSearching, setAccountSearching] = useState(false);
   const [accountAction, setAccountAction] = useState<{ action: string; targetId: string; accountType: string } | null>(null);
@@ -104,6 +104,43 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
     if (!accountSearch.trim()) return;
     setAccountSearching(true);
     setAccountResult(null);
+
+    if (accountType === "admin") {
+      // Search admin_staff + profiles
+      const { data: staffRecords } = await supabase
+        .from("admin_staff")
+        .select("user_id, admin_type, office_name");
+
+      if (staffRecords && staffRecords.length > 0) {
+        const userIds = staffRecords.map((s: any) => s.user_id);
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", userIds);
+
+        const match = (profiles || []).find((p: any) =>
+          p.full_name?.toLowerCase().includes(accountSearch.trim().toLowerCase()) ||
+          p.email?.toLowerCase().includes(accountSearch.trim().toLowerCase())
+        );
+
+        if (match) {
+          const staff = staffRecords.find((s: any) => s.user_id === match.user_id) as any;
+          setAccountResult({
+            userId: match.user_id,
+            idCode: staff?.admin_type || "admin",
+            name: match.full_name || "Unknown",
+            email: match.email || "",
+            accountStatus: "active",
+            type: "admin",
+            adminType: staff?.admin_type,
+          });
+        } else {
+          toast.error("No admin found");
+        }
+      }
+      setAccountSearching(false);
+      return;
+    }
 
     const table = accountType === "landlord" ? "landlords" : "tenants";
     const idField = accountType === "landlord" ? "landlord_id" : "tenant_id";
@@ -265,13 +302,14 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
         <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
           <UserX className="h-5 w-5 text-destructive" /> Account Management
         </h2>
-        <p className="text-sm text-muted-foreground">Deactivate or archive landlord/tenant accounts. Accounts with active tenancies cannot be archived.</p>
+        <p className="text-sm text-muted-foreground">Deactivate, archive, or permanently delete landlord/tenant/admin accounts. Accounts with active tenancies cannot be archived or deleted.</p>
         <div className="flex gap-3">
           <Select value={accountType} onValueChange={(v) => { setAccountType(v as any); setAccountResult(null); }}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="landlord">Landlord</SelectItem>
               <SelectItem value="tenant">Tenant</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
             </SelectContent>
           </Select>
           <Input placeholder="Search by ID or name..." value={accountSearch} onChange={(e) => setAccountSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAccountSearch()} className="flex-1" />
@@ -295,7 +333,7 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
               </Badge>
             </div>
             <div className="flex gap-2 flex-wrap">
-              {accountResult.accountStatus === "active" && (
+              {accountResult.type !== "admin" && accountResult.accountStatus === "active" && (
                 <>
                   <Button variant="outline" size="sm" onClick={() => setAccountAction({ action: "deactivate_account", targetId: accountResult.userId, accountType: accountResult.type })}>
                     Deactivate
@@ -305,11 +343,14 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
                   </Button>
                 </>
               )}
-              {accountResult.accountStatus === "deactivated" && (
+              {accountResult.type !== "admin" && accountResult.accountStatus === "deactivated" && (
                 <Button variant="destructive" size="sm" onClick={() => setAccountAction({ action: "archive_account", targetId: accountResult.userId, accountType: accountResult.type })}>
                   <Archive className="h-3.5 w-3.5 mr-1" /> Archive
                 </Button>
               )}
+              <Button variant="destructive" size="sm" onClick={() => setAccountAction({ action: "delete_account", targetId: accountResult.userId, accountType: accountResult.type })}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Permanently
+              </Button>
             </div>
           </div>
         )}
@@ -383,13 +424,21 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
       <AdminPasswordConfirm
         open={!!accountAction}
         onOpenChange={() => setAccountAction(null)}
-        title={accountAction?.action === "deactivate_account" ? "Deactivate Account" : "Archive Account"}
+        title={
+          accountAction?.action === "delete_account" ? "Delete Account Permanently" :
+          accountAction?.action === "deactivate_account" ? "Deactivate Account" : "Archive Account"
+        }
         description={
-          accountAction?.action === "deactivate_account"
+          accountAction?.action === "delete_account"
+            ? "This will PERMANENTLY delete this account, remove all associated data, and ban the user. This action cannot be undone."
+            : accountAction?.action === "deactivate_account"
             ? "This will deactivate the account. The user will no longer be able to access their dashboard."
             : "This will archive the account. Only accounts without active tenancies can be archived."
         }
-        actionLabel={accountAction?.action === "deactivate_account" ? "Deactivate" : "Archive"}
+        actionLabel={
+          accountAction?.action === "delete_account" ? "Delete Forever" :
+          accountAction?.action === "deactivate_account" ? "Deactivate" : "Archive"
+        }
         onConfirm={async (password, reason) => {
           await handleAdminAction(
             accountAction!.action,

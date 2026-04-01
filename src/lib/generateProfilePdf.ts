@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { formatGHS } from "@/lib/formatters";
 
 interface ProfileData {
   role: "tenant" | "landlord";
@@ -143,7 +144,7 @@ export const generateProfilePdf = (data: ProfileData) => {
       addLine("Property:", `${p.property_name || "Unnamed"} (${p.property_code})`);
       addLine("Address:", `${p.address}, ${p.region}`);
       (p.units || []).forEach((u) => {
-        addLine(`  Unit:`, `${u.unit_name} • GH₵${u.monthly_rent}/mo • ${u.status}`);
+        addLine(`  Unit:`, `${u.unit_name} • ${formatGHS(u.monthly_rent)}/mo • ${u.status}`);
       });
       y += 2;
     });
@@ -157,7 +158,7 @@ export const generateProfilePdf = (data: ProfileData) => {
       if (t._propertyName) addLine("Property:", `${t._propertyName} • ${t._unitName || ""}`);
       if (t._landlordName) addLine("Landlord:", t._landlordName);
       if (t._tenantName) addLine("Tenant:", t._tenantName);
-      addLine("Rent:", `GH₵ ${t.agreed_rent?.toLocaleString()}/mo`);
+      addLine("Rent:", `${formatGHS(t.agreed_rent)}/mo`);
       addLine("Period:", `${new Date(t.start_date).toLocaleDateString()} — ${new Date(t.end_date).toLocaleDateString()}`);
       y += 2;
     });

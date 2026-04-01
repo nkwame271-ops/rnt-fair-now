@@ -4,6 +4,7 @@ import { Download, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { generateTenancyCardPdf } from "@/lib/generateTenancyCardPdf";
 import { differenceInDays, format } from "date-fns";
+import { formatGHS } from "@/lib/formatters";
 
 export interface TenancyCardData {
   tenancyId: string;
@@ -77,8 +78,8 @@ const TenancyCard = ({ data }: { data: TenancyCardData }) => {
           <div><p className="text-muted-foreground text-xs">Digital Address</p><p className="font-semibold">{data.digitalAddress || "—"}</p></div>
           <div><p className="text-muted-foreground text-xs">Landlord</p><p className="font-semibold">{data.landlordName}</p></div>
           <div><p className="text-muted-foreground text-xs">Tenant</p><p className="font-semibold">{data.tenantName}</p></div>
-          <div><p className="text-muted-foreground text-xs">Monthly Rent (Approved)</p><p className="font-semibold">GH₵ {data.monthlyRent.toLocaleString()}</p></div>
-          <div><p className="text-muted-foreground text-xs">Max Lawful Advance</p><p className="font-semibold">GH₵ {data.maxLawfulAdvance.toLocaleString()}</p></div>
+          <div><p className="text-muted-foreground text-xs">Monthly Rent (Approved)</p><p className="font-semibold">{formatGHS(data.monthlyRent)}</p></div>
+          <div><p className="text-muted-foreground text-xs">Max Lawful Advance</p><p className="font-semibold">{formatGHS(data.maxLawfulAdvance)}</p></div>
           <div><p className="text-muted-foreground text-xs">Advance</p><p className="font-semibold">{data.advancePaid} month(s)</p></div>
           <div><p className="text-muted-foreground text-xs">Compliance</p><p className={`font-semibold ${data.complianceStatus === "compliant" ? "text-success" : "text-destructive"}`}>{data.complianceStatus}</p></div>
           <div><p className="text-muted-foreground text-xs">Start Date</p><p className="font-semibold">{format(new Date(data.startDate), "dd/MM/yyyy")}</p></div>

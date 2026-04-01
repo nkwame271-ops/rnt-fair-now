@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2 } from "lucide-react";
+import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -93,15 +93,18 @@ const EngineRoom = () => {
   const [editingBands, setEditingBands] = useState<Record<string, Partial<RentBand>>>({});
   const [savingBand, setSavingBand] = useState<string | null>(null);
 
-  // Fetch sub admins for main admin view
+  // Adding features to staff
+  const [addingFeature, setAddingFeature] = useState<string | null>(null);
+  const [newFeatureKey, setNewFeatureKey] = useState("");
+
+  // Fetch all admins for main admin view
   useEffect(() => {
     if (!profile?.isMainAdmin) return;
     const fetchStaff = async () => {
       setStaffLoading(true);
       const { data: staff } = await supabase
         .from("admin_staff")
-        .select("user_id, admin_type, office_name, allowed_features, muted_features")
-        .eq("admin_type", "sub_admin");
+        .select("user_id, admin_type, office_name, allowed_features, muted_features");
 
       if (staff && staff.length > 0) {
         const userIds = staff.map((s: any) => s.user_id);
@@ -238,6 +241,39 @@ const EngineRoom = () => {
       ));
     }
     setMutingStaff(null);
+  };
+
+  const handleAddFeatureToStaff = async (staffUserId: string, featureKey: string) => {
+    const member = staffMembers.find(s => s.user_id === staffUserId);
+    if (!member || member.allowed_features.includes(featureKey)) return;
+    const newAllowed = [...member.allowed_features, featureKey];
+    const { error } = await supabase
+      .from("admin_staff")
+      .update({ allowed_features: newAllowed, updated_at: new Date().toISOString() } as any)
+      .eq("user_id", staffUserId);
+    if (error) { toast.error("Failed to add feature"); }
+    else {
+      toast.success("Feature added");
+      setStaffMembers(prev => prev.map(s => s.user_id === staffUserId ? { ...s, allowed_features: newAllowed } : s));
+    }
+    setAddingFeature(null);
+    setNewFeatureKey("");
+  };
+
+  const handleRemoveFeatureFromStaff = async (staffUserId: string, featureKey: string) => {
+    const member = staffMembers.find(s => s.user_id === staffUserId);
+    if (!member) return;
+    const newAllowed = member.allowed_features.filter(f => f !== featureKey);
+    const newMuted = member.muted_features.filter(f => f !== featureKey);
+    const { error } = await supabase
+      .from("admin_staff")
+      .update({ allowed_features: newAllowed, muted_features: newMuted, updated_at: new Date().toISOString() } as any)
+      .eq("user_id", staffUserId);
+    if (error) { toast.error("Failed to remove feature"); }
+    else {
+      toast.success("Feature removed");
+      setStaffMembers(prev => prev.map(s => s.user_id === staffUserId ? { ...s, allowed_features: newAllowed, muted_features: newMuted } : s));
+    }
   };
 
   const handleSaveSplitAmount = async (splitId: string, newAmount: number) => {
@@ -797,7 +833,7 @@ const EngineRoom = () => {
             <UserCog className="h-5 w-5 text-primary" /> Staff Feature Access
           </h2>
           <p className="text-sm text-muted-foreground mb-3">
-            Mute or unmute specific features for each Sub Admin. Muted features are hidden from that staff member's portal.
+            Manage feature access for all admins. Add or remove features, and mute/unmute visibility per staff member.
           </p>
 
           {staffLoading ? (
@@ -806,53 +842,96 @@ const EngineRoom = () => {
             </div>
           ) : staffMembers.length === 0 ? (
             <div className="bg-card rounded-xl border border-border p-6 text-center text-muted-foreground text-sm">
-              No Sub Admins have been invited yet.
+              No admins have been invited yet.
             </div>
           ) : (
             <div className="space-y-4">
-              {staffMembers.map(member => (
-                <div key={member.user_id} className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
-                  <div className="p-4 border-b border-border flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-card-foreground">{member.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{member.office_name || "No office assigned"}</p>
+              {staffMembers.map(member => {
+                const isAddingThis = addingFeature === member.user_id;
+                const availableToAdd = Object.keys(FEATURE_ROUTE_MAP).filter(k => !member.allowed_features.includes(k));
+                return (
+                  <div key={member.user_id} className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+                    <div className="p-4 border-b border-border flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-card-foreground">{member.full_name}</p>
+                        <p className="text-xs text-muted-foreground">{member.office_name || "No office assigned"}</p>
+                      </div>
+                      <Badge variant={member.admin_type === "main_admin" ? "default" : "outline"} className="text-xs">
+                        {member.admin_type === "main_admin" ? "Main Admin" : "Sub Admin"}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="text-xs">Sub Admin</Badge>
-                  </div>
-                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {member.allowed_features.map(featureKey => {
-                      const isMuted = member.muted_features.includes(featureKey);
-                      const isMuting = mutingStaff === member.user_id + "_" + featureKey;
-                      return (
-                        <div
-                          key={featureKey}
-                          className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
-                            isMuted ? "border-destructive/20 bg-destructive/5" : "border-border bg-muted/20"
-                          }`}
-                        >
-                          <span className={`text-sm capitalize ${isMuted ? "text-muted-foreground line-through" : "text-card-foreground"}`}>
-                            {featureKey.replace(/_/g, " ")}
-                          </span>
-                          <button
-                            onClick={() => handleMuteFeature(member.user_id, featureKey, isMuted)}
-                            disabled={isMuting}
-                            className="p-1 rounded hover:bg-muted/50 transition-colors"
-                            title={isMuted ? "Unmute feature" : "Mute feature"}
+                    <div className="p-4 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {member.allowed_features.map(featureKey => {
+                          const isMuted = member.muted_features.includes(featureKey);
+                          const isMuting = mutingStaff === member.user_id + "_" + featureKey;
+                          return (
+                            <div
+                              key={featureKey}
+                              className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
+                                isMuted ? "border-destructive/20 bg-destructive/5" : "border-border bg-muted/20"
+                              }`}
+                            >
+                              <span className={`text-sm capitalize ${isMuted ? "text-muted-foreground line-through" : "text-card-foreground"}`}>
+                                {featureKey.replace(/_/g, " ")}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleMuteFeature(member.user_id, featureKey, isMuted)}
+                                  disabled={isMuting}
+                                  className="p-1 rounded hover:bg-muted/50 transition-colors"
+                                  title={isMuted ? "Unmute feature" : "Mute feature"}
+                                >
+                                  {isMuting ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                  ) : isMuted ? (
+                                    <EyeOff className="h-4 w-4 text-destructive" />
+                                  ) : (
+                                    <Eye className="h-4 w-4 text-success" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveFeatureFromStaff(member.user_id, featureKey)}
+                                  className="p-1 rounded hover:bg-destructive/10 transition-colors"
+                                  title="Remove feature"
+                                >
+                                  <X className="h-3.5 w-3.5 text-destructive" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Add feature control */}
+                      {isAddingThis ? (
+                        <div className="flex gap-2 items-center">
+                          <select
+                            className="flex-1 h-9 rounded-md border border-border bg-background px-3 text-sm"
+                            value={newFeatureKey}
+                            onChange={(e) => setNewFeatureKey(e.target.value)}
                           >
-                            {isMuting ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : isMuted ? (
-                              <EyeOff className="h-4 w-4 text-destructive" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-success" />
-                            )}
-                          </button>
+                            <option value="">Select feature...</option>
+                            {availableToAdd.map(k => (
+                              <option key={k} value={k}>{k.replace(/_/g, " ")}</option>
+                            ))}
+                          </select>
+                          <Button size="sm" variant="outline" disabled={!newFeatureKey} onClick={() => handleAddFeatureToStaff(member.user_id, newFeatureKey)}>
+                            Add
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setAddingFeature(null); setNewFeatureKey(""); }}>
+                            Cancel
+                          </Button>
                         </div>
-                      );
-                    })}
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => setAddingFeature(member.user_id)} className="w-full">
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Add Feature
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

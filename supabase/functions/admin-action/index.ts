@@ -275,6 +275,76 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "delete_account": {
+        const delAccountType = extra?.account_type;
+        if (!delAccountType || !["landlord", "tenant", "admin"].includes(delAccountType)) {
+          throw new Error("Must specify account_type: landlord, tenant, or admin");
+        }
+        targetType = delAccountType;
+
+        if (delAccountType === "admin") {
+          // Delete admin staff account
+          const { data: staffRecord } = await adminClient
+            .from("admin_staff")
+            .select("id, admin_type, user_id")
+            .eq("user_id", target_id)
+            .single();
+
+          if (!staffRecord) throw new Error("Admin account not found");
+          if ((staffRecord as any).user_id === user.id) throw new Error("Cannot delete your own admin account");
+
+          oldState = { admin_type: (staffRecord as any).admin_type };
+
+          // Remove from admin_staff
+          await adminClient.from("admin_staff").delete().eq("user_id", target_id);
+          // Remove from user_roles
+          await adminClient.from("user_roles").delete().eq("user_id", target_id);
+          // Delete profile
+          await adminClient.from("profiles").delete().eq("user_id", target_id);
+          // Ban the auth user
+          await adminClient.auth.admin.updateUserById(target_id, { ban_duration: "876000h" });
+
+          newState = { status: "deleted", ban_duration: "876000h" };
+        } else {
+          // Delete landlord/tenant account
+          const delTable = delAccountType === "landlord" ? "landlords" : "tenants";
+          const tenancyField = delAccountType === "landlord" ? "landlord_user_id" : "tenant_user_id";
+
+          const { data: delAccount } = await adminClient
+            .from(delTable)
+            .select("*")
+            .eq("user_id", target_id)
+            .single();
+
+          if (!delAccount) throw new Error(`${delAccountType} account not found`);
+
+          // Check active tenancies
+          const { data: activeTenancies } = await adminClient
+            .from("tenancies")
+            .select("id")
+            .eq(tenancyField, target_id)
+            .in("status", ["pending", "active"]);
+
+          if (activeTenancies && activeTenancies.length > 0) {
+            throw new Error(`Cannot delete: ${activeTenancies.length} active tenancies exist`);
+          }
+
+          oldState = { account_status: (delAccount as any).account_status || "active" };
+
+          // Delete from role table
+          await adminClient.from(delTable).delete().eq("user_id", target_id);
+          // Remove from user_roles
+          await adminClient.from("user_roles").delete().eq("user_id", target_id);
+          // Delete profile
+          await adminClient.from("profiles").delete().eq("user_id", target_id);
+          // Ban the auth user
+          await adminClient.auth.admin.updateUserById(target_id, { ban_duration: "876000h" });
+
+          newState = { status: "deleted", ban_duration: "876000h" };
+        }
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
