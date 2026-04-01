@@ -74,7 +74,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
           ))}
           <div className="px-4 py-3 flex justify-between text-sm border-t-2 border-primary bg-primary/5">
             <span className="font-bold text-foreground">Total</span>
-            <span className="font-bold text-primary text-base">GH₵ {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <span className="font-bold text-primary text-base">{formatGHSDecimal(totalAmount)}</span>
           </div>
         </div>
       ) : (
