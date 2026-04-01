@@ -18,6 +18,7 @@ interface ReceiptProps {
   splits: Split[];
   status: string;
   qrCodeData: string;
+  showSplits?: boolean;
 }
 
 const recipientLabels: Record<string, string> = {
