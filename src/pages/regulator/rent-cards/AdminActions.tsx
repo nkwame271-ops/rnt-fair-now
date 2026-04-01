@@ -309,6 +309,7 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
             <SelectContent>
               <SelectItem value="landlord">Landlord</SelectItem>
               <SelectItem value="tenant">Tenant</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
             </SelectContent>
           </Select>
           <Input placeholder="Search by ID or name..." value={accountSearch} onChange={(e) => setAccountSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAccountSearch()} className="flex-1" />
