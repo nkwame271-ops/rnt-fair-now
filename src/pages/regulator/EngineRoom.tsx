@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff } from "lucide-react";
+import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,46 @@ interface StaffMember {
   full_name?: string;
 }
 
+interface SplitConfig {
+  id: string;
+  payment_type: string;
+  recipient: string;
+  amount_type: string;
+  amount: number;
+  description: string;
+  sort_order: number;
+  is_platform_fee: boolean;
+}
+
+interface SecondarySplit {
+  id: string;
+  parent_recipient: string;
+  sub_recipient: string;
+  percentage: number;
+  description: string;
+}
+
+const PAYMENT_TYPE_LABELS: Record<string, string> = {
+  tenant_registration: "Tenant Registration",
+  landlord_registration: "Landlord Registration",
+  rent_card: "Rent Card",
+  agreement_sale: "Agreement Sale",
+  complaint_fee: "Complaint Fee",
+  listing_fee: "Listing Fee",
+  viewing_fee: "Viewing Fee",
+  add_tenant_fee: "Add Tenant Fee",
+  termination_fee: "Termination Fee",
+  archive_search_fee: "Archive Search Fee",
+};
+
+const RECIPIENT_LABELS: Record<string, string> = {
+  platform: "Platform",
+  rent_control: "IGF (Rent Control)",
+  admin: "Admin",
+  gra: "GRA",
+  landlord: "Landlord",
+};
+
 const EngineRoom = () => {
   const { user } = useAuth();
   const { flags, loading, refetch } = useAllFeatureFlags();
@@ -29,6 +69,14 @@ const EngineRoom = () => {
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [staffLoading, setStaffLoading] = useState(false);
   const [mutingStaff, setMutingStaff] = useState<string | null>(null);
+
+  // Split engine state
+  const [splitConfigs, setSplitConfigs] = useState<SplitConfig[]>([]);
+  const [secondarySplits, setSecondarySplits] = useState<SecondarySplit[]>([]);
+  const [splitLoading, setSplitLoading] = useState(false);
+  const [editingSplits, setEditingSplits] = useState<Record<string, number>>({});
+  const [editingSecondary, setEditingSecondary] = useState<Record<string, number>>({});
+  const [savingSplit, setSavingSplit] = useState<string | null>(null);
 
   // Fetch sub admins for main admin view
   useEffect(() => {
@@ -56,6 +104,22 @@ const EngineRoom = () => {
       setStaffLoading(false);
     };
     fetchStaff();
+  }, [profile?.isMainAdmin]);
+
+  // Fetch split configurations
+  useEffect(() => {
+    if (!profile?.isMainAdmin) return;
+    const fetchSplits = async () => {
+      setSplitLoading(true);
+      const [{ data: splits }, { data: secondary }] = await Promise.all([
+        supabase.from("split_configurations").select("*").order("payment_type").order("sort_order"),
+        supabase.from("secondary_split_configurations").select("*").order("parent_recipient").order("sub_recipient"),
+      ]);
+      setSplitConfigs((splits as any[]) || []);
+      setSecondarySplits((secondary as any[]) || []);
+      setSplitLoading(false);
+    };
+    fetchSplits();
   }, [profile?.isMainAdmin]);
 
   const handleToggle = async (featureKey: string, currentValue: boolean) => {
@@ -149,12 +213,43 @@ const EngineRoom = () => {
     setMutingStaff(null);
   };
 
+  const handleSaveSplitAmount = async (splitId: string, newAmount: number) => {
+    setSavingSplit(splitId);
+    const { error } = await supabase
+      .from("split_configurations")
+      .update({ amount: newAmount, updated_at: new Date().toISOString(), updated_by: user?.id } as any)
+      .eq("id", splitId);
+    if (error) {
+      toast.error("Failed to update split");
+    } else {
+      toast.success("Split amount updated");
+      setSplitConfigs(prev => prev.map(s => s.id === splitId ? { ...s, amount: newAmount } : s));
+      setEditingSplits(prev => { const n = { ...prev }; delete n[splitId]; return n; });
+    }
+    setSavingSplit(null);
+  };
+
+  const handleSaveSecondaryPercentage = async (splitId: string, newPct: number) => {
+    setSavingSplit(splitId);
+    const { error } = await supabase
+      .from("secondary_split_configurations")
+      .update({ percentage: newPct, updated_at: new Date().toISOString(), updated_by: user?.id } as any)
+      .eq("id", splitId);
+    if (error) {
+      toast.error("Failed to update");
+    } else {
+      toast.success("Percentage updated");
+      setSecondarySplits(prev => prev.map(s => s.id === splitId ? { ...s, percentage: newPct } : s));
+      setEditingSecondary(prev => { const n = { ...prev }; delete n[splitId]; return n; });
+    }
+    setSavingSplit(null);
+  };
+
   if (loading || profileLoading) return <LogoLoader message="Loading feature controls..." />;
 
   const isMainAdmin = profile?.isMainAdmin ?? false;
   const isSubAdmin = profile && !profile.isMainAdmin;
 
-  // Sub admins see only their allowed (non-muted) features — read only
   const visibleFlags = isSubAdmin
     ? flags.filter(f => {
         const featureKey = f.feature_key;
@@ -166,6 +261,23 @@ const EngineRoom = () => {
   const landlordFlags = visibleFlags.filter((f) => f.category === "landlord");
   const generalFlags = visibleFlags.filter((f) => f.category === "general");
   const feeFlags = visibleFlags.filter((f) => f.category === "fee");
+
+  // Office payout mode flag
+  const payoutModeFlag = flags.find(f => f.feature_key === "office_payout_mode");
+
+  // Group splits by payment type
+  const splitsByType = splitConfigs.reduce((acc, s) => {
+    if (!acc[s.payment_type]) acc[s.payment_type] = [];
+    acc[s.payment_type].push(s);
+    return acc;
+  }, {} as Record<string, SplitConfig[]>);
+
+  // Group secondary splits
+  const secondaryByParent = secondarySplits.reduce((acc, s) => {
+    if (!acc[s.parent_recipient]) acc[s.parent_recipient] = [];
+    acc[s.parent_recipient].push(s);
+    return acc;
+  }, {} as Record<string, SecondarySplit[]>);
 
   const renderFeatureRow = (flag: any) => (
     <div
@@ -278,7 +390,7 @@ const EngineRoom = () => {
         </h1>
         <p className="text-muted-foreground mt-1">
           {isMainAdmin
-            ? "Enable or disable platform features, manage fees, and control staff access. Changes take effect immediately."
+            ? "Enable or disable platform features, manage fees, configure splits, and control staff access."
             : "View the features and settings available to your account."}
         </p>
       </div>
@@ -294,6 +406,164 @@ const EngineRoom = () => {
         <div className="flex items-start gap-2 text-xs text-muted-foreground bg-info/5 p-3 rounded-lg border border-info/20">
           <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
           <span>Features awaiting approval from the Ministry of Works and Housing can be disabled here without modifying any code. Fees can be adjusted or turned off entirely — when payment is off, the feature becomes free.</span>
+        </div>
+      )}
+
+      {/* Office Payout Mode Toggle */}
+      {isMainAdmin && payoutModeFlag && (
+        <div className="bg-card rounded-xl border border-border shadow-card p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-start gap-3">
+              <ToggleLeft className={`h-5 w-5 mt-0.5 ${payoutModeFlag.is_enabled ? "text-success" : "text-warning"}`} />
+              <div>
+                <h3 className="font-semibold text-card-foreground">Office Payout Mode</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {payoutModeFlag.is_enabled
+                    ? "Auto Release — Office funds are released automatically after allocation."
+                    : "Manual Approval — Office funds stay in escrow until a request is submitted and approved."}
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    payoutModeFlag.is_enabled
+                      ? "bg-success/10 text-success"
+                      : "bg-warning/10 text-warning"
+                  }`}>
+                    {payoutModeFlag.is_enabled ? "Auto Release" : "Manual Approval"}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {toggling === "office_payout_mode" && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              <Switch
+                checked={payoutModeFlag.is_enabled}
+                onCheckedChange={() => handleToggle("office_payout_mode", payoutModeFlag.is_enabled)}
+                disabled={toggling === "office_payout_mode"}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Split Engine Configuration */}
+      {isMainAdmin && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <Cog className="h-5 w-5 text-primary" /> Split Engine
+          </h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Configure how each payment type is split among recipients. Changes apply to new transactions only.
+          </p>
+
+          {splitLoading ? (
+            <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <div className="space-y-4">
+              {Object.entries(splitsByType).map(([paymentType, splits]) => {
+                const total = splits.reduce((s, r) => s + r.amount, 0);
+                return (
+                  <div key={paymentType} className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+                    <div className="p-4 border-b border-border flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-card-foreground">{PAYMENT_TYPE_LABELS[paymentType] || paymentType}</p>
+                        <p className="text-xs text-muted-foreground">Total: GH₵ {total.toFixed(2)}</p>
+                      </div>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {splits.map(split => {
+                        const editKey = split.id;
+                        const isEditing = editingSplits[editKey] !== undefined;
+                        return (
+                          <div key={split.id} className="flex items-center justify-between px-4 py-3">
+                            <div>
+                              <span className="text-sm text-card-foreground">{split.description || RECIPIENT_LABELS[split.recipient] || split.recipient}</span>
+                              {split.is_platform_fee && (
+                                <Badge variant="outline" className="ml-2 text-[10px]">Fixed Fee</Badge>
+                              )}
+                              <span className="text-xs text-muted-foreground ml-2">→ {RECIPIENT_LABELS[split.recipient] || split.recipient}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">GH₵</span>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                className="w-20 h-8 text-sm"
+                                value={isEditing ? editingSplits[editKey] : split.amount}
+                                onChange={e => setEditingSplits(prev => ({ ...prev, [editKey]: parseFloat(e.target.value) || 0 }))}
+                              />
+                              {isEditing && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-2"
+                                  onClick={() => handleSaveSplitAmount(split.id, editingSplits[editKey])}
+                                  disabled={savingSplit === split.id}
+                                >
+                                  {savingSplit === split.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Secondary Splits */}
+              {Object.keys(secondaryByParent).length > 0 && (
+                <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+                  <div className="p-4 border-b border-border">
+                    <p className="font-semibold text-card-foreground">Secondary Splits (IGF & Admin Sub-Allocation)</p>
+                    <p className="text-xs text-muted-foreground">How IGF and Admin shares are further distributed to Office, HQ, and Platform</p>
+                  </div>
+                  {Object.entries(secondaryByParent).map(([parent, subs]) => (
+                    <div key={parent}>
+                      <div className="px-4 py-2 bg-muted/30 border-b border-border">
+                        <span className="text-sm font-medium text-card-foreground">{RECIPIENT_LABELS[parent] || parent}</span>
+                      </div>
+                      <div className="divide-y divide-border">
+                        {subs.map(sub => {
+                          const editKey = sub.id;
+                          const isEditing = editingSecondary[editKey] !== undefined;
+                          return (
+                            <div key={sub.id} className="flex items-center justify-between px-4 py-3">
+                              <span className="text-sm text-card-foreground capitalize">{sub.sub_recipient} — {sub.description || ""}</span>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="1"
+                                  className="w-20 h-8 text-sm"
+                                  value={isEditing ? editingSecondary[editKey] : sub.percentage}
+                                  onChange={e => setEditingSecondary(prev => ({ ...prev, [editKey]: parseFloat(e.target.value) || 0 }))}
+                                />
+                                <span className="text-xs text-muted-foreground">%</span>
+                                {isEditing && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-2"
+                                    onClick={() => handleSaveSecondaryPercentage(sub.id, editingSecondary[editKey])}
+                                    disabled={savingSplit === sub.id}
+                                  >
+                                    {savingSplit === sub.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -328,7 +598,7 @@ const EngineRoom = () => {
             <Settings className="h-5 w-5 text-primary" /> General Features
           </h2>
           <div className="bg-card rounded-xl border border-border shadow-card divide-y divide-border">
-            {generalFlags.map(renderFeatureRow)}
+            {generalFlags.filter(f => f.feature_key !== "office_payout_mode").map(renderFeatureRow)}
           </div>
         </div>
       )}

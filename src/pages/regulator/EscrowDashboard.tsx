@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag } from "lucide-react";
+import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag, Zap, Hand } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import PageTransition from "@/components/PageTransition";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import PaymentReceipt from "@/components/PaymentReceipt";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 
@@ -18,6 +19,8 @@ interface OfficeRevenue {
   platform: number;
   landlord: number;
   gra: number;
+  autoReleased: number;
+  manualReleased: number;
 }
 
 interface RevenueByType {
@@ -40,7 +43,7 @@ const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string }[] =
 const EscrowDashboard = () => {
   const { profile } = useAdminProfile();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ totalEscrow: 0, completed: 0, pending: 0, rentControl: 0, admin: 0, platform: 0, landlord: 0, gra: 0 });
+  const [stats, setStats] = useState({ totalEscrow: 0, completed: 0, pending: 0, rentControl: 0, admin: 0, platform: 0, landlord: 0, gra: 0, autoReleased: 0, manualReleased: 0 });
   const [receipts, setReceipts] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [offices, setOffices] = useState<{ id: string; name: string }[]>([]);
@@ -88,15 +91,18 @@ const EscrowDashboard = () => {
       });
       setRevenueByType(typeAgg);
 
-      // Splits by recipient
-      let splitsQuery = supabase.from("escrow_splits").select("recipient, amount, office_id");
+      // Splits by recipient + release mode
+      let splitsQuery = supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode");
       if (officeFilter) splitsQuery = splitsQuery.eq("office_id", officeFilter);
       const { data: splits } = await splitsQuery;
 
-      const byRecipient = (splits || []).reduce((acc: Record<string, number>, s) => {
+      const byRecipient = (splits || []).reduce((acc: Record<string, number>, s: any) => {
         acc[s.recipient] = (acc[s.recipient] || 0) + Number(s.amount);
         return acc;
       }, {});
+
+      const autoReleased = (splits || []).filter((s: any) => s.release_mode === "auto").reduce((sum: number, s: any) => sum + Number(s.amount), 0);
+      const manualReleased = (splits || []).filter((s: any) => s.release_mode === "manual" && s.recipient !== "landlord").reduce((sum: number, s: any) => sum + Number(s.amount), 0);
 
       setStats({
         totalEscrow: completed.reduce((s, t) => s + Number(t.total_amount), 0),
@@ -107,18 +113,20 @@ const EscrowDashboard = () => {
         platform: byRecipient.platform || 0,
         landlord: byRecipient.landlord || 0,
         gra: byRecipient.gra || 0,
+        autoReleased,
+        manualReleased,
       });
 
       // Office revenue breakdown (only for national view)
       if (!officeFilter) {
-        const { data: allSplits } = await supabase.from("escrow_splits").select("recipient, amount, office_id");
+        const { data: allSplits } = await supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode");
         const officeMap = new Map<string, OfficeRevenue>();
         const officeNames = new Map((await supabase.from("offices").select("id, name")).data?.map(o => [o.id, o.name]) || []);
 
-        for (const s of (allSplits || [])) {
+        for (const s of (allSplits || []) as any[]) {
           const oid = s.office_id || "unassigned";
           if (!officeMap.has(oid)) {
-            officeMap.set(oid, { officeId: oid, officeName: officeNames.get(oid) || "Unassigned", total: 0, igf: 0, admin: 0, platform: 0, landlord: 0, gra: 0 });
+            officeMap.set(oid, { officeId: oid, officeName: officeNames.get(oid) || "Unassigned", total: 0, igf: 0, admin: 0, platform: 0, landlord: 0, gra: 0, autoReleased: 0, manualReleased: 0 });
           }
           const entry = officeMap.get(oid)!;
           entry.total += Number(s.amount);
@@ -127,6 +135,8 @@ const EscrowDashboard = () => {
           else if (s.recipient === "platform") entry.platform += Number(s.amount);
           else if (s.recipient === "landlord") entry.landlord += Number(s.amount);
           else if (s.recipient === "gra") entry.gra += Number(s.amount);
+          if (s.release_mode === "auto") entry.autoReleased += Number(s.amount);
+          else if (s.recipient !== "landlord") entry.manualReleased += Number(s.amount);
         }
         setOfficeRevenue(Array.from(officeMap.values()).sort((a, b) => b.total - a.total));
       } else {
@@ -151,7 +161,6 @@ const EscrowDashboard = () => {
       )
     : receipts;
 
-  // Filter allocation cards: hide Platform for non-main admins
   const allocationCards = [
     { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary" },
     { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info" },
@@ -218,6 +227,28 @@ const EscrowDashboard = () => {
               ))}
             </StaggeredGrid>
 
+            {/* Release Mode Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-card rounded-xl p-5 shadow-card border border-border flex items-start gap-3">
+                <Zap className="h-5 w-5 text-success mt-0.5" />
+                <div>
+                  <div className="text-2xl font-bold text-card-foreground">
+                    GH₵ <AnimatedCounter value={stats.autoReleased} />
+                  </div>
+                  <div className="text-xs text-muted-foreground">Auto-Released Funds</div>
+                </div>
+              </div>
+              <div className="bg-card rounded-xl p-5 shadow-card border border-border flex items-start gap-3">
+                <Hand className="h-5 w-5 text-info mt-0.5" />
+                <div>
+                  <div className="text-2xl font-bold text-card-foreground">
+                    GH₵ <AnimatedCounter value={stats.manualReleased} />
+                  </div>
+                  <div className="text-xs text-muted-foreground">Manually Released Funds</div>
+                </div>
+              </div>
+            </div>
+
             {/* Revenue by Type */}
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -270,9 +301,9 @@ const EscrowDashboard = () => {
                         <th className="text-right py-2 px-2">Total</th>
                         <th className="text-right py-2 px-2">IGF</th>
                         <th className="text-right py-2 px-2">Admin</th>
-                        
                         <th className="text-right py-2 px-2">GRA</th>
-                        <th className="text-right py-2 pl-2">Landlord</th>
+                        <th className="text-right py-2 px-2">Landlord</th>
+                        <th className="text-right py-2 pl-2">Release</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -282,9 +313,22 @@ const EscrowDashboard = () => {
                           <td className="text-right py-2 px-2 font-semibold">₵{o.total.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-primary">₵{o.igf.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-info">₵{o.admin.toFixed(2)}</td>
-                          
                           <td className="text-right py-2 px-2">₵{o.gra.toFixed(2)}</td>
-                          <td className="text-right py-2 pl-2 text-warning">₵{o.landlord.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2 text-warning">₵{o.landlord.toFixed(2)}</td>
+                          <td className="text-right py-2 pl-2">
+                            <div className="flex items-center justify-end gap-1">
+                              {o.autoReleased > 0 && (
+                                <Badge variant="outline" className="text-[10px] border-success/30 text-success">
+                                  <Zap className="h-3 w-3 mr-0.5" />₵{o.autoReleased.toFixed(0)}
+                                </Badge>
+                              )}
+                              {o.manualReleased > 0 && (
+                                <Badge variant="outline" className="text-[10px] border-info/30 text-info">
+                                  <Hand className="h-3 w-3 mr-0.5" />₵{o.manualReleased.toFixed(0)}
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
