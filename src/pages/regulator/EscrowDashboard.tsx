@@ -164,6 +164,7 @@ const EscrowDashboard = () => {
   const allocationCards = [
     { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary" },
     { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info" },
+    { label: "Platform", amount: stats.platform, color: "bg-success/10 border-success/20 text-success" },
     { label: "GRA", amount: stats.gra, color: "bg-accent/10 border-accent/20 text-accent-foreground" },
     { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning" },
   ];
