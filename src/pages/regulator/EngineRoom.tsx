@@ -893,6 +893,72 @@ const EngineRoom = () => {
         </div>
       )}
 
+
+      {/* Account Management — Main Admin Only */}
+      {isMainAdmin && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <UserX className="h-5 w-5 text-destructive" /> Account Management
+          </h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Search for and manage landlord, tenant, or admin accounts. Actions include deactivation, archival, and permanent deletion.
+          </p>
+          <div className="bg-card rounded-xl border border-border shadow-card p-6 space-y-4">
+            <div className="flex gap-3 items-end flex-wrap">
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">Account Type</span>
+                <select className="h-10 rounded-md border border-border bg-background px-3 text-sm" value={accountType} onChange={e => setAccountType(e.target.value as any)}>
+                  <option value="landlord">Landlord</option>
+                  <option value="tenant">Tenant</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="flex-1 space-y-1 min-w-[200px]">
+                <span className="text-xs font-medium text-muted-foreground">Search</span>
+                <Input placeholder={`Search by ${accountType === "admin" ? "name or email" : "ID code or name"}...`} value={accountSearch} onChange={e => setAccountSearch(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAccountSearch()} />
+              </div>
+              <Button onClick={handleAccountSearch} disabled={accountSearching} variant="outline">
+                {accountSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Search
+              </Button>
+            </div>
+
+            {accountResult && (
+              <div className="border border-border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-card-foreground">{accountResult.name}</p>
+                    <p className="text-xs text-muted-foreground">{accountResult.idCode} • {accountResult.email}</p>
+                  </div>
+                  <Badge variant="outline" className={accountResult.accountStatus === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}>{accountResult.accountStatus}</Badge>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {accountResult.accountStatus === "active" && (
+                    <Button size="sm" variant="outline" onClick={() => setAccountAction({ action: "deactivate_account", targetId: accountResult.userId, accountType: accountResult.type })}>
+                      <UserX className="h-3.5 w-3.5 mr-1" /> Deactivate
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => setAccountAction({ action: "archive_account", targetId: accountResult.userId, accountType: accountResult.type })}>
+                    <Archive className="h-3.5 w-3.5 mr-1" /> Archive
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => setAccountAction({ action: "delete_account", targetId: accountResult.userId, accountType: accountResult.type })}>
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Permanently
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <AdminPasswordConfirm
+            open={!!accountAction}
+            onOpenChange={() => setAccountAction(null)}
+            title={`${accountAction?.action?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "Account Action"}`}
+            description={`This will ${accountAction?.action?.replace(/_/g, " ")} the selected ${accountAction?.accountType} account.`}
+            actionLabel="Confirm"
+            onConfirm={handleAccountAction}
+          />
+        </div>
+      )}
+
       {/* Staff Feature Access — Main Admin only */}
       {isMainAdmin && (
         <div>
