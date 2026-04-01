@@ -129,6 +129,55 @@ const getSplitConfigFromDB = async (supabaseAdmin: any, paymentType: string): Pr
   }
 };
 
+// Fetch rent band fee based on monthly rent
+const getRentBandFee = async (supabaseAdmin: any, monthlyRent: number): Promise<number | null> => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("rent_bands")
+      .select("fee_amount")
+      .lte("min_rent", monthlyRent)
+      .order("min_rent", { ascending: false })
+      .limit(10);
+    if (error || !data || data.length === 0) return null;
+    // Find the band where monthlyRent >= min_rent and (max_rent is null OR monthlyRent <= max_rent)
+    // Since we ordered by min_rent desc, the first match with valid max_rent wins
+    // But we need the full data. Let's re-query properly.
+    const { data: bands } = await supabaseAdmin
+      .from("rent_bands")
+      .select("min_rent, max_rent, fee_amount")
+      .order("min_rent", { ascending: true });
+    if (!bands) return null;
+    for (const band of bands) {
+      const min = Number(band.min_rent);
+      const max = band.max_rent !== null ? Number(band.max_rent) : Infinity;
+      if (monthlyRent >= min && monthlyRent <= max) {
+        return Number(band.fee_amount);
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+// Build tax splits from DB config (percentage-based)
+const getTaxSplitPlan = async (supabaseAdmin: any, taxAmount: number, description: string): Promise<{ recipient: string; amount: number; description: string }[]> => {
+  const dbSplits = await getSplitConfigFromDB(supabaseAdmin, "rent_tax");
+  if (dbSplits && dbSplits.length > 0) {
+    // These are percentage-based splits
+    const totalPct = dbSplits.reduce((s, r) => s + r.amount, 0);
+    if (totalPct > 0) {
+      return dbSplits.map(s => ({
+        recipient: s.recipient,
+        amount: Math.round((taxAmount * s.amount / totalPct) * 100) / 100,
+        description: s.description || description,
+      }));
+    }
+  }
+  // Fallback: all to rent_control
+  return [{ recipient: "rent_control", amount: taxAmount, description }];
+};
+
 // Helper to get dynamic fee from DB, falling back to defaults
 const getDynamicFee = async (supabaseAdmin: any, feeKey: string): Promise<{ total: number; enabled: boolean; splits: { recipient: string; amount: number; description: string }[] }> => {
   try {
