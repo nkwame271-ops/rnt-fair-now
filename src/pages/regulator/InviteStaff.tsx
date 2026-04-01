@@ -143,7 +143,7 @@ const InviteStaff = () => {
         <div className="mb-4 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
           {adminType === "main_admin" ? (
             <>
-              <strong className="text-foreground">Main Admin</strong> — Full platform access. Can manage Engine Room, invite staff, and control all features.
+              <strong className="text-foreground">Main Admin</strong> — Select which features this Main Admin can access. Leave all unchecked for full access.
             </>
           ) : (
             <>
