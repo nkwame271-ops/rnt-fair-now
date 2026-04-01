@@ -50,6 +50,7 @@ const PAYMENT_TYPE_LABELS: Record<string, string> = {
   add_tenant_fee: "Add Tenant Fee",
   termination_fee: "Termination Fee",
   archive_search_fee: "Archive Search Fee",
+  rent_tax: "Tax Revenue",
 };
 
 const RECIPIENT_LABELS: Record<string, string> = {
