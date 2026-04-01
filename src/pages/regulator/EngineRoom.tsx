@@ -87,6 +87,12 @@ const EngineRoom = () => {
   const [editingSecondary, setEditingSecondary] = useState<Record<string, number>>({});
   const [savingSplit, setSavingSplit] = useState<string | null>(null);
 
+  // Rent bands state
+  const [rentBands, setRentBands] = useState<RentBand[]>([]);
+  const [rentBandsLoading, setRentBandsLoading] = useState(false);
+  const [editingBands, setEditingBands] = useState<Record<string, Partial<RentBand>>>({});
+  const [savingBand, setSavingBand] = useState<string | null>(null);
+
   // Fetch sub admins for main admin view
   useEffect(() => {
     if (!profile?.isMainAdmin) return;
