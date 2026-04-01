@@ -41,7 +41,7 @@ const TenantMessages = () => {
 
     const channel = supabase
       .channel('tenant-messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'marketplace_messages' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'marketplace_messages', filter: `receiver_user_id=eq.${user.id}` }, (payload) => {
         const msg = payload.new as any;
         if (msg.receiver_user_id === user.id || msg.sender_user_id === user.id) {
           fetchConversations();
