@@ -243,6 +243,39 @@ const EngineRoom = () => {
     setMutingStaff(null);
   };
 
+  const handleAddFeatureToStaff = async (staffUserId: string, featureKey: string) => {
+    const member = staffMembers.find(s => s.user_id === staffUserId);
+    if (!member || member.allowed_features.includes(featureKey)) return;
+    const newAllowed = [...member.allowed_features, featureKey];
+    const { error } = await supabase
+      .from("admin_staff")
+      .update({ allowed_features: newAllowed, updated_at: new Date().toISOString() } as any)
+      .eq("user_id", staffUserId);
+    if (error) { toast.error("Failed to add feature"); }
+    else {
+      toast.success("Feature added");
+      setStaffMembers(prev => prev.map(s => s.user_id === staffUserId ? { ...s, allowed_features: newAllowed } : s));
+    }
+    setAddingFeature(null);
+    setNewFeatureKey("");
+  };
+
+  const handleRemoveFeatureFromStaff = async (staffUserId: string, featureKey: string) => {
+    const member = staffMembers.find(s => s.user_id === staffUserId);
+    if (!member) return;
+    const newAllowed = member.allowed_features.filter(f => f !== featureKey);
+    const newMuted = member.muted_features.filter(f => f !== featureKey);
+    const { error } = await supabase
+      .from("admin_staff")
+      .update({ allowed_features: newAllowed, muted_features: newMuted, updated_at: new Date().toISOString() } as any)
+      .eq("user_id", staffUserId);
+    if (error) { toast.error("Failed to remove feature"); }
+    else {
+      toast.success("Feature removed");
+      setStaffMembers(prev => prev.map(s => s.user_id === staffUserId ? { ...s, allowed_features: newAllowed, muted_features: newMuted } : s));
+    }
+  };
+
   const handleSaveSplitAmount = async (splitId: string, newAmount: number) => {
     setSavingSplit(splitId);
     const { error } = await supabase
