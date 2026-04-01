@@ -83,16 +83,8 @@ const DailyReport = ({ profile }: Props) => {
         from += PAGE;
       }
 
-      // Calculate unique serials (by serial_number)
-      const totalEntries = allSerials.length;
-      const available = allSerials.filter(s => s.status === "available").length;
-      const assigned = allSerials.filter(s => s.status === "assigned").length;
-      const spoilt = allSerials.filter(s => s.status === "spoilt").length;
-      const assignedToday = allSerials.filter(s => s.status === "assigned" && s.assigned_at && s.assigned_at >= todayStart && s.assigned_at < todayEnd).length;
-
       // For pairs: count distinct serial_numbers
       const uniqueAvailable = new Set(allSerials.filter(s => s.status === "available").map(s => s.serial_number)).size;
-      const uniqueAssigned = new Set(allSerials.filter(s => s.status === "assigned").map(s => s.serial_number)).size;
       const uniqueSpoilt = new Set(allSerials.filter(s => s.status === "spoilt").map(s => s.serial_number)).size;
       const uniqueAssignedToday = new Set(
         allSerials.filter(s => s.status === "assigned" && s.assigned_at && s.assigned_at >= todayStart && s.assigned_at < todayEnd)
