@@ -673,7 +673,7 @@ const DeclareExistingTenancy = () => {
 
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("find-tenant")}>Back</Button>
-            <Button disabled={!rent || monthlyRent <= 0 || !existingStartDate || !expiryDate} onClick={() => setStep("review")}>Next: Review</Button>
+            <Button disabled={!rent || monthlyRent <= 0 || !existingStartDate || !expiryDate || !selectedRentCardId || !selectedRentCardId2} onClick={() => setStep("review")}>Next: Review</Button>
           </div>
         </motion.div>
       )}
