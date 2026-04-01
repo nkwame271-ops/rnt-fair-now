@@ -353,7 +353,7 @@ const OfficePayoutSettings = () => {
                     <p className="text-xs text-muted-foreground mt-1">Enter the Paystack subaccount code for automatic settlement</p>
                   </div>
 
-                    onClick={() => handleSaveSettlement(key)}
+                    <Button
                     disabled={savingSettlement === key}
                     variant={hasEdits ? "default" : "outline"}
                     className="w-full sm:w-auto"
