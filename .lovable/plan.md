@@ -1,39 +1,64 @@
-
-
-# Plan: Escrow Allocation Visibility, Office Wallet Accuracy, and Receipt Split Visibility
+# Plan: Dynamic DB-Driven Splits + Paystack Automatic Settlement
 
 ## Summary
 
-Four changes: (1) Enhance the Escrow Dashboard Allocation Summary to show per-transaction split breakdowns, (2) Ensure office wallet balances reflect allocated shares immediately including in auto-release mode, (3) Add Platform column to allocation summary (currently missing), (4) Hide split breakdown on receipts in the landlord portal while keeping it visible in the Escrow Dashboard receipt register.
+Two changes: (1) Remove all hardcoded `DEFAULT_SPLIT_RULES` from `paystack-checkout` so every transaction reads splits exclusively from the `split_configurations` table, and (2) Implement Paystack subaccount-based split payments so funds are automatically distributed to IGF, Admin, and Platform accounts at payment time instead of collecting into a single account.
 
 ---
 
-## 1. PaymentReceipt Component — Add `showSplits` Prop
+## 1. Add Paystack Subaccount Codes to Settlement Accounts
 
-Currently `PaymentReceipt` always renders the split breakdown table. Add an optional `showSplits` prop (default `true`) to conditionally hide it.
+The `system_settlement_accounts` table already stores bank/momo details for IGF, Admin, Platform, and GRA. Add a `paystack_subaccount_code` column to store each recipient's Paystack subaccount code.
 
-- **`src/components/PaymentReceipt.tsx`**: Add `showSplits?: boolean` to `ReceiptProps`. Wrap the split breakdown `<div>` in `{showSplits !== false && (...)}`.
+**Migration:**
+- Add `paystack_subaccount_code text` column to `system_settlement_accounts`
 
-## 2. Landlord Receipts — Hide Splits
+**Engine Room UI** (`EngineRoom.tsx` or `OfficePayoutSettings.tsx`):
+- Add a field for each settlement account to enter/display the Paystack subaccount code
+- Admins create subaccounts on the Paystack dashboard and paste the code (e.g., `ACCT_xxxxx`) into the system
 
-- **`src/pages/landlord/Receipts.tsx`**: Pass `showSplits={false}` to every `<PaymentReceipt>` instance.
+---
 
-## 3. Escrow Dashboard — Enhanced Allocation Summary
+## 2. Remove Hardcoded Split Rules from Backend
 
-The current Allocation Summary only shows 4 cards (IGF, Admin, GRA, Landlord) and is missing Platform. Fix:
+**`paystack-checkout/index.ts`:**
+- Delete the entire `DEFAULT_SPLIT_RULES` constant (lines 11-91)
+- Delete `PLATFORM_FIXED_FEE` constant (line 8)
+- Delete `calculateRegistrationSplits` function (lines 94-110)
+- Modify `getDynamicFee` to fail clearly if no DB splits exist (instead of falling back to hardcoded values)
+- Keep `getSplitConfigFromDB` and `getTaxSplitPlan` as-is since they already read from DB
 
-- **`src/pages/regulator/EscrowDashboard.tsx`**: Add Platform to `allocationCards` array using `stats.platform`.
-- Change grid from `grid-cols-4` to `grid-cols-5` to accommodate.
+The `split_configurations` table already has all the seed data for every payment type. The hardcoded defaults are redundant.
 
-## 4. Escrow Dashboard — Office Wallet Balance Accuracy
+---
 
-The office revenue table already aggregates `escrow_splits` by `office_id`, which means balances reflect allocated shares immediately upon transaction (splits are inserted by the webhook at payment completion). The auto-release mode sets `disbursement_status = 'released'` but the amount still appears in the office row.
+## 3. Paystack Split Payments at Transaction Time
 
-Add clarity to the office table:
-- Add a "Wallet Balance" column showing `admin` share minus released payouts (approved `office_fund_requests`)
-- Show "Allocated" and "Released" separately so auto-release transactions are visible as both allocated and released simultaneously
+**`paystack-checkout/index.ts`:**
+- After computing the split plan, query `system_settlement_accounts` to get `paystack_subaccount_code` for each recipient
+- Build a Paystack `split` object in the transaction payload:
 
-Query `office_fund_requests` with `status = 'approved'` to compute released amounts per office, then: `wallet_balance = admin_share - released_amount`.
+```text
+payload.split = {
+  type: "flat",
+  subaccounts: [
+    { subaccount: "ACCT_igf_xxx", share: 1500 },   // 15 GHS in kobo
+    { subaccount: "ACCT_admin_xxx", share: 500 },   // 5 GHS
+    { subaccount: "ACCT_platform_xxx", share: 500 } // 5 GHS
+  ],
+  bearer_type: "account"  // main account bears Paystack fees
+}
+```
+
+- Map split recipients to settlement account types: `rent_control` → `igf`, `admin` → `admin`, `platform` → `platform`, `gra` → `gra`
+- If a recipient has no subaccount code, that portion stays with the main Paystack account (logged as warning)
+- The `landlord` recipient is excluded from Paystack splits (handled via escrow)
+
+---
+
+## 4. Rent Bands — Already DB-Driven
+
+The `getRentBandFee` function already reads from the `rent_bands` table. No changes needed.
 
 ---
 
@@ -41,7 +66,28 @@ Query `office_fund_requests` with `status = 'approved'` to compute released amou
 
 | File | Change |
 |---|---|
-| `src/components/PaymentReceipt.tsx` | Add `showSplits` prop, conditionally render split breakdown |
-| `src/pages/landlord/Receipts.tsx` | Pass `showSplits={false}` |
-| `src/pages/regulator/EscrowDashboard.tsx` | Add Platform to allocation cards; add wallet balance column to office table using `office_fund_requests` data |
+| `supabase/functions/paystack-checkout/index.ts` | Remove hardcoded splits; add Paystack split payment logic using subaccount codes from `system_settlement_accounts` |
+| `src/pages/regulator/OfficePayoutSettings.tsx` | Add field for Paystack subaccount code on each settlement account |
+| Migration | Add `paystack_subaccount_code` column to `system_settlement_accounts` |
 
+---
+
+## How It Works End-to-End
+
+```text
+User pays GH₵ 25 (e.g., Rent Card)
+  ↓
+paystack-checkout reads split_configurations for "rent_card"
+  → rent_control: 15, admin: 10
+  ↓
+Looks up system_settlement_accounts for subaccount codes
+  → rent_control(igf): ACCT_igf_xxx
+  → admin: ACCT_admin_xxx
+  ↓
+Sends to Paystack with split parameter
+  → Paystack settles 15 → IGF subaccount, 10 → Admin subaccount
+  ↓
+Webhook confirms → escrow_splits recorded for audit trail
+```
+
+All split ratios are controlled from the Engine Room. No code changes needed when splits change.
