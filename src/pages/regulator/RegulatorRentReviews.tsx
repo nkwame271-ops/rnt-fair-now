@@ -9,8 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { TrendingUp, Loader2, CheckCircle2, XCircle, Eye } from "lucide-react";
+import { TrendingUp, Loader2, CheckCircle2, XCircle, Eye, Trash2 } from "lucide-react";
 import LogoLoader from "@/components/LogoLoader";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 const RegulatorRentReviews = () => {
   const { user } = useAuth();
