@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X } from "lucide-react";
+import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import ScheduleComplainantDialog from "@/components/ScheduleComplainantDialog";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 interface SchedulingTarget {
   id: string;
@@ -24,6 +26,7 @@ const allStatuses = ["submitted", "under_review", "in_progress", "schedule_compl
 
 const RegulatorComplaints = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [complaints, setComplaints] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -31,6 +34,23 @@ const RegulatorComplaints = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [schedulingComplaint, setSchedulingComplaint] = useState<SchedulingTarget | null>(null);
   const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
+  const [deletingId, setDeletingId] = useState<{ id: string; type: "tenant" | "landlord" } | null>(null);
+
+  const handleDeleteComplaint = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const action = deletingId.type === "tenant" ? "delete_complaint" : "delete_landlord_complaint";
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action, target_id: deletingId.id, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    if (deletingId.type === "tenant") {
+      setComplaints(prev => prev.filter(c => c.id !== deletingId.id));
+    } else {
+      setLandlordComplaints(prev => prev.filter(c => c.id !== deletingId.id));
+    }
+    toast.success("Complaint permanently deleted");
+  };
 
   const fetchComplaints = async () => {
     const { data } = await supabase
@@ -358,6 +378,11 @@ const RegulatorComplaints = () => {
                           <Clock className="h-3 w-3" />
                           {Math.ceil((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24))} days since filed
                         </div>
+                        {profile?.isMainAdmin && (
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive ml-2" onClick={() => setDeletingId({ id: c.id, type: "tenant" })}>
+                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                          </Button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -434,6 +459,11 @@ const RegulatorComplaints = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {profile?.isMainAdmin && (
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeletingId({ id: c.id, type: "landlord" })}>
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -457,6 +487,15 @@ const RegulatorComplaints = () => {
           }}
         />
       )}
+
+      <AdminPasswordConfirm
+        open={!!deletingId}
+        onOpenChange={() => setDeletingId(null)}
+        title="Delete Complaint Permanently"
+        description="This will permanently delete this complaint record. This cannot be undone."
+        actionLabel="Delete Permanently"
+        onConfirm={handleDeleteComplaint}
+      />
     </div>
   );
 };

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { TrendingUp, CheckCircle2, XCircle, Loader2, Clock, Info } from "lucide-react";
+import { TrendingUp, CheckCircle2, XCircle, Loader2, Clock, Info, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import LogoLoader from "@/components/LogoLoader";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 interface RentAssessment {
   id: string;
@@ -26,11 +28,24 @@ interface RentAssessment {
 
 const RegulatorRentAssessments = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [assessments, setAssessments] = useState<RentAssessment[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_assessment", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setAssessments(prev => prev.filter(a => a.id !== deletingId));
+    toast.success("Assessment permanently deleted");
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -243,14 +258,30 @@ const RegulatorRentAssessments = () => {
                   <span>GH₵ {a.current_rent.toLocaleString()} → GH₵ {a.proposed_rent.toLocaleString()}</span>
                   {a.reviewed_at && <span>Reviewed: {new Date(a.reviewed_at).toLocaleDateString("en-GB")}</span>}
                 </div>
-                {a.reviewer_notes && (
+               {a.reviewer_notes && (
                   <p className="text-xs text-muted-foreground italic">Notes: {a.reviewer_notes}</p>
+                )}
+                {profile?.isMainAdmin && (
+                  <div className="flex justify-end">
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive gap-1" onClick={() => setDeletingId(a.id)}>
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}
           </div>
         </div>
       )}
+
+      <AdminPasswordConfirm
+        open={!!deletingId}
+        onOpenChange={() => setDeletingId(null)}
+        title="Delete Assessment Permanently"
+        description="This will permanently delete this rent assessment. This cannot be undone."
+        actionLabel="Delete Permanently"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 };

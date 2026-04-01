@@ -360,7 +360,66 @@ const EngineRoom = () => {
     }
   };
 
-  if (loading || profileLoading) return <LogoLoader message="Loading feature controls..." />;
+  // Account Management handlers
+  const handleAccountSearch = async () => {
+    if (!accountSearch.trim()) return;
+    setAccountSearching(true);
+    setAccountResult(null);
+
+    if (accountType === "admin") {
+      const { data: staffRecords } = await supabase.from("admin_staff").select("user_id, admin_type, office_name");
+      if (staffRecords && staffRecords.length > 0) {
+        const userIds = staffRecords.map((s: any) => s.user_id);
+        const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds);
+        const match = (profiles || []).find((p: any) =>
+          p.full_name?.toLowerCase().includes(accountSearch.trim().toLowerCase()) ||
+          p.email?.toLowerCase().includes(accountSearch.trim().toLowerCase())
+        );
+        if (match) {
+          const staff = staffRecords.find((s: any) => s.user_id === match.user_id) as any;
+          setAccountResult({ userId: match.user_id, idCode: staff?.admin_type || "admin", name: match.full_name || "Unknown", email: match.email || "", accountStatus: "active", type: "admin", adminType: staff?.admin_type });
+        } else { toast.error("No admin found"); }
+      }
+      setAccountSearching(false);
+      return;
+    }
+
+    const table = accountType === "landlord" ? "landlords" : "tenants";
+    const idField = accountType === "landlord" ? "landlord_id" : "tenant_id";
+    const { data: records } = await supabase.from(table).select(`user_id, ${idField}, account_status`).ilike(idField, `%${accountSearch.trim()}%`).limit(1);
+
+    if (records && records.length > 0) {
+      const rec = records[0] as any;
+      const { data: prof } = await supabase.from("profiles").select("full_name, email").eq("user_id", rec.user_id).single();
+      setAccountResult({ userId: rec.user_id, idCode: rec[idField], name: prof?.full_name || "Unknown", email: prof?.email || "", accountStatus: rec.account_status || "active", type: accountType });
+    } else {
+      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, email").ilike("full_name", `%${accountSearch.trim()}%`).limit(5);
+      if (profiles && profiles.length > 0) {
+        for (const p of profiles) {
+          const { data: rec } = await supabase.from(table).select(`user_id, ${idField}, account_status`).eq("user_id", p.user_id).maybeSingle();
+          if (rec) {
+            setAccountResult({ userId: (rec as any).user_id, idCode: (rec as any)[idField], name: p.full_name, email: p.email || "", accountStatus: (rec as any).account_status || "active", type: accountType });
+            break;
+          }
+        }
+      }
+      if (!accountResult) toast.error(`No ${accountType} found`);
+    }
+    setAccountSearching(false);
+  };
+
+  const handleAccountAction = async (password: string, reason: string) => {
+    if (!accountAction) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: accountAction.action, target_id: accountAction.targetId, reason, password, extra: { account_type: accountAction.accountType } },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    toast.success("Account action completed");
+    setAccountResult(null);
+    setAccountSearch("");
+  };
+
 
   const isMainAdmin = profile?.isMainAdmin ?? false;
   const isSubAdmin = profile && !profile.isMainAdmin;
@@ -831,6 +890,72 @@ const EngineRoom = () => {
           <div className="bg-card rounded-xl border border-border shadow-card divide-y divide-border">
             {feeFlags.map(renderFeeRow)}
           </div>
+        </div>
+      )}
+
+
+      {/* Account Management — Main Admin Only */}
+      {isMainAdmin && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <UserX className="h-5 w-5 text-destructive" /> Account Management
+          </h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Search for and manage landlord, tenant, or admin accounts. Actions include deactivation, archival, and permanent deletion.
+          </p>
+          <div className="bg-card rounded-xl border border-border shadow-card p-6 space-y-4">
+            <div className="flex gap-3 items-end flex-wrap">
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">Account Type</span>
+                <select className="h-10 rounded-md border border-border bg-background px-3 text-sm" value={accountType} onChange={e => setAccountType(e.target.value as any)}>
+                  <option value="landlord">Landlord</option>
+                  <option value="tenant">Tenant</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="flex-1 space-y-1 min-w-[200px]">
+                <span className="text-xs font-medium text-muted-foreground">Search</span>
+                <Input placeholder={`Search by ${accountType === "admin" ? "name or email" : "ID code or name"}...`} value={accountSearch} onChange={e => setAccountSearch(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAccountSearch()} />
+              </div>
+              <Button onClick={handleAccountSearch} disabled={accountSearching} variant="outline">
+                {accountSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Search
+              </Button>
+            </div>
+
+            {accountResult && (
+              <div className="border border-border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-card-foreground">{accountResult.name}</p>
+                    <p className="text-xs text-muted-foreground">{accountResult.idCode} • {accountResult.email}</p>
+                  </div>
+                  <Badge variant="outline" className={accountResult.accountStatus === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}>{accountResult.accountStatus}</Badge>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {accountResult.accountStatus === "active" && (
+                    <Button size="sm" variant="outline" onClick={() => setAccountAction({ action: "deactivate_account", targetId: accountResult.userId, accountType: accountResult.type })}>
+                      <UserX className="h-3.5 w-3.5 mr-1" /> Deactivate
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => setAccountAction({ action: "archive_account", targetId: accountResult.userId, accountType: accountResult.type })}>
+                    <Archive className="h-3.5 w-3.5 mr-1" /> Archive
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => setAccountAction({ action: "delete_account", targetId: accountResult.userId, accountType: accountResult.type })}>
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Permanently
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <AdminPasswordConfirm
+            open={!!accountAction}
+            onOpenChange={() => setAccountAction(null)}
+            title={`${accountAction?.action?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "Account Action"}`}
+            description={`This will ${accountAction?.action?.replace(/_/g, " ")} the selected ${accountAction?.accountType} account.`}
+            actionLabel="Confirm"
+            onConfirm={handleAccountAction}
+          />
         </div>
       )}
 

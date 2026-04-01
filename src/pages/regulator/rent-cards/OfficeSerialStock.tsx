@@ -24,6 +24,8 @@ interface StockSummary {
   available: number;
   assigned: number;
   revoked: number;
+  sold: number;
+  spoilt: number;
 }
 
 interface SerialRange {
@@ -108,6 +110,8 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
           available: items.filter((i: any) => i.status === "available").length,
           assigned: items.filter((i: any) => i.status === "assigned").length,
           revoked: items.filter((i: any) => i.status === "revoked").length,
+          sold: items.filter((i: any) => i.status === "sold").length,
+          spoilt: items.filter((i: any) => i.status === "spoilt").length,
         });
 
         const batchMap = new Map<string, any[]>();
@@ -161,6 +165,8 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
         available: items.filter((i: any) => i.status === "available").length,
         assigned: items.filter((i: any) => i.status === "assigned").length,
         revoked: items.filter((i: any) => i.status === "revoked").length,
+        sold: items.filter((i: any) => i.status === "sold").length,
+        spoilt: items.filter((i: any) => i.status === "spoilt").length,
       });
       const batchMap = new Map<string, any[]>();
       for (const item of items) {
@@ -237,22 +243,31 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
 
         {stock && !loading && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
-              <div className="rounded-lg border border-border p-4 text-center">
-                <p className="text-2xl font-bold text-card-foreground">{stock.total}</p>
-                <p className="text-xs text-muted-foreground mt-1">Total Serials</p>
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 pt-2">
               <div className="rounded-lg border border-success/30 bg-success/5 p-4 text-center">
-                <p className="text-2xl font-bold text-success">{stock.available}</p>
-                <p className="text-xs text-muted-foreground mt-1">Available</p>
+                <p className="text-2xl font-bold text-success">{Math.floor(stock.available / 2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Opening Rent Card Pairs</p>
+                <p className="text-[10px] text-muted-foreground">{stock.available} serials</p>
               </div>
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-center">
-                <p className="text-2xl font-bold text-primary">{stock.assigned}</p>
-                <p className="text-xs text-muted-foreground mt-1">Assigned</p>
+                <p className="text-2xl font-bold text-primary">{Math.floor(stock.assigned / 2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Assigned Rent Card Pairs</p>
+                <p className="text-[10px] text-muted-foreground">{stock.assigned} serials</p>
               </div>
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-center">
-                <p className="text-2xl font-bold text-destructive">{stock.revoked}</p>
-                <p className="text-xs text-muted-foreground mt-1">Revoked</p>
+              <div className="rounded-lg border border-info/30 bg-info/5 p-4 text-center">
+                <p className="text-2xl font-bold text-info">{Math.floor(stock.sold / 2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Sold Rent Card Pairs</p>
+                <p className="text-[10px] text-muted-foreground">{stock.sold} serials</p>
+              </div>
+              <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 text-center">
+                <p className="text-2xl font-bold text-warning">{Math.floor(stock.spoilt / 2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Spoilt Rent Card Pairs</p>
+                <p className="text-[10px] text-muted-foreground">{stock.spoilt} serials</p>
+              </div>
+              <div className="rounded-lg border border-border p-4 text-center">
+                <p className="text-2xl font-bold text-card-foreground">{Math.floor((stock.available) / 2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Closing Rent Card Pairs</p>
+                <p className="text-[10px] text-muted-foreground">{stock.total} total serials • {stock.revoked} revoked</p>
               </div>
             </div>
 

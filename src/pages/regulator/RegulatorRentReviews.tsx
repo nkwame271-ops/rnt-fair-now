@@ -9,16 +9,31 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { TrendingUp, Loader2, CheckCircle2, XCircle, Eye } from "lucide-react";
+import { TrendingUp, Loader2, CheckCircle2, XCircle, Eye, Trash2 } from "lucide-react";
 import LogoLoader from "@/components/LogoLoader";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 const RegulatorRentReviews = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState<any | null>(null);
   const [reviewerNotes, setReviewerNotes] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_rent_review", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setRequests(prev => prev.filter(r => r.id !== deletingId));
+    toast.success("Rent review permanently deleted");
+  };
 
   useEffect(() => {
     const fetch = async () => {
@@ -131,9 +146,16 @@ const RegulatorRentReviews = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => { setReviewing(req); setReviewerNotes(req.reviewer_notes || ""); }}>
-                        <Eye className="h-3.5 w-3.5 mr-1" /> Review
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => { setReviewing(req); setReviewerNotes(req.reviewer_notes || ""); }}>
+                          <Eye className="h-3.5 w-3.5 mr-1" /> Review
+                        </Button>
+                        {profile?.isMainAdmin && (
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingId(req.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -205,6 +227,15 @@ const RegulatorRentReviews = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <AdminPasswordConfirm
+        open={!!deletingId}
+        onOpenChange={() => setDeletingId(null)}
+        title="Delete Rent Review Permanently"
+        description="This will permanently delete this rent increase review. This cannot be undone."
+        actionLabel="Delete Permanently"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 };

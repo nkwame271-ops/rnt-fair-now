@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { ClipboardList, Search, ChevronDown, ChevronUp, Clock, CheckCircle2, XCircle, Loader2, Download, User, Image, Mic } from "lucide-react";
+import { ClipboardList, Search, ChevronDown, ChevronUp, Clock, CheckCircle2, XCircle, Loader2, Download, User, Image, Mic, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 const applicationTypes: Record<string, string> = {
   rent_increase: "Rent Increase",
@@ -25,12 +27,25 @@ const statusColors: Record<string, string> = {
 
 const RegulatorApplications = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [applications, setApplications] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_application", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setApplications(prev => prev.filter(a => a.id !== deletingId));
+    toast.success("Application permanently deleted");
+  };
 
   const fetchApplications = async () => {
     const { data } = await supabase
@@ -239,19 +254,33 @@ const RegulatorApplications = () => {
                       <Button size="sm" variant="destructive" className="gap-1" onClick={() => updateStatus(a.id, "rejected")}>
                         <XCircle className="h-3.5 w-3.5" /> Reject
                       </Button>
-                      <Button size="sm" variant="outline" className="gap-1" onClick={() => updateStatus(a.id, "under_review")}>
-                        <Clock className="h-3.5 w-3.5" /> Mark Under Review
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+                       <Button size="sm" variant="outline" className="gap-1" onClick={() => updateStatus(a.id, "under_review")}>
+                         <Clock className="h-3.5 w-3.5" /> Mark Under Review
+                       </Button>
+                       {profile?.isMainAdmin && (
+                         <Button size="sm" variant="ghost" className="gap-1 text-destructive hover:text-destructive" onClick={() => setDeletingId(a.id)}>
+                           <Trash2 className="h-3.5 w-3.5" /> Delete
+                         </Button>
+                       )}
+                     </div>
+                   </div>
+                 </div>
+               )}
+             </div>
+           );
+         })}
+       </div>
 
-export default RegulatorApplications;
+       <AdminPasswordConfirm
+         open={!!deletingId}
+         onOpenChange={() => setDeletingId(null)}
+         title="Delete Application Permanently"
+         description="This will permanently delete this application. This cannot be undone."
+         actionLabel="Delete Permanently"
+         onConfirm={handleDelete}
+       />
+     </div>
+   );
+ };
+ 
+ export default RegulatorApplications;

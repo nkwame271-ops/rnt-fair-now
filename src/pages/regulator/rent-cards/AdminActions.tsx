@@ -34,12 +34,7 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
   const [voidSearching, setVoidSearching] = useState(false);
   const [voidTarget, setVoidTarget] = useState<string | null>(null);
 
-  // --- Account Management ---
-  const [accountSearch, setAccountSearch] = useState("");
-  const [accountType, setAccountType] = useState<"landlord" | "tenant" | "admin">("landlord");
-  const [accountResult, setAccountResult] = useState<any>(null);
-  const [accountSearching, setAccountSearching] = useState(false);
-  const [accountAction, setAccountAction] = useState<{ action: string; targetId: string; accountType: string } | null>(null);
+  // (Account Management moved to Engine Room)
 
   // --- Audit Log ---
   const [auditLogs, setAuditLogs] = useState<any[]>([]);

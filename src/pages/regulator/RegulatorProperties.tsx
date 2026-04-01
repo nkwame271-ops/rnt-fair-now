@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban, GitCompare } from "lucide-react";
+import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban, GitCompare, Trash2 } from "lucide-react";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -17,6 +19,7 @@ import { toast } from "sonner";
 
 const RegulatorProperties = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [properties, setProperties] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -24,6 +27,18 @@ const RegulatorProperties = () => {
   const [detailProperty, setDetailProperty] = useState<any | null>(null);
   const [detailImages, setDetailImages] = useState<any[]>([]);
   const [approving, setApproving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDeleteProperty = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_property", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setProperties(prev => prev.filter(p => p.id !== deletingId));
+    toast.success("Property permanently deleted");
+  };
 
   // Assessment form state
   const [showAssessment, setShowAssessment] = useState(false);
@@ -475,6 +490,11 @@ const RegulatorProperties = () => {
                               <CheckCircle2 className="h-3.5 w-3.5" /> Reinstate
                             </Button>
                           )}
+                          {profile?.isMainAdmin && (
+                            <Button size="sm" variant="ghost" className="gap-1 text-destructive hover:text-destructive" onClick={() => setDeletingId(p.id)}>
+                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -781,6 +801,15 @@ const RegulatorProperties = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <AdminPasswordConfirm
+        open={!!deletingId}
+        onOpenChange={() => setDeletingId(null)}
+        title="Delete Property Permanently"
+        description="This will permanently delete this property and all associated data. This cannot be undone."
+        actionLabel="Delete Permanently"
+        onConfirm={handleDeleteProperty}
+      />
     </div>
   );
 };

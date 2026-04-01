@@ -1,16 +1,32 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Download, Search, ExternalLink, Calendar, DollarSign } from "lucide-react";
+import { FileText, Download, Search, ExternalLink, Calendar, DollarSign, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateAgreementPdf, AgreementPdfData } from "@/lib/generateAgreementPdf";
+import { toast } from "sonner";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 const RegulatorAgreements = () => {
+  const { profile } = useAdminProfile();
   const [agreements, setAgreements] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_agreement", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setAgreements(prev => prev.filter(a => a.id !== deletingId));
+    toast.success("Agreement permanently deleted");
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -194,27 +210,41 @@ const RegulatorAgreements = () => {
                   <div className="text-xs text-muted-foreground">{a.advance_months} months advance</div>
                 </div>
               </div>
-              <div className="flex gap-2 shrink-0">
-                {a.final_agreement_pdf_url && (
-                  <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="default">
-                      <Download className="h-3.5 w-3.5 mr-1" /> Final Signed
-                    </Button>
-                  </a>
-                )}
-                <Button size="sm" variant="outline" onClick={() => downloadPdf(a)}>
-                  <Download className="h-3.5 w-3.5 mr-1" /> PDF
-                </Button>
-              </div>
-            </div>
-            <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
-              <span>Tenant accepted: <span className={a.tenant_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.tenant_accepted ? "Yes" : "No"}</span></span>
-              <span>Landlord accepted: <span className={a.landlord_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.landlord_accepted ? "Yes" : "No"}</span></span>
-              <span>Region: {a._region}</span>
-            </div>
-          </div>
+               <div className="flex gap-2 shrink-0">
+                 {a.final_agreement_pdf_url && (
+                   <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
+                     <Button size="sm" variant="default">
+                       <Download className="h-3.5 w-3.5 mr-1" /> Final Signed
+                     </Button>
+                   </a>
+                 )}
+                 <Button size="sm" variant="outline" onClick={() => downloadPdf(a)}>
+                   <Download className="h-3.5 w-3.5 mr-1" /> PDF
+                 </Button>
+                 {profile?.isMainAdmin && (
+                   <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingId(a.id)}>
+                     <Trash2 className="h-3.5 w-3.5" />
+                   </Button>
+                 )}
+               </div>
+             </div>
+             <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
+               <span>Tenant accepted: <span className={a.tenant_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.tenant_accepted ? "Yes" : "No"}</span></span>
+               <span>Landlord accepted: <span className={a.landlord_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.landlord_accepted ? "Yes" : "No"}</span></span>
+               <span>Region: {a._region}</span>
+             </div>
+           </div>
         ))}
       </div>
+
+      <AdminPasswordConfirm
+        open={!!deletingId}
+        onOpenChange={() => setDeletingId(null)}
+        title="Delete Agreement Permanently"
+        description="This will permanently delete this tenancy agreement. This cannot be undone."
+        actionLabel="Delete Permanently"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 };

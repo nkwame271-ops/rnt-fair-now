@@ -7,19 +7,34 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Gavel, CheckCircle, XCircle, Scale, ShieldAlert } from "lucide-react";
+import { Gavel, CheckCircle, XCircle, Scale, ShieldAlert, Trash2 } from "lucide-react";
 import LogoLoader from "@/components/LogoLoader";
 import PageTransition from "@/components/PageTransition";
 import EmptyState from "@/components/EmptyState";
 import { format } from "date-fns";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 const RegulatorTerminations = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [termApps, setTermApps] = useState<any[]>([]);
   const [sidePayments, setSidePayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [processing, setProcessing] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_termination", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setTermApps(prev => prev.filter(a => a.id !== deletingId));
+    toast.success("Termination application permanently deleted");
+  };
 
   const load = async () => {
     const [{ data: apps }, { data: sp }] = await Promise.all([
@@ -167,16 +182,21 @@ const RegulatorTerminations = () => {
                         <Button size="sm" onClick={() => handleTermAction(app.id, "approved")} disabled={processing === app.id}>
                           <CheckCircle className="h-3 w-3 mr-1" /> Approve
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleTermAction(app.id, "rejected")} disabled={processing === app.id}>
-                          <XCircle className="h-3 w-3 mr-1" /> Reject
-                        </Button>
-                      </div>
-                    </div>
-                  ) : app.reviewer_notes ? (
-                    <div className="bg-muted/50 rounded p-2 text-sm">
-                      <span className="font-medium">Notes:</span> {app.reviewer_notes}
-                    </div>
-                  ) : null}
+                         <Button size="sm" variant="destructive" onClick={() => handleTermAction(app.id, "rejected")} disabled={processing === app.id}>
+                           <XCircle className="h-3 w-3 mr-1" /> Reject
+                         </Button>
+                         {profile?.isMainAdmin && (
+                           <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive gap-1" onClick={() => setDeletingId(app.id)}>
+                             <Trash2 className="h-3 w-3 mr-1" /> Delete
+                           </Button>
+                         )}
+                       </div>
+                     </div>
+                   ) : app.reviewer_notes ? (
+                     <div className="bg-muted/50 rounded p-2 text-sm">
+                       <span className="font-medium">Notes:</span> {app.reviewer_notes}
+                     </div>
+                   ) : null}
                 </CardContent>
               </Card>
             ))}
@@ -218,6 +238,15 @@ const RegulatorTerminations = () => {
             ))}
           </TabsContent>
         </Tabs>
+
+        <AdminPasswordConfirm
+          open={!!deletingId}
+          onOpenChange={() => setDeletingId(null)}
+          title="Delete Termination Permanently"
+          description="This will permanently delete this termination application. This cannot be undone."
+          actionLabel="Delete Permanently"
+          onConfirm={handleDelete}
+        />
       </div>
     </PageTransition>
   );
