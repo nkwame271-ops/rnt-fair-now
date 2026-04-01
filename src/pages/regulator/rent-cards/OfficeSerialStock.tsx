@@ -110,6 +110,8 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
           available: items.filter((i: any) => i.status === "available").length,
           assigned: items.filter((i: any) => i.status === "assigned").length,
           revoked: items.filter((i: any) => i.status === "revoked").length,
+          sold: items.filter((i: any) => i.status === "sold").length,
+          spoilt: items.filter((i: any) => i.status === "spoilt").length,
         });
 
         const batchMap = new Map<string, any[]>();
