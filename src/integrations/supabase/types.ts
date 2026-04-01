@@ -379,6 +379,57 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_stock_reports: {
+        Row: {
+          assigned_today: number
+          closing_pairs: number
+          created_at: string
+          id: string
+          notes: string | null
+          office_id: string
+          office_name: string
+          opening_pairs: number
+          report_date: string
+          signed_name: string | null
+          sold_today: number
+          spoilt_today: number
+          staff_name: string
+          staff_user_id: string
+        }
+        Insert: {
+          assigned_today?: number
+          closing_pairs?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          office_id: string
+          office_name: string
+          opening_pairs?: number
+          report_date: string
+          signed_name?: string | null
+          sold_today?: number
+          spoilt_today?: number
+          staff_name: string
+          staff_user_id: string
+        }
+        Update: {
+          assigned_today?: number
+          closing_pairs?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          office_id?: string
+          office_name?: string
+          opening_pairs?: number
+          report_date?: string
+          signed_name?: string | null
+          sold_today?: number
+          spoilt_today?: number
+          staff_name?: string
+          staff_user_id?: string
+        }
+        Relationships: []
+      }
       escrow_splits: {
         Row: {
           amount: number
@@ -1651,6 +1702,8 @@ export type Database = {
           created_at: string
           id: string
           office_name: string
+          pair_group: string | null
+          pair_index: number | null
           region: string | null
           revoke_reason: string | null
           revoked_at: string | null
@@ -1666,6 +1719,8 @@ export type Database = {
           created_at?: string
           id?: string
           office_name: string
+          pair_group?: string | null
+          pair_index?: number | null
           region?: string | null
           revoke_reason?: string | null
           revoked_at?: string | null
@@ -1681,6 +1736,8 @@ export type Database = {
           created_at?: string
           id?: string
           office_name?: string
+          pair_group?: string | null
+          pair_index?: number | null
           region?: string | null
           revoke_reason?: string | null
           revoked_at?: string | null
