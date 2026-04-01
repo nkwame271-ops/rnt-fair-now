@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Search, CheckCircle2, Upload, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, Search, CheckCircle2, Upload, Loader2, FileText, AlertCircle, Phone, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -17,20 +17,29 @@ interface PropertyWithUnits {
   property_name: string | null;
   address: string;
   region: string;
+  area: string;
   ghana_post_gps: string | null;
   units: { id: string; unit_name: string; unit_type: string; monthly_rent: number; status: string }[];
 }
 
+const SESSION_KEY = "declare_existing_tenancy_form";
+
 const DeclareExistingTenancy = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState<Step>("select-unit");
   const [properties, setProperties] = useState<PropertyWithUnits[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [selectedUnitId, setSelectedUnitId] = useState("");
-  const [tenantSearch, setTenantSearch] = useState("");
-  const [foundTenant, setFoundTenant] = useState<{ name: string; id: string; userId: string; tenantIdCode: string } | null>(null);
-  const [searching, setSearching] = useState(false);
+
+  // Tenant input
+  const [tenantName, setTenantName] = useState("");
+  const [tenantPhone, setTenantPhone] = useState("");
+  const [phoneSearching, setPhoneSearching] = useState(false);
+  const [matchedTenant, setMatchedTenant] = useState<{ userId: string; fullName: string; tenantIdCode: string } | null>(null);
+  const [phoneSearchDone, setPhoneSearchDone] = useState(false);
+
   const [rent, setRent] = useState("");
   const [advancePaid, setAdvancePaid] = useState("0");
   const [existingStartDate, setExistingStartDate] = useState("");
@@ -43,8 +52,42 @@ const DeclareExistingTenancy = () => {
   const [selectedRentCardId, setSelectedRentCardId] = useState("");
   const [selectedRentCardId2, setSelectedRentCardId2] = useState("");
 
+  // Rent band fee
+  const [rentBandFee, setRentBandFee] = useState<number | null>(null);
+  const [feeEnabled, setFeeEnabled] = useState(true);
+
   const property = properties.find(p => p.id === selectedPropertyId);
   const unit = property?.units.find(u => u.id === selectedUnitId);
+
+  // Restore form from sessionStorage after payment redirect
+  useEffect(() => {
+    const status = searchParams.get("status");
+    if (status === "success" || status === "fee_paid") {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          // Re-populate and auto-submit
+          setSelectedPropertyId(data.selectedPropertyId || "");
+          setSelectedUnitId(data.selectedUnitId || "");
+          setTenantName(data.tenantName || "");
+          setTenantPhone(data.tenantPhone || "");
+          setMatchedTenant(data.matchedTenant || null);
+          setPhoneSearchDone(true);
+          setRent(data.rent || "");
+          setAdvancePaid(data.advancePaid || "0");
+          setExistingStartDate(data.existingStartDate || "");
+          setExpiryDate(data.expiryDate || "");
+          setSelectedRentCardId(data.selectedRentCardId || "");
+          setSelectedRentCardId2(data.selectedRentCardId2 || "");
+          // Mark that we should auto-submit after data loads
+          sessionStorage.setItem("declare_auto_submit", "true");
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!user) return;
@@ -52,7 +95,7 @@ const DeclareExistingTenancy = () => {
       const [{ data: propData }, { data: cardData }] = await Promise.all([
         supabase
           .from("properties")
-          .select("id, property_name, address, region, ghana_post_gps, units(id, unit_name, unit_type, monthly_rent, status)")
+          .select("id, property_name, address, region, area, ghana_post_gps, units(id, unit_name, unit_type, monthly_rent, status)")
           .eq("landlord_user_id", user.id),
         supabase
           .from("rent_cards")
@@ -64,143 +107,327 @@ const DeclareExistingTenancy = () => {
       setProperties((propData || []) as PropertyWithUnits[]);
       setAvailableRentCards((cardData || []).filter((c: any) => c.serial_number) as { id: string; serial_number: string }[]);
       setLoading(false);
+
+      // Check for auto-submit after payment redirect
+      if (sessionStorage.getItem("declare_auto_submit") === "true") {
+        sessionStorage.removeItem("declare_auto_submit");
+        // Small delay to allow state to settle
+        setTimeout(() => {
+          const saved = sessionStorage.getItem(SESSION_KEY);
+          if (saved) {
+            sessionStorage.removeItem(SESSION_KEY);
+            autoSubmitAfterPayment(JSON.parse(saved), propData || []);
+          }
+        }, 500);
+      }
     };
     fetchData();
   }, [user]);
 
-  const handleSearch = async () => {
-    setSearching(true);
-    setFoundTenant(null);
-    try {
-      const { data: tenants } = await supabase
-        .from("tenants")
-        .select("user_id, tenant_id")
-        .ilike("tenant_id", `%${tenantSearch.trim()}%`);
+  // Fetch fee flag
+  useEffect(() => {
+    const fetchFee = async () => {
+      const { data } = await supabase
+        .from("feature_flags")
+        .select("fee_enabled, fee_amount")
+        .eq("feature_key", "agreement_sale_fee")
+        .single();
+      if (data) {
+        setFeeEnabled(data.fee_enabled);
+      }
+    };
+    fetchFee();
+  }, []);
 
-      if (tenants && tenants.length > 0) {
-        const t = tenants[0];
-        const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", t.user_id).single();
-        setFoundTenant({ name: profile?.full_name || "Unknown", id: t.tenant_id, userId: t.user_id, tenantIdCode: t.tenant_id });
-        toast.success(`Tenant found: ${profile?.full_name}`);
-      } else {
-        const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").ilike("full_name", `%${tenantSearch.trim()}%`);
-        if (profiles && profiles.length > 0) {
-          const p = profiles[0];
-          const { data: tenant } = await supabase.from("tenants").select("tenant_id").eq("user_id", p.user_id).single();
-          if (tenant) {
-            setFoundTenant({ name: p.full_name, id: tenant.tenant_id, userId: p.user_id, tenantIdCode: tenant.tenant_id });
-            toast.success(`Tenant found: ${p.full_name}`);
-          } else {
-            toast.error("User found but not registered as a tenant.");
+  // Lookup rent band fee when rent changes
+  useEffect(() => {
+    const monthlyRent = parseFloat(rent) || 0;
+    if (monthlyRent <= 0) { setRentBandFee(null); return; }
+    const lookupBand = async () => {
+      const { data: bands } = await supabase
+        .from("rent_bands")
+        .select("min_rent, max_rent, fee_amount")
+        .order("min_rent");
+      if (bands) {
+        for (const band of bands) {
+          const min = Number(band.min_rent);
+          const max = band.max_rent !== null ? Number(band.max_rent) : Infinity;
+          if (monthlyRent >= min && monthlyRent <= max) {
+            setRentBandFee(Number(band.fee_amount));
+            return;
           }
-        } else {
-          toast.error("No tenant found with that ID or name.");
         }
+      }
+      setRentBandFee(null);
+    };
+    lookupBand();
+  }, [rent]);
+
+  // Phone search for existing tenant
+  const handlePhoneSearch = async () => {
+    if (!tenantPhone.trim()) return;
+    setPhoneSearching(true);
+    setMatchedTenant(null);
+    setPhoneSearchDone(false);
+    try {
+      // Normalize phone for search
+      let normalizedPhone = tenantPhone.trim().replace(/\s/g, "");
+      // Search profiles by phone
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, phone")
+        .or(`phone.eq.${normalizedPhone},phone.eq.0${normalizedPhone.replace(/^233/, "")},phone.eq.233${normalizedPhone.replace(/^0/, "")}`);
+
+      if (profiles && profiles.length > 0) {
+        const p = profiles[0];
+        // Check if they have a tenant record
+        const { data: tenant } = await supabase.from("tenants").select("tenant_id").eq("user_id", p.user_id).single();
+        if (tenant) {
+          setMatchedTenant({ userId: p.user_id, fullName: p.full_name, tenantIdCode: tenant.tenant_id });
+          toast.success(`Tenant found: ${p.full_name}`);
+        } else {
+          // User exists but not a tenant
+          setMatchedTenant({ userId: p.user_id, fullName: p.full_name, tenantIdCode: "" });
+          toast.info(`User found (${p.full_name}) but not registered as tenant — tenancy will be linked to their account.`);
+        }
+      } else {
+        toast.info("No account found — an SMS invitation will be sent to this number.");
       }
     } catch {
       toast.error("Search failed.");
     } finally {
-      setSearching(false);
+      setPhoneSearching(false);
+      setPhoneSearchDone(true);
     }
   };
 
-  const handleSubmit = async () => {
-    if (!user || !foundTenant || !property || !unit) return;
+  const autoSubmitAfterPayment = async (savedData: any, propsData: any[]) => {
+    if (!user) return;
     setSubmitting(true);
     try {
-      const registrationCode = `EX-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
-      const monthlyRent = parseFloat(rent) || 0;
-      const advMonths = parseInt(advancePaid) || 0;
+      const prop = propsData.find((p: any) => p.id === savedData.selectedPropertyId);
+      const unitData = prop?.units?.find((u: any) => u.id === savedData.selectedUnitId);
+      if (!prop || !unitData) throw new Error("Property or unit not found");
 
-      let agreementUrl: string | null = null;
-      let voiceUrl: string | null = null;
-
-      if (agreementFile) {
-        const path = `existing-agreements/${user.id}/${Date.now()}_${agreementFile.name}`;
-        const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(path, agreementFile);
-        if (!uploadErr) {
-          const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(path);
-          agreementUrl = urlData.publicUrl;
-        }
-      }
-
-      if (voiceFile) {
-        const path = `existing-voice/${user.id}/${Date.now()}_${voiceFile.name}`;
-        const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(path, voiceFile);
-        if (!uploadErr) {
-          const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(path);
-          voiceUrl = urlData.publicUrl;
-        }
-      }
-
-      const { error, data: tenancyData } = await supabase.from("tenancies").insert({
-        tenant_user_id: foundTenant.userId,
-        landlord_user_id: user.id,
-        unit_id: unit.id,
-        tenant_id_code: foundTenant.tenantIdCode,
-        registration_code: registrationCode,
-        agreed_rent: monthlyRent,
-        advance_months: advMonths,
-        start_date: existingStartDate,
-        end_date: expiryDate,
-        move_in_date: existingStartDate,
-        status: "existing_declared",
-        tenancy_type: "existing_migration",
-        existing_advance_paid: advMonths,
-        existing_start_date: existingStartDate,
-        existing_agreement_url: agreementUrl,
-        existing_voice_url: voiceUrl,
-        landlord_accepted: true,
-        tenant_accepted: false,
-        compliance_status: "under_review",
-        rent_card_id: selectedRentCardId || null,
-        rent_card_id_2: selectedRentCardId2 || null,
-      } as any).select().single();
-
-      if (error) throw error;
-
-      // Activate rent cards if selected
-      if (selectedRentCardId && tenancyData) {
-        const cardActivationData = {
-          status: "active",
-          tenancy_id: tenancyData.id,
-          activated_at: new Date().toISOString(),
-          tenant_user_id: foundTenant.userId,
-          property_id: property.id,
-          unit_id: unit.id,
-          start_date: existingStartDate,
-          expiry_date: expiryDate,
-          current_rent: monthlyRent,
-          max_advance: maxLawfulAdvance,
-          advance_paid: advMonths,
-        };
-
-        const updates = [
-          supabase.from("rent_cards").update({
-            ...cardActivationData,
-            card_role: "landlord_copy",
-          } as any).eq("id", selectedRentCardId),
-        ];
-        if (selectedRentCardId2) {
-          updates.push(
-            supabase.from("rent_cards").update({
-              ...cardActivationData,
-              card_role: "tenant_copy",
-            } as any).eq("id", selectedRentCardId2)
-          );
-        }
-        await Promise.all(updates);
-      }
-
-      await supabase.from("units").update({ status: "occupied" }).eq("id", unit.id);
-
-      setCreatedCode(registrationCode);
-      setStep("done");
-      toast.success("Existing tenancy declared successfully!");
+      await createTenancyRecord(savedData, prop, unitData);
     } catch (err: any) {
-      toast.error(err.message || "Failed to declare tenancy");
+      toast.error(err.message || "Failed to declare tenancy after payment");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const createTenancyRecord = async (formData: any, prop: any, unitData: any) => {
+    if (!user) return;
+
+    const registrationCode = `EX-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
+    const monthlyRent = parseFloat(formData.rent) || 0;
+    const advMonths = parseInt(formData.advancePaid) || 0;
+    const maxLawfulAdvance = monthlyRent * 6;
+
+    let agreementUrl: string | null = null;
+    let voiceUrl: string | null = null;
+
+    // Files can't survive sessionStorage redirect, skip file upload on auto-submit
+    if (formData.hasAgreementFile && agreementFile) {
+      const path = `existing-agreements/${user.id}/${Date.now()}_${agreementFile.name}`;
+      const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(path, agreementFile);
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(path);
+        agreementUrl = urlData.publicUrl;
+      }
+    }
+
+    if (formData.hasVoiceFile && voiceFile) {
+      const path = `existing-voice/${user.id}/${Date.now()}_${voiceFile.name}`;
+      const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(path, voiceFile);
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(path);
+        voiceUrl = urlData.publicUrl;
+      }
+    }
+
+    // Determine tenant_user_id
+    const matched = formData.matchedTenant;
+    const tenantUserId = matched?.userId || user.id; // Use landlord's own ID as placeholder if no match
+    const tenantIdCode = matched?.tenantIdCode || `PENDING-${Date.now()}`;
+
+    const { error, data: tenancyData } = await supabase.from("tenancies").insert({
+      tenant_user_id: tenantUserId,
+      landlord_user_id: user.id,
+      unit_id: unitData.id,
+      tenant_id_code: tenantIdCode,
+      registration_code: registrationCode,
+      agreed_rent: monthlyRent,
+      advance_months: advMonths,
+      start_date: formData.existingStartDate,
+      end_date: formData.expiryDate,
+      move_in_date: formData.existingStartDate,
+      status: "existing_declared",
+      tenancy_type: "existing_migration",
+      existing_advance_paid: advMonths,
+      existing_start_date: formData.existingStartDate,
+      existing_agreement_url: agreementUrl,
+      existing_voice_url: voiceUrl,
+      landlord_accepted: true,
+      tenant_accepted: false,
+      compliance_status: "under_review",
+      rent_card_id: formData.selectedRentCardId || null,
+      rent_card_id_2: formData.selectedRentCardId2 || null,
+    } as any).select().single();
+
+    if (error) throw error;
+
+    // Activate rent cards if selected
+    if (formData.selectedRentCardId && tenancyData) {
+      const cardActivationData = {
+        status: "active",
+        tenancy_id: tenancyData.id,
+        activated_at: new Date().toISOString(),
+        tenant_user_id: tenantUserId,
+        property_id: prop.id,
+        unit_id: unitData.id,
+        start_date: formData.existingStartDate,
+        expiry_date: formData.expiryDate,
+        current_rent: monthlyRent,
+        max_advance: maxLawfulAdvance,
+        advance_paid: advMonths,
+      };
+
+      const updates = [
+        supabase.from("rent_cards").update({
+          ...cardActivationData,
+          card_role: "landlord_copy",
+        } as any).eq("id", formData.selectedRentCardId),
+      ];
+      if (formData.selectedRentCardId2) {
+        updates.push(
+          supabase.from("rent_cards").update({
+            ...cardActivationData,
+            card_role: "tenant_copy",
+          } as any).eq("id", formData.selectedRentCardId2)
+        );
+      }
+      await Promise.all(updates);
+    }
+
+    await supabase.from("units").update({ status: "occupied" }).eq("id", unitData.id);
+
+    // If tenant not matched, create pending_tenant record and send SMS
+    if (!matched?.userId) {
+      const { data: pendingData } = await supabase.from("pending_tenants").insert({
+        full_name: formData.tenantName,
+        phone: formData.tenantPhone,
+        created_by: user.id,
+        tenancy_id: tenancyData?.id || null,
+      } as any).select().single();
+
+      // Send SMS invitation
+      try {
+        await supabase.functions.invoke("send-sms", {
+          body: {
+            phone: formData.tenantPhone,
+            message: `Hello ${formData.tenantName}, your landlord has declared an existing tenancy on RentControlGhana. Please register at https://rentghanapilot.lovable.app to view and confirm your tenancy. Ref: ${registrationCode}`,
+          },
+        });
+        // Mark SMS sent
+        if (pendingData) {
+          await supabase.from("pending_tenants").update({ sms_sent: true } as any).eq("id", pendingData.id);
+        }
+      } catch {
+        console.error("Failed to send SMS invitation");
+      }
+    }
+
+    setCreatedCode(registrationCode);
+    setStep("done");
+    toast.success("Existing tenancy declared successfully!");
+  };
+
+  const handleSubmit = async () => {
+    if (!user || !property || !unit) return;
+    if (!tenantName.trim() || !tenantPhone.trim()) {
+      toast.error("Please enter tenant name and phone number");
+      return;
+    }
+
+    const monthlyRent = parseFloat(rent) || 0;
+    const feeAmount = rentBandFee ?? 0;
+
+    // If fee is enabled and > 0, redirect to payment
+    if (feeEnabled && feeAmount > 0) {
+      // Save form to sessionStorage
+      const formData = {
+        selectedPropertyId,
+        selectedUnitId,
+        tenantName,
+        tenantPhone,
+        matchedTenant,
+        rent,
+        advancePaid,
+        existingStartDate,
+        expiryDate,
+        selectedRentCardId,
+        selectedRentCardId2,
+        hasAgreementFile: !!agreementFile,
+        hasVoiceFile: !!voiceFile,
+      };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(formData));
+
+      setSubmitting(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("paystack-checkout", {
+          body: {
+            type: "agreement_sale",
+            monthlyRent,
+            propertyId: property.id,
+            callbackPath: "/landlord/declare-existing-tenancy?status=fee_paid",
+          },
+        });
+
+        if (error) throw error;
+        if (data?.skipped) {
+          // Fee waived — submit directly
+          sessionStorage.removeItem(SESSION_KEY);
+          await createTenancyRecord(formData, property, unit);
+          return;
+        }
+        if (data?.authorization_url) {
+          window.location.href = data.authorization_url;
+          return;
+        }
+        throw new Error("Failed to initialize payment");
+      } catch (err: any) {
+        toast.error(err.message || "Payment initialization failed");
+        sessionStorage.removeItem(SESSION_KEY);
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      // No fee — submit directly
+      setSubmitting(true);
+      try {
+        const formData = {
+          selectedPropertyId,
+          selectedUnitId,
+          tenantName,
+          tenantPhone,
+          matchedTenant,
+          rent,
+          advancePaid,
+          existingStartDate,
+          expiryDate,
+          selectedRentCardId,
+          selectedRentCardId2,
+          hasAgreementFile: !!agreementFile,
+          hasVoiceFile: !!voiceFile,
+        };
+        await createTenancyRecord(formData, property, unit);
+      } catch (err: any) {
+        toast.error(err.message || "Failed to declare tenancy");
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -221,7 +448,7 @@ const DeclareExistingTenancy = () => {
 
       {/* Progress */}
       <div className="flex items-center gap-2 text-xs font-medium flex-wrap">
-        {["Select Unit", "Find Tenant", "Tenancy Details", "Review"].map((s, i) => {
+        {["Select Unit", "Tenant Info", "Tenancy Details", "Review"].map((s, i) => {
           const steps: Step[] = ["select-unit", "find-tenant", "details", "review"];
           const currentIdx = steps.indexOf(step === "done" ? "review" : step);
           const isActive = i <= currentIdx;
@@ -269,40 +496,79 @@ const DeclareExistingTenancy = () => {
                 </div>
               )}
               <Button disabled={!selectedUnitId} onClick={() => { setRent(unit?.monthly_rent.toString() || ""); setStep("find-tenant"); }}>
-                Next: Find Tenant
+                Next: Tenant Info
               </Button>
             </>
           )}
         </motion.div>
       )}
 
-      {/* Step 2: Find Tenant */}
+      {/* Step 2: Tenant Info */}
       {step === "find-tenant" && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
-          <h2 className="text-lg font-semibold text-card-foreground">Find Tenant</h2>
-          <p className="text-sm text-muted-foreground">Search by Tenant ID or name.</p>
-          <div className="space-y-3">
-            <Label>Tenant ID or Name</Label>
-            <div className="flex gap-2">
-              <Input placeholder="e.g. TN-2026-0001 or Kwame" value={tenantSearch} onChange={(e) => { setTenantSearch(e.target.value); setFoundTenant(null); }} />
-              <Button variant="outline" onClick={handleSearch} disabled={!tenantSearch.trim() || searching}>
-                <Search className="h-4 w-4 mr-1" />
-                {searching ? "..." : "Search"}
-              </Button>
+          <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-primary" /> Tenant Information
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Enter the tenant's name and phone number. If they have an account, the tenancy will be linked automatically. If not, they'll receive an SMS invitation.
+          </p>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tenant Full Name</Label>
+              <Input
+                placeholder="e.g. Kwame Asante"
+                value={tenantName}
+                onChange={(e) => setTenantName(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tenant Phone Number</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="e.g. 0241234567"
+                  value={tenantPhone}
+                  onChange={(e) => { setTenantPhone(e.target.value); setPhoneSearchDone(false); setMatchedTenant(null); }}
+                />
+                <Button variant="outline" onClick={handlePhoneSearch} disabled={!tenantPhone.trim() || phoneSearching}>
+                  <Search className="h-4 w-4 mr-1" />
+                  {phoneSearching ? "..." : "Check"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">We'll check if this number is already registered on the platform.</p>
             </div>
           </div>
-          {foundTenant && (
+
+          {phoneSearchDone && matchedTenant && (
             <div className="bg-success/5 border border-success/20 rounded-lg p-4 flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
               <div>
-                <div className="font-semibold text-card-foreground">{foundTenant.name}</div>
-                <div className="text-sm text-muted-foreground">ID: {foundTenant.id}</div>
+                <div className="font-semibold text-card-foreground">{matchedTenant.fullName}</div>
+                <div className="text-sm text-muted-foreground">
+                  {matchedTenant.tenantIdCode ? `Tenant ID: ${matchedTenant.tenantIdCode}` : "User found — will be linked automatically"}
+                </div>
               </div>
             </div>
           )}
+
+          {phoneSearchDone && !matchedTenant && (
+            <div className="bg-warning/5 border border-warning/20 rounded-lg p-4 flex items-center gap-3">
+              <Phone className="h-5 w-5 text-warning shrink-0" />
+              <div>
+                <div className="font-semibold text-card-foreground">Tenant not registered</div>
+                <div className="text-sm text-muted-foreground">
+                  An SMS invitation will be sent to {tenantPhone} after submission. The tenancy will be registered regardless.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("select-unit")}>Back</Button>
-            <Button disabled={!foundTenant} onClick={() => setStep("details")}>Next: Tenancy Details</Button>
+            <Button disabled={!tenantName.trim() || !tenantPhone.trim() || !phoneSearchDone} onClick={() => setStep("details")}>
+              Next: Tenancy Details
+            </Button>
           </div>
         </motion.div>
       )}
@@ -342,6 +608,12 @@ const DeclareExistingTenancy = () => {
             <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-1 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Monthly Rent</span><span className="font-semibold">GH₵ {monthlyRent.toLocaleString()}</span></div>
               <div className="flex justify-between text-primary font-semibold"><span>Maximum Lawful Advance (6 months)</span><span>GH₵ {maxLawfulAdvance.toLocaleString()}</span></div>
+              {feeEnabled && rentBandFee !== null && (
+                <div className="flex justify-between pt-2 border-t border-primary/10">
+                  <span className="text-muted-foreground">Registration Fee</span>
+                  <span className="font-semibold text-card-foreground">GH₵ {rentBandFee.toFixed(2)}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -396,7 +668,7 @@ const DeclareExistingTenancy = () => {
       )}
 
       {/* Step 4: Review */}
-      {step === "review" && property && unit && foundTenant && (
+      {step === "review" && property && unit && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
           <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
             <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
@@ -407,7 +679,9 @@ const DeclareExistingTenancy = () => {
                 ["Property", property.property_name || property.address],
                 ["Digital Address", property.ghana_post_gps || "—"],
                 ["Unit", `${unit.unit_name} (${unit.unit_type})`],
-                ["Tenant", `${foundTenant.name} (${foundTenant.id})`],
+                ["Tenant Name", tenantName],
+                ["Tenant Phone", tenantPhone],
+                ["Tenant Status", matchedTenant ? `Registered (${matchedTenant.fullName})` : "Not Registered — SMS will be sent"],
                 ["Monthly Rent", `GH₵ ${monthlyRent.toLocaleString()}`],
                 ["Advance Paid", `${advancePaid} month(s)`],
                 ["Max Lawful Advance", `GH₵ ${maxLawfulAdvance.toLocaleString()}`],
@@ -423,12 +697,19 @@ const DeclareExistingTenancy = () => {
                 </div>
               ))}
             </div>
+
+            {feeEnabled && rentBandFee !== null && rentBandFee > 0 && (
+              <div className="bg-warning/5 border border-warning/20 rounded-lg p-3 flex items-center gap-2 text-sm">
+                <AlertCircle className="h-4 w-4 text-warning shrink-0" />
+                <span>A registration fee of <strong>GH₵ {rentBandFee.toFixed(2)}</strong> will be charged before submission.</span>
+              </div>
+            )}
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("details")}>Back</Button>
             <Button onClick={handleSubmit} disabled={submitting}>
               {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
-              {submitting ? "Declaring..." : "Declare Existing Tenancy"}
+              {submitting ? "Processing..." : feeEnabled && rentBandFee ? `Pay GH₵ ${rentBandFee.toFixed(2)} & Submit` : "Declare Existing Tenancy"}
             </Button>
           </div>
         </motion.div>
@@ -444,6 +725,9 @@ const DeclareExistingTenancy = () => {
           <p className="text-muted-foreground text-sm max-w-md mx-auto">
             Your existing tenancy has been declared with temporary ID: <strong className="text-primary">{createdCode}</strong>. It will be verified by Rent Control before activation.
           </p>
+          {!matchedTenant && (
+            <p className="text-sm text-muted-foreground">An SMS invitation has been sent to the tenant at {tenantPhone}.</p>
+          )}
           <div className="flex justify-center gap-3 pt-2">
             <Link to="/landlord/agreements"><Button variant="outline">View Agreements</Button></Link>
             <Link to="/landlord/dashboard"><Button>Back to Dashboard</Button></Link>

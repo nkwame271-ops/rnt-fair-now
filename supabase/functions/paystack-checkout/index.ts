@@ -43,23 +43,43 @@ const DEFAULT_SPLIT_RULES: Record<string, { total: number; splits: { recipient: 
   },
   complaint_fee: {
     total: 2,
-    splits: [{ recipient: "platform", amount: 2, description: "Complaint filing fee" }],
+    splits: [
+      { recipient: "rent_control", amount: 1.00, description: "IGF - Complaint" },
+      { recipient: "admin", amount: 0.60, description: "Admin - Complaint" },
+      { recipient: "platform", amount: 0.40, description: "Platform - Complaint" },
+    ],
   },
   listing_fee: {
     total: 2,
-    splits: [{ recipient: "platform", amount: 2, description: "Listing fee" }],
+    splits: [
+      { recipient: "rent_control", amount: 1.00, description: "IGF - Listing" },
+      { recipient: "admin", amount: 0.60, description: "Admin - Listing" },
+      { recipient: "platform", amount: 0.40, description: "Platform - Listing" },
+    ],
   },
   viewing_fee: {
     total: 2,
-    splits: [{ recipient: "platform", amount: 2, description: "Viewing fee" }],
+    splits: [
+      { recipient: "rent_control", amount: 1.00, description: "IGF - Viewing" },
+      { recipient: "admin", amount: 0.60, description: "Admin - Viewing" },
+      { recipient: "platform", amount: 0.40, description: "Platform - Viewing" },
+    ],
   },
   add_tenant_fee: {
     total: 5,
-    splits: [{ recipient: "platform", amount: 5, description: "Add tenant fee" }],
+    splits: [
+      { recipient: "rent_control", amount: 2.50, description: "IGF - Add Tenant" },
+      { recipient: "admin", amount: 1.50, description: "Admin - Add Tenant" },
+      { recipient: "platform", amount: 1.00, description: "Platform - Add Tenant" },
+    ],
   },
   termination_fee: {
     total: 5,
-    splits: [{ recipient: "platform", amount: 5, description: "Termination request fee" }],
+    splits: [
+      { recipient: "rent_control", amount: 2.50, description: "IGF - Termination" },
+      { recipient: "admin", amount: 1.50, description: "Admin - Termination" },
+      { recipient: "platform", amount: 1.00, description: "Platform - Termination" },
+    ],
   },
   archive_search_fee: {
     total: 20,
@@ -107,6 +127,55 @@ const getSplitConfigFromDB = async (supabaseAdmin: any, paymentType: string): Pr
   } catch {
     return null;
   }
+};
+
+// Fetch rent band fee based on monthly rent
+const getRentBandFee = async (supabaseAdmin: any, monthlyRent: number): Promise<number | null> => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("rent_bands")
+      .select("fee_amount")
+      .lte("min_rent", monthlyRent)
+      .order("min_rent", { ascending: false })
+      .limit(10);
+    if (error || !data || data.length === 0) return null;
+    // Find the band where monthlyRent >= min_rent and (max_rent is null OR monthlyRent <= max_rent)
+    // Since we ordered by min_rent desc, the first match with valid max_rent wins
+    // But we need the full data. Let's re-query properly.
+    const { data: bands } = await supabaseAdmin
+      .from("rent_bands")
+      .select("min_rent, max_rent, fee_amount")
+      .order("min_rent", { ascending: true });
+    if (!bands) return null;
+    for (const band of bands) {
+      const min = Number(band.min_rent);
+      const max = band.max_rent !== null ? Number(band.max_rent) : Infinity;
+      if (monthlyRent >= min && monthlyRent <= max) {
+        return Number(band.fee_amount);
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+// Build tax splits from DB config (percentage-based)
+const getTaxSplitPlan = async (supabaseAdmin: any, taxAmount: number, description: string): Promise<{ recipient: string; amount: number; description: string }[]> => {
+  const dbSplits = await getSplitConfigFromDB(supabaseAdmin, "rent_tax");
+  if (dbSplits && dbSplits.length > 0) {
+    // These are percentage-based splits
+    const totalPct = dbSplits.reduce((s, r) => s + r.amount, 0);
+    if (totalPct > 0) {
+      return dbSplits.map(s => ({
+        recipient: s.recipient,
+        amount: Math.round((taxAmount * s.amount / totalPct) * 100) / 100,
+        description: s.description || description,
+      }));
+    }
+  }
+  // Fallback: all to rent_control
+  return [{ recipient: "rent_control", amount: taxAmount, description }];
 };
 
 // Helper to get dynamic fee from DB, falling back to defaults
@@ -339,7 +408,7 @@ Deno.serve(async (req) => {
         throw new Error(`Advance exceeds the maximum lawful limit of GH₵ ${maxLawful.toLocaleString()}`);
       }
 
-      splitPlan = [{ recipient: "rent_control", amount: totalAmount, description: "Rent tax (bulk advance)" }];
+      splitPlan = await getTaxSplitPlan(supabaseAdmin, totalAmount, "Rent tax (bulk advance)");
       description = `Bulk advance rent tax (${dedupedPayments.length} months) - ${(tenancy as any).registration_code}`;
       reference = `rentbulk_${tenancyId}_${Date.now()}`;
       callbackPath = "/tenant/payments?status=success";
@@ -365,7 +434,7 @@ Deno.serve(async (req) => {
       if (unit) officeId = await resolveOffice(supabaseAdmin, { propertyId: unit.property_id });
 
       totalAmount = Number(payment.tax_amount);
-      splitPlan = [{ recipient: "rent_control", amount: totalAmount, description: `Rent tax - ${payment.month_label}` }];
+      splitPlan = await getTaxSplitPlan(supabaseAdmin, totalAmount, `Rent tax - ${payment.month_label}`);
       description = `Rent tax for ${payment.month_label} - ${(payment as any).tenancy.registration_code}`;
       reference = `rent_${paymentId}`;
       callbackPath = "/tenant/payments?status=success";
@@ -427,8 +496,9 @@ Deno.serve(async (req) => {
       const rent = Number((tenancy as any).agreed_rent);
       const taxAmount = rent * taxRate;
       totalAmount = rent + taxAmount;
+      const taxSplits = await getTaxSplitPlan(supabaseAdmin, taxAmount, `Rent tax (${taxRate * 100}%)`);
       splitPlan = [
-        { recipient: "rent_control", amount: taxAmount, description: `Rent tax (${taxRate * 100}%)` },
+        ...taxSplits,
         { recipient: "landlord", amount: rent, description: "Monthly rent (held in escrow)" },
       ];
       description = `Rent + Tax combined - ${(tenancy as any).registration_code}`;
@@ -497,17 +567,40 @@ Deno.serve(async (req) => {
       callbackPath = "/landlord/rent-cards?status=success";
 
     } else if (type === "agreement_sale") {
-      const { tenancyId } = body;
+      const { tenancyId, monthlyRent: bodyMonthlyRent, propertyId: bodyPropertyId } = body;
       const fee = await getDynamicFee(supabaseAdmin, "agreement_sale_fee");
-      officeId = await resolveOffice(supabaseAdmin, { userId });
+      
+      // Resolve office from property if available
+      if (bodyPropertyId) {
+        officeId = await resolveOffice(supabaseAdmin, { propertyId: bodyPropertyId });
+        relatedPropertyId = bodyPropertyId;
+      } else {
+        officeId = await resolveOffice(supabaseAdmin, { userId });
+      }
       caseType = "tenancy";
 
       if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Agreement fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Tenancy Agreement Form (GH₵ ${fee.total})`;
+      
+      // Use rent band fee if monthlyRent provided, otherwise use flat fee
+      let feeTotal = fee.total;
+      if (bodyMonthlyRent && Number(bodyMonthlyRent) > 0) {
+        const bandFee = await getRentBandFee(supabaseAdmin, Number(bodyMonthlyRent));
+        if (bandFee !== null) feeTotal = bandFee;
+      }
+      
+      // Scale splits proportionally to the new fee total
+      const originalTotal = fee.splits.reduce((s: number, r: any) => s + Number(r.amount), 0);
+      if (originalTotal > 0 && originalTotal !== feeTotal) {
+        const ratio = feeTotal / originalTotal;
+        splitPlan = fee.splits.map((s: any) => ({ ...s, amount: Math.round(Number(s.amount) * ratio * 100) / 100 }));
+      } else {
+        splitPlan = fee.splits;
+      }
+      
+      totalAmount = feeTotal;
+      description = `Tenancy Agreement Form (GH₵ ${feeTotal})`;
       reference = `agrsale_${tenancyId || userId}_${Date.now()}`;
-      callbackPath = "/landlord/agreements?status=success";
+      callbackPath = body.callbackPath || "/landlord/agreements?status=success";
       relatedTenancyId = tenancyId || null;
 
     } else if (type === "tenant_registration") {
@@ -670,7 +763,7 @@ Deno.serve(async (req) => {
       const advanceMonths = Math.min((tenancy as any).advance_months ?? 6, 6);
 
       totalAmount = rent * advanceMonths * 0.08;
-      splitPlan = [{ recipient: "rent_control", amount: totalAmount, description: `Renewal tax (${advanceMonths} months)` }];
+      splitPlan = await getTaxSplitPlan(supabaseAdmin, totalAmount, `Renewal tax (${advanceMonths} months)`);
       description = `Renewal tax (${advanceMonths} months advance) - ${(tenancy as any).registration_code}`;
       reference = `renew_${tenancyId}_${Date.now()}`;
       callbackPath = "/tenant/renewal?status=success";

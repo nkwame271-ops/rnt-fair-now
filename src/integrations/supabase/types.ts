@@ -1066,6 +1066,42 @@ export type Database = {
           },
         ]
       }
+      pending_tenants: {
+        Row: {
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          created_by: string
+          full_name: string
+          id: string
+          phone: string
+          sms_sent: boolean
+          tenancy_id: string | null
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          created_by: string
+          full_name: string
+          id?: string
+          phone: string
+          sms_sent?: boolean
+          tenancy_id?: string | null
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          created_by?: string
+          full_name?: string
+          id?: string
+          phone?: string
+          sms_sent?: boolean
+          tenancy_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1512,6 +1548,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rent_bands: {
+        Row: {
+          fee_amount: number
+          id: string
+          label: string | null
+          max_rent: number | null
+          min_rent: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          fee_amount?: number
+          id?: string
+          label?: string | null
+          max_rent?: number | null
+          min_rent?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          fee_amount?: number
+          id?: string
+          label?: string | null
+          max_rent?: number | null
+          min_rent?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       rent_benchmarks: {
         Row: {
