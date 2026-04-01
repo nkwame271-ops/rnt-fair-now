@@ -1,34 +1,39 @@
 
 
-# Plan: Rent Card Requirement in Declare Tenancy + Tax Revenue Split UI Fix
+# Plan: Escrow Allocation Visibility, Office Wallet Accuracy, and Receipt Split Visibility
 
 ## Summary
 
-Two changes: (1) Make rent card selection mandatory in the "Declare Existing Tenancy" flow (matching the Add Tenant flow), and (2) Fix the Engine Room Split Engine UI to display rent_tax splits as percentages instead of flat amounts, and ensure the tax payment from Tenant Portal is properly linked.
+Four changes: (1) Enhance the Escrow Dashboard Allocation Summary to show per-transaction split breakdowns, (2) Ensure office wallet balances reflect allocated shares immediately including in auto-release mode, (3) Add Platform column to allocation summary (currently missing), (4) Hide split breakdown on receipts in the landlord portal while keeping it visible in the Escrow Dashboard receipt register.
 
 ---
 
-## 1. DeclareExistingTenancy.tsx — Make Rent Cards Required
+## 1. PaymentReceipt Component — Add `showSplits` Prop
 
-Currently rent cards are shown as "optional" and only when `availableRentCards.length >= 2`. Change to:
+Currently `PaymentReceipt` always renders the split breakdown table. Add an optional `showSplits` prop (default `true`) to conditionally hide it.
 
-- **Remove the "optional" label** — rename to "Assign Rent Cards"
-- **Make both selections required** for form progression: the "Next: Review" button on the Details step should be disabled unless both `selectedRentCardId` and `selectedRentCardId2` are selected
-- **Show a warning** if the landlord has fewer than 2 available cards, directing them to purchase rent cards first
-- **Show selected rent card serials in the Review step** summary
+- **`src/components/PaymentReceipt.tsx`**: Add `showSplits?: boolean` to `ReceiptProps`. Wrap the split breakdown `<div>` in `{showSplits !== false && (...)}`.
 
-## 2. EngineRoom.tsx — Display Rent Tax Splits as Percentages
+## 2. Landlord Receipts — Hide Splits
 
-The `split_configurations` table already stores `amount_type: 'percentage'` for `rent_tax` entries, and the backend (`getTaxSplitPlan`) already handles percentage-based distribution. The UI fix:
+- **`src/pages/landlord/Receipts.tsx`**: Pass `showSplits={false}` to every `<PaymentReceipt>` instance.
 
-- In the Split Engine section, detect when `amount_type === 'percentage'` on splits
-- Show "%" instead of "GH₵" prefix
-- Show "Total: 100%" instead of "Total: GH₵ X" for percentage-based payment types
-- Use step="1" instead of step="0.5" for percentage inputs
+## 3. Escrow Dashboard — Enhanced Allocation Summary
 
-## 3. Payments.tsx — Already Connected
+The current Allocation Summary only shows 4 cards (IGF, Admin, GRA, Landlord) and is missing Platform. Fix:
 
-The tenant's "Pay Tax Online" flow already calls `paystack-checkout` with `type: "rent_tax_bulk"`, which calls `getTaxSplitPlan()` that reads from `split_configurations` where `payment_type = 'rent_tax'`. The percentage-based splits are already being applied. No backend changes needed — the connection is already in place.
+- **`src/pages/regulator/EscrowDashboard.tsx`**: Add Platform to `allocationCards` array using `stats.platform`.
+- Change grid from `grid-cols-4` to `grid-cols-5` to accommodate.
+
+## 4. Escrow Dashboard — Office Wallet Balance Accuracy
+
+The office revenue table already aggregates `escrow_splits` by `office_id`, which means balances reflect allocated shares immediately upon transaction (splits are inserted by the webhook at payment completion). The auto-release mode sets `disbursement_status = 'released'` but the amount still appears in the office row.
+
+Add clarity to the office table:
+- Add a "Wallet Balance" column showing `admin` share minus released payouts (approved `office_fund_requests`)
+- Show "Allocated" and "Released" separately so auto-release transactions are visible as both allocated and released simultaneously
+
+Query `office_fund_requests` with `status = 'approved'` to compute released amounts per office, then: `wallet_balance = admin_share - released_amount`.
 
 ---
 
@@ -36,6 +41,7 @@ The tenant's "Pay Tax Online" flow already calls `paystack-checkout` with `type:
 
 | File | Change |
 |---|---|
-| `src/pages/landlord/DeclareExistingTenancy.tsx` | Make rent card selection mandatory; show warning if < 2 cards available; add cards to review summary |
-| `src/pages/regulator/EngineRoom.tsx` | Detect `amount_type` on splits; show "%" for percentage types, "GH₵" for flat; adjust totals display |
+| `src/components/PaymentReceipt.tsx` | Add `showSplits` prop, conditionally render split breakdown |
+| `src/pages/landlord/Receipts.tsx` | Pass `showSplits={false}` |
+| `src/pages/regulator/EscrowDashboard.tsx` | Add Platform to allocation cards; add wallet balance column to office table using `office_fund_requests` data |
 
