@@ -347,7 +347,12 @@ const OfficePayoutSettings = () => {
                     </>
                   )}
 
-                  <Button
+                  <div className="pt-2 border-t border-border">
+                    <label className="text-sm font-medium text-foreground">Paystack Subaccount Code</label>
+                    <Input value={data.paystack_subaccount_code} onChange={e => updateSettlementField(key, "paystack_subaccount_code", e.target.value)} placeholder="ACCT_xxxxx" className="font-mono" />
+                    <p className="text-xs text-muted-foreground mt-1">Enter the Paystack subaccount code for automatic settlement</p>
+                  </div>
+
                     onClick={() => handleSaveSettlement(key)}
                     disabled={savingSettlement === key}
                     variant={hasEdits ? "default" : "outline"}
