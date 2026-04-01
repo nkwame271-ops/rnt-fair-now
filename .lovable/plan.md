@@ -1,52 +1,161 @@
 
 
-# Plan: Fix Rejection Constraint, Dashboard Card Visibility, Payments Post-Tax
+# Plan: Configurable Split Engine, System Settlement Accounts, and Office Payout Mode
 
-## Root Cause Analysis
+## Summary
 
-The `tenancies` table has a CHECK constraint that only allows these status values:
-```
-'pending', 'active', 'completed', 'terminated', 'disputed'
-```
+This plan introduces a fully configurable split engine stored in the database, adds system settlement account management, and adds an Office Payout Mode toggle (manual vs auto-release) — all editable from the Engine Room without developer intervention.
 
-The value `'rejected'` is **not permitted** by this constraint. That is why rejecting an agreement fails with the error. Similarly, statuses like `'renewal_window'`, `'existing_declared'`, `'awaiting_verification'`, `'verified_existing'` used elsewhere in the app are also not in this constraint — queries filtering on them would return no results.
+---
 
-## Changes
+## Current State
 
-### 1. Database Migration — Expand status check constraint
+- **Splits are hardcoded** in `paystack-checkout/index.ts` as `DEFAULT_SPLIT_RULES` (lines 11-71) and `calculateRegistrationSplits` (lines 74-90). The webhook reads splits from escrow metadata (`split_plan`) stored at checkout time.
+- **Engine Room** manages feature flags and fees but has no split configuration UI.
+- **Payout Settings** (`OfficePayoutSettings.tsx`) only manages office accounts. No system-level settlement accounts exist.
+- **Escrow Dashboard** shows allocations but doesn't distinguish auto-released vs manually released funds.
+- **Office Fund Requests** page handles manual approval workflow.
 
-Drop the existing `tenancies_status_check` and re-create it with all statuses the application uses:
+---
+
+## Database Changes
+
+### 1. New table: `split_configurations`
+
+Stores the split rules per payment type, editable from Engine Room.
 
 ```sql
-ALTER TABLE public.tenancies DROP CONSTRAINT tenancies_status_check;
-ALTER TABLE public.tenancies ADD CONSTRAINT tenancies_status_check
-  CHECK (status = ANY (ARRAY[
-    'pending', 'active', 'completed', 'terminated', 'disputed',
-    'rejected', 'renewal_window', 'existing_declared',
-    'awaiting_verification', 'verified_existing', 'expired'
-  ]));
+CREATE TABLE public.split_configurations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_type text NOT NULL,
+  recipient text NOT NULL,        -- 'platform', 'rent_control', 'admin', 'gra', 'landlord'
+  amount_type text NOT NULL DEFAULT 'flat',  -- 'flat' or 'percentage'
+  amount numeric NOT NULL DEFAULT 0,
+  description text,
+  sort_order integer NOT NULL DEFAULT 0,
+  is_platform_fee boolean NOT NULL DEFAULT false,  -- marks the fixed platform fee line
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid,
+  UNIQUE(payment_type, recipient, sort_order)
+);
 ```
 
-This immediately fixes the rejection cascade — the trigger function `handle_tenancy_rejection()` already exists and will fire correctly once the status value is allowed.
+Seed with current hardcoded values for all payment types.
 
-### 2. Dashboard — Only show tenancy cards after tenant has signed
+### 2. New table: `secondary_split_configurations`
 
-Currently the query fetches all tenancies with `status IN (active, pending, ...)`. The user wants cards to appear only after the tenant has signed (i.e., tax is paid and agreement is signed).
+For IGF and Admin sub-splits (office / headquarters / platform portions).
 
-**Fix**: Add `.not("tenant_signed_at", "is", null)` to the tenancy query in `TenantDashboard.tsx`. This ensures only signed agreements produce tenancy cards.
+```sql
+CREATE TABLE public.secondary_split_configurations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  parent_recipient text NOT NULL,  -- 'rent_control' or 'admin'
+  sub_recipient text NOT NULL,     -- 'office', 'headquarters', 'platform'
+  percentage numeric NOT NULL DEFAULT 0,
+  description text,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid,
+  UNIQUE(parent_recipient, sub_recipient)
+);
+```
 
-### 3. Payments — Post-tax flow (already implemented)
+### 3. New table: `system_settlement_accounts`
 
-The code at lines 296-323 of `Payments.tsx` already shows "Advance Tax Paid ✓" with "Remaining Balance to Landlord" and two buttons (pay on platform / off-platform) when all advance tax is paid. No changes needed.
+For IGF, Admin, Platform, GRA settlement account details.
 
-### 4. Office Fund Requests (already implemented)
+```sql
+CREATE TABLE public.system_settlement_accounts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_type text NOT NULL UNIQUE,  -- 'igf', 'admin', 'platform', 'gra'
+  payment_method text NOT NULL DEFAULT 'bank',
+  account_name text,
+  bank_name text,
+  account_number text,
+  momo_number text,
+  momo_provider text,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid
+);
+```
 
-`OfficeFundRequests.tsx` already has the submit form for sub-admins and review/approval UI for main admins. No changes needed.
+### 4. Feature flag for Office Payout Mode
+
+Insert a new feature flag: `office_payout_mode` with `description: "Auto Release or Manual Approval"`. Use `is_enabled = false` for Manual (default), `true` for Auto Release.
+
+### 5. Add `release_mode` column to `escrow_splits`
+
+```sql
+ALTER TABLE public.escrow_splits ADD COLUMN release_mode text NOT NULL DEFAULT 'manual';
+-- Values: 'manual', 'auto'
+```
+
+### 6. RLS Policies
+
+All new tables: SELECT + ALL for `regulator` role, ALL for `service_role`.
+
+---
+
+## Backend Changes
+
+### `paystack-checkout/index.ts`
+
+Replace `DEFAULT_SPLIT_RULES` and `calculateRegistrationSplits` with a DB lookup function:
+- Query `split_configurations` for the payment type
+- If `is_platform_fee` row exists, extract that first
+- Apply remaining splits from the config rows
+- Fall back to current hardcoded values if no DB config found
+- Store the computed `split_plan` in escrow metadata (already done)
+
+### `paystack-webhook/index.ts`
+
+In `completeEscrow` helper (line 111):
+- After inserting splits, check the `office_payout_mode` feature flag
+- If auto-release is enabled, for splits with `recipient = 'admin'`:
+  - Set `disbursement_status = 'released'`, `released_at = now()`, `release_mode = 'auto'`
+  - Auto-create an approved `office_fund_requests` record
+  - Trigger Paystack transfer to the office payout account (reuse logic from `process-office-payout`)
+- If manual mode, keep current behavior (`disbursement_status = 'pending'`)
+
+### `process-office-payout/index.ts`
+
+No structural changes needed — already handles the payout flow.
+
+---
+
+## Frontend Changes
+
+### 1. Engine Room — Split Configuration Section (`EngineRoom.tsx`)
+
+Add a new "Split Engine" section (main admin only):
+- For each payment type, show a card with the split lines (recipient, amount/percentage, description)
+- Editable inline with Save button per payment type
+- Secondary split config for IGF and Admin (office/HQ/platform percentages)
+- "Office Payout Mode" toggle at the top: Manual Approval vs Auto Release
+
+### 2. Payout Settings — System Settlement Accounts (`OfficePayoutSettings.tsx`)
+
+Add a "System Settlement Accounts" subsection below the office accounts:
+- Four account cards: IGF, Admin, Platform, GRA
+- Each with payment method (MoMo/Bank), account details
+- Same form pattern as existing office payout accounts
+
+### 3. Escrow Dashboard — Release Mode Indicators (`EscrowDashboard.tsx`)
+
+Add to the dashboard:
+- New stat cards: "Auto-Released" and "Manually Released" totals
+- Filter or badge on the office revenue table showing release mode
+- Query `escrow_splits.release_mode` to compute these values
+
+---
 
 ## Files to Change
 
 | File | Change |
 |---|---|
-| New migration | Drop and re-create `tenancies_status_check` with all valid statuses |
-| `src/pages/tenant/TenantDashboard.tsx` | Add `tenant_signed_at IS NOT NULL` filter to tenancy query |
+| New migration | Create `split_configurations`, `secondary_split_configurations`, `system_settlement_accounts` tables; add `release_mode` to `escrow_splits`; seed split data; insert `office_payout_mode` feature flag |
+| `supabase/functions/paystack-checkout/index.ts` | Replace hardcoded splits with DB lookup from `split_configurations` |
+| `supabase/functions/paystack-webhook/index.ts` | Add auto-release logic in `completeEscrow` based on payout mode flag |
+| `src/pages/regulator/EngineRoom.tsx` | Add Split Engine configuration UI and Payout Mode toggle |
+| `src/pages/regulator/OfficePayoutSettings.tsx` | Add System Settlement Accounts subsection |
+| `src/pages/regulator/EscrowDashboard.tsx` | Add auto-released vs manually-released stats |
 
