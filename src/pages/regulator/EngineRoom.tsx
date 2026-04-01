@@ -833,7 +833,7 @@ const EngineRoom = () => {
             <UserCog className="h-5 w-5 text-primary" /> Staff Feature Access
           </h2>
           <p className="text-sm text-muted-foreground mb-3">
-            Mute or unmute specific features for each Sub Admin. Muted features are hidden from that staff member's portal.
+            Manage feature access for all admins. Add or remove features, and mute/unmute visibility per staff member.
           </p>
 
           {staffLoading ? (
@@ -842,53 +842,96 @@ const EngineRoom = () => {
             </div>
           ) : staffMembers.length === 0 ? (
             <div className="bg-card rounded-xl border border-border p-6 text-center text-muted-foreground text-sm">
-              No Sub Admins have been invited yet.
+              No admins have been invited yet.
             </div>
           ) : (
             <div className="space-y-4">
-              {staffMembers.map(member => (
-                <div key={member.user_id} className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
-                  <div className="p-4 border-b border-border flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-card-foreground">{member.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{member.office_name || "No office assigned"}</p>
+              {staffMembers.map(member => {
+                const isAddingThis = addingFeature === member.user_id;
+                const availableToAdd = Object.keys(FEATURE_ROUTE_MAP).filter(k => !member.allowed_features.includes(k));
+                return (
+                  <div key={member.user_id} className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+                    <div className="p-4 border-b border-border flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-card-foreground">{member.full_name}</p>
+                        <p className="text-xs text-muted-foreground">{member.office_name || "No office assigned"}</p>
+                      </div>
+                      <Badge variant={member.admin_type === "main_admin" ? "default" : "outline"} className="text-xs">
+                        {member.admin_type === "main_admin" ? "Main Admin" : "Sub Admin"}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="text-xs">Sub Admin</Badge>
-                  </div>
-                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {member.allowed_features.map(featureKey => {
-                      const isMuted = member.muted_features.includes(featureKey);
-                      const isMuting = mutingStaff === member.user_id + "_" + featureKey;
-                      return (
-                        <div
-                          key={featureKey}
-                          className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
-                            isMuted ? "border-destructive/20 bg-destructive/5" : "border-border bg-muted/20"
-                          }`}
-                        >
-                          <span className={`text-sm capitalize ${isMuted ? "text-muted-foreground line-through" : "text-card-foreground"}`}>
-                            {featureKey.replace(/_/g, " ")}
-                          </span>
-                          <button
-                            onClick={() => handleMuteFeature(member.user_id, featureKey, isMuted)}
-                            disabled={isMuting}
-                            className="p-1 rounded hover:bg-muted/50 transition-colors"
-                            title={isMuted ? "Unmute feature" : "Mute feature"}
+                    <div className="p-4 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {member.allowed_features.map(featureKey => {
+                          const isMuted = member.muted_features.includes(featureKey);
+                          const isMuting = mutingStaff === member.user_id + "_" + featureKey;
+                          return (
+                            <div
+                              key={featureKey}
+                              className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
+                                isMuted ? "border-destructive/20 bg-destructive/5" : "border-border bg-muted/20"
+                              }`}
+                            >
+                              <span className={`text-sm capitalize ${isMuted ? "text-muted-foreground line-through" : "text-card-foreground"}`}>
+                                {featureKey.replace(/_/g, " ")}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleMuteFeature(member.user_id, featureKey, isMuted)}
+                                  disabled={isMuting}
+                                  className="p-1 rounded hover:bg-muted/50 transition-colors"
+                                  title={isMuted ? "Unmute feature" : "Mute feature"}
+                                >
+                                  {isMuting ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                  ) : isMuted ? (
+                                    <EyeOff className="h-4 w-4 text-destructive" />
+                                  ) : (
+                                    <Eye className="h-4 w-4 text-success" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveFeatureFromStaff(member.user_id, featureKey)}
+                                  className="p-1 rounded hover:bg-destructive/10 transition-colors"
+                                  title="Remove feature"
+                                >
+                                  <X className="h-3.5 w-3.5 text-destructive" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Add feature control */}
+                      {isAddingThis ? (
+                        <div className="flex gap-2 items-center">
+                          <select
+                            className="flex-1 h-9 rounded-md border border-border bg-background px-3 text-sm"
+                            value={newFeatureKey}
+                            onChange={(e) => setNewFeatureKey(e.target.value)}
                           >
-                            {isMuting ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : isMuted ? (
-                              <EyeOff className="h-4 w-4 text-destructive" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-success" />
-                            )}
-                          </button>
+                            <option value="">Select feature...</option>
+                            {availableToAdd.map(k => (
+                              <option key={k} value={k}>{k.replace(/_/g, " ")}</option>
+                            ))}
+                          </select>
+                          <Button size="sm" variant="outline" disabled={!newFeatureKey} onClick={() => handleAddFeatureToStaff(member.user_id, newFeatureKey)}>
+                            Add
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setAddingFeature(null); setNewFeatureKey(""); }}>
+                            Cancel
+                          </Button>
                         </div>
-                      );
-                    })}
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => setAddingFeature(member.user_id)} className="w-full">
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Add Feature
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
