@@ -191,11 +191,11 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   left("FINANCIAL TERMS", y, 13, "bold");
   y += 10;
   const financial = [
-    ["Monthly Rent:", `GH₵ ${data.monthlyRent.toLocaleString()}`],
+    ["Monthly Rent:", formatGHS(data.monthlyRent)],
     ["Advance Period:", `${data.advanceMonths} month(s)`],
-    ["Total Advance:", `GH₵ ${(data.monthlyRent * data.advanceMonths).toLocaleString()}`],
-    [`Govt. Tax (${(taxRate * 100).toFixed(0)}%):`, `GH₵ ${taxAmount.toLocaleString()} per month`],
-    [`To Landlord (${((1 - taxRate) * 100).toFixed(0)}%):`, `GH₵ ${toLandlord.toLocaleString()} per month`],
+    ["Total Advance:", formatGHS(data.monthlyRent * data.advanceMonths)],
+    [`Govt. Tax (${(taxRate * 100).toFixed(0)}%):`, `${formatGHS(taxAmount)} per month`],
+    [`To Landlord (${((1 - taxRate) * 100).toFixed(0)}%):`, `${formatGHS(toLandlord)} per month`],
     ["Tenancy Start:", new Date(data.startDate).toLocaleDateString("en-GB")],
     ["Tenancy End:", new Date(data.endDate).toLocaleDateString("en-GB")],
   ];

@@ -18,6 +18,15 @@ export const formatGhanaCard = (value: string): string => {
   return `GHA-${digits.slice(0, 9)}-${digits.slice(9, 10)}`;
 };
 
+// Currency formatting — no special characters, consistent GHS prefix
+export const formatGHS = (amount: number): string => {
+  return `GHS ${amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
+
+export const formatGHSDecimal = (amount: number): string => {
+  return `GHS ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 // Validation helpers
 export const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 export const isValidPhone = (phone: string) => phone.replace(/\D/g, "").length === 10;
