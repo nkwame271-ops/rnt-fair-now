@@ -16,11 +16,24 @@ import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 const RegulatorRentReviews = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState<any | null>(null);
   const [reviewerNotes, setReviewerNotes] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_rent_review", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setRequests(prev => prev.filter(r => r.id !== deletingId));
+    toast.success("Rent review permanently deleted");
+  };
 
   useEffect(() => {
     const fetch = async () => {
