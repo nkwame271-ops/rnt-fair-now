@@ -137,6 +137,18 @@ const EngineRoom = () => {
     fetchSplits();
   }, [profile?.isMainAdmin]);
 
+  // Fetch rent bands
+  useEffect(() => {
+    if (!profile?.isMainAdmin) return;
+    const fetchBands = async () => {
+      setRentBandsLoading(true);
+      const { data } = await supabase.from("rent_bands").select("*").order("min_rent");
+      setRentBands((data as any[]) || []);
+      setRentBandsLoading(false);
+    };
+    fetchBands();
+  }, [profile?.isMainAdmin]);
+
   const handleToggle = async (featureKey: string, currentValue: boolean) => {
     setToggling(featureKey);
     const { error } = await supabase
