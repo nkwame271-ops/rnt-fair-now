@@ -24,6 +24,8 @@ interface StockSummary {
   available: number;
   assigned: number;
   revoked: number;
+  sold: number;
+  spoilt: number;
 }
 
 interface SerialRange {
