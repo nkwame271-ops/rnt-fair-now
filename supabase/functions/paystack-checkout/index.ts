@@ -567,17 +567,40 @@ Deno.serve(async (req) => {
       callbackPath = "/landlord/rent-cards?status=success";
 
     } else if (type === "agreement_sale") {
-      const { tenancyId } = body;
+      const { tenancyId, monthlyRent: bodyMonthlyRent, propertyId: bodyPropertyId } = body;
       const fee = await getDynamicFee(supabaseAdmin, "agreement_sale_fee");
-      officeId = await resolveOffice(supabaseAdmin, { userId });
+      
+      // Resolve office from property if available
+      if (bodyPropertyId) {
+        officeId = await resolveOffice(supabaseAdmin, { propertyId: bodyPropertyId });
+        relatedPropertyId = bodyPropertyId;
+      } else {
+        officeId = await resolveOffice(supabaseAdmin, { userId });
+      }
       caseType = "tenancy";
 
       if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Agreement fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Tenancy Agreement Form (GH₵ ${fee.total})`;
+      
+      // Use rent band fee if monthlyRent provided, otherwise use flat fee
+      let feeTotal = fee.total;
+      if (bodyMonthlyRent && Number(bodyMonthlyRent) > 0) {
+        const bandFee = await getRentBandFee(supabaseAdmin, Number(bodyMonthlyRent));
+        if (bandFee !== null) feeTotal = bandFee;
+      }
+      
+      // Scale splits proportionally to the new fee total
+      const originalTotal = fee.splits.reduce((s: number, r: any) => s + Number(r.amount), 0);
+      if (originalTotal > 0 && originalTotal !== feeTotal) {
+        const ratio = feeTotal / originalTotal;
+        splitPlan = fee.splits.map((s: any) => ({ ...s, amount: Math.round(Number(s.amount) * ratio * 100) / 100 }));
+      } else {
+        splitPlan = fee.splits;
+      }
+      
+      totalAmount = feeTotal;
+      description = `Tenancy Agreement Form (GH₵ ${feeTotal})`;
       reference = `agrsale_${tenancyId || userId}_${Date.now()}`;
-      callbackPath = "/landlord/agreements?status=success";
+      callbackPath = body.callbackPath || "/landlord/agreements?status=success";
       relatedTenancyId = tenancyId || null;
 
     } else if (type === "tenant_registration") {
