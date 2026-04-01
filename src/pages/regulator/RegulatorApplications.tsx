@@ -27,12 +27,25 @@ const statusColors: Record<string, string> = {
 
 const RegulatorApplications = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [applications, setApplications] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_application", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setApplications(prev => prev.filter(a => a.id !== deletingId));
+    toast.success("Application permanently deleted");
+  };
 
   const fetchApplications = async () => {
     const { data } = await supabase
