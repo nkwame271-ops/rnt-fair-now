@@ -152,6 +152,7 @@ const OfficePayoutSettings = () => {
       momo_number: edits.momo_number ?? existing?.momo_number ?? "",
       momo_provider: edits.momo_provider ?? existing?.momo_provider ?? "",
       paystack_subaccount_code: edits.paystack_subaccount_code ?? existing?.paystack_subaccount_code ?? "",
+      paystack_recipient_code: edits.paystack_recipient_code ?? existing?.paystack_recipient_code ?? "",
     };
   };
 
