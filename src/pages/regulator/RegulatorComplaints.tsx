@@ -26,6 +26,7 @@ const allStatuses = ["submitted", "under_review", "in_progress", "schedule_compl
 
 const RegulatorComplaints = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [complaints, setComplaints] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -33,6 +34,23 @@ const RegulatorComplaints = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [schedulingComplaint, setSchedulingComplaint] = useState<SchedulingTarget | null>(null);
   const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
+  const [deletingId, setDeletingId] = useState<{ id: string; type: "tenant" | "landlord" } | null>(null);
+
+  const handleDeleteComplaint = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const action = deletingId.type === "tenant" ? "delete_complaint" : "delete_landlord_complaint";
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action, target_id: deletingId.id, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    if (deletingId.type === "tenant") {
+      setComplaints(prev => prev.filter(c => c.id !== deletingId.id));
+    } else {
+      setLandlordComplaints(prev => prev.filter(c => c.id !== deletingId.id));
+    }
+    toast.success("Complaint permanently deleted");
+  };
 
   const fetchComplaints = async () => {
     const { data } = await supabase
