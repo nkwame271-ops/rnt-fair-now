@@ -138,25 +138,33 @@ Deno.serve(async (req) => {
         const autoRelease = await getOfficePayoutMode();
 
         if (escrowId && splits.length > 0) {
+          // Check auto-release mode
+          const autoRelease = await getOfficePayoutMode();
+
           const splitRows = splits.map(s => {
-            // For admin splits (office share), check auto-release
             const isAdminSplit = s.recipient === "admin";
             const releaseMode = (isAdminSplit && autoRelease) ? "auto" : "manual";
-            const shouldAutoRelease = isAdminSplit && autoRelease;
+            // Under main-account-first model:
+            // - landlord splits stay "held" (manual payout)
+            // - admin (office) splits: "pending_transfer" if auto, "held" if manual
+            // - igf/gra/platform: "pending_transfer" — will be paid via Paystack transfer
+            const disbStatus = s.recipient === "landlord" ? "held"
+              : (isAdminSplit && !autoRelease) ? "held"
+              : "pending_transfer";
 
             return {
               escrow_transaction_id: escrowId,
               recipient: s.recipient,
               amount: s.amount,
               description: s.description,
-              disbursement_status: s.recipient === "landlord" ? "held" : (shouldAutoRelease ? "released" : "released"),
-              released_at: s.recipient !== "landlord" ? new Date().toISOString() : null,
+              disbursement_status: disbStatus,
+              released_at: null,
               office_id: officeId,
               release_mode: releaseMode,
             };
           });
 
-          await supabase.from("escrow_splits").insert(splitRows);
+          const { data: insertedSplits } = await supabase.from("escrow_splits").insert(splitRows).select("id, recipient, amount, disbursement_status");
 
           // If auto-release is on, create auto-approved fund request for admin splits
           if (autoRelease && officeId) {
@@ -178,6 +186,9 @@ Deno.serve(async (req) => {
               });
             }
           }
+
+          // Trigger Paystack transfers for eligible splits
+          await triggerPayouts(supabase, escrowId, insertedSplits || [], officeId);
         }
 
         // Update case status
