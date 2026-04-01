@@ -273,7 +273,7 @@ const EscrowDashboard = () => {
             {/* Revenue Breakdown (IGF) */}
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4">Allocation Summary (Internal Ledger)</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 {allocationCards.map(r => (
                   <div key={r.label} className={`border rounded-lg p-4 text-center ${r.color}`}>
                     <div className="text-2xl font-bold">GH₵ {r.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
