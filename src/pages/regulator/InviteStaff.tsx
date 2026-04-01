@@ -80,6 +80,7 @@ const InviteStaff = () => {
       setEmail("");
       setFullName("");
       setPassword("");
+      setSelectedRegion("");
       setOfficeId("");
       setSelectedFeatures([]);
     } catch (err: any) {
