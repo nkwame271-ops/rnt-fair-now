@@ -297,65 +297,6 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
         ))}
       </div>
 
-      {/* Account Management */}
-      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
-          <UserX className="h-5 w-5 text-destructive" /> Account Management
-        </h2>
-        <p className="text-sm text-muted-foreground">Deactivate, archive, or permanently delete landlord/tenant/admin accounts. Accounts with active tenancies cannot be archived or deleted.</p>
-        <div className="flex gap-3">
-          <Select value={accountType} onValueChange={(v) => { setAccountType(v as any); setAccountResult(null); }}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="landlord">Landlord</SelectItem>
-              <SelectItem value="tenant">Tenant</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input placeholder="Search by ID or name..." value={accountSearch} onChange={(e) => setAccountSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAccountSearch()} className="flex-1" />
-          <Button onClick={handleAccountSearch} disabled={accountSearching} variant="outline">
-            {accountSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          </Button>
-        </div>
-        {accountResult && (
-          <div className="border border-border rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <p className="font-semibold text-card-foreground">{accountResult.name}</p>
-                <p className="text-xs text-muted-foreground">{accountResult.idCode} • {accountResult.email}</p>
-              </div>
-              <Badge className={
-                accountResult.accountStatus === "active" ? "bg-success/10 text-success" :
-                accountResult.accountStatus === "deactivated" ? "bg-warning/10 text-warning" :
-                "bg-muted text-muted-foreground"
-              }>
-                {accountResult.accountStatus}
-              </Badge>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              {accountResult.type !== "admin" && accountResult.accountStatus === "active" && (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => setAccountAction({ action: "deactivate_account", targetId: accountResult.userId, accountType: accountResult.type })}>
-                    Deactivate
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={() => setAccountAction({ action: "archive_account", targetId: accountResult.userId, accountType: accountResult.type })}>
-                    <Archive className="h-3.5 w-3.5 mr-1" /> Archive
-                  </Button>
-                </>
-              )}
-              {accountResult.type !== "admin" && accountResult.accountStatus === "deactivated" && (
-                <Button variant="destructive" size="sm" onClick={() => setAccountAction({ action: "archive_account", targetId: accountResult.userId, accountType: accountResult.type })}>
-                  <Archive className="h-3.5 w-3.5 mr-1" /> Archive
-                </Button>
-              )}
-              <Button variant="destructive" size="sm" onClick={() => setAccountAction({ action: "delete_account", targetId: accountResult.userId, accountType: accountResult.type })}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Permanently
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Audit Log */}
       <div className="bg-card rounded-xl border border-border p-6 space-y-4">
         <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
@@ -418,37 +359,6 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
           await handleAdminAction("void_upload", voidTarget!, password, reason);
           setVoidTarget(null);
           setVoidBatchResults([]);
-        }}
-      />
-
-      <AdminPasswordConfirm
-        open={!!accountAction}
-        onOpenChange={() => setAccountAction(null)}
-        title={
-          accountAction?.action === "delete_account" ? "Delete Account Permanently" :
-          accountAction?.action === "deactivate_account" ? "Deactivate Account" : "Archive Account"
-        }
-        description={
-          accountAction?.action === "delete_account"
-            ? "This will PERMANENTLY delete this account, remove all associated data, and ban the user. This action cannot be undone."
-            : accountAction?.action === "deactivate_account"
-            ? "This will deactivate the account. The user will no longer be able to access their dashboard."
-            : "This will archive the account. Only accounts without active tenancies can be archived."
-        }
-        actionLabel={
-          accountAction?.action === "delete_account" ? "Delete Forever" :
-          accountAction?.action === "deactivate_account" ? "Deactivate" : "Archive"
-        }
-        onConfirm={async (password, reason) => {
-          await handleAdminAction(
-            accountAction!.action,
-            accountAction!.targetId,
-            password,
-            reason,
-            { account_type: accountAction!.accountType }
-          );
-          setAccountAction(null);
-          setAccountResult(null);
         }}
       />
     </div>

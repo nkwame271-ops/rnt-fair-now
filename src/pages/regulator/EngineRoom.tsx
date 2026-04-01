@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X } from "lucide-react";
+import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X, UserX, Search, Archive } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAllFeatureFlags, invalidateFeatureFlags } from "@/hooks/useFeatureFlag";
 import { useAdminProfile, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
 import LogoLoader from "@/components/LogoLoader";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 interface StaffMember {
   user_id: string;
@@ -92,6 +93,13 @@ const EngineRoom = () => {
   const [rentBandsLoading, setRentBandsLoading] = useState(false);
   const [editingBands, setEditingBands] = useState<Record<string, Partial<RentBand>>>({});
   const [savingBand, setSavingBand] = useState<string | null>(null);
+
+  // Account Management state
+  const [accountSearch, setAccountSearch] = useState("");
+  const [accountType, setAccountType] = useState<"landlord" | "tenant" | "admin">("landlord");
+  const [accountResult, setAccountResult] = useState<any>(null);
+  const [accountSearching, setAccountSearching] = useState(false);
+  const [accountAction, setAccountAction] = useState<{ action: string; targetId: string; accountType: string } | null>(null);
 
   // Adding features to staff
   const [addingFeature, setAddingFeature] = useState<string | null>(null);
