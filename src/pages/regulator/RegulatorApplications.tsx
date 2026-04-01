@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { ClipboardList, Search, ChevronDown, ChevronUp, Clock, CheckCircle2, XCircle, Loader2, Download, User, Image, Mic } from "lucide-react";
+import { ClipboardList, Search, ChevronDown, ChevronUp, Clock, CheckCircle2, XCircle, Loader2, Download, User, Image, Mic, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 const applicationTypes: Record<string, string> = {
   rent_increase: "Rent Increase",
