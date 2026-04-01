@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { formatGHS } from "@/lib/formatters";
 
 interface ProfileData {
   role: "tenant" | "landlord";
