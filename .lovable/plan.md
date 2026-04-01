@@ -1,100 +1,63 @@
 
+
 # Plan: Rent Card Enhancements, Admin Permissions & Office Locator
 
 ## 1. Region → Office Hierarchy Data Structure
 
-**`src/hooks/useAdminProfile.ts`** — Replace flat `GHANA_OFFICES` with a region-grouped structure:
-
-```typescript
-export const GHANA_REGIONS_OFFICES: { region: string; offices: { id: string; name: string }[] }[] = [
-  { region: "Greater Accra", offices: [
-    { id: "accra_central", name: "Accra Central Office" },
-    { id: "accra_north", name: "Accra North Office" },
-    { id: "madina", name: "Madina Office" },
-    // ... all Greater Accra offices
-  ]},
-  { region: "Ashanti", offices: [
-    { id: "kumasi", name: "Kumasi Office" },
-    { id: "kumasi_south", name: "Kumasi South Office" },
-    { id: "obuasi", name: "Obuasi Office" },
-  ]},
-  // ... all 16 regions with their offices
-];
-// Keep GHANA_OFFICES as a derived flat list for backward compatibility
-export const GHANA_OFFICES = GHANA_REGIONS_OFFICES.flatMap(r => r.offices);
-```
-
-Also add a helper: `getOfficesForRegion(region: string)` and `getRegionForOffice(officeId: string)`.
+**`src/hooks/useAdminProfile.ts`** — Add `GHANA_REGIONS_OFFICES` grouped structure mapping each of the 16 Ghana regions to its offices. Derive `GHANA_OFFICES` from it for backward compatibility. Add helpers: `getOfficesForRegion()`, `getRegionForOffice()`.
 
 ---
 
 ## 2. Invite Staff — Permission Control for Main Admins
 
-**`src/pages/regulator/InviteStaff.tsx`**:
-- When `adminType === "main_admin"`, show the same feature selection checklist (currently only shown for sub_admins)
-- Remove the assumption that Main Admins get full access by default
-- Pass `allowedFeatures` for both admin types to the `invite-staff` edge function
+**`src/pages/regulator/InviteStaff.tsx`** — Show the feature selection checklist for Main Admins too (not just Sub Admins). Main Admins should not default to full access.
 
-**`supabase/functions/invite-staff/index.ts`**:
-- Remove the line that forces `allowedFeatures: []` for main_admin
-- Accept and store `allowedFeatures` for main_admin accounts too
+**`supabase/functions/invite-staff/index.ts`** — Accept and store `allowedFeatures` for main_admin accounts instead of forcing empty array.
 
-**`src/hooks/useAdminProfile.ts`** / **`src/components/RegulatorLayout.tsx`**:
-- Ensure feature gating applies to Main Admins who have a non-empty `allowed_features` array (if array is empty, treat as full access for backward compatibility)
+**Feature gating** — If a Main Admin has a non-empty `allowed_features` array, enforce it. Empty array = full access (backward compatible).
 
 ---
 
-## 3. Serial Number Generation Tool
+## 3. Serial Number Generation Tool (New Tab)
 
-**New component: `src/pages/regulator/rent-cards/SerialGenerator.tsx`**:
-- Form fields: Prefix/Format (e.g. `RCD-2026-`), Start number, End number, Quantity display (auto-calculated)
+**New: `src/pages/regulator/rent-cards/SerialGenerator.tsx`**:
+- Form: Custom prefix/format, start range, end range (quantity auto-calculated)
+- Region → Office cascading dropdowns
 - Live preview of generated serials
-- Region selector → filters offices → Target Office selector
-- Password confirmation dialog (using `AdminPasswordConfirm`) before generation proceeds
-- On confirm: generates serials, inserts into `rent_card_serial_stock` as a batch, logs to `admin_audit_log` via `admin-action` edge function
+- Password confirmation via `AdminPasswordConfirm` — generation blocked without it
+- On confirm: calls `admin-action` edge function with action `generate_serials`
 
-**`supabase/functions/admin-action/index.ts`**:
-- Add new action `generate_serials` that: validates password, generates the serial rows, inserts them, and logs to audit
+**`supabase/functions/admin-action/index.ts`** — Add `generate_serials` action: validates password, inserts serials into `rent_card_serial_stock`, logs to `admin_audit_log`.
 
----
-
-## 4. Region → Office Filtering in Rent Card Management
-
-**`src/pages/regulator/RegulatorRentCards.tsx`** and sub-components (`SerialBatchUpload`, `OfficeSerialStock`, `PendingPurchases`):
-- Add Region dropdown that filters the Office dropdown dynamically
-- Replace all `GHANA_OFFICES.map(...)` selects with a two-step Region → Office picker
+**`src/pages/regulator/RegulatorRentCards.tsx`** — Add "Generate Serials" tab (Main Admin only).
 
 ---
 
-## 5. Bulk Assignment to Region
+## 4. Region → Office Filtering Across Rent Card Tabs
 
-**`src/pages/regulator/rent-cards/SerialBatchUpload.tsx`**:
-- Add toggle: "Assign to single office" vs "Assign to entire region"
-- When region mode: insert serials with a special `office_name` pattern (e.g. the region name) OR insert one copy per office in that region
-- Better approach: store `region` column on `rent_card_serial_stock` (migration), and when querying office stock, include serials where `region` matches the office's region
-
-**Database migration**:
-```sql
-ALTER TABLE public.rent_card_serial_stock ADD COLUMN IF NOT EXISTS region text;
-```
-
-Update all stock queries to: `WHERE office_name = X OR region = (region of X)`.
+Update `SerialBatchUpload`, `OfficeSerialStock`, and `PendingPurchases` to use Region → Office cascading dropdowns instead of flat office lists.
 
 ---
 
-## 6. Maintain CSV Upload, Manual Upload, Audit & Revoke
+## 5. Bulk Region Assignment
 
-These already exist. The new Generator tab will be added alongside (not replacing) the existing Serial Batch Upload tab. All existing audit/revoke controls in AdminActions remain unchanged.
+**Database migration**: Add `region` column to `rent_card_serial_stock`.
+
+**`SerialBatchUpload.tsx`** — Add toggle: "Assign to office" vs "Assign to region". Region assignment stores the region name; stock queries include `WHERE office_name = X OR region = (region of X)`.
+
+**`OfficeSerialStock.tsx`** — Update queries to include region-assigned stock.
+
+---
+
+## 6. Preserve Existing Features
+
+CSV upload, manual upload, audit log, and revoke controls remain unchanged. The Generator is a new tab alongside existing functionality.
 
 ---
 
 ## 7. Office Locator on Main Page
 
-**`src/pages/RoleSelect.tsx`**:
-- Add new section "Find Your Nearest Office" between the Contact section and Footer
-- Text input for location/area search
-- Filters `GHANA_REGIONS_OFFICES` to show matching offices with region labels
-- Simple client-side search, no Google Maps needed — just a searchable list showing office name + region
+**`src/pages/RoleSelect.tsx`** — Add "Find Your Nearest Office" section with a text search input that filters offices from `GHANA_REGIONS_OFFICES`, showing matching results grouped by region.
 
 ---
 
@@ -102,13 +65,14 @@ These already exist. The new Generator tab will be added alongside (not replacin
 
 | File | Change |
 |---|---|
-| `src/hooks/useAdminProfile.ts` | Add `GHANA_REGIONS_OFFICES` hierarchy, keep `GHANA_OFFICES` derived |
-| `src/pages/regulator/InviteStaff.tsx` | Show feature selector for Main Admins too |
-| `supabase/functions/invite-staff/index.ts` | Accept `allowedFeatures` for main_admin |
-| `src/pages/regulator/rent-cards/SerialGenerator.tsx` | **New** — generation form with password confirmation |
-| `src/pages/regulator/RegulatorRentCards.tsx` | Add "Generate" tab, pass region/office context |
-| `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` | Add Region→Office filter, bulk region assignment toggle |
-| `src/pages/regulator/rent-cards/OfficeSerialStock.tsx` | Add Region→Office filter, query region-assigned stock |
+| `src/hooks/useAdminProfile.ts` | Region→Office hierarchy + helpers |
+| `src/pages/regulator/InviteStaff.tsx` | Feature selector for Main Admins |
+| `supabase/functions/invite-staff/index.ts` | Accept features for main_admin |
+| `src/pages/regulator/rent-cards/SerialGenerator.tsx` | **New** — generation tool |
+| `src/pages/regulator/RegulatorRentCards.tsx` | Add Generate tab |
+| `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` | Region filter + bulk region assignment |
+| `src/pages/regulator/rent-cards/OfficeSerialStock.tsx` | Region filter + region stock queries |
 | `supabase/functions/admin-action/index.ts` | Add `generate_serials` action |
 | Migration | Add `region` column to `rent_card_serial_stock` |
-| `src/pages/RoleSelect.tsx` | Add Office Locator section |
+| `src/pages/RoleSelect.tsx` | Office Locator section |
+
