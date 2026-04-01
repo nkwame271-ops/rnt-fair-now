@@ -21,6 +21,8 @@ interface OfficeRevenue {
   gra: number;
   autoReleased: number;
   manualReleased: number;
+  walletBalance: number;
+  released: number;
 }
 
 interface RevenueByType {
@@ -123,10 +125,21 @@ const EscrowDashboard = () => {
         const officeMap = new Map<string, OfficeRevenue>();
         const officeNames = new Map((await supabase.from("offices").select("id, name")).data?.map(o => [o.id, o.name]) || []);
 
+        // Fetch approved fund requests to calculate wallet balances
+        const { data: approvedRequests } = await supabase
+          .from("office_fund_requests")
+          .select("office_id, amount")
+          .eq("status", "approved");
+
+        const releasedByOffice = new Map<string, number>();
+        for (const req of (approvedRequests || []) as any[]) {
+          releasedByOffice.set(req.office_id, (releasedByOffice.get(req.office_id) || 0) + Number(req.amount));
+        }
+
         for (const s of (allSplits || []) as any[]) {
           const oid = s.office_id || "unassigned";
           if (!officeMap.has(oid)) {
-            officeMap.set(oid, { officeId: oid, officeName: officeNames.get(oid) || "Unassigned", total: 0, igf: 0, admin: 0, platform: 0, landlord: 0, gra: 0, autoReleased: 0, manualReleased: 0 });
+            officeMap.set(oid, { officeId: oid, officeName: officeNames.get(oid) || "Unassigned", total: 0, igf: 0, admin: 0, platform: 0, landlord: 0, gra: 0, autoReleased: 0, manualReleased: 0, walletBalance: 0, released: 0 });
           }
           const entry = officeMap.get(oid)!;
           entry.total += Number(s.amount);
@@ -138,6 +151,13 @@ const EscrowDashboard = () => {
           if (s.release_mode === "auto") entry.autoReleased += Number(s.amount);
           else if (s.recipient !== "landlord") entry.manualReleased += Number(s.amount);
         }
+
+        // Calculate wallet balance per office
+        for (const [oid, entry] of officeMap) {
+          entry.released = releasedByOffice.get(oid) || 0;
+          entry.walletBalance = entry.admin - entry.released;
+        }
+
         setOfficeRevenue(Array.from(officeMap.values()).sort((a, b) => b.total - a.total));
       } else {
         setOfficeRevenue([]);
@@ -164,6 +184,7 @@ const EscrowDashboard = () => {
   const allocationCards = [
     { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary" },
     { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info" },
+    { label: "Platform", amount: stats.platform, color: "bg-success/10 border-success/20 text-success" },
     { label: "GRA", amount: stats.gra, color: "bg-accent/10 border-accent/20 text-accent-foreground" },
     { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning" },
   ];
@@ -272,7 +293,7 @@ const EscrowDashboard = () => {
             {/* Revenue Breakdown (IGF) */}
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4">Allocation Summary (Internal Ledger)</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 {allocationCards.map(r => (
                   <div key={r.label} className={`border rounded-lg p-4 text-center ${r.color}`}>
                     <div className="text-2xl font-bold">GH₵ {r.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
@@ -301,8 +322,10 @@ const EscrowDashboard = () => {
                         <th className="text-right py-2 px-2">Total</th>
                         <th className="text-right py-2 px-2">IGF</th>
                         <th className="text-right py-2 px-2">Admin</th>
+                        <th className="text-right py-2 px-2">Platform</th>
                         <th className="text-right py-2 px-2">GRA</th>
                         <th className="text-right py-2 px-2">Landlord</th>
+                        <th className="text-right py-2 px-2">Wallet Balance</th>
                         <th className="text-right py-2 pl-2">Release</th>
                       </tr>
                     </thead>
@@ -313,8 +336,17 @@ const EscrowDashboard = () => {
                           <td className="text-right py-2 px-2 font-semibold">₵{o.total.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-primary">₵{o.igf.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-info">₵{o.admin.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2 text-success">₵{o.platform.toFixed(2)}</td>
                           <td className="text-right py-2 px-2">₵{o.gra.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-warning">₵{o.landlord.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2">
+                            <span className={`font-semibold ${o.walletBalance > 0 ? "text-success" : "text-muted-foreground"}`}>
+                              ₵{o.walletBalance.toFixed(2)}
+                            </span>
+                            {o.released > 0 && (
+                              <span className="text-xs text-muted-foreground ml-1">(₵{o.released.toFixed(0)} paid)</span>
+                            )}
+                          </td>
                           <td className="text-right py-2 pl-2">
                             <div className="flex items-center justify-end gap-1">
                               {o.autoReleased > 0 && (
