@@ -29,6 +29,7 @@ interface SettlementAccount {
   account_number: string;
   momo_number: string;
   momo_provider: string;
+  paystack_subaccount_code: string;
 }
 
 const SETTLEMENT_TYPES = [
@@ -149,6 +150,7 @@ const OfficePayoutSettings = () => {
       account_number: edits.account_number ?? existing?.account_number ?? "",
       momo_number: edits.momo_number ?? existing?.momo_number ?? "",
       momo_provider: edits.momo_provider ?? existing?.momo_provider ?? "",
+      paystack_subaccount_code: edits.paystack_subaccount_code ?? existing?.paystack_subaccount_code ?? "",
     };
   };
 
@@ -170,6 +172,7 @@ const OfficePayoutSettings = () => {
       account_number: data.payment_method === "bank" ? data.account_number || null : null,
       momo_number: data.payment_method === "momo" ? data.momo_number || null : null,
       momo_provider: data.payment_method === "momo" ? data.momo_provider || null : null,
+      paystack_subaccount_code: data.paystack_subaccount_code || null,
       updated_at: new Date().toISOString(),
       updated_by: user?.id,
     };
@@ -344,8 +347,13 @@ const OfficePayoutSettings = () => {
                     </>
                   )}
 
-                  <Button
-                    onClick={() => handleSaveSettlement(key)}
+                  <div className="pt-2 border-t border-border">
+                    <label className="text-sm font-medium text-foreground">Paystack Subaccount Code</label>
+                    <Input value={data.paystack_subaccount_code} onChange={e => updateSettlementField(key, "paystack_subaccount_code", e.target.value)} placeholder="ACCT_xxxxx" className="font-mono" />
+                    <p className="text-xs text-muted-foreground mt-1">Enter the Paystack subaccount code for automatic settlement</p>
+                  </div>
+
+                    <Button
                     disabled={savingSettlement === key}
                     variant={hasEdits ? "default" : "outline"}
                     className="w-full sm:w-auto"

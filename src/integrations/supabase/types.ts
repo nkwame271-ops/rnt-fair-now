@@ -2244,6 +2244,7 @@ export type Database = {
           momo_number: string | null
           momo_provider: string | null
           payment_method: string
+          paystack_subaccount_code: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -2256,6 +2257,7 @@ export type Database = {
           momo_number?: string | null
           momo_provider?: string | null
           payment_method?: string
+          paystack_subaccount_code?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -2268,6 +2270,7 @@ export type Database = {
           momo_number?: string | null
           momo_provider?: string | null
           payment_method?: string
+          paystack_subaccount_code?: string | null
           updated_at?: string
           updated_by?: string | null
         }

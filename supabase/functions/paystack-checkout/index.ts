@@ -5,108 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PLATFORM_FIXED_FEE = 10; // GHS — always isolated first from registration payments
-
-// Default fee structure & split rules (used as fallback if DB lookup fails)
-const DEFAULT_SPLIT_RULES: Record<string, { total: number; splits: { recipient: string; amount: number; description: string }[] }> = {
-  tenant_registration: {
-    total: 40,
-    splits: [
-      { recipient: "platform", amount: 10, description: "Platform fixed fee" },
-      { recipient: "rent_control", amount: 19.5, description: "IGF - Rent Control" },
-      { recipient: "admin", amount: 7.5, description: "Admin fee" },
-      { recipient: "platform", amount: 3, description: "Platform share" },
-    ],
-  },
-  landlord_registration: {
-    total: 30,
-    splits: [
-      { recipient: "platform", amount: 10, description: "Platform fixed fee" },
-      { recipient: "rent_control", amount: 13, description: "IGF - Rent Control" },
-      { recipient: "admin", amount: 5, description: "Admin fee" },
-      { recipient: "platform", amount: 2, description: "Platform share" },
-    ],
-  },
-  rent_card: {
-    total: 25,
-    splits: [
-      { recipient: "rent_control", amount: 15, description: "Rent Control - Rent Card" },
-      { recipient: "admin", amount: 10, description: "Admin - Rent Card" },
-    ],
-  },
-  agreement_sale: {
-    total: 30,
-    splits: [
-      { recipient: "rent_control", amount: 10, description: "Rent Control - Agreement" },
-      { recipient: "admin", amount: 20, description: "Admin - Agreement" },
-    ],
-  },
-  complaint_fee: {
-    total: 2,
-    splits: [
-      { recipient: "rent_control", amount: 1.00, description: "IGF - Complaint" },
-      { recipient: "admin", amount: 0.60, description: "Admin - Complaint" },
-      { recipient: "platform", amount: 0.40, description: "Platform - Complaint" },
-    ],
-  },
-  listing_fee: {
-    total: 2,
-    splits: [
-      { recipient: "rent_control", amount: 1.00, description: "IGF - Listing" },
-      { recipient: "admin", amount: 0.60, description: "Admin - Listing" },
-      { recipient: "platform", amount: 0.40, description: "Platform - Listing" },
-    ],
-  },
-  viewing_fee: {
-    total: 2,
-    splits: [
-      { recipient: "rent_control", amount: 1.00, description: "IGF - Viewing" },
-      { recipient: "admin", amount: 0.60, description: "Admin - Viewing" },
-      { recipient: "platform", amount: 0.40, description: "Platform - Viewing" },
-    ],
-  },
-  add_tenant_fee: {
-    total: 5,
-    splits: [
-      { recipient: "rent_control", amount: 2.50, description: "IGF - Add Tenant" },
-      { recipient: "admin", amount: 1.50, description: "Admin - Add Tenant" },
-      { recipient: "platform", amount: 1.00, description: "Platform - Add Tenant" },
-    ],
-  },
-  termination_fee: {
-    total: 5,
-    splits: [
-      { recipient: "rent_control", amount: 2.50, description: "IGF - Termination" },
-      { recipient: "admin", amount: 1.50, description: "Admin - Termination" },
-      { recipient: "platform", amount: 1.00, description: "Platform - Termination" },
-    ],
-  },
-  archive_search_fee: {
-    total: 20,
-    splits: [
-      { recipient: "rent_control", amount: 12, description: "Rent Control - Archive Search" },
-      { recipient: "admin", amount: 8, description: "Admin - Archive Search" },
-    ],
-  },
-};
-
-// Calculate registration splits with platform fee isolation
-const calculateRegistrationSplits = (totalAmount: number, _feeKey: string): { recipient: string; amount: number; description: string }[] => {
-  const platformFee = Math.min(PLATFORM_FIXED_FEE, totalAmount);
-  const remainder = totalAmount - platformFee;
-  if (remainder <= 0) {
-    return [{ recipient: "platform", amount: platformFee, description: "Platform fixed fee" }];
-  }
-  // Split remainder: 65% IGF, 25% admin, 10% platform
-  const igf = Math.round(remainder * 0.65 * 100) / 100;
-  const admin = Math.round(remainder * 0.25 * 100) / 100;
-  const platformShare = Math.round((remainder - igf - admin) * 100) / 100;
-  return [
-    { recipient: "platform", amount: platformFee, description: "Platform fixed fee" },
-    { recipient: "rent_control", amount: igf, description: "IGF - Rent Control" },
-    { recipient: "admin", amount: admin, description: "Admin fee" },
-    { recipient: "platform", amount: platformShare, description: "Platform share" },
-  ];
+// Recipient mapping from split_configurations recipients to system_settlement_accounts account_type
+const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
+  rent_control: "igf",
+  admin: "admin",
+  platform: "platform",
+  gra: "gra",
 };
 
 // Fetch split configuration from DB, falling back to hardcoded defaults
@@ -178,77 +82,93 @@ const getTaxSplitPlan = async (supabaseAdmin: any, taxAmount: number, descriptio
   return [{ recipient: "rent_control", amount: taxAmount, description }];
 };
 
-// Helper to get dynamic fee from DB, falling back to defaults
+// Helper to get dynamic fee from DB — all splits must come from split_configurations
 const getDynamicFee = async (supabaseAdmin: any, feeKey: string): Promise<{ total: number; enabled: boolean; splits: { recipient: string; amount: number; description: string }[] }> => {
+  const feeKeyToPaymentType: Record<string, string> = {
+    tenant_registration_fee: "tenant_registration",
+    landlord_registration_fee: "landlord_registration",
+    rent_card_fee: "rent_card",
+    agreement_sale_fee: "agreement_sale",
+    complaint_fee: "complaint_fee",
+    listing_fee: "listing_fee",
+    viewing_fee: "viewing_fee",
+    add_tenant_fee: "add_tenant_fee",
+    termination_fee: "termination_fee",
+    archive_search_fee: "archive_search_fee",
+  };
+
+  const paymentType = feeKeyToPaymentType[feeKey] || feeKey;
+
+  // Get fee amount and enabled status from feature_flags
+  const { data: flagData } = await supabaseAdmin
+    .from("feature_flags")
+    .select("fee_amount, fee_enabled")
+    .eq("feature_key", feeKey)
+    .single();
+
+  // Get splits from DB (required)
+  const dbSplits = await getSplitConfigFromDB(supabaseAdmin, paymentType);
+  if (!dbSplits || dbSplits.length === 0) {
+    throw new Error(`No split configuration found in database for payment type: ${paymentType}. Configure splits in Engine Room.`);
+  }
+
+  const dbTotal = dbSplits.reduce((s: number, r: any) => s + r.amount, 0);
+  const total = flagData?.fee_amount ?? dbTotal;
+  const enabled = flagData?.fee_enabled ?? true;
+
+  // Scale splits proportionally if fee total differs from configured split total
+  let splits = dbSplits;
+  if (dbTotal > 0 && dbTotal !== total) {
+    const ratio = total / dbTotal;
+    splits = dbSplits.map((s: any) => ({ ...s, amount: Math.round(s.amount * ratio * 100) / 100 }));
+  }
+
+  return { total, enabled, splits };
+};
+
+// Build Paystack split object from split plan and settlement accounts
+const buildPaystackSplit = async (supabaseAdmin: any, splitPlan: { recipient: string; amount: number; description: string }[]): Promise<any | null> => {
   try {
-    const { data } = await supabaseAdmin
-      .from("feature_flags")
-      .select("fee_amount, fee_enabled")
-      .eq("feature_key", feeKey)
-      .single();
+    const { data: accounts } = await supabaseAdmin
+      .from("system_settlement_accounts")
+      .select("account_type, paystack_subaccount_code")
+      .not("paystack_subaccount_code", "is", null);
 
-    // Map fee key to payment type for split_configurations lookup
-    const feeKeyToPaymentType: Record<string, string> = {
-      tenant_registration_fee: "tenant_registration",
-      landlord_registration_fee: "landlord_registration",
-      rent_card_fee: "rent_card",
-      agreement_sale_fee: "agreement_sale",
-      complaint_fee: "complaint_fee",
-      listing_fee: "listing_fee",
-      viewing_fee: "viewing_fee",
-      add_tenant_fee: "add_tenant_fee",
-      termination_fee: "termination_fee",
-      archive_search_fee: "archive_search_fee",
+    if (!accounts || accounts.length === 0) return null;
+
+    // Build account_type -> subaccount_code map
+    const subaccountMap: Record<string, string> = {};
+    for (const acc of accounts) {
+      if (acc.paystack_subaccount_code) {
+        subaccountMap[acc.account_type] = acc.paystack_subaccount_code;
+      }
+    }
+
+    const subaccounts: { subaccount: string; share: number }[] = [];
+    for (const entry of splitPlan) {
+      const accountType = RECIPIENT_TO_ACCOUNT_TYPE[entry.recipient];
+      if (!accountType) continue; // skip landlord, etc.
+      const code = subaccountMap[accountType];
+      if (!code) {
+        console.warn(`No Paystack subaccount for ${entry.recipient} (${accountType}), portion stays with main account`);
+        continue;
+      }
+      subaccounts.push({
+        subaccount: code,
+        share: Math.round(entry.amount * 100), // convert GHS to pesewas
+      });
+    }
+
+    if (subaccounts.length === 0) return null;
+
+    return {
+      type: "flat",
+      bearer_type: "account",
+      subaccounts,
     };
-
-    const paymentType = feeKeyToPaymentType[feeKey] || feeKey;
-    const isRegistration = feeKey === "tenant_registration_fee" || feeKey === "landlord_registration_fee";
-    const defaultRule = DEFAULT_SPLIT_RULES[paymentType];
-
-    // Try DB split configs first
-    const dbSplits = await getSplitConfigFromDB(supabaseAdmin, paymentType);
-
-    if (!data || data.fee_amount === null) {
-      const total = defaultRule?.total ?? 0;
-      if (dbSplits) {
-        return { total, enabled: true, splits: dbSplits };
-      }
-      const splits = isRegistration
-        ? calculateRegistrationSplits(total, feeKey)
-        : (defaultRule?.splits ?? []);
-      return { total, enabled: true, splits };
-    }
-
-    const total = data.fee_amount;
-
-    // If DB split configs exist, scale them proportionally to the dynamic fee total
-    if (dbSplits) {
-      const dbTotal = dbSplits.reduce((s: number, r: any) => s + r.amount, 0);
-      if (dbTotal > 0 && dbTotal !== total) {
-        // For registration types, isolate platform fee first then scale remainder
-        if (isRegistration) {
-          return { total, enabled: data.fee_enabled, splits: calculateRegistrationSplits(total, feeKey) };
-        }
-        const ratio = total / dbTotal;
-        const scaled = dbSplits.map((s: any) => ({ ...s, amount: Math.round(s.amount * ratio * 100) / 100 }));
-        return { total, enabled: data.fee_enabled, splits: scaled };
-      }
-      return { total, enabled: data.fee_enabled, splits: dbSplits };
-    }
-
-    if (isRegistration) {
-      return { total, enabled: data.fee_enabled, splits: calculateRegistrationSplits(total, feeKey) };
-    }
-
-    const ratio = defaultRule ? total / defaultRule.total : 1;
-    const splits = defaultRule
-      ? defaultRule.splits.map(s => ({ ...s, amount: Math.round(s.amount * ratio * 100) / 100 }))
-      : [{ recipient: "platform", amount: total, description: feeKey.replace(/_/g, " ") }];
-
-    return { total, enabled: data.fee_enabled, splits };
-  } catch {
-    const defaultRule = DEFAULT_SPLIT_RULES[feeKey];
-    return { total: defaultRule?.total ?? 0, enabled: true, splits: defaultRule?.splits ?? [] };
+  } catch (e) {
+    console.error("Error building Paystack split:", e);
+    return null;
   }
 };
 
@@ -828,7 +748,10 @@ Deno.serve(async (req) => {
       : (authUser.email && isValidEmail(authUser.email)) ? authUser.email
       : `user-${userId.slice(0, 8)}@rentcontrolghana.com`;
 
-    const payload = {
+    // Build Paystack split from settlement accounts
+    const paystackSplit = await buildPaystackSplit(supabaseAdmin, splitPlan);
+
+    const payload: any = {
       email: paystackEmail,
       amount: amountInPesewas,
       currency: "GHS",
@@ -848,6 +771,12 @@ Deno.serve(async (req) => {
         ],
       },
     };
+
+    // Attach Paystack split if subaccounts are configured
+    if (paystackSplit) {
+      payload.split = paystackSplit;
+      console.log("Paystack split attached:", JSON.stringify(paystackSplit));
+    }
 
     console.log("Paystack init payload:", JSON.stringify(payload));
 
