@@ -8,10 +8,25 @@ import { generateAgreementPdf, AgreementPdfData } from "@/lib/generateAgreementP
 import { toast } from "sonner";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+
+const RegulatorAgreements = () => {
+  const { profile } = useAdminProfile();
   const [agreements, setAgreements] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_agreement", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setAgreements(prev => prev.filter(a => a.id !== deletingId));
+    toast.success("Agreement permanently deleted");
+  };
 
   useEffect(() => {
     const fetchData = async () => {
