@@ -5,13 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Recipient mapping from split_configurations recipients to system_settlement_accounts account_type
-const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
-  rent_control: "igf",
-  admin: "admin",
-  platform: "platform",
-  gra: "gra",
-};
+// Recipient mapping kept for reference only — no longer used for Paystack subaccount splits
+// All money enters main account; backend triggers transfers after verification
 
 // Fetch split configuration from DB, falling back to hardcoded defaults
 const getSplitConfigFromDB = async (supabaseAdmin: any, paymentType: string): Promise<{ recipient: string; amount: number; description: string; is_platform_fee: boolean }[] | null> => {
