@@ -254,19 +254,33 @@ const RegulatorApplications = () => {
                       <Button size="sm" variant="destructive" className="gap-1" onClick={() => updateStatus(a.id, "rejected")}>
                         <XCircle className="h-3.5 w-3.5" /> Reject
                       </Button>
-                      <Button size="sm" variant="outline" className="gap-1" onClick={() => updateStatus(a.id, "under_review")}>
-                        <Clock className="h-3.5 w-3.5" /> Mark Under Review
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+                       <Button size="sm" variant="outline" className="gap-1" onClick={() => updateStatus(a.id, "under_review")}>
+                         <Clock className="h-3.5 w-3.5" /> Mark Under Review
+                       </Button>
+                       {profile?.isMainAdmin && (
+                         <Button size="sm" variant="ghost" className="gap-1 text-destructive hover:text-destructive" onClick={() => setDeletingId(a.id)}>
+                           <Trash2 className="h-3.5 w-3.5" /> Delete
+                         </Button>
+                       )}
+                     </div>
+                   </div>
+                 </div>
+               )}
+             </div>
+           );
+         })}
+       </div>
 
-export default RegulatorApplications;
+       <AdminPasswordConfirm
+         open={!!deletingId}
+         onOpenChange={() => setDeletingId(null)}
+         title="Delete Application Permanently"
+         description="This will permanently delete this application. This cannot be undone."
+         actionLabel="Delete Permanently"
+         onConfirm={handleDelete}
+       />
+     </div>
+   );
+ };
+ 
+ export default RegulatorApplications;
