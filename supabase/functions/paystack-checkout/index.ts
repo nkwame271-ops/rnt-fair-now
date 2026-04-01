@@ -434,7 +434,7 @@ Deno.serve(async (req) => {
       if (unit) officeId = await resolveOffice(supabaseAdmin, { propertyId: unit.property_id });
 
       totalAmount = Number(payment.tax_amount);
-      splitPlan = [{ recipient: "rent_control", amount: totalAmount, description: `Rent tax - ${payment.month_label}` }];
+      splitPlan = await getTaxSplitPlan(supabaseAdmin, totalAmount, `Rent tax - ${payment.month_label}`);
       description = `Rent tax for ${payment.month_label} - ${(payment as any).tenancy.registration_code}`;
       reference = `rent_${paymentId}`;
       callbackPath = "/tenant/payments?status=success";
