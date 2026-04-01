@@ -43,23 +43,43 @@ const DEFAULT_SPLIT_RULES: Record<string, { total: number; splits: { recipient: 
   },
   complaint_fee: {
     total: 2,
-    splits: [{ recipient: "platform", amount: 2, description: "Complaint filing fee" }],
+    splits: [
+      { recipient: "rent_control", amount: 1.00, description: "IGF - Complaint" },
+      { recipient: "admin", amount: 0.60, description: "Admin - Complaint" },
+      { recipient: "platform", amount: 0.40, description: "Platform - Complaint" },
+    ],
   },
   listing_fee: {
     total: 2,
-    splits: [{ recipient: "platform", amount: 2, description: "Listing fee" }],
+    splits: [
+      { recipient: "rent_control", amount: 1.00, description: "IGF - Listing" },
+      { recipient: "admin", amount: 0.60, description: "Admin - Listing" },
+      { recipient: "platform", amount: 0.40, description: "Platform - Listing" },
+    ],
   },
   viewing_fee: {
     total: 2,
-    splits: [{ recipient: "platform", amount: 2, description: "Viewing fee" }],
+    splits: [
+      { recipient: "rent_control", amount: 1.00, description: "IGF - Viewing" },
+      { recipient: "admin", amount: 0.60, description: "Admin - Viewing" },
+      { recipient: "platform", amount: 0.40, description: "Platform - Viewing" },
+    ],
   },
   add_tenant_fee: {
     total: 5,
-    splits: [{ recipient: "platform", amount: 5, description: "Add tenant fee" }],
+    splits: [
+      { recipient: "rent_control", amount: 2.50, description: "IGF - Add Tenant" },
+      { recipient: "admin", amount: 1.50, description: "Admin - Add Tenant" },
+      { recipient: "platform", amount: 1.00, description: "Platform - Add Tenant" },
+    ],
   },
   termination_fee: {
     total: 5,
-    splits: [{ recipient: "platform", amount: 5, description: "Termination request fee" }],
+    splits: [
+      { recipient: "rent_control", amount: 2.50, description: "IGF - Termination" },
+      { recipient: "admin", amount: 1.50, description: "Admin - Termination" },
+      { recipient: "platform", amount: 1.00, description: "Platform - Termination" },
+    ],
   },
   archive_search_fee: {
     total: 20,
