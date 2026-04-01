@@ -1,0 +1,1 @@
+ALTER TABLE public.rent_card_serial_stock ADD COLUMN IF NOT EXISTS region text;
