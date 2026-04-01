@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { TrendingUp, CheckCircle2, XCircle, Loader2, Clock, Info } from "lucide-react";
+import { TrendingUp, CheckCircle2, XCircle, Loader2, Clock, Info, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import LogoLoader from "@/components/LogoLoader";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 interface RentAssessment {
   id: string;
