@@ -801,6 +801,15 @@ const RegulatorProperties = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <AdminPasswordConfirm
+        open={!!deletingId}
+        onOpenChange={() => setDeletingId(null)}
+        title="Delete Property Permanently"
+        description="This will permanently delete this property and all associated data. This cannot be undone."
+        actionLabel="Delete Permanently"
+        onConfirm={handleDeleteProperty}
+      />
     </div>
   );
 };

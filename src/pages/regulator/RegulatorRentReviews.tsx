@@ -227,6 +227,15 @@ const RegulatorRentReviews = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <AdminPasswordConfirm
+        open={!!deletingId}
+        onOpenChange={() => setDeletingId(null)}
+        title="Delete Rent Review Permanently"
+        description="This will permanently delete this rent increase review. This cannot be undone."
+        actionLabel="Delete Permanently"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 };

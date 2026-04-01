@@ -195,29 +195,43 @@ import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
                   <div className="text-xs text-muted-foreground">{a.advance_months} months advance</div>
                 </div>
               </div>
-              <div className="flex gap-2 shrink-0">
-                {a.final_agreement_pdf_url && (
-                  <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="default">
-                      <Download className="h-3.5 w-3.5 mr-1" /> Final Signed
-                    </Button>
-                  </a>
-                )}
-                <Button size="sm" variant="outline" onClick={() => downloadPdf(a)}>
-                  <Download className="h-3.5 w-3.5 mr-1" /> PDF
-                </Button>
-              </div>
-            </div>
-            <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
-              <span>Tenant accepted: <span className={a.tenant_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.tenant_accepted ? "Yes" : "No"}</span></span>
-              <span>Landlord accepted: <span className={a.landlord_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.landlord_accepted ? "Yes" : "No"}</span></span>
-              <span>Region: {a._region}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+               <div className="flex gap-2 shrink-0">
+                 {a.final_agreement_pdf_url && (
+                   <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
+                     <Button size="sm" variant="default">
+                       <Download className="h-3.5 w-3.5 mr-1" /> Final Signed
+                     </Button>
+                   </a>
+                 )}
+                 <Button size="sm" variant="outline" onClick={() => downloadPdf(a)}>
+                   <Download className="h-3.5 w-3.5 mr-1" /> PDF
+                 </Button>
+                 {profile?.isMainAdmin && (
+                   <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingId(a.id)}>
+                     <Trash2 className="h-3.5 w-3.5" />
+                   </Button>
+                 )}
+               </div>
+             </div>
+             <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
+               <span>Tenant accepted: <span className={a.tenant_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.tenant_accepted ? "Yes" : "No"}</span></span>
+               <span>Landlord accepted: <span className={a.landlord_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.landlord_accepted ? "Yes" : "No"}</span></span>
+               <span>Region: {a._region}</span>
+             </div>
+           </div>
+         ))}
+       </div>
 
-export default RegulatorAgreements;
+       <AdminPasswordConfirm
+         open={!!deletingId}
+         onOpenChange={() => setDeletingId(null)}
+         title="Delete Agreement Permanently"
+         description="This will permanently delete this tenancy agreement. This cannot be undone."
+         actionLabel="Delete Permanently"
+         onConfirm={handleDelete}
+       />
+     </div>
+   );
+ };
+ 
+ export default RegulatorAgreements;

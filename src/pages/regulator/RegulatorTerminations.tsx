@@ -238,6 +238,15 @@ const RegulatorTerminations = () => {
             ))}
           </TabsContent>
         </Tabs>
+
+        <AdminPasswordConfirm
+          open={!!deletingId}
+          onOpenChange={() => setDeletingId(null)}
+          title="Delete Termination Permanently"
+          description="This will permanently delete this termination application. This cannot be undone."
+          actionLabel="Delete Permanently"
+          onConfirm={handleDelete}
+        />
       </div>
     </PageTransition>
   );
