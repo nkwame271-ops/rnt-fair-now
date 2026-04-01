@@ -699,8 +699,8 @@ Deno.serve(async (req) => {
       : (authUser.email && isValidEmail(authUser.email)) ? authUser.email
       : `user-${userId.slice(0, 8)}@rentcontrolghana.com`;
 
-    // Build Paystack split from settlement accounts
-    const paystackSplit = await buildPaystackSplit(supabaseAdmin, splitPlan);
+    // Main-account-first: no Paystack split attached — all money enters main account
+    // Backend triggers transfers after webhook verification using split_plan in metadata
 
     const payload: any = {
       email: paystackEmail,
@@ -722,12 +722,6 @@ Deno.serve(async (req) => {
         ],
       },
     };
-
-    // Attach Paystack split if subaccounts are configured
-    if (paystackSplit) {
-      payload.split = paystackSplit;
-      console.log("Paystack split attached:", JSON.stringify(paystackSplit));
-    }
 
     console.log("Paystack init payload:", JSON.stringify(payload));
 
