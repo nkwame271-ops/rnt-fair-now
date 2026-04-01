@@ -39,6 +39,14 @@ interface SecondarySplit {
   description: string;
 }
 
+interface RentBand {
+  id: string;
+  min_rent: number;
+  max_rent: number | null;
+  fee_amount: number;
+  label: string | null;
+}
+
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
   tenant_registration: "Tenant Registration",
   landlord_registration: "Landlord Registration",
