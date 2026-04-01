@@ -98,6 +98,91 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
 
+    // ── Handle transfer events (transfer.success / transfer.failed / transfer.reversed) ──
+    if (body.event === "transfer.success" || body.event === "transfer.failed" || body.event === "transfer.reversed") {
+      const tData = body.data;
+      const transferCode = tData.transfer_code || "";
+      const tReference = tData.reference || "";
+
+      if (body.event === "transfer.success") {
+        await supabase
+          .from("payout_transfers")
+          .update({ status: "success", completed_at: new Date().toISOString(), transfer_code: transferCode })
+          .eq("paystack_reference", tReference);
+
+        const { data: transfer } = await supabase
+          .from("payout_transfers")
+          .select("escrow_split_id")
+          .eq("paystack_reference", tReference)
+          .single();
+
+        if (transfer?.escrow_split_id) {
+          await supabase
+            .from("escrow_splits")
+            .update({ disbursement_status: "released", released_at: new Date().toISOString() })
+            .eq("id", transfer.escrow_split_id);
+        }
+
+      } else if (body.event === "transfer.failed") {
+        const reason = tData.reason || tData.message || "Unknown failure";
+        await supabase
+          .from("payout_transfers")
+          .update({ status: "failed", failure_reason: reason, completed_at: new Date().toISOString(), transfer_code: transferCode })
+          .eq("paystack_reference", tReference);
+
+        const { data: adminStaff } = await supabase
+          .from("admin_staff")
+          .select("user_id")
+          .eq("admin_type", "main_admin");
+        if (adminStaff && adminStaff.length > 0) {
+          await supabase.from("notifications").insert(
+            adminStaff.map((a: any) => ({
+              user_id: a.user_id,
+              title: "Transfer Failed",
+              body: `Paystack transfer ${tReference} failed: ${reason}. Please review in the Escrow Dashboard.`,
+              link: "/regulator/escrow",
+            }))
+          );
+        }
+
+      } else if (body.event === "transfer.reversed") {
+        await supabase
+          .from("payout_transfers")
+          .update({ status: "reversed", failure_reason: "Transfer reversed by Paystack", completed_at: new Date().toISOString(), transfer_code: transferCode })
+          .eq("paystack_reference", tReference);
+
+        const { data: transfer } = await supabase
+          .from("payout_transfers")
+          .select("escrow_split_id")
+          .eq("paystack_reference", tReference)
+          .single();
+
+        if (transfer?.escrow_split_id) {
+          await supabase
+            .from("escrow_splits")
+            .update({ disbursement_status: "held", released_at: null })
+            .eq("id", transfer.escrow_split_id);
+        }
+
+        const { data: adminStaff } = await supabase
+          .from("admin_staff")
+          .select("user_id")
+          .eq("admin_type", "main_admin");
+        if (adminStaff && adminStaff.length > 0) {
+          await supabase.from("notifications").insert(
+            adminStaff.map((a: any) => ({
+              user_id: a.user_id,
+              title: "Transfer Reversed",
+              body: `Paystack transfer ${tReference} was reversed. Funds returned to main account.`,
+              link: "/regulator/escrow",
+            }))
+          );
+        }
+      }
+
+      return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+
     if (body.event !== "charge.success") {
       return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
     }
