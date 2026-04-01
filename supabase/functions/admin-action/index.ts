@@ -362,6 +362,93 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "delete_complaint": {
+        targetType = "complaint";
+        const { data: complaint } = await adminClient.from("complaints").select("id").eq("id", target_id).single();
+        if (!complaint) throw new Error("Complaint not found");
+        oldState = { id: target_id };
+        await adminClient.from("complaints").delete().eq("id", target_id);
+        newState = { status: "deleted" };
+        break;
+      }
+
+      case "delete_landlord_complaint": {
+        targetType = "landlord_complaint";
+        const { data: lc } = await adminClient.from("landlord_complaints").select("id").eq("id", target_id).single();
+        if (!lc) throw new Error("Landlord complaint not found");
+        oldState = { id: target_id };
+        await adminClient.from("landlord_complaints").delete().eq("id", target_id);
+        newState = { status: "deleted" };
+        break;
+      }
+
+      case "delete_application": {
+        targetType = "application";
+        const { data: app } = await adminClient.from("landlord_applications").select("id").eq("id", target_id).single();
+        if (!app) throw new Error("Application not found");
+        oldState = { id: target_id };
+        await adminClient.from("landlord_applications").delete().eq("id", target_id);
+        newState = { status: "deleted" };
+        break;
+      }
+
+      case "delete_property": {
+        targetType = "property";
+        const { data: prop } = await adminClient.from("properties").select("id").eq("id", target_id).single();
+        if (!prop) throw new Error("Property not found");
+        oldState = { id: target_id };
+        // Delete related data first
+        await adminClient.from("property_images").delete().eq("property_id", target_id);
+        await adminClient.from("property_assessments").delete().eq("property_id", target_id);
+        await adminClient.from("property_events").delete().eq("property_id", target_id);
+        await adminClient.from("property_location_edits").delete().eq("property_id", target_id);
+        await adminClient.from("units").delete().eq("property_id", target_id);
+        await adminClient.from("properties").delete().eq("id", target_id);
+        newState = { status: "deleted" };
+        break;
+      }
+
+      case "delete_agreement": {
+        targetType = "tenancy";
+        const { data: tenancy } = await adminClient.from("tenancies").select("id, status").eq("id", target_id).single();
+        if (!tenancy) throw new Error("Agreement/tenancy not found");
+        if ((tenancy as any).status === "active") throw new Error("Cannot delete an active tenancy");
+        oldState = { id: target_id, status: (tenancy as any).status };
+        await adminClient.from("tenancies").delete().eq("id", target_id);
+        newState = { status: "deleted" };
+        break;
+      }
+
+      case "delete_assessment": {
+        targetType = "rent_assessment";
+        const { data: ra } = await adminClient.from("rent_assessments").select("id").eq("id", target_id).single();
+        if (!ra) throw new Error("Rent assessment not found");
+        oldState = { id: target_id };
+        await adminClient.from("rent_assessments").delete().eq("id", target_id);
+        newState = { status: "deleted" };
+        break;
+      }
+
+      case "delete_rent_review": {
+        targetType = "rent_review";
+        const { data: rr } = await adminClient.from("rent_increase_requests").select("id").eq("id", target_id).single();
+        if (!rr) throw new Error("Rent review not found");
+        oldState = { id: target_id };
+        await adminClient.from("rent_increase_requests").delete().eq("id", target_id);
+        newState = { status: "deleted" };
+        break;
+      }
+
+      case "delete_termination": {
+        targetType = "termination";
+        const { data: ta } = await adminClient.from("termination_applications").select("id").eq("id", target_id).single();
+        if (!ta) throw new Error("Termination application not found");
+        oldState = { id: target_id };
+        await adminClient.from("termination_applications").delete().eq("id", target_id);
+        newState = { status: "deleted" };
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
