@@ -219,19 +219,19 @@ import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
                <span>Region: {a._region}</span>
              </div>
            </div>
-         ))}
-       </div>
+        ))}
+      </div>
 
-       <AdminPasswordConfirm
-         open={!!deletingId}
-         onOpenChange={() => setDeletingId(null)}
-         title="Delete Agreement Permanently"
-         description="This will permanently delete this tenancy agreement. This cannot be undone."
-         actionLabel="Delete Permanently"
-         onConfirm={handleDelete}
-       />
-     </div>
-   );
- };
- 
- export default RegulatorAgreements;
+      <AdminPasswordConfirm
+        open={!!deletingId}
+        onOpenChange={() => setDeletingId(null)}
+        title="Delete Agreement Permanently"
+        description="This will permanently delete this tenancy agreement. This cannot be undone."
+        actionLabel="Delete Permanently"
+        onConfirm={handleDelete}
+      />
+    </div>
+  );
+};
+
+export default RegulatorAgreements;
