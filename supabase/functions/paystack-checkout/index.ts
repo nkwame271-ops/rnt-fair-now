@@ -5,108 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PLATFORM_FIXED_FEE = 10; // GHS — always isolated first from registration payments
-
-// Default fee structure & split rules (used as fallback if DB lookup fails)
-const DEFAULT_SPLIT_RULES: Record<string, { total: number; splits: { recipient: string; amount: number; description: string }[] }> = {
-  tenant_registration: {
-    total: 40,
-    splits: [
-      { recipient: "platform", amount: 10, description: "Platform fixed fee" },
-      { recipient: "rent_control", amount: 19.5, description: "IGF - Rent Control" },
-      { recipient: "admin", amount: 7.5, description: "Admin fee" },
-      { recipient: "platform", amount: 3, description: "Platform share" },
-    ],
-  },
-  landlord_registration: {
-    total: 30,
-    splits: [
-      { recipient: "platform", amount: 10, description: "Platform fixed fee" },
-      { recipient: "rent_control", amount: 13, description: "IGF - Rent Control" },
-      { recipient: "admin", amount: 5, description: "Admin fee" },
-      { recipient: "platform", amount: 2, description: "Platform share" },
-    ],
-  },
-  rent_card: {
-    total: 25,
-    splits: [
-      { recipient: "rent_control", amount: 15, description: "Rent Control - Rent Card" },
-      { recipient: "admin", amount: 10, description: "Admin - Rent Card" },
-    ],
-  },
-  agreement_sale: {
-    total: 30,
-    splits: [
-      { recipient: "rent_control", amount: 10, description: "Rent Control - Agreement" },
-      { recipient: "admin", amount: 20, description: "Admin - Agreement" },
-    ],
-  },
-  complaint_fee: {
-    total: 2,
-    splits: [
-      { recipient: "rent_control", amount: 1.00, description: "IGF - Complaint" },
-      { recipient: "admin", amount: 0.60, description: "Admin - Complaint" },
-      { recipient: "platform", amount: 0.40, description: "Platform - Complaint" },
-    ],
-  },
-  listing_fee: {
-    total: 2,
-    splits: [
-      { recipient: "rent_control", amount: 1.00, description: "IGF - Listing" },
-      { recipient: "admin", amount: 0.60, description: "Admin - Listing" },
-      { recipient: "platform", amount: 0.40, description: "Platform - Listing" },
-    ],
-  },
-  viewing_fee: {
-    total: 2,
-    splits: [
-      { recipient: "rent_control", amount: 1.00, description: "IGF - Viewing" },
-      { recipient: "admin", amount: 0.60, description: "Admin - Viewing" },
-      { recipient: "platform", amount: 0.40, description: "Platform - Viewing" },
-    ],
-  },
-  add_tenant_fee: {
-    total: 5,
-    splits: [
-      { recipient: "rent_control", amount: 2.50, description: "IGF - Add Tenant" },
-      { recipient: "admin", amount: 1.50, description: "Admin - Add Tenant" },
-      { recipient: "platform", amount: 1.00, description: "Platform - Add Tenant" },
-    ],
-  },
-  termination_fee: {
-    total: 5,
-    splits: [
-      { recipient: "rent_control", amount: 2.50, description: "IGF - Termination" },
-      { recipient: "admin", amount: 1.50, description: "Admin - Termination" },
-      { recipient: "platform", amount: 1.00, description: "Platform - Termination" },
-    ],
-  },
-  archive_search_fee: {
-    total: 20,
-    splits: [
-      { recipient: "rent_control", amount: 12, description: "Rent Control - Archive Search" },
-      { recipient: "admin", amount: 8, description: "Admin - Archive Search" },
-    ],
-  },
-};
-
-// Calculate registration splits with platform fee isolation
-const calculateRegistrationSplits = (totalAmount: number, _feeKey: string): { recipient: string; amount: number; description: string }[] => {
-  const platformFee = Math.min(PLATFORM_FIXED_FEE, totalAmount);
-  const remainder = totalAmount - platformFee;
-  if (remainder <= 0) {
-    return [{ recipient: "platform", amount: platformFee, description: "Platform fixed fee" }];
-  }
-  // Split remainder: 65% IGF, 25% admin, 10% platform
-  const igf = Math.round(remainder * 0.65 * 100) / 100;
-  const admin = Math.round(remainder * 0.25 * 100) / 100;
-  const platformShare = Math.round((remainder - igf - admin) * 100) / 100;
-  return [
-    { recipient: "platform", amount: platformFee, description: "Platform fixed fee" },
-    { recipient: "rent_control", amount: igf, description: "IGF - Rent Control" },
-    { recipient: "admin", amount: admin, description: "Admin fee" },
-    { recipient: "platform", amount: platformShare, description: "Platform share" },
-  ];
+// Recipient mapping from split_configurations recipients to system_settlement_accounts account_type
+const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
+  rent_control: "igf",
+  admin: "admin",
+  platform: "platform",
+  gra: "gra",
 };
 
 // Fetch split configuration from DB, falling back to hardcoded defaults
