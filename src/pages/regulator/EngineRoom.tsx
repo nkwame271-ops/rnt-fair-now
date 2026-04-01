@@ -95,6 +95,13 @@ const EngineRoom = () => {
   const [editingBands, setEditingBands] = useState<Record<string, Partial<RentBand>>>({});
   const [savingBand, setSavingBand] = useState<string | null>(null);
 
+  // Account Management state
+  const [accountSearch, setAccountSearch] = useState("");
+  const [accountType, setAccountType] = useState<"landlord" | "tenant" | "admin">("landlord");
+  const [accountResult, setAccountResult] = useState<any>(null);
+  const [accountSearching, setAccountSearching] = useState(false);
+  const [accountAction, setAccountAction] = useState<{ action: string; targetId: string; accountType: string } | null>(null);
+
   // Adding features to staff
   const [addingFeature, setAddingFeature] = useState<string | null>(null);
   const [newFeatureKey, setNewFeatureKey] = useState("");
