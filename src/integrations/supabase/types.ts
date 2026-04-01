@@ -973,6 +973,7 @@ export type Database = {
           momo_provider: string | null
           office_id: string
           payment_method: string
+          paystack_recipient_code: string | null
           updated_at: string
         }
         Insert: {
@@ -984,6 +985,7 @@ export type Database = {
           momo_provider?: string | null
           office_id: string
           payment_method?: string
+          paystack_recipient_code?: string | null
           updated_at?: string
         }
         Update: {
@@ -995,6 +997,7 @@ export type Database = {
           momo_provider?: string | null
           office_id?: string
           payment_method?: string
+          paystack_recipient_code?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1110,6 +1113,66 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "payment_receipts_escrow_transaction_id_fkey"
+            columns: ["escrow_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "escrow_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payout_transfers: {
+        Row: {
+          amount: number
+          completed_at: string | null
+          created_at: string
+          escrow_split_id: string | null
+          escrow_transaction_id: string
+          failure_reason: string | null
+          id: string
+          paystack_reference: string | null
+          recipient_code: string | null
+          recipient_type: string
+          status: string
+          transfer_code: string | null
+        }
+        Insert: {
+          amount: number
+          completed_at?: string | null
+          created_at?: string
+          escrow_split_id?: string | null
+          escrow_transaction_id: string
+          failure_reason?: string | null
+          id?: string
+          paystack_reference?: string | null
+          recipient_code?: string | null
+          recipient_type: string
+          status?: string
+          transfer_code?: string | null
+        }
+        Update: {
+          amount?: number
+          completed_at?: string | null
+          created_at?: string
+          escrow_split_id?: string | null
+          escrow_transaction_id?: string
+          failure_reason?: string | null
+          id?: string
+          paystack_reference?: string | null
+          recipient_code?: string | null
+          recipient_type?: string
+          status?: string
+          transfer_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_transfers_escrow_split_id_fkey"
+            columns: ["escrow_split_id"]
+            isOneToOne: false
+            referencedRelation: "escrow_splits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payout_transfers_escrow_transaction_id_fkey"
             columns: ["escrow_transaction_id"]
             isOneToOne: false
             referencedRelation: "escrow_transactions"
@@ -2304,6 +2367,7 @@ export type Database = {
           momo_number: string | null
           momo_provider: string | null
           payment_method: string
+          paystack_recipient_code: string | null
           paystack_subaccount_code: string | null
           updated_at: string
           updated_by: string | null
@@ -2317,6 +2381,7 @@ export type Database = {
           momo_number?: string | null
           momo_provider?: string | null
           payment_method?: string
+          paystack_recipient_code?: string | null
           paystack_subaccount_code?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -2330,6 +2395,7 @@ export type Database = {
           momo_number?: string | null
           momo_provider?: string | null
           payment_method?: string
+          paystack_recipient_code?: string | null
           paystack_subaccount_code?: string | null
           updated_at?: string
           updated_by?: string | null
