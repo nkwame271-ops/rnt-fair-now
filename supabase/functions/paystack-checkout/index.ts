@@ -408,7 +408,7 @@ Deno.serve(async (req) => {
         throw new Error(`Advance exceeds the maximum lawful limit of GH₵ ${maxLawful.toLocaleString()}`);
       }
 
-      splitPlan = [{ recipient: "rent_control", amount: totalAmount, description: "Rent tax (bulk advance)" }];
+      splitPlan = await getTaxSplitPlan(supabaseAdmin, totalAmount, "Rent tax (bulk advance)");
       description = `Bulk advance rent tax (${dedupedPayments.length} months) - ${(tenancy as any).registration_code}`;
       reference = `rentbulk_${tenancyId}_${Date.now()}`;
       callbackPath = "/tenant/payments?status=success";
