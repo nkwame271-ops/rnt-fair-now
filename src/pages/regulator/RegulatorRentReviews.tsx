@@ -146,9 +146,16 @@ const RegulatorRentReviews = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => { setReviewing(req); setReviewerNotes(req.reviewer_notes || ""); }}>
-                        <Eye className="h-3.5 w-3.5 mr-1" /> Review
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => { setReviewing(req); setReviewerNotes(req.reviewer_notes || ""); }}>
+                          <Eye className="h-3.5 w-3.5 mr-1" /> Review
+                        </Button>
+                        {profile?.isMainAdmin && (
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingId(req.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
