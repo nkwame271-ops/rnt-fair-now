@@ -272,6 +272,50 @@ const EngineRoom = () => {
     setSavingSplit(null);
   };
 
+  const handleSaveBand = async (bandId: string) => {
+    const edits = editingBands[bandId];
+    if (!edits) return;
+    setSavingBand(bandId);
+    const { error } = await supabase
+      .from("rent_bands")
+      .update({ ...edits, updated_at: new Date().toISOString(), updated_by: user?.id } as any)
+      .eq("id", bandId);
+    if (error) {
+      toast.error("Failed to update rent band");
+    } else {
+      toast.success("Rent band updated");
+      setRentBands(prev => prev.map(b => b.id === bandId ? { ...b, ...edits } : b));
+      setEditingBands(prev => { const n = { ...prev }; delete n[bandId]; return n; });
+    }
+    setSavingBand(null);
+  };
+
+  const handleAddBand = async () => {
+    const lastBand = rentBands[rentBands.length - 1];
+    const newMin = lastBand ? (lastBand.max_rent ? lastBand.max_rent + 0.01 : 5000.01) : 0;
+    const { data, error } = await supabase
+      .from("rent_bands")
+      .insert({ min_rent: newMin, max_rent: null, fee_amount: 50, label: `New Band`, updated_by: user?.id } as any)
+      .select()
+      .single();
+    if (error) {
+      toast.error("Failed to add band");
+    } else if (data) {
+      setRentBands(prev => [...prev, data as any]);
+      toast.success("Rent band added");
+    }
+  };
+
+  const handleDeleteBand = async (bandId: string) => {
+    const { error } = await supabase.from("rent_bands").delete().eq("id", bandId);
+    if (error) {
+      toast.error("Failed to delete band");
+    } else {
+      setRentBands(prev => prev.filter(b => b.id !== bandId));
+      toast.success("Rent band removed");
+    }
+  };
+
   if (loading || profileLoading) return <LogoLoader message="Loading feature controls..." />;
 
   const isMainAdmin = profile?.isMainAdmin ?? false;
