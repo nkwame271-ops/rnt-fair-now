@@ -638,6 +638,99 @@ const EngineRoom = () => {
         </div>
       )}
 
+      {/* Rent Bands Configuration */}
+      {isMainAdmin && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <DollarSign className="h-5 w-5 text-primary" /> Rent Bands
+          </h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Configure rent ranges and their corresponding tenancy registration fees. The system applies the correct fee based on the declared monthly rent.
+          </p>
+
+          {rentBandsLoading ? (
+            <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+              <div className="p-4 border-b border-border flex items-center justify-between">
+                <p className="font-semibold text-card-foreground">Rent Range → Fee</p>
+                <Button size="sm" variant="outline" onClick={handleAddBand}>
+                  <Plus className="h-3 w-3 mr-1" /> Add Band
+                </Button>
+              </div>
+              <div className="divide-y divide-border">
+                {rentBands.map(band => {
+                  const edits = editingBands[band.id] || {};
+                  const hasEdits = Object.keys(edits).length > 0;
+                  return (
+                    <div key={band.id} className="flex items-center gap-3 px-4 py-3 flex-wrap">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">Min:</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="w-24 h-8 text-sm"
+                          value={edits.min_rent ?? band.min_rent}
+                          onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], min_rent: parseFloat(e.target.value) || 0 } }))}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">Max:</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="w-24 h-8 text-sm"
+                          placeholder="∞"
+                          value={edits.max_rent !== undefined ? (edits.max_rent ?? "") : (band.max_rent ?? "")}
+                          onChange={e => {
+                            const val = e.target.value === "" ? null : parseFloat(e.target.value);
+                            setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], max_rent: val } }));
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">Fee: GH₵</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          className="w-20 h-8 text-sm"
+                          value={edits.fee_amount ?? band.fee_amount}
+                          onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], fee_amount: parseFloat(e.target.value) || 0 } }))}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">Label:</span>
+                        <Input
+                          className="w-40 h-8 text-sm"
+                          value={edits.label !== undefined ? (edits.label ?? "") : (band.label ?? "")}
+                          onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], label: e.target.value } }))}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1 ml-auto">
+                        {hasEdits && (
+                          <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => handleSaveBand(band.id)} disabled={savingBand === band.id}>
+                            {savingBand === band.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive hover:text-destructive" onClick={() => handleDeleteBand(band.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {rentBands.length === 0 && (
+                  <div className="p-6 text-center text-muted-foreground text-sm">No rent bands configured.</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tenant Features */}
       {tenantFlags.length > 0 && (
         <div>
