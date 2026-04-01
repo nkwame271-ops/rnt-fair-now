@@ -144,7 +144,7 @@ export const generateProfilePdf = (data: ProfileData) => {
       addLine("Property:", `${p.property_name || "Unnamed"} (${p.property_code})`);
       addLine("Address:", `${p.address}, ${p.region}`);
       (p.units || []).forEach((u) => {
-        addLine(`  Unit:`, `${u.unit_name} • GH₵${u.monthly_rent}/mo • ${u.status}`);
+        addLine(`  Unit:`, `${u.unit_name} • ${formatGHS(u.monthly_rent)}/mo • ${u.status}`);
       });
       y += 2;
     });
