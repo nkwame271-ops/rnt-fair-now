@@ -68,7 +68,7 @@ const InviteStaff = () => {
           adminType,
           officeId: adminType === "sub_admin" ? officeId : null,
           officeName: adminType === "sub_admin" ? office?.name : null,
-          allowedFeatures: adminType === "sub_admin" ? selectedFeatures : [],
+          allowedFeatures: selectedFeatures,
         },
       });
 
