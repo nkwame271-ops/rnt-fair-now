@@ -10,6 +10,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAllFeatureFlags, invalidateFeatureFlags } from "@/hooks/useFeatureFlag";
 import { useAdminProfile, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
 import LogoLoader from "@/components/LogoLoader";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import LogoLoader from "@/components/LogoLoader";
 
 interface StaffMember {
   user_id: string;
