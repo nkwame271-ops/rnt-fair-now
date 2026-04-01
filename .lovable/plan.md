@@ -1,63 +1,63 @@
 
 
-# Plan: Rent Card Enhancements, Admin Permissions & Office Locator
+# Plan: Account Deletion & Amount Formatting
 
-## 1. Region → Office Hierarchy Data Structure
+## Part 1 — Account Deletion & Admin Management
 
-**`src/hooks/useAdminProfile.ts`** — Add `GHANA_REGIONS_OFFICES` grouped structure mapping each of the 16 Ghana regions to its offices. Derive `GHANA_OFFICES` from it for backward compatibility. Add helpers: `getOfficesForRegion()`, `getRegionForOffice()`.
+### 1.1 Add `delete_account` action to Edge Function
+**`supabase/functions/admin-action/index.ts`** — Add a `delete_account` case that:
+- Validates admin is `main_admin`
+- Checks for active tenancies before deleting
+- Deletes the user's row from `landlords`/`tenants`/`admin_staff` table
+- Deletes associated profile data
+- Disables the auth user via service role (`auth.admin.updateUserById` with `ban_duration: '876000h'`)
+- Logs to `admin_audit_log`
 
----
+For admin account deletion: also remove from `admin_staff` and `user_roles`.
 
-## 2. Invite Staff — Permission Control for Main Admins
+### 1.2 Add Delete buttons to AdminActions
+**`src/pages/regulator/rent-cards/AdminActions.tsx`**:
+- Add a "Delete" button alongside Deactivate/Archive for landlord/tenant accounts
+- Add an "Admin" option to the account type selector (landlord, tenant, admin)
+- When "admin" is selected, search `admin_staff` + `profiles` instead
+- All delete buttons require `AdminPasswordConfirm`
+- Only visible to Main Admin (already gated since AdminActions is in the Main Admin-only tab)
 
-**`src/pages/regulator/InviteStaff.tsx`** — Show the feature selection checklist for Main Admins too (not just Sub Admins). Main Admins should not default to full access.
-
-**`supabase/functions/invite-staff/index.ts`** — Accept and store `allowedFeatures` for main_admin accounts instead of forcing empty array.
-
-**Feature gating** — If a Main Admin has a non-empty `allowed_features` array, enforce it. Empty array = full access (backward compatible).
-
----
-
-## 3. Serial Number Generation Tool (New Tab)
-
-**New: `src/pages/regulator/rent-cards/SerialGenerator.tsx`**:
-- Form: Custom prefix/format, start range, end range (quantity auto-calculated)
-- Region → Office cascading dropdowns
-- Live preview of generated serials
-- Password confirmation via `AdminPasswordConfirm` — generation blocked without it
-- On confirm: calls `admin-action` edge function with action `generate_serials`
-
-**`supabase/functions/admin-action/index.ts`** — Add `generate_serials` action: validates password, inserts serials into `rent_card_serial_stock`, logs to `admin_audit_log`.
-
-**`src/pages/regulator/RegulatorRentCards.tsx`** — Add "Generate Serials" tab (Main Admin only).
-
----
-
-## 4. Region → Office Filtering Across Rent Card Tabs
-
-Update `SerialBatchUpload`, `OfficeSerialStock`, and `PendingPurchases` to use Region → Office cascading dropdowns instead of flat office lists.
+### 1.3 Engine Room: Show all admins (Main + Sub)
+**`src/pages/regulator/EngineRoom.tsx`**:
+- Change the staff query from `.eq("admin_type", "sub_admin")` to fetch ALL admin_staff records
+- Display admin_type badge (Main Admin / Sub Admin) per staff member
+- Allow feature-level muting/unmuting for both Main and Sub admins
+- Add "Add Feature" / "Remove Feature" controls to dynamically modify `allowed_features` per admin
 
 ---
 
-## 5. Bulk Region Assignment
+## Part 2 — Amount Formatting in Documents
 
-**Database migration**: Add `region` column to `rent_card_serial_stock`.
+### 2.1 Create a shared `formatGHS` utility
+**`src/lib/formatters.ts`** — Add:
+```typescript
+export const formatGHS = (amount: number): string => {
+  return `GHS ${amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
+// For cases needing decimals:
+export const formatGHSDecimal = (amount: number): string => {
+  return `GHS ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+```
 
-**`SerialBatchUpload.tsx`** — Add toggle: "Assign to office" vs "Assign to region". Region assignment stores the region name; stock queries include `WHERE office_name = X OR region = (region of X)`.
+### 2.2 Update all PDF generators
+- **`src/lib/generateAgreementPdf.ts`** — Replace all `` GH₵ ${x.toLocaleString()} `` with `formatGHS(x)` (6 occurrences)
+- **`src/lib/generateTenancyCardPdf.ts`** — Replace `GH₵` with `formatGHS()` (2 occurrences)
+- **`src/lib/generateProfilePdf.ts`** — Replace `GH₵` with `formatGHS()` (3 occurrences)
 
-**`OfficeSerialStock.tsx`** — Update queries to include region-assigned stock.
+### 2.3 Update UI components
+- **`src/components/PaymentReceipt.tsx`** — Use `formatGHSDecimal()` (3 occurrences)
+- **`src/components/TenancyCard.tsx`** — Use `formatGHS()` (2 occurrences)
+- **`src/components/ProtectedRoute.tsx`** — Use `formatGHS()` (2 occurrences)
 
----
-
-## 6. Preserve Existing Features
-
-CSV upload, manual upload, audit log, and revoke controls remain unchanged. The Generator is a new tab alongside existing functionality.
-
----
-
-## 7. Office Locator on Main Page
-
-**`src/pages/RoleSelect.tsx`** — Add "Find Your Nearest Office" section with a text search input that filters offices from `GHANA_REGIONS_OFFICES`, showing matching results grouped by region.
+### 2.4 SMS service
+- **`src/lib/smsService.ts`** — Replace `GH₵` with `GHS` in payment_confirmed template
 
 ---
 
@@ -65,14 +65,15 @@ CSV upload, manual upload, audit log, and revoke controls remain unchanged. The 
 
 | File | Change |
 |---|---|
-| `src/hooks/useAdminProfile.ts` | Region→Office hierarchy + helpers |
-| `src/pages/regulator/InviteStaff.tsx` | Feature selector for Main Admins |
-| `supabase/functions/invite-staff/index.ts` | Accept features for main_admin |
-| `src/pages/regulator/rent-cards/SerialGenerator.tsx` | **New** — generation tool |
-| `src/pages/regulator/RegulatorRentCards.tsx` | Add Generate tab |
-| `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` | Region filter + bulk region assignment |
-| `src/pages/regulator/rent-cards/OfficeSerialStock.tsx` | Region filter + region stock queries |
-| `supabase/functions/admin-action/index.ts` | Add `generate_serials` action |
-| Migration | Add `region` column to `rent_card_serial_stock` |
-| `src/pages/RoleSelect.tsx` | Office Locator section |
+| `supabase/functions/admin-action/index.ts` | Add `delete_account` action |
+| `src/pages/regulator/rent-cards/AdminActions.tsx` | Add delete buttons, admin account search |
+| `src/pages/regulator/EngineRoom.tsx` | Show all admins, dynamic feature add/remove |
+| `src/lib/formatters.ts` | Add `formatGHS` and `formatGHSDecimal` helpers |
+| `src/lib/generateAgreementPdf.ts` | Use `formatGHS` |
+| `src/lib/generateTenancyCardPdf.ts` | Use `formatGHS` |
+| `src/lib/generateProfilePdf.ts` | Use `formatGHS` |
+| `src/components/PaymentReceipt.tsx` | Use `formatGHSDecimal` |
+| `src/components/TenancyCard.tsx` | Use `formatGHS` |
+| `src/components/ProtectedRoute.tsx` | Use `formatGHS` |
+| `src/lib/smsService.ts` | Replace `GH₵` with `GHS` |
 
