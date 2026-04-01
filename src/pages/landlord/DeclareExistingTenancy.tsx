@@ -629,10 +629,21 @@ const DeclareExistingTenancy = () => {
             <p className="text-xs text-muted-foreground">Record or upload a voice description of the tenancy</p>
           </div>
 
-          {availableRentCards.length >= 2 && (
-            <div className="space-y-3 border-t border-border pt-4">
-              <Label>Link Rent Cards (optional)</Label>
-              <p className="text-xs text-muted-foreground">Assign 2 physical rent cards to this tenancy — one landlord copy and one tenant copy.</p>
+          <div className="space-y-3 border-t border-border pt-4">
+            <Label>Assign Rent Cards</Label>
+            <p className="text-xs text-muted-foreground">Assign 2 rent cards to this tenancy — one landlord copy and one tenant copy. Both are required.</p>
+            {availableRentCards.length < 2 ? (
+              <div className="bg-warning/5 border border-warning/20 rounded-lg p-4 flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-warning shrink-0" />
+                <div>
+                  <div className="font-semibold text-card-foreground">Insufficient Rent Cards</div>
+                  <div className="text-sm text-muted-foreground">
+                    You need at least 2 available rent cards. You currently have {availableRentCards.length}.{" "}
+                    <Link to="/landlord/manage-rent-cards" className="text-primary underline">Purchase rent cards</Link>.
+                  </div>
+                </div>
+              </div>
+            ) : (
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs">Landlord Copy</Label>
@@ -657,8 +668,8 @@ const DeclareExistingTenancy = () => {
                   </Select>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("find-tenant")}>Back</Button>
