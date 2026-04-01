@@ -107,6 +107,20 @@ Deno.serve(async (req) => {
     const amountPaid = (data.amount || 0) / 100;
     const transactionId = String(data.id || "");
 
+    // ── Check office payout mode ──
+    const getOfficePayoutMode = async (): Promise<boolean> => {
+      try {
+        const { data: flag } = await supabase
+          .from("feature_flags")
+          .select("is_enabled")
+          .eq("feature_key", "office_payout_mode")
+          .single();
+        return flag?.is_enabled ?? false;
+      } catch {
+        return false;
+      }
+    };
+
     // ── Helper: Complete escrow + create splits + generate receipt ──
     const completeEscrow = async (ref: string, userId: string, paymentType: string, totalAmt: number, splits: { recipient: string; amount: number; description: string }[], tenancyId?: string) => {
       try {
@@ -120,18 +134,50 @@ Deno.serve(async (req) => {
         const escrowId = escrowTx?.id;
         const officeId = escrowTx?.office_id || (escrowTx?.metadata as any)?.office_id || null;
 
+        // Check auto-release mode
+        const autoRelease = await getOfficePayoutMode();
+
         if (escrowId && splits.length > 0) {
-          await supabase.from("escrow_splits").insert(
-            splits.map(s => ({
+          const splitRows = splits.map(s => {
+            // For admin splits (office share), check auto-release
+            const isAdminSplit = s.recipient === "admin";
+            const releaseMode = (isAdminSplit && autoRelease) ? "auto" : "manual";
+            const shouldAutoRelease = isAdminSplit && autoRelease;
+
+            return {
               escrow_transaction_id: escrowId,
               recipient: s.recipient,
               amount: s.amount,
               description: s.description,
-              disbursement_status: s.recipient === "landlord" ? "held" : "released",
+              disbursement_status: s.recipient === "landlord" ? "held" : (shouldAutoRelease ? "released" : "released"),
               released_at: s.recipient !== "landlord" ? new Date().toISOString() : null,
               office_id: officeId,
-            }))
-          );
+              release_mode: releaseMode,
+            };
+          });
+
+          await supabase.from("escrow_splits").insert(splitRows);
+
+          // If auto-release is on, create auto-approved fund request for admin splits
+          if (autoRelease && officeId) {
+            const adminTotal = splits
+              .filter(s => s.recipient === "admin")
+              .reduce((sum, s) => sum + s.amount, 0);
+
+            if (adminTotal > 0) {
+              await supabase.from("office_fund_requests").insert({
+                office_id: officeId,
+                amount: adminTotal,
+                purpose: `Auto-released from ${paymentType.replace(/_/g, " ")} payment`,
+                requested_by: userId,
+                status: "approved",
+                reviewed_by: userId,
+                reviewed_at: new Date().toISOString(),
+                reviewer_notes: "Auto-approved by system (Auto Release Mode)",
+                payout_reference: `auto_${ref}`,
+              });
+            }
+          }
         }
 
         // Update case status

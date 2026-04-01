@@ -89,6 +89,26 @@ const calculateRegistrationSplits = (totalAmount: number, _feeKey: string): { re
   ];
 };
 
+// Fetch split configuration from DB, falling back to hardcoded defaults
+const getSplitConfigFromDB = async (supabaseAdmin: any, paymentType: string): Promise<{ recipient: string; amount: number; description: string; is_platform_fee: boolean }[] | null> => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("split_configurations")
+      .select("recipient, amount, description, is_platform_fee, amount_type")
+      .eq("payment_type", paymentType)
+      .order("sort_order", { ascending: true });
+    if (error || !data || data.length === 0) return null;
+    return data.map((s: any) => ({
+      recipient: s.recipient,
+      amount: Number(s.amount),
+      description: s.description || "",
+      is_platform_fee: s.is_platform_fee || false,
+    }));
+  } catch {
+    return null;
+  }
+};
+
 // Helper to get dynamic fee from DB, falling back to defaults
 const getDynamicFee = async (supabaseAdmin: any, feeKey: string): Promise<{ total: number; enabled: boolean; splits: { recipient: string; amount: number; description: string }[] }> => {
   try {
@@ -98,11 +118,32 @@ const getDynamicFee = async (supabaseAdmin: any, feeKey: string): Promise<{ tota
       .eq("feature_key", feeKey)
       .single();
 
-    const defaultRule = DEFAULT_SPLIT_RULES[feeKey];
+    // Map fee key to payment type for split_configurations lookup
+    const feeKeyToPaymentType: Record<string, string> = {
+      tenant_registration_fee: "tenant_registration",
+      landlord_registration_fee: "landlord_registration",
+      rent_card_fee: "rent_card",
+      agreement_sale_fee: "agreement_sale",
+      complaint_fee: "complaint_fee",
+      listing_fee: "listing_fee",
+      viewing_fee: "viewing_fee",
+      add_tenant_fee: "add_tenant_fee",
+      termination_fee: "termination_fee",
+      archive_search_fee: "archive_search_fee",
+    };
+
+    const paymentType = feeKeyToPaymentType[feeKey] || feeKey;
     const isRegistration = feeKey === "tenant_registration_fee" || feeKey === "landlord_registration_fee";
+    const defaultRule = DEFAULT_SPLIT_RULES[paymentType];
+
+    // Try DB split configs first
+    const dbSplits = await getSplitConfigFromDB(supabaseAdmin, paymentType);
 
     if (!data || data.fee_amount === null) {
       const total = defaultRule?.total ?? 0;
+      if (dbSplits) {
+        return { total, enabled: true, splits: dbSplits };
+      }
       const splits = isRegistration
         ? calculateRegistrationSplits(total, feeKey)
         : (defaultRule?.splits ?? []);
@@ -110,6 +151,22 @@ const getDynamicFee = async (supabaseAdmin: any, feeKey: string): Promise<{ tota
     }
 
     const total = data.fee_amount;
+
+    // If DB split configs exist, scale them proportionally to the dynamic fee total
+    if (dbSplits) {
+      const dbTotal = dbSplits.reduce((s: number, r: any) => s + r.amount, 0);
+      if (dbTotal > 0 && dbTotal !== total) {
+        // For registration types, isolate platform fee first then scale remainder
+        if (isRegistration) {
+          return { total, enabled: data.fee_enabled, splits: calculateRegistrationSplits(total, feeKey) };
+        }
+        const ratio = total / dbTotal;
+        const scaled = dbSplits.map((s: any) => ({ ...s, amount: Math.round(s.amount * ratio * 100) / 100 }));
+        return { total, enabled: data.fee_enabled, splits: scaled };
+      }
+      return { total, enabled: data.fee_enabled, splits: dbSplits };
+    }
+
     if (isRegistration) {
       return { total, enabled: data.fee_enabled, splits: calculateRegistrationSplits(total, feeKey) };
     }
@@ -129,7 +186,6 @@ const getDynamicFee = async (supabaseAdmin: any, feeKey: string): Promise<{ tota
 // Resolve office_id from property or region
 const resolveOffice = async (supabaseAdmin: any, opts: { propertyId?: string; region?: string; area?: string; userId?: string }): Promise<string> => {
   try {
-    // 1. From property
     if (opts.propertyId) {
       const { data: prop } = await supabaseAdmin
         .from("properties")
@@ -142,12 +198,10 @@ const resolveOffice = async (supabaseAdmin: any, opts: { propertyId?: string; re
         return officeId || "accra_central";
       }
     }
-    // 2. Direct region/area
     if (opts.region) {
       const { data: officeId } = await supabaseAdmin.rpc("resolve_office_id", { p_region: opts.region, p_area: opts.area || null });
       return officeId || "accra_central";
     }
-    // 3. From user profile
     if (opts.userId) {
       const { data: profile } = await supabaseAdmin
         .from("profiles")
@@ -165,7 +219,6 @@ const resolveOffice = async (supabaseAdmin: any, opts: { propertyId?: string; re
   return "accra_central";
 };
 
-// Create a case record
 const createCase = async (supabaseAdmin: any, opts: { officeId: string; userId: string; caseType: string; relatedPropertyId?: string; relatedTenancyId?: string; relatedComplaintId?: string; metadata?: any }): Promise<{ caseId: string; caseNumber: string }> => {
   try {
     const { data: caseNumber } = await supabaseAdmin.rpc("generate_case_number");
@@ -218,7 +271,6 @@ Deno.serve(async (req) => {
       .eq("user_id", userId)
       .single();
 
-    // Service role client for escrow record creation
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -249,7 +301,6 @@ Deno.serve(async (req) => {
       if (tErr || !tenancy) throw new Error("Tenancy not found");
       if ((tenancy as any).tenant_user_id !== userId) throw new Error("Unauthorized");
 
-      // Resolve office from tenancy's property
       const { data: unit } = await supabaseAdmin.from("units").select("property_id").eq("id", (tenancy as any).unit_id).single();
       if (unit) officeId = await resolveOffice(supabaseAdmin, { propertyId: unit.property_id });
 
@@ -310,7 +361,6 @@ Deno.serve(async (req) => {
       if ((payment as any).tenancy.tenant_user_id !== userId) throw new Error("Unauthorized");
       if (payment.tenant_marked_paid) throw new Error("Already paid");
 
-      // Resolve office
       const { data: unit } = await supabaseAdmin.from("units").select("property_id").eq("id", (payment as any).tenancy.unit_id).single();
       if (unit) officeId = await resolveOffice(supabaseAdmin, { propertyId: unit.property_id });
 
@@ -479,7 +529,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       totalAmount = fee.total;
-      splitPlan = calculateRegistrationSplits(totalAmount, "tenant_registration");
+      splitPlan = fee.splits;
       description = `Tenant Registration Fee (GH₵ ${fee.total})`;
       reference = `treg_${userId}_${Date.now()}`;
       callbackPath = "/tenant/dashboard?status=success";
@@ -503,7 +553,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       totalAmount = fee.total;
-      splitPlan = calculateRegistrationSplits(totalAmount, "landlord_registration");
+      splitPlan = fee.splits;
       description = `Landlord Registration Fee (GH₵ ${fee.total})`;
       reference = `lreg_${userId}_${Date.now()}`;
       callbackPath = "/landlord/dashboard?status=success";
