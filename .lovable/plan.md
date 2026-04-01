@@ -1,200 +1,110 @@
 
 
-# Plan: Serial Pairing, Office Stock Overhaul, Daily Reports, Escrow Splits, and Admin Deletions
-
-This is a large set of changes spanning serial generation logic, office stock display, automated daily reporting, escrow settlement improvements, dashboard cleanup, module restructuring, and admin deletion capabilities across regulator pages.
+# Plan: Delete Buttons, Account Management, Office Stock Overhaul, Assignment Simplification, Escrow Verification
 
 ---
 
-## 1. Paired Serial Generation Mode
+## 1. Delete Buttons on Regulator Pages (Main Admin Only)
 
-**`src/pages/regulator/rent-cards/SerialGenerator.tsx`**
-- Add a "Generate in Pairs" toggle (default ON)
-- When ON: if user enters quantity 100, system generates 50 unique serials, each stored twice (with a `card_role` or `pair_index` marker: copy 1 and copy 2)
-- When OFF: generates 100 unique serials as-is
-- Update quantity display to show "50 unique serials x 2 = 100 physical cards" when paired mode is on
-- Preview reflects duplicated output
+The `admin-action` edge function already has all delete cases implemented (`delete_complaint`, `delete_landlord_complaint`, `delete_application`, `delete_property`, `delete_agreement`, `delete_assessment`, `delete_rent_review`, `delete_termination`). The frontend pages just need delete buttons.
 
-**`supabase/functions/admin-action/index.ts`** (`generate_serials` case)
-- Accept `paired_mode` flag from frontend
-- When paired: generate half the range as unique serials, insert each twice with `pair_index` (1 and 2) metadata
-- Track `usage_count` per serial (how many times it appears in stock)
+Each page gets a delete button per record, visible only to Main Admin, requiring `AdminPasswordConfirm` before calling the edge function.
 
-**Database migration**
-- Add `pair_index` (integer, nullable) and `pair_group` (text, nullable) columns to `rent_card_serial_stock` to track which copy a row represents
+**Files to modify:**
+- `RegulatorComplaints.tsx` — add `useAdminProfile`, import `AdminPasswordConfirm`, add delete button per complaint row calling `delete_complaint` / `delete_landlord_complaint`
+- `RegulatorApplications.tsx` — delete button per application calling `delete_application`
+- `RegulatorProperties.tsx` — delete button per property calling `delete_property`
+- `RegulatorAgreements.tsx` — delete button per agreement calling `delete_agreement`
+- `RegulatorRentAssessments.tsx` — delete button per assessment calling `delete_assessment`
+- `RegulatorRentReviews.tsx` — delete button per review calling `delete_rent_review`
+- `RegulatorTerminations.tsx` — delete button per termination calling `delete_termination`
 
----
-
-## 2. Office Stock Display Overhaul
-
-**`src/pages/regulator/rent-cards/OfficeSerialStock.tsx`**
-- Replace current summary cards with rent-card-pair terminology:
-  - Opening Rent Card Pairs
-  - Assigned Rent Card Pairs
-  - Sold Rent Card Pairs
-  - Spoilt Rent Card Pairs
-  - Closing Rent Card Pairs
-- Under "Assigned Serials" section, show both total serial numbers and equivalent rent card pairs
-- Calculate pairs as: total unique serials (count distinct serial_number) and physical cards (total rows)
-
-**Database migration**
-- Add `status` value support for `spoilt` in `rent_card_serial_stock` (no schema change needed, just status convention)
+Each follows the same pattern:
+1. Add state for `deletingId`, `deletePassword`, `showDeleteConfirm`
+2. On confirm: call `supabase.functions.invoke("admin-action", { body: { action, target_id, reason, password } })`
+3. On success: remove from local list, toast success
+4. Button only renders when `profile?.isMainAdmin`
 
 ---
 
-## 3. Daily Rent Card Assignment Report (Automated)
+## 2. Account Management UI in EngineRoom
 
-**New component: `src/pages/regulator/rent-cards/DailyReport.tsx`**
-- "Generate Daily Report" button that auto-compiles from system data:
-  - Opening Rent Card Pairs (available at start of day)
-  - Total Assigned Today
-  - Total Sold Today
-  - Total Spoilt
-  - Closing Balance
-- All values auto-calculated from `rent_card_serial_stock` activity (using `assigned_at`, `created_at` timestamps)
-- Staff reviews, optionally adds a note, signs off by typing full name
-- System auto-attaches: Staff ID, Name, Office ID, Office Name, Date/Time
-- Save report to a new `daily_stock_reports` table
+Move the account search/deactivate/archive/delete UI from `AdminActions.tsx` into `EngineRoom.tsx`.
 
-**Database migration**
-- Create `daily_stock_reports` table: id, office_id, office_name, staff_user_id, staff_name, report_date, opening_pairs, assigned_today, sold_today, spoilt_today, closing_pairs, notes, signed_name, created_at
-- RLS: regulators can read/insert
+**`EngineRoom.tsx`** — Add a new "Account Management" section (Main Admin only) with:
+- Account type selector (landlord / tenant / admin)
+- Search input
+- Results display with Deactivate, Archive, Delete buttons
+- `AdminPasswordConfirm` for destructive actions
+- Calls existing `admin-action` edge function cases
+
+**`AdminActions.tsx`** — Remove the Account Management section (lines ~37-42 state vars and the corresponding UI block). Keep only serial-related admin actions (Revoke Batch, Unassign Serial, Void Upload, Audit Log).
 
 ---
 
-## 4. Admin Report View and Download
+## 3. Office Stock Display Overhaul with Pair Terminology
 
-**New component: `src/pages/regulator/rent-cards/AdminReportView.tsx`**
-- Admin can view aggregated daily reports across offices
-- Filters: date range, office, staff
-- Shows: per-office summary, per-staff breakdown, totals
-- Export as Excel (xlsx via SheetJS) and PDF (jsPDF)
-- Clean, structured format aligned with existing reporting templates
+**`OfficeSerialStock.tsx`** — Replace the current summary cards:
 
----
+Current: Total Serials / Available / Assigned / Revoked
 
-## 5. Simplified Assignment (Pending & Assign)
+New display:
+- **Opening Rent Card Pairs** — available pairs at start (available / 2)
+- **Assigned Rent Card Pairs** — assigned / 2
+- **Sold Rent Card Pairs** — count of serials with status "sold" / 2 (add "sold" status tracking)
+- **Spoilt Rent Card Pairs** — count with status "spoilt" / 2
+- **Closing Rent Card Pairs** — remaining available / 2
 
-**`src/pages/regulator/rent-cards/PendingPurchases.tsx`**
-- Replace manual serial-by-serial picker with:
-  - Quantity input: "How many cards to assign?"
-  - System auto-selects next available serials from office stock
-  - Optional "Start from serial" field for specific range
-  - Optional "Select range" (start serial - end serial) for bulk assignment
-- Remove current autofill logic, replace with context-aware auto-selection starting from next available serial in office
-- Keep search and grouping by purchase_id
+Add a secondary line under assigned showing "X serial numbers = Y rent card pairs" for clarity.
+
+Update the `StockSummary` interface to include `sold` and `spoilt` counts. Update the fetch to track these statuses.
 
 ---
 
-## 6. Module Restructuring: Procurement vs Sales
+## 4. Simplified Quantity-Based Assignment in PendingPurchases
 
-**`src/pages/regulator/RegulatorRentCards.tsx`**
-- Split into two workspace tabs under one parent module:
+**`PendingPurchases.tsx`** — Replace the manual serial-by-serial picker dialog with:
 
-**Procurement workspace:**
-- Generate Serials
-- Serial Batch Upload
-- Stock Alerts
-- Procurement Audit (subset of audit log filtered to generation/upload/revoke actions)
+1. After selecting cards and clicking "Assign Serials", show a simplified dialog:
+   - **Quantity** field (pre-filled with selected card count, read-only)
+   - **Optional "Start from serial"** input — if provided, assignment begins from that serial
+   - **Optional "Select range"** — start and end serial inputs for bulk
+   - Default behavior: auto-selects next available serials from office stock sequentially
+2. Remove the `SerialSearchPicker` component and the per-card manual mapping
+3. Keep the "Auto-fill sequential" concept but make it the default (no manual picking needed)
+4. On confirm: fetch N available serials ordered by serial_number, assign them to the selected cards
 
-**Sales workspace:**
-- Office Stock
-- Pending & Assign
-- Assignment History
-- Daily Report
-- Admin Report View
-- Sales Audit (subset of audit log filtered to assignment/sales actions)
-
-- Permission-based access: Main Super Admin sees all; Procurement and Sales roles see only their workspace
-- Use `allowed_features` from admin_staff to gate access (e.g., `rent_card_procurement`, `rent_card_sales`)
+The dialog becomes: "Assigning X cards. System will use next available serials from office stock." with a Confirm button.
 
 ---
 
-## 7. Move Account Management to Engine Room
+## 5. Escrow/Paystack Split Verification
 
-**`src/pages/regulator/rent-cards/AdminActions.tsx`**
-- Remove the Account Management section (search/deactivate/archive/delete accounts)
-- Keep serial-related admin actions: Revoke Batch, Unassign Serial, Void Upload, Audit Log
+After reviewing `paystack-checkout/index.ts`, the dynamic split pipeline is already correctly implemented:
+- Every payment type builds a `splitPlan` from DB via `getDynamicFee()` or `getTaxSplitPlan()`
+- `buildPaystackSplit()` maps recipients to Paystack subaccount codes from `system_settlement_accounts`
+- The split object is attached to every Paystack initialization call (line 776-778)
+- All payment types (registration, rent_card, agreement_sale, complaint, listing, viewing, add_tenant, termination, renewal, archive_search, rent_tax) use this pipeline
 
-**`src/pages/regulator/EngineRoom.tsx`**
-- Add Account Management section (moved from AdminActions) with same functionality:
-  - Search by landlord/tenant/admin
-  - Deactivate, Archive, Delete Permanently
-  - Password confirmation required for all destructive actions
+No code changes needed. The split system is fully dynamic and DB-driven.
 
 ---
-
-## 8. Escrow & Revenue: Real Allocation Posting
-
-The current implementation already:
-- Builds dynamic splits from Engine Room config (`getSplitConfigFromDB`)
-- Sends Paystack split objects with subaccount codes (`buildPaystackSplit`)
-- Posts splits to `escrow_splits` table in webhook
-- Displays allocation breakdown in Escrow Dashboard
-
-**Verification/fixes needed in `paystack-checkout/index.ts`:**
-- Ensure every payment type actually passes the split object to Paystack initialization (verify all cases call `buildPaystackSplit`)
-- Ensure split amounts are correctly calculated per transaction, not fixed
-
-**`src/pages/regulator/EscrowDashboard.tsx`**
-- Verify allocation summary refreshes after each payment (already reading from escrow_splits)
-- No major structural changes needed; the pipeline is already in place
-
----
-
-## 9. Dashboard: Remove Registration Revenue (est.)
-
-**`src/pages/regulator/RegulatorDashboard.tsx`**
-- Remove the "Registration Revenue (est.)" line from Quick Summary section (lines 152-155)
-- This removes the hardcoded `GH₵ (tenants * 40) + (landlords * 30)` estimate
-
----
-
-## 10. Admin Deletion of Submitted Records
-
-**`supabase/functions/admin-action/index.ts`**
-- Add new action cases: `delete_complaint`, `delete_application`, `delete_property`, `delete_agreement`, `delete_assessment`, `delete_rent_review`, `delete_termination`
-- Each validates main_admin status, requires password, logs to audit
-
-**Regulator pages that need delete buttons (Main Admin only):**
-- `RegulatorComplaints.tsx` — delete complaint
-- `RegulatorApplications.tsx` — delete application
-- `RegulatorProperties.tsx` — delete property
-- `RegulatorAgreements.tsx` — delete agreement
-- `RegulatorRentAssessments.tsx` — delete assessment
-- `RegulatorRentReviews.tsx` — delete rent review
-- `RegulatorTerminations.tsx` — delete termination
-
-Each page gets a "Delete" button (visible only to Main Admin) that triggers `AdminPasswordConfirm` and calls the `admin-action` edge function.
-
----
-
-## Database Migrations
-
-1. `rent_card_serial_stock`: Add `pair_index` (int, nullable), `pair_group` (text, nullable)
-2. New table `daily_stock_reports`: id, office_id, office_name, staff_user_id, staff_name, report_date, opening_pairs, assigned_today, sold_today, spoilt_today, closing_pairs, notes, signed_name, created_at (with RLS for regulators)
 
 ## Files to Create/Modify
 
 | File | Change |
 |---|---|
-| `src/pages/regulator/rent-cards/SerialGenerator.tsx` | Paired mode toggle |
-| `src/pages/regulator/rent-cards/OfficeSerialStock.tsx` | Pair-based display, spoilt tracking |
-| `src/pages/regulator/rent-cards/DailyReport.tsx` | **New** — automated daily report |
-| `src/pages/regulator/rent-cards/AdminReportView.tsx` | **New** — admin aggregated reports with export |
-| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Simplified quantity-based assignment |
-| `src/pages/regulator/RegulatorRentCards.tsx` | Procurement/Sales workspace split |
-| `src/pages/regulator/rent-cards/AdminActions.tsx` | Remove account management section |
-| `src/pages/regulator/EngineRoom.tsx` | Add account management section |
-| `src/pages/regulator/RegulatorDashboard.tsx` | Remove registration revenue estimate |
-| `src/pages/regulator/RegulatorComplaints.tsx` | Add delete button (Main Admin) |
-| `src/pages/regulator/RegulatorApplications.tsx` | Add delete button |
-| `src/pages/regulator/RegulatorProperties.tsx` | Add delete button |
-| `src/pages/regulator/RegulatorAgreements.tsx` | Add delete button |
-| `src/pages/regulator/RegulatorRentAssessments.tsx` | Add delete button |
-| `src/pages/regulator/RegulatorRentReviews.tsx` | Add delete button |
-| `src/pages/regulator/RegulatorTerminations.tsx` | Add delete button |
-| `supabase/functions/admin-action/index.ts` | Paired generation + record deletion actions |
-| `supabase/functions/paystack-checkout/index.ts` | Verify all types use dynamic splits |
-| Migration | Add columns + new table |
+| `RegulatorComplaints.tsx` | Add Main Admin delete button |
+| `RegulatorApplications.tsx` | Add Main Admin delete button |
+| `RegulatorProperties.tsx` | Add Main Admin delete button |
+| `RegulatorAgreements.tsx` | Add Main Admin delete button |
+| `RegulatorRentAssessments.tsx` | Add Main Admin delete button |
+| `RegulatorRentReviews.tsx` | Add Main Admin delete button |
+| `RegulatorTerminations.tsx` | Add Main Admin delete button |
+| `EngineRoom.tsx` | Add Account Management section |
+| `AdminActions.tsx` | Remove Account Management section |
+| `OfficeSerialStock.tsx` | Pair terminology overhaul |
+| `PendingPurchases.tsx` | Simplified quantity-based assignment |
+
+No database migrations or edge function changes needed — all backend actions already exist.
 
