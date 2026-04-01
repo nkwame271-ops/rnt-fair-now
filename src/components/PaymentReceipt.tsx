@@ -2,6 +2,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Printer, Download } from "lucide-react";
+import { formatGHSDecimal } from "@/lib/formatters";
 
 interface Split {
   recipient: string;
