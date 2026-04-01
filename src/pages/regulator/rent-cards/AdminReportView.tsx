@@ -50,7 +50,7 @@ const AdminReportView = () => {
 
       const { data, error } = await query.limit(500);
       if (error) throw error;
-      const items = (data || []) as DailyReport[];
+      const items = (data || []) as unknown as DailyReport[];
       setReports(items);
 
       const uniqueOffices = [...new Set(items.map(r => r.office_name))].sort();

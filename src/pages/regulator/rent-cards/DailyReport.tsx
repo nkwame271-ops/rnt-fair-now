@@ -216,7 +216,7 @@ const DailyReport = ({ profile }: Props) => {
             </div>
 
             <div className="bg-muted/20 rounded-lg p-4 space-y-2 text-xs text-muted-foreground">
-              <p><strong>Staff:</strong> {profile?.fullName || "—"}</p>
+              <p><strong>Staff:</strong> {profile?.officeName || "—"}</p>
               <p><strong>Office:</strong> {officeName} ({selectedOfficeId})</p>
               <p><strong>Date:</strong> {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
             </div>
