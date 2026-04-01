@@ -333,7 +333,7 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
               </Badge>
             </div>
             <div className="flex gap-2 flex-wrap">
-              {accountResult.accountStatus === "active" && (
+              {accountResult.type !== "admin" && accountResult.accountStatus === "active" && (
                 <>
                   <Button variant="outline" size="sm" onClick={() => setAccountAction({ action: "deactivate_account", targetId: accountResult.userId, accountType: accountResult.type })}>
                     Deactivate
@@ -343,11 +343,14 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
                   </Button>
                 </>
               )}
-              {accountResult.accountStatus === "deactivated" && (
+              {accountResult.type !== "admin" && accountResult.accountStatus === "deactivated" && (
                 <Button variant="destructive" size="sm" onClick={() => setAccountAction({ action: "archive_account", targetId: accountResult.userId, accountType: accountResult.type })}>
                   <Archive className="h-3.5 w-3.5 mr-1" /> Archive
                 </Button>
               )}
+              <Button variant="destructive" size="sm" onClick={() => setAccountAction({ action: "delete_account", targetId: accountResult.userId, accountType: accountResult.type })}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Permanently
+              </Button>
             </div>
           </div>
         )}
