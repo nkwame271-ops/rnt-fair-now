@@ -496,8 +496,9 @@ Deno.serve(async (req) => {
       const rent = Number((tenancy as any).agreed_rent);
       const taxAmount = rent * taxRate;
       totalAmount = rent + taxAmount;
+      const taxSplits = await getTaxSplitPlan(supabaseAdmin, taxAmount, `Rent tax (${taxRate * 100}%)`);
       splitPlan = [
-        { recipient: "rent_control", amount: taxAmount, description: `Rent tax (${taxRate * 100}%)` },
+        ...taxSplits,
         { recipient: "landlord", amount: rent, description: "Monthly rent (held in escrow)" },
       ];
       description = `Rent + Tax combined - ${(tenancy as any).registration_code}`;
