@@ -322,8 +322,10 @@ const EscrowDashboard = () => {
                         <th className="text-right py-2 px-2">Total</th>
                         <th className="text-right py-2 px-2">IGF</th>
                         <th className="text-right py-2 px-2">Admin</th>
+                        <th className="text-right py-2 px-2">Platform</th>
                         <th className="text-right py-2 px-2">GRA</th>
                         <th className="text-right py-2 px-2">Landlord</th>
+                        <th className="text-right py-2 px-2">Wallet Balance</th>
                         <th className="text-right py-2 pl-2">Release</th>
                       </tr>
                     </thead>
@@ -334,8 +336,17 @@ const EscrowDashboard = () => {
                           <td className="text-right py-2 px-2 font-semibold">₵{o.total.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-primary">₵{o.igf.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-info">₵{o.admin.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2 text-success">₵{o.platform.toFixed(2)}</td>
                           <td className="text-right py-2 px-2">₵{o.gra.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-warning">₵{o.landlord.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2">
+                            <span className={`font-semibold ${o.walletBalance > 0 ? "text-success" : "text-muted-foreground"}`}>
+                              ₵{o.walletBalance.toFixed(2)}
+                            </span>
+                            {o.released > 0 && (
+                              <span className="text-xs text-muted-foreground ml-1">(₵{o.released.toFixed(0)} paid)</span>
+                            )}
+                          </td>
                           <td className="text-right py-2 pl-2">
                             <div className="flex items-center justify-end gap-1">
                               {o.autoReleased > 0 && (
