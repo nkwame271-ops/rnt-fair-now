@@ -149,12 +149,6 @@ const RegulatorDashboard = () => {
               <div className="grid sm:grid-cols-2 gap-6 text-sm">
                 <div className="space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Registration Revenue (est.)</span>
-                    <span className="font-semibold text-foreground">
-                      GH₵ <AnimatedCounter value={(stats.totalTenants * 40) + (stats.totalLandlords * 30)} />
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-muted-foreground">Occupancy Rate</span>
                     <span className="font-semibold text-foreground">
                       {stats.totalProperties > 0

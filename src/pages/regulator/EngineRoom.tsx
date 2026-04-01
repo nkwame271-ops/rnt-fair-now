@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X } from "lucide-react";
+import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X, UserX, Search, Archive } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
