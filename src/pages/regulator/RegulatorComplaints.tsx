@@ -477,6 +477,15 @@ const RegulatorComplaints = () => {
           }}
         />
       )}
+
+      <AdminPasswordConfirm
+        open={!!deletingId}
+        onOpenChange={() => setDeletingId(null)}
+        title="Delete Complaint Permanently"
+        description="This will permanently delete this complaint record. This cannot be undone."
+        actionLabel="Delete Permanently"
+        onConfirm={handleDeleteComplaint}
+      />
     </div>
   );
 };
