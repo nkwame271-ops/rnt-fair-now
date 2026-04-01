@@ -175,6 +175,7 @@ const OfficePayoutSettings = () => {
       momo_number: data.payment_method === "momo" ? data.momo_number || null : null,
       momo_provider: data.payment_method === "momo" ? data.momo_provider || null : null,
       paystack_subaccount_code: data.paystack_subaccount_code || null,
+      paystack_recipient_code: data.paystack_recipient_code || null,
       updated_at: new Date().toISOString(),
       updated_by: user?.id,
     };
