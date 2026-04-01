@@ -36,7 +36,8 @@ const InviteStaff = () => {
     );
   }
 
-  const office = GHANA_OFFICES.find(o => o.id === officeId);
+  const regionOffices = selectedRegion ? getOfficesForRegion(selectedRegion) : [];
+  const office = regionOffices.find(o => o.id === officeId);
   const allFeatureKeys = Object.keys(FEATURE_ROUTE_MAP);
 
   const toggleFeature = (key: string) => {
