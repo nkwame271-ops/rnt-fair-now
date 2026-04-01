@@ -19,6 +19,7 @@ const InviteStaff = () => {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState("");
   const [officeId, setOfficeId] = useState("");
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
