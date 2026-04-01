@@ -105,6 +105,43 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
     setAccountSearching(true);
     setAccountResult(null);
 
+    if (accountType === "admin") {
+      // Search admin_staff + profiles
+      const { data: staffRecords } = await supabase
+        .from("admin_staff")
+        .select("user_id, admin_type, office_name");
+
+      if (staffRecords && staffRecords.length > 0) {
+        const userIds = staffRecords.map((s: any) => s.user_id);
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", userIds);
+
+        const match = (profiles || []).find((p: any) =>
+          p.full_name?.toLowerCase().includes(accountSearch.trim().toLowerCase()) ||
+          p.email?.toLowerCase().includes(accountSearch.trim().toLowerCase())
+        );
+
+        if (match) {
+          const staff = staffRecords.find((s: any) => s.user_id === match.user_id) as any;
+          setAccountResult({
+            userId: match.user_id,
+            idCode: staff?.admin_type || "admin",
+            name: match.full_name || "Unknown",
+            email: match.email || "",
+            accountStatus: "active",
+            type: "admin",
+            adminType: staff?.admin_type,
+          });
+        } else {
+          toast.error("No admin found");
+        }
+      }
+      setAccountSearching(false);
+      return;
+    }
+
     const table = accountType === "landlord" ? "landlords" : "tenants";
     const idField = accountType === "landlord" ? "landlord_id" : "tenant_id";
 
