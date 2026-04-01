@@ -93,15 +93,18 @@ const EngineRoom = () => {
   const [editingBands, setEditingBands] = useState<Record<string, Partial<RentBand>>>({});
   const [savingBand, setSavingBand] = useState<string | null>(null);
 
-  // Fetch sub admins for main admin view
+  // Adding features to staff
+  const [addingFeature, setAddingFeature] = useState<string | null>(null);
+  const [newFeatureKey, setNewFeatureKey] = useState("");
+
+  // Fetch all admins for main admin view
   useEffect(() => {
     if (!profile?.isMainAdmin) return;
     const fetchStaff = async () => {
       setStaffLoading(true);
       const { data: staff } = await supabase
         .from("admin_staff")
-        .select("user_id, admin_type, office_name, allowed_features, muted_features")
-        .eq("admin_type", "sub_admin");
+        .select("user_id, admin_type, office_name, allowed_features, muted_features");
 
       if (staff && staff.length > 0) {
         const userIds = staff.map((s: any) => s.user_id);
