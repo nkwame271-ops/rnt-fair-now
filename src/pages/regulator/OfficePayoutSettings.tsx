@@ -351,9 +351,9 @@ const OfficePayoutSettings = () => {
                   )}
 
                   <div className="pt-2 border-t border-border">
-                    <label className="text-sm font-medium text-foreground">Paystack Subaccount Code</label>
-                    <Input value={data.paystack_subaccount_code} onChange={e => updateSettlementField(key, "paystack_subaccount_code", e.target.value)} placeholder="ACCT_xxxxx" className="font-mono" />
-                    <p className="text-xs text-muted-foreground mt-1">Enter the Paystack subaccount code for automatic settlement</p>
+                    <label className="text-sm font-medium text-foreground">Paystack Recipient Code</label>
+                    <Input value={data.paystack_recipient_code} onChange={e => updateSettlementField(key, "paystack_recipient_code", e.target.value)} placeholder="RCP_xxxxx" className="font-mono" />
+                    <p className="text-xs text-muted-foreground mt-1">Auto-generated when first payout is triggered, or enter manually from Paystack dashboard</p>
                   </div>
 
                     <Button

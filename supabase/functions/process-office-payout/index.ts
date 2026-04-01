@@ -83,60 +83,80 @@ Deno.serve(async (req) => {
 
       if (!payoutAccount) throw new Error("No payout account configured for this office");
 
-      // Attempt Paystack transfer
+      // Attempt Paystack transfer using recipient API
       const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
       let payoutRef = `OFR-${requestId.slice(0, 8)}-${Date.now()}`;
 
       if (PAYSTACK_SECRET_KEY) {
         try {
-          // Create transfer recipient
-          const recipientPayload: any = {
-            type: payoutAccount.payment_method === "momo" ? "mobile_money" : "nuban",
-            name: payoutAccount.account_name || "Office Account",
-            currency: "GHS",
-          };
+          // Get or create Paystack transfer recipient
+          let recipientCode = payoutAccount.paystack_recipient_code;
 
-          if (payoutAccount.payment_method === "momo") {
-            recipientPayload.account_number = payoutAccount.momo_number;
-            recipientPayload.bank_code = payoutAccount.momo_provider?.toLowerCase() === "mtn" ? "MTN" :
-              payoutAccount.momo_provider?.toLowerCase() === "vodafone" ? "VOD" :
-              payoutAccount.momo_provider?.toLowerCase() === "airteltigo" ? "ATL" : payoutAccount.momo_provider;
-          } else {
-            recipientPayload.account_number = payoutAccount.account_number;
-            recipientPayload.bank_code = payoutAccount.bank_name; // Should be bank code
+          if (!recipientCode) {
+            const recipientPayload: any = {
+              type: payoutAccount.payment_method === "momo" ? "mobile_money" : "nuban",
+              name: payoutAccount.account_name || "Office Account",
+              currency: "GHS",
+            };
+
+            if (payoutAccount.payment_method === "momo") {
+              recipientPayload.account_number = payoutAccount.momo_number;
+              const provider = (payoutAccount.momo_provider || "").toLowerCase();
+              recipientPayload.bank_code = provider === "mtn" ? "MTN" : provider === "vodafone" ? "VOD" : provider === "airteltigo" ? "ATL" : payoutAccount.momo_provider;
+            } else {
+              recipientPayload.account_number = payoutAccount.account_number;
+              recipientPayload.bank_code = payoutAccount.bank_name;
+            }
+
+            const recipientRes = await fetch("https://api.paystack.co/transferrecipient", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify(recipientPayload),
+            });
+            const recipientData = await recipientRes.json();
+
+            if (recipientData.status && recipientData.data?.recipient_code) {
+              recipientCode = recipientData.data.recipient_code;
+              // Cache the recipient code
+              await supabaseAdmin
+                .from("office_payout_accounts")
+                .update({ paystack_recipient_code: recipientCode })
+                .eq("office_id", request.office_id);
+            }
           }
 
-          const recipientRes = await fetch("https://api.paystack.co/transferrecipient", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(recipientPayload),
-          });
-          const recipientData = await recipientRes.json();
-
-          if (recipientData.status && recipientData.data?.recipient_code) {
+          if (recipientCode) {
             // Initiate transfer
             const transferRes = await fetch("https://api.paystack.co/transfer", {
               method: "POST",
-              headers: {
-                Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-                "Content-Type": "application/json",
-              },
+              headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
               body: JSON.stringify({
                 source: "balance",
                 amount: Math.round(Number(request.amount) * 100),
-                recipient: recipientData.data.recipient_code,
+                recipient: recipientCode,
                 reason: request.purpose,
                 reference: payoutRef,
                 currency: "GHS",
               }),
             });
             const transferData = await transferRes.json();
+            const transferSuccess = !!transferData.status;
+
             if (transferData.data?.reference) {
               payoutRef = transferData.data.reference;
             }
+
+            // Record in payout_transfers for audit
+            await supabaseAdmin.from("payout_transfers").insert({
+              escrow_transaction_id: request.id, // use request id as reference
+              recipient_type: "office",
+              recipient_code: recipientCode,
+              transfer_code: transferData.data?.transfer_code || null,
+              amount: Number(request.amount),
+              status: transferSuccess ? "pending" : "failed",
+              paystack_reference: payoutRef,
+              failure_reason: transferSuccess ? null : (transferData.message || "Transfer failed"),
+            });
           }
         } catch (transferErr) {
           console.error("Paystack transfer error:", transferErr);

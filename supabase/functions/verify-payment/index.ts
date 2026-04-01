@@ -272,6 +272,97 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 7. Trigger payouts (idempotent — skips if payout_transfers already exist)
+    try {
+      const { data: existingPayouts } = await supabaseAdmin
+        .from("payout_transfers")
+        .select("id")
+        .eq("escrow_transaction_id", escrow.id)
+        .limit(1);
+
+      if (!existingPayouts || existingPayouts.length === 0) {
+        const PAYSTACK_SK = Deno.env.get("PAYSTACK_SECRET_KEY");
+        if (PAYSTACK_SK) {
+          const { data: splits } = await supabaseAdmin
+            .from("escrow_splits")
+            .select("id, recipient, amount, disbursement_status")
+            .eq("escrow_transaction_id", escrow.id);
+
+          if (splits && splits.length > 0) {
+            const RECIPIENT_MAP: Record<string, string> = { rent_control: "igf", admin: "admin", platform: "platform", gra: "gra" };
+
+            for (const split of splits) {
+              if (split.recipient === "landlord" || split.disbursement_status === "held" || split.amount <= 0) continue;
+
+              const accountType = RECIPIENT_MAP[split.recipient];
+              if (!accountType) continue;
+
+              const { data: account } = await supabaseAdmin
+                .from("system_settlement_accounts")
+                .select("payment_method, account_name, bank_name, account_number, momo_number, momo_provider, paystack_recipient_code")
+                .eq("account_type", accountType)
+                .single();
+
+              if (!account) continue;
+
+              let recipientCode = account.paystack_recipient_code;
+              if (!recipientCode) {
+                const recipientPayload: any = {
+                  type: account.payment_method === "momo" ? "mobile_money" : "nuban",
+                  name: account.account_name || "Settlement Account",
+                  currency: "GHS",
+                };
+                if (account.payment_method === "momo") {
+                  recipientPayload.account_number = account.momo_number;
+                  const p = (account.momo_provider || "").toLowerCase();
+                  recipientPayload.bank_code = p === "mtn" ? "MTN" : p === "vodafone" ? "VOD" : p === "airteltigo" ? "ATL" : account.momo_provider;
+                } else {
+                  recipientPayload.account_number = account.account_number;
+                  recipientPayload.bank_code = account.bank_name;
+                }
+                const rRes = await fetch("https://api.paystack.co/transferrecipient", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${PAYSTACK_SK}`, "Content-Type": "application/json" },
+                  body: JSON.stringify(recipientPayload),
+                });
+                const rData = await rRes.json();
+                if (rData.status && rData.data?.recipient_code) {
+                  recipientCode = rData.data.recipient_code;
+                  await supabaseAdmin.from("system_settlement_accounts").update({ paystack_recipient_code: recipientCode }).eq("account_type", accountType);
+                }
+              }
+
+              const payoutRef = `vpayout_${escrow.id.slice(0, 8)}_${split.id.slice(0, 8)}`;
+              if (recipientCode) {
+                const tRes = await fetch("https://api.paystack.co/transfer", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${PAYSTACK_SK}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ source: "balance", amount: Math.round(split.amount * 100), recipient: recipientCode, reason: `${accountType} share`, reference: payoutRef, currency: "GHS" }),
+                });
+                const tData = await tRes.json();
+                await supabaseAdmin.from("payout_transfers").insert({
+                  escrow_split_id: split.id,
+                  escrow_transaction_id: escrow.id,
+                  recipient_type: accountType,
+                  recipient_code: recipientCode,
+                  transfer_code: tData.data?.transfer_code || null,
+                  amount: split.amount,
+                  status: tData.status ? "pending" : "failed",
+                  paystack_reference: payoutRef,
+                  failure_reason: tData.status ? null : (tData.message || "Transfer failed"),
+                });
+                if (tData.status) {
+                  await supabaseAdmin.from("escrow_splits").update({ disbursement_status: "released", released_at: new Date().toISOString() }).eq("id", split.id);
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (payoutErr: any) {
+      console.error("Verify-payment payout trigger error:", payoutErr.message);
+    }
+
     return new Response(JSON.stringify({ verified: true, status: "completed" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
