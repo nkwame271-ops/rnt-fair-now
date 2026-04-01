@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Gavel, CheckCircle, XCircle, Scale, ShieldAlert } from "lucide-react";
+import { Gavel, CheckCircle, XCircle, Scale, ShieldAlert, Trash2 } from "lucide-react";
 import LogoLoader from "@/components/LogoLoader";
 import PageTransition from "@/components/PageTransition";
 import EmptyState from "@/components/EmptyState";
 import { format } from "date-fns";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 const RegulatorTerminations = () => {
   const { user } = useAuth();
