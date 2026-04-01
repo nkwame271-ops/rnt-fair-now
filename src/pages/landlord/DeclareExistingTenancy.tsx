@@ -698,6 +698,8 @@ const DeclareExistingTenancy = () => {
                 ["Max Lawful Advance", `GH₵ ${maxLawfulAdvance.toLocaleString()}`],
                 ["Start Date", new Date(existingStartDate).toLocaleDateString("en-GB")],
                 ["Expiry Date", new Date(expiryDate).toLocaleDateString("en-GB")],
+                ["Rent Card (Landlord)", availableRentCards.find(c => c.id === selectedRentCardId)?.serial_number || "—"],
+                ["Rent Card (Tenant)", availableRentCards.find(c => c.id === selectedRentCardId2)?.serial_number || "—"],
                 ["Agreement Upload", agreementFile ? agreementFile.name : "None"],
                 ["Voice Message", voiceFile ? voiceFile.name : "None"],
                 ["Status", "Existing Tenancy — Awaiting Verification"],

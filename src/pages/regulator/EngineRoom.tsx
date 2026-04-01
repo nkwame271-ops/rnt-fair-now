@@ -531,19 +531,23 @@ const EngineRoom = () => {
           ) : (
             <div className="space-y-4">
               {Object.entries(splitsByType).map(([paymentType, splits]) => {
+                const isPercentage = splits.some(s => s.amount_type === "percentage");
                 const total = splits.reduce((s, r) => s + r.amount, 0);
                 return (
                   <div key={paymentType} className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
                     <div className="p-4 border-b border-border flex items-center justify-between">
                       <div>
                         <p className="font-semibold text-card-foreground">{PAYMENT_TYPE_LABELS[paymentType] || paymentType}</p>
-                        <p className="text-xs text-muted-foreground">Total: GH₵ {total.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isPercentage ? `Total: ${total.toFixed(0)}%` : `Total: GH₵ ${total.toFixed(2)}`}
+                        </p>
                       </div>
                     </div>
                     <div className="divide-y divide-border">
                       {splits.map(split => {
                         const editKey = split.id;
                         const isEditing = editingSplits[editKey] !== undefined;
+                        const splitIsPercentage = split.amount_type === "percentage";
                         return (
                           <div key={split.id} className="flex items-center justify-between px-4 py-3">
                             <div>
@@ -554,15 +558,17 @@ const EngineRoom = () => {
                               <span className="text-xs text-muted-foreground ml-2">→ {RECIPIENT_LABELS[split.recipient] || split.recipient}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">GH₵</span>
+                              {!splitIsPercentage && <span className="text-xs text-muted-foreground">GH₵</span>}
                               <Input
                                 type="number"
                                 min="0"
-                                step="0.5"
+                                step={splitIsPercentage ? "1" : "0.5"}
+                                max={splitIsPercentage ? "100" : undefined}
                                 className="w-20 h-8 text-sm"
                                 value={isEditing ? editingSplits[editKey] : split.amount}
                                 onChange={e => setEditingSplits(prev => ({ ...prev, [editKey]: parseFloat(e.target.value) || 0 }))}
                               />
+                              {splitIsPercentage && <span className="text-xs text-muted-foreground">%</span>}
                               {isEditing && (
                                 <Button
                                   size="sm"
