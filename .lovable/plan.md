@@ -1,150 +1,106 @@
 
 
-# Plan: Configurable Split Engine, System Settlement Accounts, and Office Payout Mode
+# Plan: Split Engine Expansion, Rent Bands, and Declare Existing Tenancy Overhaul
 
 ## Summary
 
-This plan introduces a fully configurable split engine stored in the database, adds system settlement account management, and adds an Office Payout Mode toggle (manual vs auto-release) — all editable from the Engine Room without developer intervention.
+Three major changes: (1) expand all flat-fee splits to IGF/Admin/Platform and add tax revenue splits for GRA/Admin/Platform, (2) add configurable rent bands to determine agreement_sale fees dynamically, (3) overhaul the "Declare Existing Tenancy" flow to support unregistered tenants, case creation, office assignment, and a payment paywall using rent-band-based agreement_sale fee.
 
 ---
 
-## Current State
+## 1. Database Changes (single migration)
 
-- **Splits are hardcoded** in `paystack-checkout/index.ts` as `DEFAULT_SPLIT_RULES` (lines 11-71) and `calculateRegistrationSplits` (lines 74-90). The webhook reads splits from escrow metadata (`split_plan`) stored at checkout time.
-- **Engine Room** manages feature flags and fees but has no split configuration UI.
-- **Payout Settings** (`OfficePayoutSettings.tsx`) only manages office accounts. No system-level settlement accounts exist.
-- **Escrow Dashboard** shows allocations but doesn't distinguish auto-released vs manually released funds.
-- **Office Fund Requests** page handles manual approval workflow.
-
----
-
-## Database Changes
-
-### 1. New table: `split_configurations`
-
-Stores the split rules per payment type, editable from Engine Room.
-
+### New table: `rent_bands`
+Configurable rent ranges with corresponding fees, editable from Engine Room.
 ```sql
-CREATE TABLE public.split_configurations (
+CREATE TABLE public.rent_bands (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  payment_type text NOT NULL,
-  recipient text NOT NULL,        -- 'platform', 'rent_control', 'admin', 'gra', 'landlord'
-  amount_type text NOT NULL DEFAULT 'flat',  -- 'flat' or 'percentage'
-  amount numeric NOT NULL DEFAULT 0,
-  description text,
-  sort_order integer NOT NULL DEFAULT 0,
-  is_platform_fee boolean NOT NULL DEFAULT false,  -- marks the fixed platform fee line
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  updated_by uuid,
-  UNIQUE(payment_type, recipient, sort_order)
-);
-```
-
-Seed with current hardcoded values for all payment types.
-
-### 2. New table: `secondary_split_configurations`
-
-For IGF and Admin sub-splits (office / headquarters / platform portions).
-
-```sql
-CREATE TABLE public.secondary_split_configurations (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  parent_recipient text NOT NULL,  -- 'rent_control' or 'admin'
-  sub_recipient text NOT NULL,     -- 'office', 'headquarters', 'platform'
-  percentage numeric NOT NULL DEFAULT 0,
-  description text,
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  updated_by uuid,
-  UNIQUE(parent_recipient, sub_recipient)
-);
-```
-
-### 3. New table: `system_settlement_accounts`
-
-For IGF, Admin, Platform, GRA settlement account details.
-
-```sql
-CREATE TABLE public.system_settlement_accounts (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  account_type text NOT NULL UNIQUE,  -- 'igf', 'admin', 'platform', 'gra'
-  payment_method text NOT NULL DEFAULT 'bank',
-  account_name text,
-  bank_name text,
-  account_number text,
-  momo_number text,
-  momo_provider text,
+  min_rent numeric NOT NULL DEFAULT 0,
+  max_rent numeric,  -- NULL = unlimited
+  fee_amount numeric NOT NULL DEFAULT 30,
+  label text,
   updated_at timestamptz NOT NULL DEFAULT now(),
   updated_by uuid
 );
+-- Seed default bands
+INSERT INTO rent_bands (min_rent, max_rent, fee_amount, label) VALUES
+  (0, 500, 30, 'Up to GH₵ 500'),
+  (500.01, 1000, 50, 'GH₵ 500 - 1,000'),
+  (1000.01, 2000, 80, 'GH₵ 1,000 - 2,000'),
+  (2000.01, NULL, 120, 'Above GH₵ 2,000');
 ```
+RLS: SELECT for authenticated, ALL for regulators + service_role.
 
-### 4. Feature flag for Office Payout Mode
+### Update `split_configurations` seed data
+Replace single-recipient splits for `add_tenant_fee`, `complaint_fee`, `listing_fee`, `viewing_fee`, `termination_fee` with 3-way IGF/Admin/Platform splits. Add new `rent_tax` payment type with GRA/Admin/Platform splits.
 
-Insert a new feature flag: `office_payout_mode` with `description: "Auto Release or Manual Approval"`. Use `is_enabled = false` for Manual (default), `true` for Auto Release.
+Using the insert tool (data operations):
+- DELETE existing rows for these payment types
+- INSERT new 3-way splits for each flat fee
+- INSERT `rent_tax` splits (GRA, Admin, Platform)
 
-### 5. Add `release_mode` column to `escrow_splits`
-
+### Add `pending_tenants` table
+For tenants who don't have accounts yet but were declared by landlords.
 ```sql
-ALTER TABLE public.escrow_splits ADD COLUMN release_mode text NOT NULL DEFAULT 'manual';
--- Values: 'manual', 'auto'
+CREATE TABLE public.pending_tenants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  full_name text NOT NULL,
+  phone text NOT NULL,
+  created_by uuid NOT NULL,
+  tenancy_id uuid,
+  claimed_by uuid,
+  claimed_at timestamptz,
+  sms_sent boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 ```
-
-### 6. RLS Policies
-
-All new tables: SELECT + ALL for `regulator` role, ALL for `service_role`.
 
 ---
 
-## Backend Changes
+## 2. Backend Changes
 
 ### `paystack-checkout/index.ts`
-
-Replace `DEFAULT_SPLIT_RULES` and `calculateRegistrationSplits` with a DB lookup function:
-- Query `split_configurations` for the payment type
-- If `is_platform_fee` row exists, extract that first
-- Apply remaining splits from the config rows
-- Fall back to current hardcoded values if no DB config found
-- Store the computed `split_plan` in escrow metadata (already done)
+- **Rent tax splits**: For `rent_tax`, `rent_tax_bulk`, and `rent_combined` types, replace the hardcoded `[{ recipient: "rent_control", amount: taxAmount }]` with a DB-driven split from `split_configurations` where `payment_type = 'rent_tax'`. The total tax amount is distributed proportionally across GRA/Admin/Platform based on configured split ratios.
+- **Agreement sale with rent bands**: For `agreement_sale` type (used by Declare Existing Tenancy), accept an optional `monthlyRent` parameter. If provided, query `rent_bands` to find the matching fee instead of using the flat `feature_flags.fee_amount`. Fall back to the feature flag amount if no band matches.
+- **Default split updates**: Update `DEFAULT_SPLIT_RULES` fallbacks to reflect the new 3-way splits for all flat fees.
 
 ### `paystack-webhook/index.ts`
+- For `rent_tax` and `rent_tax_bulk` completion, use the stored `split_plan` from escrow metadata (already done) — the new splits will flow through automatically since they're computed at checkout time.
 
-In `completeEscrow` helper (line 111):
-- After inserting splits, check the `office_payout_mode` feature flag
-- If auto-release is enabled, for splits with `recipient = 'admin'`:
-  - Set `disbursement_status = 'released'`, `released_at = now()`, `release_mode = 'auto'`
-  - Auto-create an approved `office_fund_requests` record
-  - Trigger Paystack transfer to the office payout account (reuse logic from `process-office-payout`)
-- If manual mode, keep current behavior (`disbursement_status = 'pending'`)
-
-### `process-office-payout/index.ts`
-
-No structural changes needed — already handles the payout flow.
+### New edge function or inline logic: SMS invitation
+- When a pending tenant is created in `DeclareExistingTenancy`, call the existing `send-sms` function to send an invitation SMS to the tenant's phone number.
 
 ---
 
-## Frontend Changes
+## 3. Frontend Changes
 
-### 1. Engine Room — Split Configuration Section (`EngineRoom.tsx`)
+### `EngineRoom.tsx` — Rent Bands Configuration
+Add a new "Rent Bands" section (main admin only) below the Split Engine:
+- Table showing min_rent, max_rent, fee_amount, label
+- Inline editing with add/remove rows
+- Save button per row
 
-Add a new "Split Engine" section (main admin only):
-- For each payment type, show a card with the split lines (recipient, amount/percentage, description)
-- Editable inline with Save button per payment type
-- Secondary split config for IGF and Admin (office/HQ/platform percentages)
-- "Office Payout Mode" toggle at the top: Manual Approval vs Auto Release
+### `EngineRoom.tsx` — Updated Split Labels
+The existing Split Engine UI already renders dynamically from `split_configurations`. The new 3-way splits will appear automatically after the data update. Add `rent_tax` to `PAYMENT_TYPE_LABELS`.
 
-### 2. Payout Settings — System Settlement Accounts (`OfficePayoutSettings.tsx`)
+### `DeclareExistingTenancy.tsx` — Major Overhaul
+**Step 2 (Find Tenant)** changes:
+- Replace tenant search with two input fields: **Tenant Name** and **Tenant Phone Number**
+- On phone number entry, auto-search `profiles` table for matching phone
+- If match found: show "Tenant found — will be linked automatically" with name
+- If no match: show "Tenant not registered — an SMS invitation will be sent"
+- Allow proceeding in both cases (no longer require existing tenant account)
 
-Add a "System Settlement Accounts" subsection below the office accounts:
-- Four account cards: IGF, Admin, Platform, GRA
-- Each with payment method (MoMo/Bank), account details
-- Same form pattern as existing office payout accounts
+**Submission flow** changes:
+1. Determine `agreement_sale` fee from rent bands based on monthly rent
+2. If fee > 0 and fee enabled, save form data to `sessionStorage` and redirect to Paystack via `paystack-checkout` with `type: "agreement_sale"` and `monthlyRent` parameter
+3. On callback (fee paid or fee waived):
+   - If tenant phone matched an existing user: create tenancy with their `user_id`
+   - If no match: create a `pending_tenants` record, create tenancy with a placeholder `tenant_user_id` (the landlord's own ID temporarily) and store pending_tenant reference, send SMS invitation
+4. Create a Case record via the checkout flow (already handled by `paystack-checkout`)
+5. Assign office based on property region (already handled by `resolveOffice`)
 
-### 3. Escrow Dashboard — Release Mode Indicators (`EscrowDashboard.tsx`)
-
-Add to the dashboard:
-- New stat cards: "Auto-Released" and "Manually Released" totals
-- Filter or badge on the office revenue table showing release mode
-- Query `escrow_splits.release_mode` to compute these values
+**Tenant claiming flow** (separate future enhancement — for now, the tenancy appears when tenant logs in if phone matches).
 
 ---
 
@@ -152,10 +108,9 @@ Add to the dashboard:
 
 | File | Change |
 |---|---|
-| New migration | Create `split_configurations`, `secondary_split_configurations`, `system_settlement_accounts` tables; add `release_mode` to `escrow_splits`; seed split data; insert `office_payout_mode` feature flag |
-| `supabase/functions/paystack-checkout/index.ts` | Replace hardcoded splits with DB lookup from `split_configurations` |
-| `supabase/functions/paystack-webhook/index.ts` | Add auto-release logic in `completeEscrow` based on payout mode flag |
-| `src/pages/regulator/EngineRoom.tsx` | Add Split Engine configuration UI and Payout Mode toggle |
-| `src/pages/regulator/OfficePayoutSettings.tsx` | Add System Settlement Accounts subsection |
-| `src/pages/regulator/EscrowDashboard.tsx` | Add auto-released vs manually-released stats |
+| New migration | Create `rent_bands` and `pending_tenants` tables with RLS |
+| Data operations (insert tool) | Update `split_configurations`: delete old single-recipient splits for flat fees, insert 3-way IGF/Admin/Platform splits; add `rent_tax` GRA/Admin/Platform splits |
+| `supabase/functions/paystack-checkout/index.ts` | Add rent band lookup for agreement_sale; update rent_tax split to use DB config with GRA/Admin/Platform proportional distribution; update DEFAULT_SPLIT_RULES |
+| `src/pages/regulator/EngineRoom.tsx` | Add Rent Bands config UI; add `rent_tax` to PAYMENT_TYPE_LABELS |
+| `src/pages/landlord/DeclareExistingTenancy.tsx` | Replace tenant search with name+phone input; add rent-band fee lookup; add Paystack payment gate; support unregistered tenants with pending_tenants + SMS; add sessionStorage persistence for payment redirect |
 
