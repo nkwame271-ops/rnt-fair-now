@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { UserPlus, Mail, Lock, User, Loader2, CheckCircle2, Shield, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAdminProfile, GHANA_OFFICES, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
+import { useAdminProfile, GHANA_REGIONS, getOfficesForRegion, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
 import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,6 +19,7 @@ const InviteStaff = () => {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState("");
   const [officeId, setOfficeId] = useState("");
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,7 +36,8 @@ const InviteStaff = () => {
     );
   }
 
-  const office = GHANA_OFFICES.find(o => o.id === officeId);
+  const regionOffices = selectedRegion ? getOfficesForRegion(selectedRegion) : [];
+  const office = regionOffices.find(o => o.id === officeId);
   const allFeatureKeys = Object.keys(FEATURE_ROUTE_MAP);
 
   const toggleFeature = (key: string) => {
@@ -66,7 +68,7 @@ const InviteStaff = () => {
           adminType,
           officeId: adminType === "sub_admin" ? officeId : null,
           officeName: adminType === "sub_admin" ? office?.name : null,
-          allowedFeatures: adminType === "sub_admin" ? selectedFeatures : [],
+          allowedFeatures: selectedFeatures,
         },
       });
 
@@ -78,6 +80,7 @@ const InviteStaff = () => {
       setEmail("");
       setFullName("");
       setPassword("");
+      setSelectedRegion("");
       setOfficeId("");
       setSelectedFeatures([]);
     } catch (err: any) {
@@ -140,7 +143,7 @@ const InviteStaff = () => {
         <div className="mb-4 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
           {adminType === "main_admin" ? (
             <>
-              <strong className="text-foreground">Main Admin</strong> — Full platform access. Can manage Engine Room, invite staff, and control all features.
+              <strong className="text-foreground">Main Admin</strong> — Select which features this Main Admin can access. Leave all unchecked for full access.
             </>
           ) : (
             <>
@@ -199,38 +202,53 @@ const InviteStaff = () => {
           {adminType === "sub_admin" && (
             <>
               <div className="space-y-2">
-                <Label>Assigned Office</Label>
-                <Select value={officeId} onValueChange={setOfficeId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select office..." />
-                  </SelectTrigger>
+                <Label>Region</Label>
+                <Select value={selectedRegion} onValueChange={v => { setSelectedRegion(v); setOfficeId(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Select region..." /></SelectTrigger>
                   <SelectContent>
-                    {GHANA_OFFICES.map(o => (
-                      <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                    {GHANA_REGIONS.map(r => (
+                      <SelectItem key={r} value={r}>{r}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Allowed Features</Label>
-                <p className="text-xs text-muted-foreground mb-2">
-                  Select which features this Sub Admin can access.
-                </p>
-                <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border border-border rounded-lg p-3">
-                  {allFeatureKeys.map(key => (
-                    <label key={key} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/30 rounded px-2 py-1.5">
-                      <Checkbox
-                        checked={selectedFeatures.includes(key)}
-                        onCheckedChange={() => toggleFeature(key)}
-                      />
-                      <span className="capitalize text-card-foreground">{key.replace(/_/g, " ")}</span>
-                    </label>
-                  ))}
+              {selectedRegion && (
+                <div className="space-y-2">
+                  <Label>Assigned Office</Label>
+                  <Select value={officeId} onValueChange={setOfficeId}>
+                    <SelectTrigger><SelectValue placeholder="Select office..." /></SelectTrigger>
+                    <SelectContent>
+                      {regionOffices.map(o => (
+                        <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
+              )}
             </>
           )}
+
+          {/* Feature selection — shown for BOTH admin types */}
+          <div className="space-y-2">
+            <Label>Allowed Features</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              {adminType === "main_admin"
+                ? "Select features this Main Admin can access. Leave all unchecked for full access (backward compatible)."
+                : "Select which features this Sub Admin can access."}
+            </p>
+            <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border border-border rounded-lg p-3">
+              {allFeatureKeys.map(key => (
+                <label key={key} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/30 rounded px-2 py-1.5">
+                  <Checkbox
+                    checked={selectedFeatures.includes(key)}
+                    onCheckedChange={() => toggleFeature(key)}
+                  />
+                  <span className="capitalize text-card-foreground">{key.replace(/_/g, " ")}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? (

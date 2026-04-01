@@ -5,6 +5,7 @@ import { useAdminProfile } from "@/hooks/useAdminProfile";
 import LogoLoader from "@/components/LogoLoader";
 import PageTransition from "@/components/PageTransition";
 import SerialBatchUpload from "./rent-cards/SerialBatchUpload";
+import SerialGenerator from "./rent-cards/SerialGenerator";
 import OfficeSerialStock from "./rent-cards/OfficeSerialStock";
 import PendingPurchases from "./rent-cards/PendingPurchases";
 import AssignmentHistory from "./rent-cards/AssignmentHistory";
@@ -28,12 +29,13 @@ const RegulatorRentCards = () => {
             <CreditCard className="h-7 w-7 text-primary" /> Rent Card Management
           </h1>
           <p className="text-muted-foreground mt-1">
-            Upload serials, manage office stock, assign to purchases, and monitor alerts.
+            Upload serials, generate serial numbers, manage office stock, assign to purchases, and monitor alerts.
           </p>
         </div>
 
-        <Tabs defaultValue={isMain ? "batch_upload" : "stock"}>
+        <Tabs defaultValue={isMain ? "generate" : "stock"}>
           <TabsList className="flex flex-wrap h-auto gap-1">
+            {isMain && <TabsTrigger value="generate">Generate Serials</TabsTrigger>}
             {isMain && <TabsTrigger value="batch_upload">Serial Batch Upload</TabsTrigger>}
             <TabsTrigger value="stock">Office Stock</TabsTrigger>
             <TabsTrigger value="pending">Pending & Assign</TabsTrigger>
@@ -41,6 +43,12 @@ const RegulatorRentCards = () => {
             {isMain && <TabsTrigger value="alerts">Stock Alerts</TabsTrigger>}
             {isMain && <TabsTrigger value="admin_actions">Admin Actions</TabsTrigger>}
           </TabsList>
+
+          {isMain && (
+            <TabsContent value="generate">
+              <SerialGenerator onStockChanged={triggerRefresh} />
+            </TabsContent>
+          )}
 
           {isMain && (
             <TabsContent value="batch_upload">

@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
         admin_type: resolvedAdminType,
         office_id: resolvedAdminType === "main_admin" ? null : (officeId || null),
         office_name: resolvedAdminType === "main_admin" ? null : (officeName || null),
-        allowed_features: resolvedAdminType === "main_admin" ? [] : (allowedFeatures || []),
+        allowed_features: allowedFeatures || [],
         muted_features: [],
         created_by: callerId,
       });
