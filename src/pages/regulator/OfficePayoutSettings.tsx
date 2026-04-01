@@ -29,7 +29,8 @@ interface SettlementAccount {
   account_number: string;
   momo_number: string;
   momo_provider: string;
-  paystack_subaccount_code: string;
+  paystack_subaccount_code: string; // kept for backward compat
+  paystack_recipient_code: string;
 }
 
 const SETTLEMENT_TYPES = [
@@ -151,6 +152,7 @@ const OfficePayoutSettings = () => {
       momo_number: edits.momo_number ?? existing?.momo_number ?? "",
       momo_provider: edits.momo_provider ?? existing?.momo_provider ?? "",
       paystack_subaccount_code: edits.paystack_subaccount_code ?? existing?.paystack_subaccount_code ?? "",
+      paystack_recipient_code: edits.paystack_recipient_code ?? existing?.paystack_recipient_code ?? "",
     };
   };
 
@@ -173,6 +175,7 @@ const OfficePayoutSettings = () => {
       momo_number: data.payment_method === "momo" ? data.momo_number || null : null,
       momo_provider: data.payment_method === "momo" ? data.momo_provider || null : null,
       paystack_subaccount_code: data.paystack_subaccount_code || null,
+      paystack_recipient_code: data.paystack_recipient_code || null,
       updated_at: new Date().toISOString(),
       updated_by: user?.id,
     };
@@ -348,9 +351,9 @@ const OfficePayoutSettings = () => {
                   )}
 
                   <div className="pt-2 border-t border-border">
-                    <label className="text-sm font-medium text-foreground">Paystack Subaccount Code</label>
-                    <Input value={data.paystack_subaccount_code} onChange={e => updateSettlementField(key, "paystack_subaccount_code", e.target.value)} placeholder="ACCT_xxxxx" className="font-mono" />
-                    <p className="text-xs text-muted-foreground mt-1">Enter the Paystack subaccount code for automatic settlement</p>
+                    <label className="text-sm font-medium text-foreground">Paystack Recipient Code</label>
+                    <Input value={data.paystack_recipient_code} onChange={e => updateSettlementField(key, "paystack_recipient_code", e.target.value)} placeholder="RCP_xxxxx" className="font-mono" />
+                    <p className="text-xs text-muted-foreground mt-1">Auto-generated when first payout is triggered, or enter manually from Paystack dashboard</p>
                   </div>
 
                     <Button

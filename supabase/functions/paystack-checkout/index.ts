@@ -5,13 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Recipient mapping from split_configurations recipients to system_settlement_accounts account_type
-const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
-  rent_control: "igf",
-  admin: "admin",
-  platform: "platform",
-  gra: "gra",
-};
+// Recipient mapping kept for reference only — no longer used for Paystack subaccount splits
+// All money enters main account; backend triggers transfers after verification
 
 // Fetch split configuration from DB, falling back to hardcoded defaults
 const getSplitConfigFromDB = async (supabaseAdmin: any, paymentType: string): Promise<{ recipient: string; amount: number; description: string; is_platform_fee: boolean }[] | null> => {
@@ -126,51 +121,7 @@ const getDynamicFee = async (supabaseAdmin: any, feeKey: string): Promise<{ tota
   return { total, enabled, splits };
 };
 
-// Build Paystack split object from split plan and settlement accounts
-const buildPaystackSplit = async (supabaseAdmin: any, splitPlan: { recipient: string; amount: number; description: string }[]): Promise<any | null> => {
-  try {
-    const { data: accounts } = await supabaseAdmin
-      .from("system_settlement_accounts")
-      .select("account_type, paystack_subaccount_code")
-      .not("paystack_subaccount_code", "is", null);
-
-    if (!accounts || accounts.length === 0) return null;
-
-    // Build account_type -> subaccount_code map
-    const subaccountMap: Record<string, string> = {};
-    for (const acc of accounts) {
-      if (acc.paystack_subaccount_code) {
-        subaccountMap[acc.account_type] = acc.paystack_subaccount_code;
-      }
-    }
-
-    const subaccounts: { subaccount: string; share: number }[] = [];
-    for (const entry of splitPlan) {
-      const accountType = RECIPIENT_TO_ACCOUNT_TYPE[entry.recipient];
-      if (!accountType) continue; // skip landlord, etc.
-      const code = subaccountMap[accountType];
-      if (!code) {
-        console.warn(`No Paystack subaccount for ${entry.recipient} (${accountType}), portion stays with main account`);
-        continue;
-      }
-      subaccounts.push({
-        subaccount: code,
-        share: Math.round(entry.amount * 100), // convert GHS to pesewas
-      });
-    }
-
-    if (subaccounts.length === 0) return null;
-
-    return {
-      type: "flat",
-      bearer_type: "account",
-      subaccounts,
-    };
-  } catch (e) {
-    console.error("Error building Paystack split:", e);
-    return null;
-  }
-};
+// buildPaystackSplit REMOVED — main-account-first model; transfers happen post-verification
 
 // Resolve office_id from property or region
 const resolveOffice = async (supabaseAdmin: any, opts: { propertyId?: string; region?: string; area?: string; userId?: string }): Promise<string> => {
@@ -748,8 +699,8 @@ Deno.serve(async (req) => {
       : (authUser.email && isValidEmail(authUser.email)) ? authUser.email
       : `user-${userId.slice(0, 8)}@rentcontrolghana.com`;
 
-    // Build Paystack split from settlement accounts
-    const paystackSplit = await buildPaystackSplit(supabaseAdmin, splitPlan);
+    // Main-account-first: no Paystack split attached — all money enters main account
+    // Backend triggers transfers after webhook verification using split_plan in metadata
 
     const payload: any = {
       email: paystackEmail,
@@ -771,12 +722,6 @@ Deno.serve(async (req) => {
         ],
       },
     };
-
-    // Attach Paystack split if subaccounts are configured
-    if (paystackSplit) {
-      payload.split = paystackSplit;
-      console.log("Paystack split attached:", JSON.stringify(paystackSplit));
-    }
 
     console.log("Paystack init payload:", JSON.stringify(payload));
 

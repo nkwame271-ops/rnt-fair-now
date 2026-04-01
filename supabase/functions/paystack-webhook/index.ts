@@ -121,6 +121,223 @@ Deno.serve(async (req) => {
       }
     };
 
+    // ── Recipient mapping for settlement accounts ──
+    const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
+      rent_control: "igf",
+      admin: "admin",
+      platform: "platform",
+      gra: "gra",
+    };
+
+    // ── Helper: Get or create Paystack transfer recipient ──
+    const getOrCreateRecipient = async (accountDetails: {
+      table: string;
+      lookupField: string;
+      lookupValue: string;
+      payment_method: string;
+      account_name?: string;
+      bank_name?: string;
+      account_number?: string;
+      momo_number?: string;
+      momo_provider?: string;
+      paystack_recipient_code?: string;
+    }): Promise<string | null> => {
+      const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
+      if (!PAYSTACK_SECRET_KEY) return null;
+
+      // Return cached recipient code if available
+      if (accountDetails.paystack_recipient_code) {
+        return accountDetails.paystack_recipient_code;
+      }
+
+      try {
+        const recipientPayload: any = {
+          type: accountDetails.payment_method === "momo" ? "mobile_money" : "nuban",
+          name: accountDetails.account_name || "Settlement Account",
+          currency: "GHS",
+        };
+
+        if (accountDetails.payment_method === "momo") {
+          recipientPayload.account_number = accountDetails.momo_number;
+          const provider = (accountDetails.momo_provider || "").toLowerCase();
+          recipientPayload.bank_code = provider === "mtn" ? "MTN" : provider === "vodafone" ? "VOD" : provider === "airteltigo" ? "ATL" : accountDetails.momo_provider;
+        } else {
+          recipientPayload.account_number = accountDetails.account_number;
+          recipientPayload.bank_code = accountDetails.bank_name;
+        }
+
+        const res = await fetch("https://api.paystack.co/transferrecipient", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify(recipientPayload),
+        });
+        const result = await res.json();
+
+        if (result.status && result.data?.recipient_code) {
+          const recipientCode = result.data.recipient_code;
+          // Cache the recipient code
+          await supabase
+            .from(accountDetails.table)
+            .update({ paystack_recipient_code: recipientCode })
+            .eq(accountDetails.lookupField, accountDetails.lookupValue);
+          return recipientCode;
+        }
+        console.error("Failed to create recipient:", result.message);
+        return null;
+      } catch (e) {
+        console.error("getOrCreateRecipient error:", e);
+        return null;
+      }
+    };
+
+    // ── Helper: Initiate a Paystack transfer ──
+    const initiateTransfer = async (recipientCode: string, amount: number, reason: string, reference: string): Promise<{ success: boolean; transferCode?: string }> => {
+      const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
+      if (!PAYSTACK_SECRET_KEY) return { success: false };
+
+      try {
+        const res = await fetch("https://api.paystack.co/transfer", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            source: "balance",
+            amount: Math.round(amount * 100),
+            recipient: recipientCode,
+            reason,
+            reference,
+            currency: "GHS",
+          }),
+        });
+        const result = await res.json();
+        if (result.status) {
+          return { success: true, transferCode: result.data?.transfer_code };
+        }
+        console.error("Transfer failed:", result.message);
+        return { success: false };
+      } catch (e) {
+        console.error("initiateTransfer error:", e);
+        return { success: false };
+      }
+    };
+
+    // ── Helper: Trigger payouts for eligible splits ──
+    const triggerPayouts = async (db: any, escrowTransactionId: string, splits: any[], officeId: string | null) => {
+      try {
+        // Check idempotency — skip if transfers already exist
+        const { data: existingTransfers } = await db
+          .from("payout_transfers")
+          .select("id")
+          .eq("escrow_transaction_id", escrowTransactionId)
+          .limit(1);
+        if (existingTransfers && existingTransfers.length > 0) return;
+
+        const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
+        if (!PAYSTACK_SECRET_KEY) {
+          console.log("PAYSTACK_SECRET_KEY not set — skipping transfers");
+          return;
+        }
+
+        for (const split of splits) {
+          // Skip landlord (manual) and held splits
+          if (split.recipient === "landlord" || split.disbursement_status === "held") continue;
+          if (split.amount <= 0) continue;
+
+          const accountType = RECIPIENT_TO_ACCOUNT_TYPE[split.recipient];
+          let recipientCode: string | null = null;
+          let recipientType = split.recipient;
+
+          if (accountType) {
+            // System settlement account (igf, admin, platform, gra)
+            const { data: account } = await db
+              .from("system_settlement_accounts")
+              .select("*")
+              .eq("account_type", accountType)
+              .single();
+
+            if (account) {
+              recipientCode = await getOrCreateRecipient({
+                table: "system_settlement_accounts",
+                lookupField: "account_type",
+                lookupValue: accountType,
+                payment_method: account.payment_method,
+                account_name: account.account_name,
+                bank_name: account.bank_name,
+                account_number: account.account_number,
+                momo_number: account.momo_number,
+                momo_provider: account.momo_provider,
+                paystack_recipient_code: account.paystack_recipient_code,
+              });
+              recipientType = accountType;
+            }
+          } else if (split.recipient === "admin" && officeId) {
+            // Office payout account
+            const { data: officeAccount } = await db
+              .from("office_payout_accounts")
+              .select("*")
+              .eq("office_id", officeId)
+              .single();
+
+            if (officeAccount) {
+              recipientCode = await getOrCreateRecipient({
+                table: "office_payout_accounts",
+                lookupField: "office_id",
+                lookupValue: officeId,
+                payment_method: officeAccount.payment_method,
+                account_name: officeAccount.account_name,
+                bank_name: officeAccount.bank_name,
+                account_number: officeAccount.account_number,
+                momo_number: officeAccount.momo_number,
+                momo_provider: officeAccount.momo_provider,
+                paystack_recipient_code: officeAccount.paystack_recipient_code,
+              });
+              recipientType = "office";
+            }
+          }
+
+          const payoutRef = `payout_${escrowTransactionId.slice(0, 8)}_${split.id?.slice(0, 8) || Date.now()}`;
+
+          if (recipientCode) {
+            const { success, transferCode } = await initiateTransfer(
+              recipientCode,
+              split.amount,
+              `${recipientType} share`,
+              payoutRef
+            );
+
+            await db.from("payout_transfers").insert({
+              escrow_split_id: split.id || null,
+              escrow_transaction_id: escrowTransactionId,
+              recipient_type: recipientType,
+              recipient_code: recipientCode,
+              transfer_code: transferCode || null,
+              amount: split.amount,
+              status: success ? "pending" : "failed",
+              paystack_reference: payoutRef,
+              failure_reason: success ? null : "Transfer initiation failed",
+            });
+
+            if (success && split.id) {
+              await db.from("escrow_splits").update({ disbursement_status: "released", released_at: new Date().toISOString() }).eq("id", split.id);
+            }
+          } else {
+            // No recipient configured — record as failed
+            await db.from("payout_transfers").insert({
+              escrow_split_id: split.id || null,
+              escrow_transaction_id: escrowTransactionId,
+              recipient_type: recipientType,
+              recipient_code: null,
+              amount: split.amount,
+              status: "failed",
+              paystack_reference: payoutRef,
+              failure_reason: "No payout account configured for " + recipientType,
+            });
+          }
+        }
+      } catch (e) {
+        console.error("triggerPayouts error:", e);
+      }
+    };
+
     // ── Helper: Complete escrow + create splits + generate receipt ──
     const completeEscrow = async (ref: string, userId: string, paymentType: string, totalAmt: number, splits: { recipient: string; amount: number; description: string }[], tenancyId?: string) => {
       try {
@@ -138,25 +355,33 @@ Deno.serve(async (req) => {
         const autoRelease = await getOfficePayoutMode();
 
         if (escrowId && splits.length > 0) {
+          // Check auto-release mode
+          const autoRelease = await getOfficePayoutMode();
+
           const splitRows = splits.map(s => {
-            // For admin splits (office share), check auto-release
             const isAdminSplit = s.recipient === "admin";
             const releaseMode = (isAdminSplit && autoRelease) ? "auto" : "manual";
-            const shouldAutoRelease = isAdminSplit && autoRelease;
+            // Under main-account-first model:
+            // - landlord splits stay "held" (manual payout)
+            // - admin (office) splits: "pending_transfer" if auto, "held" if manual
+            // - igf/gra/platform: "pending_transfer" — will be paid via Paystack transfer
+            const disbStatus = s.recipient === "landlord" ? "held"
+              : (isAdminSplit && !autoRelease) ? "held"
+              : "pending_transfer";
 
             return {
               escrow_transaction_id: escrowId,
               recipient: s.recipient,
               amount: s.amount,
               description: s.description,
-              disbursement_status: s.recipient === "landlord" ? "held" : (shouldAutoRelease ? "released" : "released"),
-              released_at: s.recipient !== "landlord" ? new Date().toISOString() : null,
+              disbursement_status: disbStatus,
+              released_at: null,
               office_id: officeId,
               release_mode: releaseMode,
             };
           });
 
-          await supabase.from("escrow_splits").insert(splitRows);
+          const { data: insertedSplits } = await supabase.from("escrow_splits").insert(splitRows).select("id, recipient, amount, disbursement_status");
 
           // If auto-release is on, create auto-approved fund request for admin splits
           if (autoRelease && officeId) {
@@ -178,6 +403,9 @@ Deno.serve(async (req) => {
               });
             }
           }
+
+          // Trigger Paystack transfers for eligible splits
+          await triggerPayouts(supabase, escrowId, insertedSplits || [], officeId);
         }
 
         // Update case status
