@@ -302,7 +302,7 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
         <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
           <UserX className="h-5 w-5 text-destructive" /> Account Management
         </h2>
-        <p className="text-sm text-muted-foreground">Deactivate or archive landlord/tenant accounts. Accounts with active tenancies cannot be archived.</p>
+        <p className="text-sm text-muted-foreground">Deactivate, archive, or permanently delete landlord/tenant/admin accounts. Accounts with active tenancies cannot be archived or deleted.</p>
         <div className="flex gap-3">
           <Select value={accountType} onValueChange={(v) => { setAccountType(v as any); setAccountResult(null); }}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
