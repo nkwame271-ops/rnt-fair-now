@@ -29,6 +29,7 @@ interface SettlementAccount {
   account_number: string;
   momo_number: string;
   momo_provider: string;
+  paystack_subaccount_code: string;
 }
 
 const SETTLEMENT_TYPES = [
