@@ -17,11 +17,24 @@ import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
 const RegulatorTerminations = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [termApps, setTermApps] = useState<any[]>([]);
   const [sidePayments, setSidePayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [processing, setProcessing] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_termination", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setTermApps(prev => prev.filter(a => a.id !== deletingId));
+    toast.success("Termination application permanently deleted");
+  };
 
   const load = async () => {
     const [{ data: apps }, { data: sp }] = await Promise.all([
