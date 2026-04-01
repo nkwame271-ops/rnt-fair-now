@@ -88,6 +88,88 @@ const ContactForm = () => {
   );
 };
 
+const OfficeLocator = () => {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredResults = searchTerm.trim()
+    ? GHANA_REGIONS_OFFICES
+        .map(r => ({
+          region: r.region,
+          offices: r.offices.filter(o =>
+            o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            r.region.toLowerCase().includes(searchTerm.toLowerCase())
+          ),
+        }))
+        .filter(r => r.offices.length > 0)
+    : [];
+
+  return (
+    <section className="max-w-6xl mx-auto px-4 py-12 sm:py-16">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className="text-center mb-8"
+      >
+        <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Find Your Nearest Office</h2>
+        <p className="text-muted-foreground text-sm">Search by location, area, or region to find a Rent Control office near you.</p>
+      </motion.div>
+
+      <div className="max-w-lg mx-auto mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search offices (e.g. Kumasi, Greater Accra, Tema...)"
+            className="flex h-11 w-full rounded-lg border border-input bg-background pl-10 pr-4 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+      </div>
+
+      {searchTerm.trim() && filteredResults.length === 0 && (
+        <p className="text-center text-muted-foreground text-sm">No offices found matching "{searchTerm}"</p>
+      )}
+
+      {filteredResults.length > 0 && (
+        <div className="max-w-2xl mx-auto space-y-4">
+          {filteredResults.map(r => (
+            <div key={r.region} className="bg-card border border-border rounded-xl p-4">
+              <h3 className="font-semibold text-foreground text-sm mb-2 flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-primary" /> {r.region} Region
+              </h3>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {r.offices.map(o => (
+                  <div key={o.id} className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
+                    <Building2 className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                    {o.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!searchTerm.trim() && (
+        <div className="max-w-2xl mx-auto grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {GHANA_REGIONS_OFFICES.map(r => (
+            <button
+              key={r.region}
+              onClick={() => setSearchTerm(r.region)}
+              className="bg-card border border-border rounded-lg p-3 text-left hover:bg-muted/30 transition-colors"
+            >
+              <p className="font-medium text-foreground text-sm">{r.region}</p>
+              <p className="text-xs text-muted-foreground">{r.offices.length} office(s)</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
 const RoleSelect = () => {
   const navigate = useNavigate();
   const { user, role, loading } = useAuth();
