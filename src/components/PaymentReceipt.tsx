@@ -69,7 +69,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
           {splits.map((s, i) => (
             <div key={i} className="px-4 py-2.5 flex justify-between text-sm border-t border-border">
               <span className="text-card-foreground">{recipientLabels[s.recipient] || s.recipient}</span>
-              <span className="font-semibold text-card-foreground">GH₵ {s.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span className="font-semibold text-card-foreground">{formatGHSDecimal(s.amount)}</span>
             </div>
           ))}
           <div className="px-4 py-3 flex justify-between text-sm border-t-2 border-primary bg-primary/5">
