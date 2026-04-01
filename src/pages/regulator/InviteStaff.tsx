@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAdminProfile, GHANA_OFFICES, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
+import { useAdminProfile, GHANA_REGIONS, getOfficesForRegion, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
 import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
