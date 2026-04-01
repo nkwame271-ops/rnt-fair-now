@@ -4,6 +4,7 @@ import { Download, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { generateTenancyCardPdf } from "@/lib/generateTenancyCardPdf";
 import { differenceInDays, format } from "date-fns";
+import { formatGHS } from "@/lib/formatters";
 
 export interface TenancyCardData {
   tenancyId: string;
