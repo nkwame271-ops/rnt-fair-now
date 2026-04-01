@@ -424,13 +424,21 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
       <AdminPasswordConfirm
         open={!!accountAction}
         onOpenChange={() => setAccountAction(null)}
-        title={accountAction?.action === "deactivate_account" ? "Deactivate Account" : "Archive Account"}
+        title={
+          accountAction?.action === "delete_account" ? "Delete Account Permanently" :
+          accountAction?.action === "deactivate_account" ? "Deactivate Account" : "Archive Account"
+        }
         description={
-          accountAction?.action === "deactivate_account"
+          accountAction?.action === "delete_account"
+            ? "This will PERMANENTLY delete this account, remove all associated data, and ban the user. This action cannot be undone."
+            : accountAction?.action === "deactivate_account"
             ? "This will deactivate the account. The user will no longer be able to access their dashboard."
             : "This will archive the account. Only accounts without active tenancies can be archived."
         }
-        actionLabel={accountAction?.action === "deactivate_account" ? "Deactivate" : "Archive"}
+        actionLabel={
+          accountAction?.action === "delete_account" ? "Delete Forever" :
+          accountAction?.action === "deactivate_account" ? "Deactivate" : "Archive"
+        }
         onConfirm={async (password, reason) => {
           await handleAdminAction(
             accountAction!.action,
