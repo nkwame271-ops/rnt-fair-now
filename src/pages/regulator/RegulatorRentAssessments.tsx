@@ -28,11 +28,24 @@ interface RentAssessment {
 
 const RegulatorRentAssessments = () => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
   const [assessments, setAssessments] = useState<RentAssessment[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (password: string, reason: string) => {
+    if (!deletingId) return;
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action: "delete_assessment", target_id: deletingId, reason, password },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    setAssessments(prev => prev.filter(a => a.id !== deletingId));
+    toast.success("Assessment permanently deleted");
+  };
 
   useEffect(() => {
     const fetchData = async () => {
