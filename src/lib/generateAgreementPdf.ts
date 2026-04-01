@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import QRCode from "qrcode";
+import { formatGHS } from "@/lib/formatters";
 
 export interface TemplateConfig {
   max_advance_months: number;
