@@ -117,8 +117,8 @@ const DailyReport = ({ profile }: Props) => {
       const { error } = await supabase.from("daily_stock_reports" as any).insert({
         office_id: selectedOfficeId,
         office_name: officeName,
-        staff_user_id: profile?.userId || "",
-        staff_name: profile?.fullName || signedName,
+        staff_user_id: "",
+        staff_name: signedName,
         report_date: new Date().toISOString().split("T")[0],
         opening_pairs: stats.openingPairs,
         assigned_today: stats.assignedToday,
