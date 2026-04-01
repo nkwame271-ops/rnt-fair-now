@@ -182,16 +182,21 @@ const RegulatorTerminations = () => {
                         <Button size="sm" onClick={() => handleTermAction(app.id, "approved")} disabled={processing === app.id}>
                           <CheckCircle className="h-3 w-3 mr-1" /> Approve
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleTermAction(app.id, "rejected")} disabled={processing === app.id}>
-                          <XCircle className="h-3 w-3 mr-1" /> Reject
-                        </Button>
-                      </div>
-                    </div>
-                  ) : app.reviewer_notes ? (
-                    <div className="bg-muted/50 rounded p-2 text-sm">
-                      <span className="font-medium">Notes:</span> {app.reviewer_notes}
-                    </div>
-                  ) : null}
+                         <Button size="sm" variant="destructive" onClick={() => handleTermAction(app.id, "rejected")} disabled={processing === app.id}>
+                           <XCircle className="h-3 w-3 mr-1" /> Reject
+                         </Button>
+                         {profile?.isMainAdmin && (
+                           <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive gap-1" onClick={() => setDeletingId(app.id)}>
+                             <Trash2 className="h-3 w-3 mr-1" /> Delete
+                           </Button>
+                         )}
+                       </div>
+                     </div>
+                   ) : app.reviewer_notes ? (
+                     <div className="bg-muted/50 rounded p-2 text-sm">
+                       <span className="font-medium">Notes:</span> {app.reviewer_notes}
+                     </div>
+                   ) : null}
                 </CardContent>
               </Card>
             ))}
