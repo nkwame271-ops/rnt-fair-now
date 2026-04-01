@@ -36,7 +36,7 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
 
   // --- Account Management ---
   const [accountSearch, setAccountSearch] = useState("");
-  const [accountType, setAccountType] = useState<"landlord" | "tenant">("landlord");
+  const [accountType, setAccountType] = useState<"landlord" | "tenant" | "admin">("landlord");
   const [accountResult, setAccountResult] = useState<any>(null);
   const [accountSearching, setAccountSearching] = useState(false);
   const [accountAction, setAccountAction] = useState<{ action: string; targetId: string; accountType: string } | null>(null);
