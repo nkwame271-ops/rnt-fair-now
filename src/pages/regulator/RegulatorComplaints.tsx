@@ -459,6 +459,11 @@ const RegulatorComplaints = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {profile?.isMainAdmin && (
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeletingId({ id: c.id, type: "landlord" })}>
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                  </Button>
+                )}
               </div>
             </div>
           ))}
