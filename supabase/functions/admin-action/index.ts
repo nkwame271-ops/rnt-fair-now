@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     switch (action) {
       case "generate_serials": {
         targetType = "serial_stock";
-        const { prefix, start_range, end_range, pad_length, office_name, region, batch_label } = extra || {};
+        const { prefix, start_range, end_range, pad_length, office_name, region, batch_label, paired_mode } = extra || {};
 
         if (!prefix || !start_range || !end_range || !office_name) {
           throw new Error("Missing serial generation parameters");
@@ -94,30 +94,47 @@ Deno.serve(async (req) => {
           throw new Error("All generated serial numbers already exist in stock");
         }
 
+        const pairGroup = paired_mode ? `PG-${Date.now()}` : null;
+
         // Insert in batches of 500
         for (let i = 0; i < newSerials.length; i += 500) {
           const batch = newSerials.slice(i, i + 500);
-          const rows = batch.map(s => ({
-            serial_number: s,
-            office_name,
-            status: "available",
-            batch_label: batch_label || target_id,
-            region: region || null,
-          }));
+          const rows: any[] = [];
+          for (const s of batch) {
+            if (paired_mode) {
+              // Insert twice: pair_index 1 (Landlord Copy) and 2 (Tenant Copy)
+              rows.push({
+                serial_number: s, office_name, status: "available",
+                batch_label: batch_label || target_id, region: region || null,
+                pair_index: 1, pair_group: pairGroup,
+              });
+              rows.push({
+                serial_number: s, office_name, status: "available",
+                batch_label: batch_label || target_id, region: region || null,
+                pair_index: 2, pair_group: pairGroup,
+              });
+            } else {
+              rows.push({
+                serial_number: s, office_name, status: "available",
+                batch_label: batch_label || target_id, region: region || null,
+              });
+            }
+          }
           const { error: insertErr } = await adminClient
             .from("rent_card_serial_stock")
             .insert(rows);
           if (insertErr) throw insertErr;
         }
 
+        const physicalCards = paired_mode ? newSerials.length * 2 : newSerials.length;
         oldState = { action: "generate_serials" };
         newState = {
           generated_count: newSerials.length,
+          physical_cards: physicalCards,
+          paired_mode: !!paired_mode,
           skipped_duplicates: serials.length - newSerials.length,
-          prefix,
-          range: `${start_range}-${end_range}`,
-          office_name,
-          region: region || null,
+          prefix, range: `${start_range}-${end_range}`,
+          office_name, region: region || null,
           batch_label: batch_label || target_id,
         };
         break;
