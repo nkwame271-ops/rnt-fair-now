@@ -763,7 +763,7 @@ Deno.serve(async (req) => {
       const advanceMonths = Math.min((tenancy as any).advance_months ?? 6, 6);
 
       totalAmount = rent * advanceMonths * 0.08;
-      splitPlan = [{ recipient: "rent_control", amount: totalAmount, description: `Renewal tax (${advanceMonths} months)` }];
+      splitPlan = await getTaxSplitPlan(supabaseAdmin, totalAmount, `Renewal tax (${advanceMonths} months)`);
       description = `Renewal tax (${advanceMonths} months advance) - ${(tenancy as any).registration_code}`;
       reference = `renew_${tenancyId}_${Date.now()}`;
       callbackPath = "/tenant/renewal?status=success";
