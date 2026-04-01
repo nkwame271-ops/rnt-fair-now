@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { formatGHS } from "@/lib/formatters";
 import type { TenancyCardData } from "@/components/TenancyCard";
 
 export const generateTenancyCardPdf = (data: TenancyCardData): jsPDF => {
