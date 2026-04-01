@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { AdminProfile, GHANA_OFFICES } from "@/hooks/useAdminProfile";
+import { AdminProfile, GHANA_REGIONS, getOfficesForRegion, getRegionForOffice } from "@/hooks/useAdminProfile";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -41,18 +41,27 @@ interface Props {
   refreshKey: number;
 }
 
-async function fetchAllSerials(officeName: string) {
+// Fetches serials assigned to office OR to its parent region
+async function fetchAllSerials(officeName: string, officeRegion: string | null) {
   let allData: any[] = [];
   let from = 0;
   const PAGE = 1000;
+
+  // Build the query: office_name match OR region match
   while (true) {
-    const { data, error } = await supabase
-      .from("rent_card_serial_stock" as any)
-      .select("serial_number, status, batch_label")
-      .eq("office_name", officeName)
+    let query = supabase
+      .from("rent_card_serial_stock")
+      .select("serial_number, status, batch_label, region")
       .order("serial_number", { ascending: true })
       .range(from, from + PAGE - 1);
 
+    if (officeRegion) {
+      query = query.or(`office_name.eq.${officeName},region.eq.${officeRegion}`);
+    } else {
+      query = query.eq("office_name", officeName);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     if (!data || data.length === 0) break;
     allData = allData.concat(data);
@@ -63,6 +72,7 @@ async function fetchAllSerials(officeName: string) {
 }
 
 const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
+  const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedOfficeId, setSelectedOfficeId] = useState(profile?.officeId || "");
   const [stock, setStock] = useState<StockSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -71,29 +81,35 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
   const [deleteCount, setDeleteCount] = useState(0);
   const [deleting, setDeleting] = useState(false);
 
-  const officeName = GHANA_OFFICES.find(o => o.id === selectedOfficeId)?.name || "";
+  const regionOffices = selectedRegion ? getOfficesForRegion(selectedRegion) : [];
+  const selectedOffice = regionOffices.find(o => o.id === selectedOfficeId);
+  const officeName = selectedOffice?.name || "";
   const isMain = !profile || profile.isMainAdmin;
 
+  // For sub-admins, auto-set region from their office
   useEffect(() => {
     if (profile && !profile.isMainAdmin && profile.officeId) {
       setSelectedOfficeId(profile.officeId);
+      const region = getRegionForOffice(profile.officeId);
+      if (region) setSelectedRegion(region);
     }
   }, [profile]);
+
+  const officeRegion = selectedOfficeId ? getRegionForOffice(selectedOfficeId) : null;
 
   useEffect(() => {
     if (!officeName) { setStock(null); setRanges([]); return; }
     const fetchStock = async () => {
       setLoading(true);
       try {
-        const items = await fetchAllSerials(officeName);
+        const items = await fetchAllSerials(officeName, officeRegion);
         setStock({
           total: items.length,
-          available: items.filter(i => i.status === "available").length,
-          assigned: items.filter(i => i.status === "assigned").length,
-          revoked: items.filter(i => i.status === "revoked").length,
+          available: items.filter((i: any) => i.status === "available").length,
+          assigned: items.filter((i: any) => i.status === "assigned").length,
+          revoked: items.filter((i: any) => i.status === "revoked").length,
         });
 
-        // Group by batch_label for range view
         const batchMap = new Map<string, any[]>();
         for (const item of items) {
           const key = item.batch_label || "Unbatched";
@@ -121,14 +137,14 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
       setLoading(false);
     };
     fetchStock();
-  }, [officeName, refreshKey]);
+  }, [officeName, officeRegion, refreshKey]);
 
   const handleDeleteBatch = async () => {
     if (!deletingBatch || !officeName) return;
     setDeleting(true);
     try {
       const { error } = await supabase
-        .from("rent_card_serial_stock" as any)
+        .from("rent_card_serial_stock")
         .delete()
         .eq("batch_label", deletingBatch)
         .eq("office_name", officeName)
@@ -139,12 +155,12 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
       setDeletingBatch(null);
       // Refresh
       setLoading(true);
-      const items = await fetchAllSerials(officeName);
+      const items = await fetchAllSerials(officeName, officeRegion);
       setStock({
         total: items.length,
-        available: items.filter(i => i.status === "available").length,
-        assigned: items.filter(i => i.status === "assigned").length,
-        revoked: items.filter(i => i.status === "revoked").length,
+        available: items.filter((i: any) => i.status === "available").length,
+        assigned: items.filter((i: any) => i.status === "assigned").length,
+        revoked: items.filter((i: any) => i.status === "revoked").length,
       });
       const batchMap = new Map<string, any[]>();
       for (const item of items) {
@@ -181,24 +197,42 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
         </h2>
 
         <div className="flex items-end gap-4 flex-wrap">
-          <div className="space-y-2 flex-1 min-w-[200px]">
-            <Label>Office</Label>
-            {profile?.isMainAdmin ? (
-              <Select value={selectedOfficeId} onValueChange={setSelectedOfficeId}>
-                <SelectTrigger><SelectValue placeholder="Select office..." /></SelectTrigger>
-                <SelectContent>
-                  {GHANA_OFFICES.map(o => (
-                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
+          {isMain ? (
+            <>
+              <div className="space-y-2 flex-1 min-w-[180px]">
+                <Label>Region</Label>
+                <Select value={selectedRegion} onValueChange={v => { setSelectedRegion(v); setSelectedOfficeId(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Select region..." /></SelectTrigger>
+                  <SelectContent>
+                    {GHANA_REGIONS.map(r => (
+                      <SelectItem key={r} value={r}>{r}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedRegion && (
+                <div className="space-y-2 flex-1 min-w-[180px]">
+                  <Label>Office</Label>
+                  <Select value={selectedOfficeId} onValueChange={setSelectedOfficeId}>
+                    <SelectTrigger><SelectValue placeholder="Select office..." /></SelectTrigger>
+                    <SelectContent>
+                      {regionOffices.map(o => (
+                        <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="space-y-2 flex-1 min-w-[200px]">
+              <Label>Office</Label>
               <div className="flex items-center gap-2 h-10 px-3 border border-border rounded-md bg-muted/30">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-card-foreground">{officeName || "No office assigned"}</span>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {stock && !loading && (
@@ -222,7 +256,6 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
               </div>
             </div>
 
-            {/* Range View */}
             {ranges.length > 0 && (
               <div className="space-y-3 pt-4">
                 <h3 className="text-sm font-semibold text-card-foreground">Serial Ranges by Batch</h3>
@@ -260,10 +293,9 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
         )}
 
         {loading && <p className="text-sm text-muted-foreground py-4 text-center">Loading stock...</p>}
-        {!officeName && <p className="text-sm text-muted-foreground py-4 text-center">Select an office to view stock</p>}
+        {!officeName && <p className="text-sm text-muted-foreground py-4 text-center">Select a region and office to view stock</p>}
       </div>
 
-      {/* Delete confirmation dialog */}
       <AlertDialog open={!!deletingBatch} onOpenChange={open => { if (!open) setDeletingBatch(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>

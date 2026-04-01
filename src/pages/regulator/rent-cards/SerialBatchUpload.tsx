@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { GHANA_OFFICES } from "@/hooks/useAdminProfile";
+import { GHANA_REGIONS, getOfficesForRegion } from "@/hooks/useAdminProfile";
 
 interface Props {
   onStockChanged: () => void;
@@ -35,13 +36,16 @@ const parseSerials = (text: string): string[] => {
 };
 
 const SerialBatchUpload = ({ onStockChanged }: Props) => {
+  const [selectedRegion, setSelectedRegion] = useState("");
   const [targetOfficeId, setTargetOfficeId] = useState("");
+  const [assignToRegion, setAssignToRegion] = useState(false);
   const [serialInput, setSerialInput] = useState("");
   const [batchLabel, setBatchLabel] = useState("");
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string[] | null>(null);
 
-  const targetOffice = GHANA_OFFICES.find(o => o.id === targetOfficeId);
+  const regionOffices = selectedRegion ? getOfficesForRegion(selectedRegion) : [];
+  const targetOffice = regionOffices.find(o => o.id === targetOfficeId);
 
   const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -50,7 +54,6 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
       const lines = text.split(/[\n\r]+/).map(l => l.split(",")[0]?.trim()).filter(Boolean);
-      // Skip header if it looks like one
       const start = lines[0]?.toLowerCase().includes("serial") ? 1 : 0;
       setSerialInput(lines.slice(start).join("\n"));
     };
@@ -68,7 +71,8 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
   };
 
   const handleUpload = async () => {
-    if (!targetOffice) { toast.error("Select a target office"); return; }
+    const officeName = assignToRegion ? (regionOffices[0]?.name || selectedRegion) : targetOffice?.name;
+    if (!officeName && !assignToRegion) { toast.error("Select a target office or region"); return; }
     const serials = preview || parseSerials(serialInput);
     if (serials.length === 0) { toast.error("No serials to upload"); return; }
 
@@ -107,17 +111,19 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
 
       const rows = newSerials.map(s => ({
         serial_number: s,
-        office_name: targetOffice.name,
-        status: "available",
+        office_name: assignToRegion ? regionOffices[0]?.name || selectedRegion : officeName!,
+        status: "available" as const,
         batch_label: batchLabel || null,
+        region: assignToRegion ? selectedRegion : null,
       }));
 
-      const { error } = await supabase.from("rent_card_serial_stock" as any).insert(rows);
+      const { error } = await supabase.from("rent_card_serial_stock").insert(rows);
       if (error) throw error;
 
+      const targetLabel = assignToRegion ? `${selectedRegion} region` : officeName;
       const msg = skippedCount > 0
-        ? `${newSerials.length} new serial(s) added to ${targetOffice.name}. ${skippedCount} duplicate(s) skipped.`
-        : `${newSerials.length} serial(s) added to ${targetOffice.name}`;
+        ? `${newSerials.length} new serial(s) added to ${targetLabel}. ${skippedCount} duplicate(s) skipped.`
+        : `${newSerials.length} serial(s) added to ${targetLabel}`;
       toast.success(msg);
       setSerialInput("");
       setBatchLabel("");
@@ -129,6 +135,8 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
     setUploading(false);
   };
 
+  const isReady = serialInput.trim() && selectedRegion && (assignToRegion || targetOfficeId);
+
   return (
     <div className="space-y-6">
       <div className="bg-card rounded-xl border border-border p-6 space-y-4">
@@ -136,29 +144,60 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
           <Upload className="h-5 w-5 text-primary" /> Serial Batch Upload
         </h2>
         <p className="text-sm text-muted-foreground">
-          Upload serial numbers in bulk and assign them to an office. Paste directly, use ranges, or upload a CSV file.
+          Upload serial numbers in bulk and assign them to an office or region. Paste directly, use ranges, or upload a CSV file.
         </p>
 
+        {/* Region → Office Selection */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Target Office</Label>
-            <Select value={targetOfficeId} onValueChange={setTargetOfficeId}>
-              <SelectTrigger><SelectValue placeholder="Select office..." /></SelectTrigger>
+            <Label>Region</Label>
+            <Select value={selectedRegion} onValueChange={v => { setSelectedRegion(v); setTargetOfficeId(""); }}>
+              <SelectTrigger><SelectValue placeholder="Select region..." /></SelectTrigger>
               <SelectContent>
-                {GHANA_OFFICES.map(o => (
-                  <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                {GHANA_REGIONS.map(r => (
+                  <SelectItem key={r} value={r}>{r}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>Batch Label (optional)</Label>
-            <Input
-              placeholder="e.g. Batch 2026-Q1"
-              value={batchLabel}
-              onChange={e => setBatchLabel(e.target.value)}
+
+          {selectedRegion && !assignToRegion && (
+            <div className="space-y-2">
+              <Label>Target Office</Label>
+              <Select value={targetOfficeId} onValueChange={setTargetOfficeId}>
+                <SelectTrigger><SelectValue placeholder="Select office..." /></SelectTrigger>
+                <SelectContent>
+                  {regionOffices.map(o => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        {selectedRegion && (
+          <div className="flex items-center gap-3 bg-muted/30 rounded-lg p-3">
+            <Switch
+              checked={assignToRegion}
+              onCheckedChange={v => { setAssignToRegion(v); if (v) setTargetOfficeId(""); }}
             />
+            <div>
+              <p className="text-sm font-medium text-card-foreground">Assign to entire region</p>
+              <p className="text-xs text-muted-foreground">
+                All {regionOffices.length} office(s) in {selectedRegion} will have access to these serials.
+              </p>
+            </div>
           </div>
+        )}
+
+        <div className="space-y-2">
+          <Label>Batch Label (optional)</Label>
+          <Input
+            placeholder="e.g. Batch 2026-Q1"
+            value={batchLabel}
+            onChange={e => setBatchLabel(e.target.value)}
+          />
         </div>
 
         <div className="space-y-2">
@@ -184,7 +223,7 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
             <Eye className="h-4 w-4 mr-1" /> Preview
           </Button>
 
-          <Button onClick={handleUpload} disabled={uploading || !targetOfficeId || !serialInput.trim()}>
+          <Button onClick={handleUpload} disabled={uploading || !isReady}>
             <Upload className="h-4 w-4 mr-1" />
             {uploading ? "Uploading..." : "Upload to Stock"}
           </Button>

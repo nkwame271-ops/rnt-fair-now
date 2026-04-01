@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       throw new Error("Missing required fields: action, target_id, reason, password");
     }
 
-    // Re-authenticate admin via password using a separate client to avoid mutating adminClient session
+    // Re-authenticate admin via password
     const verifyClient = createClient(supabaseUrl, anonKey);
     const { error: reAuthError } = await verifyClient.auth.signInWithPassword({
       email: user.email!,
@@ -59,9 +59,72 @@ Deno.serve(async (req) => {
     let targetType = "";
 
     switch (action) {
+      case "generate_serials": {
+        targetType = "serial_stock";
+        const { prefix, start_range, end_range, pad_length, office_name, region, batch_label } = extra || {};
+
+        if (!prefix || !start_range || !end_range || !office_name) {
+          throw new Error("Missing serial generation parameters");
+        }
+
+        const quantity = end_range - start_range + 1;
+        if (quantity <= 0 || quantity > 10000) {
+          throw new Error("Quantity must be between 1 and 10,000");
+        }
+
+        const padLen = pad_length || 4;
+        const serials: string[] = [];
+        for (let i = start_range; i <= end_range; i++) {
+          serials.push(prefix + String(i).padStart(padLen, "0"));
+        }
+
+        // Check for duplicates
+        const existingSet = new Set<string>();
+        for (let i = 0; i < serials.length; i += 100) {
+          const batch = serials.slice(i, i + 100);
+          const { data } = await adminClient
+            .from("rent_card_serial_stock")
+            .select("serial_number")
+            .in("serial_number", batch);
+          if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
+        }
+
+        const newSerials = serials.filter(s => !existingSet.has(s));
+        if (newSerials.length === 0) {
+          throw new Error("All generated serial numbers already exist in stock");
+        }
+
+        // Insert in batches of 500
+        for (let i = 0; i < newSerials.length; i += 500) {
+          const batch = newSerials.slice(i, i + 500);
+          const rows = batch.map(s => ({
+            serial_number: s,
+            office_name,
+            status: "available",
+            batch_label: batch_label || target_id,
+            region: region || null,
+          }));
+          const { error: insertErr } = await adminClient
+            .from("rent_card_serial_stock")
+            .insert(rows);
+          if (insertErr) throw insertErr;
+        }
+
+        oldState = { action: "generate_serials" };
+        newState = {
+          generated_count: newSerials.length,
+          skipped_duplicates: serials.length - newSerials.length,
+          prefix,
+          range: `${start_range}-${end_range}`,
+          office_name,
+          region: region || null,
+          batch_label: batch_label || target_id,
+        };
+        break;
+      }
+
       case "revoke_batch": {
         targetType = "serial_stock";
-        // target_id is batch_label
         const { data: serials } = await adminClient
           .from("rent_card_serial_stock")
           .select("id, serial_number, status, assigned_to_card_id")
@@ -92,7 +155,6 @@ Deno.serve(async (req) => {
 
       case "unassign_serial": {
         targetType = "serial_stock";
-        // target_id is serial_number
         const { data: serial } = await adminClient
           .from("rent_card_serial_stock")
           .select("id, status, assigned_to_card_id, serial_number")
@@ -102,7 +164,6 @@ Deno.serve(async (req) => {
         if (!serial) throw new Error("Serial not found");
         if (serial.status !== "assigned") throw new Error("Serial is not in 'assigned' status");
 
-        // Check if the linked card has an active tenancy
         if (serial.assigned_to_card_id) {
           const { data: card } = await adminClient
             .from("rent_cards")
@@ -118,11 +179,10 @@ Deno.serve(async (req) => {
               .single();
 
             if (tenancy && !["terminated", "expired"].includes(tenancy.status)) {
-              throw new Error("Cannot unassign: serial is linked to an active tenancy. Use correction workflow instead.");
+              throw new Error("Cannot unassign: serial is linked to an active tenancy.");
             }
           }
 
-          // Reset the rent card
           await adminClient
             .from("rent_cards")
             .update({ serial_number: null, status: "awaiting_serial" })
@@ -147,7 +207,6 @@ Deno.serve(async (req) => {
 
       case "void_upload": {
         targetType = "serial_stock";
-        // target_id is batch_label
         const { data: serials } = await adminClient
           .from("rent_card_serial_stock")
           .select("id, status")
@@ -177,7 +236,6 @@ Deno.serve(async (req) => {
 
       case "deactivate_account":
       case "archive_account": {
-        // extra.account_type = 'landlord' | 'tenant'
         const accountType = extra?.account_type;
         if (!accountType || !["landlord", "tenant"].includes(accountType)) {
           throw new Error("Must specify account_type: landlord or tenant");
@@ -195,7 +253,6 @@ Deno.serve(async (req) => {
         if (!account) throw new Error(`${accountType} account not found`);
         oldState = { account_status: (account as any).account_status || "active" };
 
-        // Check for active tenancies before hard actions
         if (action === "archive_account") {
           const tenancyField = accountType === "landlord" ? "landlord_user_id" : "tenant_user_id";
           const { data: activeTenancies } = await adminClient
