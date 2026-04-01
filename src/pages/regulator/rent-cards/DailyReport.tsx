@@ -24,7 +24,7 @@ interface DailyStats {
   closingPairs: number;
 }
 
-const DailyReport = ({ profile, refreshKey }: Props) => {
+const DailyReport = ({ profile }: Props) => {
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedOfficeId, setSelectedOfficeId] = useState(profile?.officeId || "");
   const [stats, setStats] = useState<DailyStats | null>(null);
