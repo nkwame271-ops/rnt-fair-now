@@ -388,6 +388,7 @@ export type Database = {
           id: string
           office_id: string | null
           recipient: string
+          release_mode: string
           released_at: string | null
         }
         Insert: {
@@ -398,6 +399,7 @@ export type Database = {
           id?: string
           office_id?: string | null
           recipient: string
+          release_mode?: string
           released_at?: string | null
         }
         Update: {
@@ -408,6 +410,7 @@ export type Database = {
           id?: string
           office_id?: string | null
           recipient?: string
+          release_mode?: string
           released_at?: string | null
         }
         Relationships: [
@@ -1962,6 +1965,36 @@ export type Database = {
           },
         ]
       }
+      secondary_split_configurations: {
+        Row: {
+          description: string | null
+          id: string
+          parent_recipient: string
+          percentage: number
+          sub_recipient: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          parent_recipient: string
+          percentage?: number
+          sub_recipient: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          parent_recipient?: string
+          percentage?: number
+          sub_recipient?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       serial_assignments: {
         Row: {
           assigned_by: string
@@ -2034,6 +2067,45 @@ export type Database = {
         }
         Relationships: []
       }
+      split_configurations: {
+        Row: {
+          amount: number
+          amount_type: string
+          description: string | null
+          id: string
+          is_platform_fee: boolean
+          payment_type: string
+          recipient: string
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount?: number
+          amount_type?: string
+          description?: string | null
+          id?: string
+          is_platform_fee?: boolean
+          payment_type: string
+          recipient: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount?: number
+          amount_type?: string
+          description?: string | null
+          id?: string
+          is_platform_fee?: boolean
+          payment_type?: string
+          recipient?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       support_conversations: {
         Row: {
           created_at: string
@@ -2095,6 +2167,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      system_settlement_accounts: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          account_type: string
+          bank_name: string | null
+          id: string
+          momo_number: string | null
+          momo_provider: string | null
+          payment_method: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          account_type: string
+          bank_name?: string | null
+          id?: string
+          momo_number?: string | null
+          momo_provider?: string | null
+          payment_method?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          account_type?: string
+          bank_name?: string | null
+          id?: string
+          momo_number?: string | null
+          momo_provider?: string | null
+          payment_method?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       tenancies: {
         Row: {
