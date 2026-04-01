@@ -123,10 +123,21 @@ const EscrowDashboard = () => {
         const officeMap = new Map<string, OfficeRevenue>();
         const officeNames = new Map((await supabase.from("offices").select("id, name")).data?.map(o => [o.id, o.name]) || []);
 
+        // Fetch approved fund requests to calculate wallet balances
+        const { data: approvedRequests } = await supabase
+          .from("office_fund_requests")
+          .select("office_id, amount")
+          .eq("status", "approved");
+
+        const releasedByOffice = new Map<string, number>();
+        for (const req of (approvedRequests || []) as any[]) {
+          releasedByOffice.set(req.office_id, (releasedByOffice.get(req.office_id) || 0) + Number(req.amount));
+        }
+
         for (const s of (allSplits || []) as any[]) {
           const oid = s.office_id || "unassigned";
           if (!officeMap.has(oid)) {
-            officeMap.set(oid, { officeId: oid, officeName: officeNames.get(oid) || "Unassigned", total: 0, igf: 0, admin: 0, platform: 0, landlord: 0, gra: 0, autoReleased: 0, manualReleased: 0 });
+            officeMap.set(oid, { officeId: oid, officeName: officeNames.get(oid) || "Unassigned", total: 0, igf: 0, admin: 0, platform: 0, landlord: 0, gra: 0, autoReleased: 0, manualReleased: 0, walletBalance: 0, released: 0 });
           }
           const entry = officeMap.get(oid)!;
           entry.total += Number(s.amount);
@@ -138,6 +149,13 @@ const EscrowDashboard = () => {
           if (s.release_mode === "auto") entry.autoReleased += Number(s.amount);
           else if (s.recipient !== "landlord") entry.manualReleased += Number(s.amount);
         }
+
+        // Calculate wallet balance per office
+        for (const [oid, entry] of officeMap) {
+          entry.released = releasedByOffice.get(oid) || 0;
+          entry.walletBalance = entry.admin - entry.released;
+        }
+
         setOfficeRevenue(Array.from(officeMap.values()).sort((a, b) => b.total - a.total));
       } else {
         setOfficeRevenue([]);
