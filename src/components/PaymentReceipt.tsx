@@ -28,7 +28,7 @@ const recipientLabels: Record<string, string> = {
   landlord: "Landlord",
 };
 
-const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentType, description, splits, status, qrCodeData }: ReceiptProps) => {
+const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentType, description, splits, status, qrCodeData, showSplits = true }: ReceiptProps) => {
   const handlePrint = () => window.print();
 
   return (
