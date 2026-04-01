@@ -378,6 +378,11 @@ const RegulatorComplaints = () => {
                           <Clock className="h-3 w-3" />
                           {Math.ceil((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24))} days since filed
                         </div>
+                        {profile?.isMainAdmin && (
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive ml-2" onClick={() => setDeletingId({ id: c.id, type: "tenant" })}>
+                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                          </Button>
+                        )}
                       </div>
                     </div>
                   )}
