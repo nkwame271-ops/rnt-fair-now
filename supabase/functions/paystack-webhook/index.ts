@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
 
     if (signature !== hash) {
       console.error("Invalid Paystack signature");
+      // Note: logError not available yet (supabase not created), but we log to console
       return new Response("Invalid signature", { status: 401 });
     }
 
