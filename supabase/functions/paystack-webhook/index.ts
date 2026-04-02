@@ -48,6 +48,41 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // ── Error logging helper ──
+    const logError = async (opts: {
+      escrow_transaction_id?: string;
+      reference?: string;
+      function_name?: string;
+      error_stage: string;
+      error_message: string;
+      error_context?: Record<string, any>;
+      severity?: string;
+    }) => {
+      try {
+        await supabase.from("payment_processing_errors").insert({
+          function_name: "paystack-webhook",
+          severity: "warning",
+          ...opts,
+        });
+        // Notify main admins on critical errors
+        if ((opts.severity || "warning") === "critical") {
+          const { data: admins } = await supabase.from("admin_staff").select("user_id").eq("admin_type", "main_admin");
+          if (admins && admins.length > 0) {
+            await supabase.from("notifications").insert(
+              admins.map((a: any) => ({
+                user_id: a.user_id,
+                title: "⚠️ Critical Payment Error",
+                body: `[${opts.error_stage}] ${opts.error_message.slice(0, 120)}`,
+                link: "/regulator/payment-errors",
+              }))
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Failed to log error:", e);
+      }
+    };
+
     // ── Handle charge.failed ──
     if (body.event === "charge.failed") {
       const data = body.data;
