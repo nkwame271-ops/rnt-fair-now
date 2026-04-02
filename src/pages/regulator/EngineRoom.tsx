@@ -556,26 +556,30 @@ const EngineRoom = () => {
         </div>
         {isMainAdmin && (
           <div className="flex items-center gap-3 shrink-0">
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min="0"
-                step="0.5"
-                className="w-24 h-9 text-sm"
-                value={isEditing ? currentEditValue : (flag.fee_amount ?? 0)}
-                onChange={(e) => setEditingFees((prev) => ({ ...prev, [flag.feature_key]: parseFloat(e.target.value) || 0 }))}
-              />
-              {isEditing && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleFeeAmountSave(flag.feature_key)}
-                  disabled={toggling === flag.feature_key + "_amount"}
-                >
-                  {toggling === flag.feature_key + "_amount" ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                </Button>
-              )}
-            </div>
+            {BAND_BASED_FEE_KEYS.has(flag.feature_key) ? (
+              <span className="text-xs text-muted-foreground italic mr-2">Amount set via Rent Bands</span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="w-24 h-9 text-sm"
+                  value={isEditing ? currentEditValue : (flag.fee_amount ?? 0)}
+                  onChange={(e) => setEditingFees((prev) => ({ ...prev, [flag.feature_key]: parseFloat(e.target.value) || 0 }))}
+                />
+                {isEditing && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleFeeAmountSave(flag.feature_key)}
+                    disabled={toggling === flag.feature_key + "_amount"}
+                  >
+                    {toggling === flag.feature_key + "_amount" ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                  </Button>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-2">
               {toggling === flag.feature_key + "_fee" && (
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
