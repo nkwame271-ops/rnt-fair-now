@@ -1,119 +1,90 @@
 
+Goal: fix the persistent payment loop by making payment finalization reliable even when the webhook is missed, then tighten reporting, admin visibility, and receipt output.
 
-# Fix Fee Determination vs Allocation Conflict
+What I found
+- `paystack-webhook` is the only path that currently creates `escrow_splits`, updates office wallet flow, and starts payout transfers.
+- `verify-payment` marks escrow as completed, creates a receipt, and tries payouts only if `escrow_splits` already exist. If the webhook does not run first, the ledger stays at zero and transfers never start.
+- `EscrowDashboard` reads `escrow_splits`, so missing splits explains:
+  - zero Allocation Summary
+  - no transfers
+  - “same errors” after successful payment
+- `paystack-checkout` still auto-adjusts band allocations when totals do not match the payable fee. That should hard-fail, not silently rebalance.
+- Sub-admin visibility is only handled in the UI today; the dashboard still calculates Platform/GRA/Landlord data from raw tables.
+- Receipts still expose `split_breakdown` on tenant and regulator pages.
 
-## Problem
+Plan
+1. Build one shared payment finalization pipeline
+- Extract the “successful payment” flow into one shared helper used by both `paystack-webhook` and `verify-payment`.
+- That shared flow will be idempotent and always do the same steps in the same order:
+  1. confirm escrow/payment success
+  2. load stored `split_plan`
+  3. validate split total equals payable amount
+  4. create missing `escrow_splits`
+  5. create/update receipt
+  6. create missing transfer recipients
+  7. create `payout_transfers`
+  8. trigger transfers
+  9. update office wallet flow where applicable
+- Result: if webhook fires, great; if webhook is delayed/missed, `verify-payment` can still fully finalize the transaction instead of leaving ledger values at zero.
 
-The current system conflates fee determination and allocation in `paystack-checkout`. The `getDynamicFee` function pulls the fee amount from `feature_flags` but also loads split amounts from `split_configurations` — then proportionally scales splits if they don't match the fee. This causes:
+2. Fix the payout/recipient bugs
+- Correct the payout routing so office admin share can use the office payout account path instead of being swallowed by the generic system-settlement mapping.
+- Make transfer creation fully idempotent by checking existing `escrow_splits`, recipient codes, and `payout_transfers` before inserting again.
+- Ensure the fallback verification path can create splits from `escrow_transactions.metadata.split_plan` if none exist yet.
 
-1. **Split totals overriding fees**: If a regulator updates the fee in Platform Fees but not the splits (or vice versa), the proportional scaling produces incorrect allocations.
-2. **No per-band allocation rules**: For rent-band-based payment types (agreement_sale, add_tenant_fee), the system picks the correct band fee but then blindly scales a single set of splits. There's no way to define different allocation ratios per rent band.
-3. **Add Tenant Fee doesn't use rent bands at all** in checkout — it uses a flat fee from `feature_flags`, even though it should mirror the Declare Existing Tenancy logic.
+3. Enforce strict fee/allocation validation
+- In `paystack-checkout`, stop auto-adjusting the largest split when a rent-band allocation does not match the final payable fee.
+- Replace that with strict validation:
+  - Platform Fees / Rent Bands determine the payable amount
+  - allocation rules only distribute that exact amount
+  - mismatch = block checkout and log a payment configuration error
+- This will prevent silent bad allocations from reaching escrow, reporting, or transfers.
 
-## Architecture
+4. Fix Escrow & Revenue reporting
+- Update the dashboard to report from finalized payment data only, not partial/incomplete rows.
+- Make Allocation Summary reflect real `escrow_splits` immediately after finalization.
+- Add explicit breakdown cards instead of the current generic “Other” bucket:
+  - Complaint
+  - Tenancy Agreement (combined `agreement_sale` + `add_tenant_fee`)
+  - Listing Fee
+  - Viewing Fee
+  - Archive Search
+- Add a payment pipeline status/checklist view per transaction so you can see:
+  - webhook received
+  - verification completed
+  - allocation posted
+  - recipient created
+  - transfer triggered
+  - transfer result
 
-Separate into two clear stages:
+5. Lock down admin visibility properly
+- Main admin keeps full visibility.
+- Invited sub-admins only get:
+  - IGF
+  - Admin
+- Sub-admins must not receive or render:
+  - Platform
+  - GRA
+  - Landlord
+- I’ll enforce this in two places:
+  - UI: hide restricted cards/columns/rows
+  - backend data access: stop using raw unrestricted dashboard aggregation for sub-admins; return masked totals from a secure backend query/function based on `admin_staff.admin_type` and office scope.
 
-```text
-Stage 1: FEE DETERMINATION
-  ┌─────────────────────────────────┐
-  │ feature_flags (flat fees)       │ → Fixed fee types
-  │ rent_bands (band-based fees)    │ → Band fee types (agreement_sale, add_tenant_fee)
-  └─────────────────────────────────┘
-  Output: payableAmount (what user pays)
+6. Remove split details from receipts
+- Make receipt views show only the total paid by the user.
+- Keep internal allocation details only in escrow/reporting screens, not in receipt UI.
+- Update tenant, landlord, and regulator receipt usage so `split_breakdown` is no longer shown.
 
-Stage 2: ALLOCATION (Split Engine)
-  ┌─────────────────────────────────┐
-  │ split_configurations            │ → Flat fee allocations (percentage-based)
-  │ rent_band_allocations (NEW)     │ → Per-band allocations (absolute amounts)
-  └─────────────────────────────────┘
-  Output: splitPlan[] (how payableAmount is distributed)
-  Validation: sum(splits) MUST equal payableAmount
-```
-
-## Changes
-
-### 1. New Database Table: `rent_band_allocations`
-
-Stores allocation rules per rent band, so each band fee has its own distribution:
-
-```sql
-CREATE TABLE rent_band_allocations (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  rent_band_id uuid NOT NULL REFERENCES rent_bands(id) ON DELETE CASCADE,
-  payment_type text NOT NULL DEFAULT 'agreement_sale',
-  recipient text NOT NULL,
-  amount numeric NOT NULL DEFAULT 0,
-  description text,
-  sort_order integer NOT NULL DEFAULT 0,
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  updated_by uuid,
-  UNIQUE(rent_band_id, payment_type, recipient)
-);
-
-ALTER TABLE rent_band_allocations ENABLE ROW LEVEL SECURITY;
-
--- RLS: regulators manage, service_role full access
-CREATE POLICY "Regulators manage band allocations" ON rent_band_allocations
-  FOR ALL TO authenticated USING (has_role(auth.uid(), 'regulator'::app_role))
-  WITH CHECK (has_role(auth.uid(), 'regulator'::app_role));
-
-CREATE POLICY "Service role manages band allocations" ON rent_band_allocations
-  FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-CREATE POLICY "Authenticated read band allocations" ON rent_band_allocations
-  FOR SELECT TO authenticated USING (true);
-```
-
-Seed default allocations for each existing rent band (proportional to current split_configurations for agreement_sale and add_tenant_fee).
-
-### 2. Refactor `paystack-checkout/index.ts` — `getDynamicFee`
-
-Replace the current function with two separate functions:
-
-- **`determineFee(feeKey, monthlyRent?)`**: Returns `{ amount, enabled }` — uses `feature_flags` for flat fees, `rent_bands` for band-based fees. This is the **sole authority** on what the user pays.
-- **`loadAllocation(paymentType, amount, rentBandId?)`**: Returns `splitPlan[]` — for band-based types, loads from `rent_band_allocations`; for flat types, loads from `split_configurations` as percentages of the determined fee. **Validates** that `sum(splits) === amount` before returning.
-
-### 3. Update `agreement_sale` and `add_tenant_fee` checkout branches
-
-- Both should call `determineFee` first (using rent bands when `monthlyRent` is provided)
-- Then call `loadAllocation` with the determined amount and matched band ID
-- `add_tenant_fee` gains rent band support (currently only flat fee)
-
-### 4. Update `split_configurations` usage
-
-Change `split_configurations.amount` interpretation for flat-fee types to be **percentage-based** (0-100) rather than absolute amounts. The allocation function multiplies the determined fee by each recipient's percentage. This eliminates the scaling hack.
-
-Actually — to minimize disruption, keep `split_configurations` as-is for flat fees but change the allocation loader to treat them as proportional shares: `recipient_amount = (split.amount / sum_of_all_splits) * payableAmount`. This is already what the scaling does, but we make it explicit and validate the output.
-
-### 5. Engine Room UI Updates (`EngineRoom.tsx`)
-
-Add a section under Rent Bands to manage per-band allocations:
-- When editing a rent band, show sub-rows for IGF, Admin, Platform allocation amounts
-- Validate that allocations sum to the band's `fee_amount`
-- For flat-fee types, keep the existing split_configurations UI but add a validation warning if splits don't match the fee_amount in feature_flags
-
-### 6. Frontend: Add Tenant page rent band support
-
-Update `AddTenant.tsx` to look up rent bands based on `monthlyRent` (like DeclareExistingTenancy already does) and pass `monthlyRent` to the checkout call so the backend can determine the correct band fee.
-
-### 7. Backend validation in `verify-payment` and `paystack-webhook`
-
-Add a validation step before processing payouts: load the allocation rule for the payment type and verify that the stored `split_plan` in metadata matches the current allocation rules. Log a warning (not block) if mismatched, to catch stale transactions.
-
-## Build Error
-
-The "build-run failed" error appears to be a transient infrastructure issue (same as the earlier 503 error), not a code defect. The plan above addresses only the fee/allocation architecture. A rebuild after implementation should resolve it.
-
-## Files to Change
-
-| File | Change |
-|------|--------|
-| Migration (new) | Create `rent_band_allocations` table + seed data |
-| `supabase/functions/paystack-checkout/index.ts` | Refactor `getDynamicFee` → `determineFee` + `loadAllocation`; update agreement_sale and add_tenant_fee branches |
-| `supabase/functions/paystack-webhook/index.ts` | Add allocation validation before payout |
-| `supabase/functions/verify-payment/index.ts` | Add allocation validation before payout |
-| `src/pages/regulator/EngineRoom.tsx` | Add per-band allocation editor UI |
-| `src/pages/landlord/AddTenant.tsx` | Add rent band lookup + pass monthlyRent to checkout |
-| `src/integrations/supabase/types.ts` | Auto-updated after migration |
-
+Technical details
+- Likely files:
+  - `supabase/functions/paystack-checkout/index.ts`
+  - `supabase/functions/paystack-webhook/index.ts`
+  - `supabase/functions/verify-payment/index.ts`
+  - `src/pages/regulator/EscrowDashboard.tsx`
+  - `src/components/PaymentReceipt.tsx`
+  - `src/pages/tenant/Receipts.tsx`
+  - `src/pages/landlord/Receipts.tsx`
+- Likely backend additions:
+  - one shared payment-finalization helper under `supabase/functions/_shared/`
+  - one secure reporting query/function for masked admin dashboard data
+  - possibly
