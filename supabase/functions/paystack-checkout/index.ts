@@ -104,14 +104,11 @@ const loadAllocation = async (
         description: a.description || "",
       }));
 
-      // Validate: sum must equal payableAmount
+      // Strict validation: sum MUST equal payableAmount
       const total = splits.reduce((s, r) => s + r.amount, 0);
       const diff = Math.abs(total - payableAmount);
       if (diff > 0.02) {
-        // Adjust the largest split to make it match
-        console.warn(`Band allocation sum (${total}) differs from fee (${payableAmount}) by ${diff}. Adjusting.`);
-        const largest = splits.reduce((a, b) => a.amount > b.amount ? a : b);
-        largest.amount = Math.round((largest.amount + (payableAmount - total)) * 100) / 100;
+        throw new Error(`Allocation configuration error: band allocations total (GH₵ ${total.toFixed(2)}) does not match fee amount (GH₵ ${payableAmount.toFixed(2)}). Please update allocations in Engine Room.`);
       }
 
       return splits;
