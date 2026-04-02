@@ -1,60 +1,46 @@
 
 
-# Fix: Invite Staff Errors & Empty Rent Cards for Sub-Admins
+# Fix: Invite Staff 400 Errors + Empty Rent Cards for Sub-Admins
 
-## Problems Found
+## Root Cause Analysis
 
-### Problem 1: Invite Staff returns 400
-The edge function logs show repeated **400** status codes. The most likely cause is `auth.admin.createUser` rejecting the request because:
-- The email was already registered from a previous attempt
-- The edge function returns `{ error: createError.message }` with status 400, but the frontend's `supabase.functions.invoke` wraps any non-2xx as a generic "Edge function returned a non-2xx code" error, hiding the real message
+### Issue 1: "Edge function returned a non-2xx code"
+The edge function returns HTTP 400 with `{ error: "..." }` in the body. However, when `supabase.functions.invoke()` receives a non-2xx status, it sets `error` to a generic `FunctionsHttpError` ("Edge function returned a non-2xx status code") and `data` is **null**. The frontend code checks `data?.error` first (line 76), but `data` is null, so it falls through to `error.message` which is the generic message.
 
-**Fix**: Improve error surfacing so the actual Paystack/auth error message reaches the UI. Also add a duplicate-email pre-check.
+**Fix**: Change the edge function to always return HTTP 200 and put success/error status in the JSON body. This is the standard pattern for Supabase edge functions called via `supabase.functions.invoke()`.
 
-### Problem 2: Rent Cards page is empty for sub-admins
-The invite form offers `rent_cards` as a single checkbox (from `FEATURE_ROUTE_MAP`). But `RegulatorRentCards.tsx` checks for two **sub-feature keys** that don't exist in the feature map:
-- `rent_card_procurement`
-- `rent_card_sales`
-
-A sub-admin with `allowedFeatures: ["rent_cards"]` passes the nav filter (sees the menu item) but fails both `hasProcurement` and `hasSales` checks, so both tab panels are hidden — resulting in an empty page.
+### Issue 2: Rent Cards empty for sub-admins
+The code at `RegulatorRentCards.tsx` lines 25-27 already has the fix from the prior implementation (`hasRentCards` check). This should be working. If it's still empty, the issue is that the `admin_staff` record was created during a previous (broken) invitation attempt where `allowed_features` may not have been saved correctly. Verify that the `admin_staff` table has the correct `allowed_features` array for the invited user.
 
 ## Plan
 
-### 1. Fix Rent Cards feature gating (this is the main issue)
+### 1. Fix edge function to return 200 with error in body
+**File**: `supabase/functions/invite-staff/index.ts`
 
-In `RegulatorRentCards.tsx`, update the permission checks to also accept the parent `rent_cards` key:
+Change all `status: 400` / `status: 403` responses to `status: 200` with the error message in the JSON body. The frontend already checks `data?.error` — this will now work correctly because `data` will be populated.
 
 ```typescript
-const hasProcurement = isMain 
-  || profile?.allowedFeatures?.includes("rent_card_procurement")
-  || profile?.allowedFeatures?.includes("rent_cards");
-const hasSales = isMain 
-  || profile?.allowedFeatures?.includes("rent_card_sales")
-  || profile?.allowedFeatures?.includes("rent_cards");
+// BEFORE (broken with supabase.functions.invoke):
+return new Response(JSON.stringify({ error: "message" }), {
+  status: 400,  // causes data to be null
+  headers: { ...corsHeaders, "Content-Type": "application/json" },
+});
+
+// AFTER:
+return new Response(JSON.stringify({ error: "message" }), {
+  status: 200,  // data is populated, frontend reads data.error
+  headers: { ...corsHeaders, "Content-Type": "application/json" },
+});
 ```
 
-This way, selecting `rent_cards` in the invite form grants both workspaces. Optionally, add `rent_card_procurement` and `rent_card_sales` as separate entries in `FEATURE_ROUTE_MAP` for granular control in the future.
+Keep `status: 401` for unauthorized (no auth header) since that's a true auth failure. Change 400 and 403 responses to 200.
 
-### 2. Fix invite-staff error handling
-
-In `InviteStaff.tsx`, the `supabase.functions.invoke` call doesn't properly extract the error body. The current code does:
-```typescript
-const { data, error } = await supabase.functions.invoke("invite-staff", { body: {...} });
-if (error) throw new Error(error.message);
-if (data?.error) throw new Error(data.error);
-```
-
-The issue: when the edge function returns a 400 with `{ error: "User already registered" }`, the Supabase client may throw with a generic message. Update to check `data?.error` first since the function returns JSON even on 400.
-
-### 3. Add duplicate email pre-check in edge function
-
-Before calling `createUser`, check if the email is already registered to give a clearer error message.
+### 2. Verify Rent Cards fix is deployed
+The `RegulatorRentCards.tsx` already has the correct permission check (lines 25-27). No code change needed. The empty dashboard issue will resolve once staff accounts can be successfully created with the correct `allowed_features` array.
 
 ## Files to change
 
 | File | Change |
 |------|--------|
-| `src/pages/regulator/RegulatorRentCards.tsx` | Accept `rent_cards` parent key in procurement/sales permission checks |
-| `src/pages/regulator/InviteStaff.tsx` | Improve error extraction from edge function response |
-| `supabase/functions/invite-staff/index.ts` | Minor: add clearer error for duplicate emails |
+| `supabase/functions/invite-staff/index.ts` | Return HTTP 200 for all business errors (400/403), keeping error message in JSON body |
 
