@@ -902,6 +902,11 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (error: any) {
     console.error("Webhook error:", error.message);
+    // Try to log top-level errors (supabase may not be available if error was early)
+    try {
+      const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      await db.from("payment_processing_errors").insert({ function_name: "paystack-webhook", error_stage: "top_level", error_message: error.message || String(error), severity: "critical" });
+    } catch {}
     return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
   }
 });
