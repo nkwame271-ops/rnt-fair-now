@@ -309,9 +309,11 @@ Deno.serve(async (req) => {
           return recipientCode;
         }
         console.error("Failed to create recipient:", result.message);
+        await logError({ reference, error_stage: "recipient_creation", error_message: result.message || "Failed to create Paystack recipient", severity: "critical", error_context: { account_type: accountDetails.lookupValue, payment_method: accountDetails.payment_method } });
         return null;
-      } catch (e) {
+      } catch (e: any) {
         console.error("getOrCreateRecipient error:", e);
+        await logError({ reference, error_stage: "recipient_creation", error_message: e.message || String(e), severity: "critical", error_context: { account_type: accountDetails.lookupValue } });
         return null;
       }
     };
