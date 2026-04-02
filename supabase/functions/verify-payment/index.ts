@@ -365,6 +365,7 @@ Deno.serve(async (req) => {
       }
     } catch (payoutErr: any) {
       console.error("Verify-payment payout trigger error:", payoutErr.message);
+      await logError({ escrow_transaction_id: escrow.id, reference, error_stage: "payout_trigger", error_message: payoutErr.message || String(payoutErr), severity: "critical" });
     }
 
     return new Response(JSON.stringify({ verified: true, status: "completed" }), {
