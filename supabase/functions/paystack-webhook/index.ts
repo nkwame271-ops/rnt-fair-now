@@ -126,8 +126,9 @@ Deno.serve(async (req) => {
               });
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error("SMS error (failed payment):", e);
+          await logError({ reference: data.reference, error_stage: "sms_failed_payment", error_message: e.message || String(e), severity: "warning" });
         }
       }
 
