@@ -170,6 +170,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     if (fromIdx === -1 || toIdx === -1 || toIdx < fromIdx) return [];
     return availableSerials.slice(fromIdx, toIdx + 1);
   }, [rangeFrom, rangeTo, availableSerials]);
+
+  const officeName = profile?.isMainAdmin
     ? ""
     : GHANA_OFFICES.find(o => o.id === profile?.officeId)?.name || "";
 
