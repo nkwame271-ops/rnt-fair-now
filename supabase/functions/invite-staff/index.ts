@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
 
     if (!callerAdmin || callerAdmin.admin_type !== "main_admin") {
       return new Response(JSON.stringify({ error: "Only Main Admins can invite staff." }), {
-        status: 403,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
