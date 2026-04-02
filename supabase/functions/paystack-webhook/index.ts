@@ -190,6 +190,8 @@ Deno.serve(async (req) => {
           .update({ status: "reversed", failure_reason: "Transfer reversed by Paystack", completed_at: new Date().toISOString(), transfer_code: transferCode })
           .eq("paystack_reference", tReference);
 
+        await logError({ reference: tReference, error_stage: "transfer_reversed", error_message: "Transfer reversed by Paystack", severity: "critical", error_context: { transfer_code: transferCode, event: "transfer.reversed" } });
+
         const { data: transfer } = await supabase
           .from("payout_transfers")
           .select("escrow_split_id")
