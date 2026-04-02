@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
     if (password.length < 6) {
       return new Response(JSON.stringify({ error: "Password must be at least 6 characters" }), {
-        status: 400,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
