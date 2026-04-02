@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
     const { data: existingUsers } = await adminClient.auth.admin.listUsers();
     if (existingUsers?.users?.some((u: any) => u.email?.toLowerCase() === email.toLowerCase())) {
       return new Response(JSON.stringify({ error: `Email "${email}" is already registered. Use a different email.` }), {
-        status: 400,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
