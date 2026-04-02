@@ -380,6 +380,22 @@ const EngineRoom = () => {
     }
   };
 
+  const handleSaveAllocation = async (allocId: string, newAmount: number) => {
+    setSavingAllocation(allocId);
+    const { error } = await supabase
+      .from("rent_band_allocations")
+      .update({ amount: newAmount, updated_at: new Date().toISOString(), updated_by: user?.id } as any)
+      .eq("id", allocId);
+    if (error) {
+      toast.error("Failed to update allocation");
+    } else {
+      toast.success("Allocation updated");
+      setBandAllocations(prev => prev.map(a => a.id === allocId ? { ...a, amount: newAmount } : a));
+      setEditingAllocations(prev => { const n = { ...prev }; delete n[allocId]; return n; });
+    }
+    setSavingAllocation(null);
+  };
+
   // Account Management handlers
   const handleAccountSearch = async () => {
     if (!accountSearch.trim()) return;
