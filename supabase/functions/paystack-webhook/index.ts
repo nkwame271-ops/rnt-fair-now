@@ -463,8 +463,9 @@ Deno.serve(async (req) => {
             });
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("triggerPayouts error:", e);
+        await logError({ escrow_transaction_id: escrowTransactionId, error_stage: "trigger_payouts", error_message: e.message || String(e), severity: "critical" });
       }
     };
 
