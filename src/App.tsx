@@ -65,6 +65,7 @@ const LandlordTerminationRequest = lazy(() => import("./pages/landlord/Terminati
 const ManageRentCards = lazy(() => import("./pages/landlord/ManageRentCards"));
 const LandlordPaymentSettings = lazy(() => import("./pages/landlord/PaymentSettings"));
 const LandlordReceipts = lazy(() => import("./pages/landlord/Receipts"));
+const InviteTenant = lazy(() => import("./pages/landlord/InviteTenant"));
 
 // Regulator pages
 const RegulatorDashboard = lazy(() => import("./pages/regulator/RegulatorDashboard"));
