@@ -319,9 +319,9 @@ Deno.serve(async (req) => {
           // Delete profile
           await adminClient.from("profiles").delete().eq("user_id", target_id);
           // Ban the auth user
-          await adminClient.auth.admin.updateUserById(target_id, { ban_duration: "876000h" });
+          await adminClient.auth.admin.deleteUser(target_id);
 
-          newState = { status: "deleted", ban_duration: "876000h" };
+          newState = { status: "deleted" };
         } else {
           // Delete landlord/tenant account
           const delTable = delAccountType === "landlord" ? "landlords" : "tenants";
@@ -355,9 +355,9 @@ Deno.serve(async (req) => {
           // Delete profile
           await adminClient.from("profiles").delete().eq("user_id", target_id);
           // Ban the auth user
-          await adminClient.auth.admin.updateUserById(target_id, { ban_duration: "876000h" });
+          await adminClient.auth.admin.deleteUser(target_id);
 
-          newState = { status: "deleted", ban_duration: "876000h" };
+          newState = { status: "deleted" };
         }
         break;
       }
