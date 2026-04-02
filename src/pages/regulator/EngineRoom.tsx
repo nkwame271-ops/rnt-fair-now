@@ -890,7 +890,6 @@ const EngineRoom = () => {
                           </div>
                         );
                       })()}
-                      </div>
                     </div>
                   );
                 })}
