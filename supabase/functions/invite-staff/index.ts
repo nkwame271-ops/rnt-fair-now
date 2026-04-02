@@ -94,6 +94,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Check if email is already registered
+    const { data: existingUsers } = await adminClient.auth.admin.listUsers();
+    if (existingUsers?.users?.some((u: any) => u.email?.toLowerCase() === email.toLowerCase())) {
+      return new Response(JSON.stringify({ error: `Email "${email}" is already registered. Use a different email.` }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Create user with admin API (auto-confirmed)
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email,

@@ -72,8 +72,9 @@ const InviteStaff = () => {
         },
       });
 
-      if (error) throw new Error(error.message);
+      // data?.error holds the real message even on non-2xx responses
       if (data?.error) throw new Error(data.error);
+      if (error) throw new Error(error.message);
 
       toast.success(data?.message || `Staff account created for ${email}`);
       setCreated(email);
