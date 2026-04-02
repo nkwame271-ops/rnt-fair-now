@@ -5,123 +5,172 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Recipient mapping kept for reference only — no longer used for Paystack subaccount splits
-// All money enters main account; backend triggers transfers after verification
+// ─── STAGE 1: FEE DETERMINATION ───
+// Sole authority on what the user pays. Uses feature_flags for flat fees,
+// rent_bands for band-based fees (agreement_sale, add_tenant_fee).
 
-// Fetch split configuration from DB, falling back to hardcoded defaults
-const getSplitConfigFromDB = async (supabaseAdmin: any, paymentType: string): Promise<{ recipient: string; amount: number; description: string; is_platform_fee: boolean }[] | null> => {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("split_configurations")
-      .select("recipient, amount, description, is_platform_fee, amount_type")
-      .eq("payment_type", paymentType)
-      .order("sort_order", { ascending: true });
-    if (error || !data || data.length === 0) return null;
-    return data.map((s: any) => ({
-      recipient: s.recipient,
-      amount: Number(s.amount),
-      description: s.description || "",
-      is_platform_fee: s.is_platform_fee || false,
-    }));
-  } catch {
-    return null;
-  }
+const BAND_BASED_TYPES = new Set(["agreement_sale", "add_tenant_fee"]);
+
+const FEE_KEY_TO_PAYMENT_TYPE: Record<string, string> = {
+  tenant_registration_fee: "tenant_registration",
+  landlord_registration_fee: "landlord_registration",
+  rent_card_fee: "rent_card",
+  agreement_sale_fee: "agreement_sale",
+  complaint_fee: "complaint_fee",
+  listing_fee: "listing_fee",
+  viewing_fee: "viewing_fee",
+  add_tenant_fee: "add_tenant_fee",
+  termination_fee: "termination_fee",
+  archive_search_fee: "archive_search_fee",
 };
 
-// Fetch rent band fee based on monthly rent
-const getRentBandFee = async (supabaseAdmin: any, monthlyRent: number): Promise<number | null> => {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("rent_bands")
-      .select("fee_amount")
-      .lte("min_rent", monthlyRent)
-      .order("min_rent", { ascending: false })
-      .limit(10);
-    if (error || !data || data.length === 0) return null;
-    // Find the band where monthlyRent >= min_rent and (max_rent is null OR monthlyRent <= max_rent)
-    // Since we ordered by min_rent desc, the first match with valid max_rent wins
-    // But we need the full data. Let's re-query properly.
-    const { data: bands } = await supabaseAdmin
-      .from("rent_bands")
-      .select("min_rent, max_rent, fee_amount")
-      .order("min_rent", { ascending: true });
-    if (!bands) return null;
-    for (const band of bands) {
-      const min = Number(band.min_rent);
-      const max = band.max_rent !== null ? Number(band.max_rent) : Infinity;
-      if (monthlyRent >= min && monthlyRent <= max) {
-        return Number(band.fee_amount);
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-};
+interface DeterminedFee {
+  amount: number;
+  enabled: boolean;
+  rentBandId: string | null;
+  paymentType: string;
+}
 
-// Build tax splits from DB config (percentage-based)
-const getTaxSplitPlan = async (supabaseAdmin: any, taxAmount: number, description: string): Promise<{ recipient: string; amount: number; description: string }[]> => {
-  const dbSplits = await getSplitConfigFromDB(supabaseAdmin, "rent_tax");
-  if (dbSplits && dbSplits.length > 0) {
-    // These are percentage-based splits
-    const totalPct = dbSplits.reduce((s, r) => s + r.amount, 0);
-    if (totalPct > 0) {
-      return dbSplits.map(s => ({
-        recipient: s.recipient,
-        amount: Math.round((taxAmount * s.amount / totalPct) * 100) / 100,
-        description: s.description || description,
-      }));
-    }
-  }
-  // Fallback: all to rent_control
-  return [{ recipient: "rent_control", amount: taxAmount, description }];
-};
+const determineFee = async (
+  supabaseAdmin: any,
+  feeKey: string,
+  monthlyRent?: number
+): Promise<DeterminedFee> => {
+  const paymentType = FEE_KEY_TO_PAYMENT_TYPE[feeKey] || feeKey;
 
-// Helper to get dynamic fee from DB — all splits must come from split_configurations
-const getDynamicFee = async (supabaseAdmin: any, feeKey: string): Promise<{ total: number; enabled: boolean; splits: { recipient: string; amount: number; description: string }[] }> => {
-  const feeKeyToPaymentType: Record<string, string> = {
-    tenant_registration_fee: "tenant_registration",
-    landlord_registration_fee: "landlord_registration",
-    rent_card_fee: "rent_card",
-    agreement_sale_fee: "agreement_sale",
-    complaint_fee: "complaint_fee",
-    listing_fee: "listing_fee",
-    viewing_fee: "viewing_fee",
-    add_tenant_fee: "add_tenant_fee",
-    termination_fee: "termination_fee",
-    archive_search_fee: "archive_search_fee",
-  };
-
-  const paymentType = feeKeyToPaymentType[feeKey] || feeKey;
-
-  // Get fee amount and enabled status from feature_flags
+  // Get enabled status from feature_flags
   const { data: flagData } = await supabaseAdmin
     .from("feature_flags")
     .select("fee_amount, fee_enabled")
     .eq("feature_key", feeKey)
     .single();
 
-  // Get splits from DB (required)
-  const dbSplits = await getSplitConfigFromDB(supabaseAdmin, paymentType);
-  if (!dbSplits || dbSplits.length === 0) {
-    throw new Error(`No split configuration found in database for payment type: ${paymentType}. Configure splits in Engine Room.`);
-  }
-
-  const dbTotal = dbSplits.reduce((s: number, r: any) => s + r.amount, 0);
-  const total = flagData?.fee_amount ?? dbTotal;
   const enabled = flagData?.fee_enabled ?? true;
 
-  // Scale splits proportionally if fee total differs from configured split total
-  let splits = dbSplits;
-  if (dbTotal > 0 && dbTotal !== total) {
-    const ratio = total / dbTotal;
-    splits = dbSplits.map((s: any) => ({ ...s, amount: Math.round(s.amount * ratio * 100) / 100 }));
+  // For band-based types, use rent_bands when monthlyRent is provided
+  if (BAND_BASED_TYPES.has(paymentType) && monthlyRent != null && monthlyRent > 0) {
+    const { data: bands } = await supabaseAdmin
+      .from("rent_bands")
+      .select("id, min_rent, max_rent, fee_amount")
+      .order("min_rent", { ascending: true });
+
+    if (bands && bands.length > 0) {
+      for (const band of bands) {
+        const min = Number(band.min_rent);
+        const max = band.max_rent !== null ? Number(band.max_rent) : Infinity;
+        if (monthlyRent >= min && monthlyRent <= max) {
+          return { amount: Number(band.fee_amount), enabled, rentBandId: band.id, paymentType };
+        }
+      }
+    }
   }
 
-  return { total, enabled, splits };
+  // Flat fee from feature_flags
+  const amount = flagData?.fee_amount ?? 0;
+  return { amount, enabled, rentBandId: null, paymentType };
 };
 
-// buildPaystackSplit REMOVED — main-account-first model; transfers happen post-verification
+// ─── STAGE 2: ALLOCATION (Split Engine) ───
+// Determines how the payable amount is distributed.
+// For band-based types → uses rent_band_allocations
+// For flat types → uses split_configurations (proportional shares)
+// NEVER overrides the payable amount.
+
+interface SplitItem {
+  recipient: string;
+  amount: number;
+  description: string;
+}
+
+const loadAllocation = async (
+  supabaseAdmin: any,
+  paymentType: string,
+  payableAmount: number,
+  rentBandId: string | null
+): Promise<SplitItem[]> => {
+  // For band-based types with a matched band, load from rent_band_allocations
+  if (rentBandId && BAND_BASED_TYPES.has(paymentType)) {
+    const { data: bandAllocations } = await supabaseAdmin
+      .from("rent_band_allocations")
+      .select("recipient, amount, description")
+      .eq("rent_band_id", rentBandId)
+      .eq("payment_type", paymentType)
+      .order("sort_order", { ascending: true });
+
+    if (bandAllocations && bandAllocations.length > 0) {
+      const splits: SplitItem[] = bandAllocations.map((a: any) => ({
+        recipient: a.recipient,
+        amount: Number(a.amount),
+        description: a.description || "",
+      }));
+
+      // Validate: sum must equal payableAmount
+      const total = splits.reduce((s, r) => s + r.amount, 0);
+      const diff = Math.abs(total - payableAmount);
+      if (diff > 0.02) {
+        // Adjust the largest split to make it match
+        console.warn(`Band allocation sum (${total}) differs from fee (${payableAmount}) by ${diff}. Adjusting.`);
+        const largest = splits.reduce((a, b) => a.amount > b.amount ? a : b);
+        largest.amount = Math.round((largest.amount + (payableAmount - total)) * 100) / 100;
+      }
+
+      return splits;
+    }
+  }
+
+  // For flat types or when no band allocations exist, use split_configurations
+  const { data: dbSplits } = await supabaseAdmin
+    .from("split_configurations")
+    .select("recipient, amount, description, is_platform_fee, amount_type")
+    .eq("payment_type", paymentType)
+    .order("sort_order", { ascending: true });
+
+  if (!dbSplits || dbSplits.length === 0) {
+    throw new Error(`No split configuration found for payment type: ${paymentType}. Configure splits in Engine Room.`);
+  }
+
+  // Treat split amounts as proportional shares
+  const dbTotal = dbSplits.reduce((s: number, r: any) => s + Number(r.amount), 0);
+  if (dbTotal <= 0) {
+    throw new Error(`Split configuration total is zero for ${paymentType}.`);
+  }
+
+  const splits: SplitItem[] = dbSplits.map((s: any) => ({
+    recipient: s.recipient,
+    amount: Math.round((payableAmount * Number(s.amount) / dbTotal) * 100) / 100,
+    description: s.description || "",
+  }));
+
+  // Ensure rounding doesn't create mismatch
+  const splitTotal = splits.reduce((s, r) => s + r.amount, 0);
+  const roundingDiff = payableAmount - splitTotal;
+  if (Math.abs(roundingDiff) > 0.001 && splits.length > 0) {
+    splits[0].amount = Math.round((splits[0].amount + roundingDiff) * 100) / 100;
+  }
+
+  return splits;
+};
+
+// Build tax splits from DB config (percentage-based)
+const getTaxSplitPlan = async (supabaseAdmin: any, taxAmount: number, description: string): Promise<SplitItem[]> => {
+  const { data } = await supabaseAdmin
+    .from("split_configurations")
+    .select("recipient, amount, description, is_platform_fee, amount_type")
+    .eq("payment_type", "rent_tax")
+    .order("sort_order", { ascending: true });
+
+  if (data && data.length > 0) {
+    const totalPct = data.reduce((s: number, r: any) => s + Number(r.amount), 0);
+    if (totalPct > 0) {
+      return data.map((s: any) => ({
+        recipient: s.recipient,
+        amount: Math.round((taxAmount * Number(s.amount) / totalPct) * 100) / 100,
+        description: s.description || description,
+      }));
+    }
+  }
+  return [{ recipient: "rent_control", amount: taxAmount, description }];
+};
 
 // Resolve office_id from property or region
 const resolveOffice = async (supabaseAdmin: any, opts: { propertyId?: string; region?: string; area?: string; userId?: string }): Promise<string> => {
@@ -220,7 +269,7 @@ Deno.serve(async (req) => {
     let description: string;
     let reference: string;
     let callbackPath: string;
-    let splitPlan: { recipient: string; amount: number; description: string }[] = [];
+    let splitPlan: SplitItem[] = [];
     let relatedTenancyId: string | null = null;
     let relatedComplaintId: string | null = null;
     let relatedPropertyId: string | null = null;
@@ -380,7 +429,7 @@ Deno.serve(async (req) => {
     } else if (type === "rent_card_bulk") {
       const { quantity: qty } = body;
       const cardQty = Math.min(Math.max(parseInt(qty) || 1, 1), 50);
-      const fee = await getDynamicFee(supabaseAdmin, "rent_card_fee");
+      const fee = await determineFee(supabaseAdmin, "rent_card_fee");
 
       officeId = await resolveOffice(supabaseAdmin, { userId });
       caseType = "rent_card";
@@ -402,15 +451,17 @@ Deno.serve(async (req) => {
         await supabaseAdmin.from("rent_cards").insert(rentCards);
         return new Response(JSON.stringify({ skipped: true, message: `Rent card fee is currently waived. ${cardCount} cards created!` }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      totalAmount = fee.total * cardQty;
-      splitPlan = fee.splits.map(s => ({ ...s, amount: s.amount * cardQty }));
-      description = `Rent Card Purchase (${cardQty} cards × GH₵ ${fee.total})`;
+
+      const perCardAllocation = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      totalAmount = fee.amount * cardQty;
+      splitPlan = perCardAllocation.map(s => ({ ...s, amount: Math.round(s.amount * cardQty * 100) / 100 }));
+      description = `Rent Card Purchase (${cardQty} cards × GH₵ ${fee.amount})`;
       reference = `rcard_${userId}_${Date.now()}`;
       callbackPath = "/landlord/rent-cards?status=success";
       metadata = { quantity: cardQty };
 
     } else if (type === "rent_card") {
-      const fee = await getDynamicFee(supabaseAdmin, "rent_card_fee");
+      const fee = await determineFee(supabaseAdmin, "rent_card_fee");
       officeId = await resolveOffice(supabaseAdmin, { userId });
       caseType = "rent_card";
 
@@ -431,17 +482,17 @@ Deno.serve(async (req) => {
         await supabaseAdmin.from("rent_cards").insert(rentCards);
         return new Response(JSON.stringify({ skipped: true, message: `Rent card fee is currently waived. ${cardCount} cards created!` }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Rent Card Purchase (GH₵ ${fee.total})`;
+
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      description = `Rent Card Purchase (GH₵ ${fee.amount})`;
       reference = `rcard_${userId}_${Date.now()}`;
       callbackPath = "/landlord/rent-cards?status=success";
 
     } else if (type === "agreement_sale") {
+      // Band-based fee: uses rent bands when monthlyRent is provided
       const { tenancyId, monthlyRent: bodyMonthlyRent, propertyId: bodyPropertyId } = body;
-      const fee = await getDynamicFee(supabaseAdmin, "agreement_sale_fee");
-      
-      // Resolve office from property if available
+
       if (bodyPropertyId) {
         officeId = await resolveOffice(supabaseAdmin, { propertyId: bodyPropertyId });
         relatedPropertyId = bodyPropertyId;
@@ -450,26 +501,14 @@ Deno.serve(async (req) => {
       }
       caseType = "tenancy";
 
+      // Stage 1: Determine fee (band-based if monthlyRent provided)
+      const fee = await determineFee(supabaseAdmin, "agreement_sale_fee", bodyMonthlyRent ? Number(bodyMonthlyRent) : undefined);
       if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Agreement fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      
-      // Use rent band fee if monthlyRent provided, otherwise use flat fee
-      let feeTotal = fee.total;
-      if (bodyMonthlyRent && Number(bodyMonthlyRent) > 0) {
-        const bandFee = await getRentBandFee(supabaseAdmin, Number(bodyMonthlyRent));
-        if (bandFee !== null) feeTotal = bandFee;
-      }
-      
-      // Scale splits proportionally to the new fee total
-      const originalTotal = fee.splits.reduce((s: number, r: any) => s + Number(r.amount), 0);
-      if (originalTotal > 0 && originalTotal !== feeTotal) {
-        const ratio = feeTotal / originalTotal;
-        splitPlan = fee.splits.map((s: any) => ({ ...s, amount: Math.round(Number(s.amount) * ratio * 100) / 100 }));
-      } else {
-        splitPlan = fee.splits;
-      }
-      
-      totalAmount = feeTotal;
-      description = `Tenancy Agreement Form (GH₵ ${feeTotal})`;
+
+      // Stage 2: Load allocation for this fee amount
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      description = `Tenancy Agreement Form (GH₵ ${fee.amount})`;
       reference = `agrsale_${tenancyId || userId}_${Date.now()}`;
       callbackPath = body.callbackPath || "/landlord/agreements?status=success";
       relatedTenancyId = tenancyId || null;
@@ -487,14 +526,14 @@ Deno.serve(async (req) => {
       officeId = await resolveOffice(supabaseAdmin, { userId, region: profile?.delivery_region || undefined, area: profile?.delivery_area || undefined });
       caseType = "registration";
 
-      const fee = await getDynamicFee(supabaseAdmin, "tenant_registration_fee");
-      if (!fee.enabled || fee.total === 0) {
+      const fee = await determineFee(supabaseAdmin, "tenant_registration_fee");
+      if (!fee.enabled || fee.amount === 0) {
         await supabaseAdmin.from("tenants").update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() }).eq("user_id", userId);
         return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Tenant Registration Fee (GH₵ ${fee.total})`;
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      description = `Tenant Registration Fee (GH₵ ${fee.amount})`;
       reference = `treg_${userId}_${Date.now()}`;
       callbackPath = "/tenant/dashboard?status=success";
 
@@ -511,14 +550,14 @@ Deno.serve(async (req) => {
       officeId = await resolveOffice(supabaseAdmin, { userId, region: profile?.delivery_region || undefined, area: profile?.delivery_area || undefined });
       caseType = "registration";
 
-      const fee = await getDynamicFee(supabaseAdmin, "landlord_registration_fee");
-      if (!fee.enabled || fee.total === 0) {
+      const fee = await determineFee(supabaseAdmin, "landlord_registration_fee");
+      if (!fee.enabled || fee.amount === 0) {
         await supabaseAdmin.from("landlords").update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() }).eq("user_id", userId);
         return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Landlord Registration Fee (GH₵ ${fee.total})`;
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      description = `Landlord Registration Fee (GH₵ ${fee.amount})`;
       reference = `lreg_${userId}_${Date.now()}`;
       callbackPath = "/landlord/dashboard?status=success";
 
@@ -540,11 +579,11 @@ Deno.serve(async (req) => {
       caseType = "complaint";
       relatedComplaintId = complaintId;
 
-      const fee = await getDynamicFee(supabaseAdmin, "complaint_fee");
+      const fee = await determineFee(supabaseAdmin, "complaint_fee");
       if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Complaint fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Complaint Filing Fee (GH₵ ${fee.total})`;
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      description = `Complaint Filing Fee (GH₵ ${fee.amount})`;
       reference = `comp_${complaintId}`;
       callbackPath = "/tenant/my-cases?status=success";
 
@@ -566,11 +605,11 @@ Deno.serve(async (req) => {
       caseType = "listing";
       relatedPropertyId = propertyId;
 
-      const fee = await getDynamicFee(supabaseAdmin, "listing_fee");
+      const fee = await determineFee(supabaseAdmin, "listing_fee");
       if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Listing fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Property Listing Fee (GH₵ ${fee.total})`;
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      description = `Property Listing Fee (GH₵ ${fee.amount})`;
       reference = `list_${propertyId}_${Date.now()}`;
       callbackPath = "/landlord/my-properties?status=listed";
 
@@ -581,23 +620,29 @@ Deno.serve(async (req) => {
       officeId = await resolveOffice(supabaseAdmin, { userId });
       caseType = "viewing";
 
-      const fee = await getDynamicFee(supabaseAdmin, "viewing_fee");
+      const fee = await determineFee(supabaseAdmin, "viewing_fee");
       if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Viewing fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Property Viewing Request Fee (GH₵ ${fee.total})`;
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      description = `Property Viewing Request Fee (GH₵ ${fee.amount})`;
       reference = `view_${viewingRequestId}`;
       callbackPath = "/tenant/marketplace?status=viewing_paid";
 
     } else if (type === "add_tenant_fee") {
+      // Band-based fee: uses rent bands when monthlyRent is provided
+      const { monthlyRent: bodyMonthlyRent } = body;
+
       officeId = await resolveOffice(supabaseAdmin, { userId });
       caseType = "tenancy";
 
-      const fee = await getDynamicFee(supabaseAdmin, "add_tenant_fee");
+      // Stage 1: Determine fee (band-based if monthlyRent provided)
+      const fee = await determineFee(supabaseAdmin, "add_tenant_fee", bodyMonthlyRent ? Number(bodyMonthlyRent) : undefined);
       if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Add tenant fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Add Tenant Fee (GH₵ ${fee.total})`;
+
+      // Stage 2: Load allocation for this fee amount
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      description = `Add Tenant Fee (GH₵ ${fee.amount})`;
       reference = `addten_${userId}_${Date.now()}`;
       callbackPath = "/landlord/add-tenant?status=fee_paid";
 
@@ -605,11 +650,11 @@ Deno.serve(async (req) => {
       officeId = await resolveOffice(supabaseAdmin, { userId });
       caseType = "termination";
 
-      const fee = await getDynamicFee(supabaseAdmin, "termination_fee");
+      const fee = await determineFee(supabaseAdmin, "termination_fee");
       if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Termination fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Termination Request Fee (GH₵ ${fee.total})`;
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      description = `Termination Request Fee (GH₵ ${fee.amount})`;
       reference = `term_${userId}_${Date.now()}`;
       callbackPath = "/tenant/termination?status=fee_paid";
 
@@ -644,11 +689,11 @@ Deno.serve(async (req) => {
       officeId = await resolveOffice(supabaseAdmin, { userId });
       caseType = "archive_search";
 
-      const fee = await getDynamicFee(supabaseAdmin, "archive_search_fee");
+      const fee = await determineFee(supabaseAdmin, "archive_search_fee");
       if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Archive search fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      totalAmount = fee.total;
-      splitPlan = fee.splits;
-      description = `Archive Search Fee (GH₵ ${fee.total})`;
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      description = `Archive Search Fee (GH₵ ${fee.amount})`;
       reference = `archsearch_${userId}_${Date.now()}`;
       callbackPath = "/landlord/applications?status=success";
 
@@ -698,9 +743,6 @@ Deno.serve(async (req) => {
       (profile?.email && isValidEmail(profile.email)) ? profile.email
       : (authUser.email && isValidEmail(authUser.email)) ? authUser.email
       : `user-${userId.slice(0, 8)}@rentcontrolghana.com`;
-
-    // Main-account-first: no Paystack split attached — all money enters main account
-    // Backend triggers transfers after webhook verification using split_plan in metadata
 
     const payload: any = {
       email: paystackEmail,
