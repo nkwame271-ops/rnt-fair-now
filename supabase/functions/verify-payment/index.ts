@@ -22,6 +22,16 @@ Deno.serve(async (req) => {
   };
 
   try {
+    // Parse reference from request body or query params
+    let reference: string;
+    const url = new URL(req.url);
+    if (req.method === "POST") {
+      const body = await req.json();
+      reference = body.reference || url.searchParams.get("reference") || "";
+    } else {
+      reference = url.searchParams.get("reference") || "";
+    }
+    if (!reference) throw new Error("reference is required");
 
     // Try to authenticate (optional — may fail after redirect)
     let userId: string | null = null;
