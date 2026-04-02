@@ -1,90 +1,79 @@
 
-Goal: fix the persistent payment loop by making payment finalization reliable even when the webhook is missed, then tighten reporting, admin visibility, and receipt output.
 
-What I found
-- `paystack-webhook` is the only path that currently creates `escrow_splits`, updates office wallet flow, and starts payout transfers.
-- `verify-payment` marks escrow as completed, creates a receipt, and tries payouts only if `escrow_splits` already exist. If the webhook does not run first, the ledger stays at zero and transfers never start.
-- `EscrowDashboard` reads `escrow_splits`, so missing splits explains:
-  - zero Allocation Summary
-  - no transfers
-  - “same errors” after successful payment
-- `paystack-checkout` still auto-adjusts band allocations when totals do not match the payable fee. That should hard-fail, not silently rebalance.
-- Sub-admin visibility is only handled in the UI today; the dashboard still calculates Platform/GRA/Landlord data from raw tables.
-- Receipts still expose `split_breakdown` on tenant and regulator pages.
+# Unify Payment Execution: Webhook Must Use Shared Pipeline
 
-Plan
-1. Build one shared payment finalization pipeline
-- Extract the “successful payment” flow into one shared helper used by both `paystack-webhook` and `verify-payment`.
-- That shared flow will be idempotent and always do the same steps in the same order:
-  1. confirm escrow/payment success
-  2. load stored `split_plan`
-  3. validate split total equals payable amount
-  4. create missing `escrow_splits`
-  5. create/update receipt
-  6. create missing transfer recipients
-  7. create `payout_transfers`
-  8. trigger transfers
-  9. update office wallet flow where applicable
-- Result: if webhook fires, great; if webhook is delayed/missed, `verify-payment` can still fully finalize the transaction instead of leaving ledger values at zero.
+## What I found
 
-2. Fix the payout/recipient bugs
-- Correct the payout routing so office admin share can use the office payout account path instead of being swallowed by the generic system-settlement mapping.
-- Make transfer creation fully idempotent by checking existing `escrow_splits`, recipient codes, and `payout_transfers` before inserting again.
-- Ensure the fallback verification path can create splits from `escrow_transactions.metadata.split_plan` if none exist yet.
+Your system has the right components but the **webhook doesn't use them**. Here's the gap:
 
-3. Enforce strict fee/allocation validation
-- In `paystack-checkout`, stop auto-adjusting the largest split when a rent-band allocation does not match the final payable fee.
-- Replace that with strict validation:
-  - Platform Fees / Rent Bands determine the payable amount
-  - allocation rules only distribute that exact amount
-  - mismatch = block checkout and log a payment configuration error
-- This will prevent silent bad allocations from reaching escrow, reporting, or transfers.
+| Layer | Status | Problem |
+|-------|--------|---------|
+| Layer 1: Collection (Paystack) | Working | — |
+| Layer 2: Accounting (Ledger) | Built but disconnected | `paystack-webhook` has its own `completeEscrow` (472 lines of duplicate logic) and does NOT call the shared `finalizePayment` helper |
+| Layer 3: Distribution (Transfers) | Built but duplicated | Same transfer logic exists in both webhook and `finalizePayment`, causing inconsistency |
 
-4. Fix Escrow & Revenue reporting
-- Update the dashboard to report from finalized payment data only, not partial/incomplete rows.
-- Make Allocation Summary reflect real `escrow_splits` immediately after finalization.
-- Add explicit breakdown cards instead of the current generic “Other” bucket:
-  - Complaint
-  - Tenancy Agreement (combined `agreement_sale` + `add_tenant_fee`)
-  - Listing Fee
-  - Viewing Fee
-  - Archive Search
-- Add a payment pipeline status/checklist view per transaction so you can see:
-  - webhook received
-  - verification completed
-  - allocation posted
-  - recipient created
-  - transfer triggered
-  - transfer result
+The shared `finalizePayment` in `_shared/finalize-payment.ts` already does everything your 7-step framework requires:
+- Verifies payment (Step 1)
+- Loads split_plan from escrow metadata (Steps 2-3)
+- Posts allocations to `escrow_splits` ledger (Step 1)
+- Creates transfer recipients via Paystack API (Step 5)
+- Triggers transfers with proper escrow rules: IGF/GRA/Platform = immediate, Office = auto/manual, Landlord = held (Steps 3-4)
+- Records transfer status with success/failed/pending tracking (Step 7)
+- Creates receipt, notifications (Step 1)
 
-5. Lock down admin visibility properly
-- Main admin keeps full visibility.
-- Invited sub-admins only get:
-  - IGF
-  - Admin
-- Sub-admins must not receive or render:
-  - Platform
-  - GRA
-  - Landlord
-- I’ll enforce this in two places:
-  - UI: hide restricted cards/columns/rows
-  - backend data access: stop using raw unrestricted dashboard aggregation for sub-admins; return masked totals from a secure backend query/function based on `admin_staff.admin_type` and office scope.
+**But the webhook never calls it.** It still runs its own `completeEscrow` function. So when webhook fires, it may or may not create splits correctly. When `verify-payment` fires, it uses the shared helper. Two different code paths = inconsistent results.
 
-6. Remove split details from receipts
-- Make receipt views show only the total paid by the user.
-- Keep internal allocation details only in escrow/reporting screens, not in receipt UI.
-- Update tenant, landlord, and regulator receipt usage so `split_breakdown` is no longer shown.
+The build error ("sandbox head mismatch") is a transient infrastructure issue, not a code defect.
 
-Technical details
-- Likely files:
-  - `supabase/functions/paystack-checkout/index.ts`
-  - `supabase/functions/paystack-webhook/index.ts`
-  - `supabase/functions/verify-payment/index.ts`
-  - `src/pages/regulator/EscrowDashboard.tsx`
-  - `src/components/PaymentReceipt.tsx`
-  - `src/pages/tenant/Receipts.tsx`
-  - `src/pages/landlord/Receipts.tsx`
-- Likely backend additions:
-  - one shared payment-finalization helper under `supabase/functions/_shared/`
-  - one secure reporting query/function for masked admin dashboard data
-  - possibly
+## Plan
+
+### 1. Rewrite `paystack-webhook` to use shared `finalizePayment`
+
+Remove the 400+ lines of duplicate `completeEscrow`, `triggerPayouts`, and `getOrCreateRecipient` from the webhook. Replace with:
+
+```
+charge.success handler:
+  1. Parse reference, amount, transactionId
+  2. Run payment-type-specific side effects (update tenants, landlords, rent_payments, etc.)
+  3. Call finalizePayment({ supabaseAdmin, reference, amountPaid, transactionId, logError })
+  4. Send SMS/email/notification
+```
+
+The webhook keeps:
+- Signature verification
+- `charge.failed` handler
+- `transfer.success/failed/reversed` handlers  
+- Payment-type-specific side effects (tenant registration, rent card creation, renewal logic)
+- SMS/email sending
+
+The webhook delegates to `finalizePayment`:
+- Marking escrow completed
+- Creating `escrow_splits`
+- Creating receipts
+- Creating transfer recipients
+- Triggering Paystack transfers
+- Office wallet auto-release
+
+### 2. Add retry capability to `verify-payment`
+
+When a user hits "verify payment" and the webhook was missed, `verify-payment` already calls `finalizePayment`. But it should also run the payment-type-specific side effects that the webhook would have run (tenant activation, complaint status update, etc.). The shared `handleSideEffects` function in `finalizePayment` already does this — confirm it covers all cases the webhook handles.
+
+### 3. No other changes needed
+
+The EscrowDashboard, admin visibility, receipts, and revenue breakdown are already correctly implemented from previous work. The only issue is that **data never gets written** because the webhook's `completeEscrow` is unreliable and `verify-payment` doesn't get called automatically.
+
+## Files to change
+
+| File | Change |
+|------|--------|
+| `supabase/functions/paystack-webhook/index.ts` | Remove `completeEscrow`, `triggerPayouts`, `getOrCreateRecipient`. Import and call `finalizePayment` from shared helper. Keep side effects, signature check, transfer event handlers, SMS/email. ~900 lines → ~350 lines. |
+| `supabase/functions/_shared/finalize-payment.ts` | Minor: ensure `handleSideEffects` covers renewal logic (creating new tenancy + rent payments) which is currently only in webhook |
+
+## What this fixes
+
+- Allocation Summary will show real numbers immediately after any payment (webhook or verify)
+- Transfer recipients will be created and transfers triggered automatically
+- Office wallet will update correctly
+- No more duplicate/inconsistent code paths
+- Retry safety: both webhook and verify-payment produce identical results
+
