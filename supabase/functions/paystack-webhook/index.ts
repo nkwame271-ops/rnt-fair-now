@@ -647,8 +647,9 @@ Deno.serve(async (req) => {
           body: config.body(amount, meta),
           link: config.link || "/",
         });
-      } catch (e) {
+      } catch (e: any) {
         console.error("Notification insert error:", e);
+        await logError({ error_stage: "notification", error_message: e.message || String(e), severity: "warning", error_context: { user_id: userId, payment_type: paymentType } });
       }
     };
 
