@@ -1702,6 +1702,50 @@ export type Database = {
           },
         ]
       }
+      rent_band_allocations: {
+        Row: {
+          amount: number
+          description: string | null
+          id: string
+          payment_type: string
+          recipient: string
+          rent_band_id: string
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount?: number
+          description?: string | null
+          id?: string
+          payment_type?: string
+          recipient: string
+          rent_band_id: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount?: number
+          description?: string | null
+          id?: string
+          payment_type?: string
+          recipient?: string
+          rent_band_id?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_band_allocations_rent_band_id_fkey"
+            columns: ["rent_band_id"]
+            isOneToOne: false
+            referencedRelation: "rent_bands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rent_bands: {
         Row: {
           fee_amount: number

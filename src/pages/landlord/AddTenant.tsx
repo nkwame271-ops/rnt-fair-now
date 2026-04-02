@@ -122,7 +122,7 @@ const AddTenant = () => {
     }));
     try {
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
-        body: { type: "add_tenant_fee" },
+        body: { type: "add_tenant_fee", monthlyRent: parseFloat(rent) || undefined },
       });
       if (error) throw error;
       if (data?.skipped) {
