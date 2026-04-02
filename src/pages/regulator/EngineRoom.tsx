@@ -48,6 +48,16 @@ interface RentBand {
   label: string | null;
 }
 
+interface BandAllocation {
+  id: string;
+  rent_band_id: string;
+  payment_type: string;
+  recipient: string;
+  amount: number;
+  description: string | null;
+  sort_order: number;
+}
+
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
   tenant_registration: "Tenant Registration",
   landlord_registration: "Landlord Registration",
