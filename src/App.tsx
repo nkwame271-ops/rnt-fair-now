@@ -43,6 +43,7 @@ const RequestRenewal = lazy(() => import("./pages/tenant/RequestRenewal"));
 const TenantTerminationRequest = lazy(() => import("./pages/tenant/TerminationRequest"));
 const ReportSidePayment = lazy(() => import("./pages/tenant/ReportSidePayment"));
 const TenantReceipts = lazy(() => import("./pages/tenant/Receipts"));
+const InviteLandlord = lazy(() => import("./pages/tenant/InviteLandlord"));
 
 // Landlord pages
 const LandlordDashboard = lazy(() => import("./pages/landlord/LandlordDashboard"));
