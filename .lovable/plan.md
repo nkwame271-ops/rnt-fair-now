@@ -1,24 +1,33 @@
 
 
-# Fix: Generate Rent Cards "Edge function returned a non-2xx status code"
+# Fix: Main Admin Feature Filtering
 
-## Root Cause
+## Problem
 
-Same pattern as the invite-staff fix. The `admin-action` edge function's catch block (line 471-474) returns `status: 400`. When `supabase.functions.invoke()` receives a non-2xx response, it sets `data` to `null` and returns a generic error message, hiding the actual error details.
-
-## Fix
-
-**File**: `supabase/functions/admin-action/index.ts` (line 472)
-
-Change `status: 400` to `status: 200` in the catch block. The error message stays in the JSON body (`{ error: err.message }`), which the frontend already reads via `data?.error`.
+In `RegulatorLayout.tsx` line 71, the nav filter has:
 
 ```typescript
-// BEFORE (line 472):
-status: 400,
-
-// AFTER:
-status: 200,
+if (!profile || profile.isMainAdmin) return true;
 ```
 
-One line change. The frontend `SerialGenerator.tsx` already handles `data?.error` correctly via the `AdminPasswordConfirm` component's error handling.
+This means **all main admins see every feature**, regardless of what was selected during invitation. The database confirms some main admins have specific `allowed_features` (e.g., only `["rent_cards"]`) but the UI ignores this.
+
+## Solution
+
+**File**: `src/components/RegulatorLayout.tsx`
+
+Update the filter logic so main admins with a populated `allowedFeatures` array are also filtered. Only bypass filtering when there's no profile or when `allowedFeatures` is empty (legacy/unrestricted admins).
+
+```typescript
+// BEFORE:
+if (!profile || profile.isMainAdmin) return true;
+
+// AFTER:
+if (!profile) return true;
+if (profile.allowedFeatures.length === 0) return true; // unrestricted admin
+```
+
+This single change makes feature filtering apply to **both** main admins and sub admins equally when features were explicitly selected during invitation. Legacy admins with an empty `allowedFeatures` array continue to see everything.
+
+No backend or database changes needed.
 
