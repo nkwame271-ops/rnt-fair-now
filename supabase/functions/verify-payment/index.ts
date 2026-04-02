@@ -286,7 +286,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 7. Trigger payouts (idempotent — skips if payout_transfers already exist)
+    // 7. Validate allocation consistency (log warning only, don't block)
+    try {
+      const storedSplitPlan = meta?.split_plan;
+      if (Array.isArray(storedSplitPlan) && storedSplitPlan.length > 0) {
+        const storedTotal = storedSplitPlan.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+        if (Math.abs(storedTotal - amountPaid) > 0.5) {
+          console.warn(`Allocation mismatch: split_plan total (${storedTotal}) differs from amount paid (${amountPaid})`);
+          await logError({ escrow_transaction_id: escrow.id, reference, error_stage: "allocation_validation", error_message: `Split plan total (${storedTotal}) differs from paid amount (${amountPaid}) by ${Math.abs(storedTotal - amountPaid).toFixed(2)}`, severity: "warning", error_context: { stored_total: storedTotal, paid: amountPaid } });
+        }
+      }
+    } catch (valErr: any) {
+      console.error("Allocation validation error:", valErr.message);
+    }
+
+    // 8. Trigger payouts (idempotent — skips if payout_transfers already exist)
     try {
       const { data: existingPayouts } = await supabaseAdmin
         .from("payout_transfers")
