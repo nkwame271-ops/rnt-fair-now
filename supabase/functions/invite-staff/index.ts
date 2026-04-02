@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     // Sub admins must have an office
     if (resolvedAdminType === "sub_admin" && !officeId) {
       return new Response(JSON.stringify({ error: "Sub Admins must be assigned to an office" }), {
-        status: 400,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
