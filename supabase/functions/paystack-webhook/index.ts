@@ -341,9 +341,11 @@ Deno.serve(async (req) => {
           return { success: true, transferCode: result.data?.transfer_code };
         }
         console.error("Transfer failed:", result.message);
+        await logError({ reference, error_stage: "transfer_initiation", error_message: result.message || "Transfer initiation failed", severity: "critical", error_context: { amount, recipient: recipientCode } });
         return { success: false };
-      } catch (e) {
+      } catch (e: any) {
         console.error("initiateTransfer error:", e);
+        await logError({ reference, error_stage: "transfer_initiation", error_message: e.message || String(e), severity: "critical", error_context: { amount, recipient: recipientCode } });
         return { success: false };
       }
     };
