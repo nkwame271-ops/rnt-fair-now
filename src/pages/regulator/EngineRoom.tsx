@@ -808,61 +808,88 @@ const EngineRoom = () => {
                   const edits = editingBands[band.id] || {};
                   const hasEdits = Object.keys(edits).length > 0;
                   return (
-                    <div key={band.id} className="flex items-center gap-3 px-4 py-3 flex-wrap">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">Min:</span>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="w-24 h-8 text-sm"
-                          value={edits.min_rent ?? band.min_rent}
-                          onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], min_rent: parseFloat(e.target.value) || 0 } }))}
-                        />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">Max:</span>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="w-24 h-8 text-sm"
-                          placeholder="∞"
-                          value={edits.max_rent !== undefined ? (edits.max_rent ?? "") : (band.max_rent ?? "")}
-                          onChange={e => {
-                            const val = e.target.value === "" ? null : parseFloat(e.target.value);
-                            setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], max_rent: val } }));
-                          }}
-                        />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">Fee: GH₵</span>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="1"
-                          className="w-20 h-8 text-sm"
-                          value={edits.fee_amount ?? band.fee_amount}
-                          onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], fee_amount: parseFloat(e.target.value) || 0 } }))}
-                        />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">Label:</span>
-                        <Input
-                          className="w-40 h-8 text-sm"
-                          value={edits.label !== undefined ? (edits.label ?? "") : (band.label ?? "")}
-                          onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], label: e.target.value } }))}
-                        />
-                      </div>
-                      <div className="flex items-center gap-1 ml-auto">
-                        {hasEdits && (
-                          <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => handleSaveBand(band.id)} disabled={savingBand === band.id}>
-                            {savingBand === band.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                    <div key={band.id} className="border-b border-border last:border-b-0">
+                      <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Min:</span>
+                          <Input type="number" min="0" step="0.01" className="w-24 h-8 text-sm" value={edits.min_rent ?? band.min_rent} onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], min_rent: parseFloat(e.target.value) || 0 } }))} />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Max:</span>
+                          <Input type="number" min="0" step="0.01" className="w-24 h-8 text-sm" placeholder="∞" value={edits.max_rent !== undefined ? (edits.max_rent ?? "") : (band.max_rent ?? "")} onChange={e => { const val = e.target.value === "" ? null : parseFloat(e.target.value); setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], max_rent: val } })); }} />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Fee: GH₵</span>
+                          <Input type="number" min="0" step="1" className="w-20 h-8 text-sm" value={edits.fee_amount ?? band.fee_amount} onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], fee_amount: parseFloat(e.target.value) || 0 } }))} />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Label:</span>
+                          <Input className="w-40 h-8 text-sm" value={edits.label !== undefined ? (edits.label ?? "") : (band.label ?? "")} onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], label: e.target.value } }))} />
+                        </div>
+                        <div className="flex items-center gap-1 ml-auto">
+                          <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => setExpandedBand(expandedBand === band.id ? null : band.id)}>
+                            {expandedBand === band.id ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                            Splits
                           </Button>
-                        )}
-                        <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive hover:text-destructive" onClick={() => handleDeleteBand(band.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                          {hasEdits && (
+                            <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => handleSaveBand(band.id)} disabled={savingBand === band.id}>
+                              {savingBand === band.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive hover:text-destructive" onClick={() => handleDeleteBand(band.id)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      {/* Per-band allocation editor */}
+                      {expandedBand === band.id && (() => {
+                        const bandAllocs = bandAllocations.filter(a => a.rent_band_id === band.id);
+                        const allocsByType = bandAllocs.reduce((acc, a) => {
+                          if (!acc[a.payment_type]) acc[a.payment_type] = [];
+                          acc[a.payment_type].push(a);
+                          return acc;
+                        }, {} as Record<string, BandAllocation[]>);
+                        const types = Object.keys(allocsByType).length > 0 ? Object.keys(allocsByType) : ["agreement_sale", "add_tenant_fee"];
+                        return (
+                          <div className="bg-muted/30 px-4 py-3 space-y-3">
+                            <p className="text-xs font-medium text-muted-foreground">Allocation splits for this band (must sum to GH₵ {band.fee_amount})</p>
+                            {types.map(pt => {
+                              const allocs = allocsByType[pt] || [];
+                              const allocTotal = allocs.reduce((s, a) => s + (editingAllocations[a.id] ?? a.amount), 0);
+                              const mismatch = Math.abs(allocTotal - band.fee_amount) > 0.02;
+                              return (
+                                <div key={pt} className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-card-foreground">{PAYMENT_TYPE_LABELS[pt] || pt}</span>
+                                    <span className={`text-xs ${mismatch ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                                      Total: GH₵ {allocTotal.toFixed(2)} {mismatch ? "⚠️ mismatch" : "✓"}
+                                    </span>
+                                  </div>
+                                  {allocs.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground italic">No allocations configured for this type.</p>
+                                  ) : allocs.map(alloc => {
+                                    const isEditing = editingAllocations[alloc.id] !== undefined;
+                                    return (
+                                      <div key={alloc.id} className="flex items-center justify-between gap-2 pl-3">
+                                        <span className="text-xs text-card-foreground">{alloc.description || RECIPIENT_LABELS[alloc.recipient] || alloc.recipient} → {RECIPIENT_LABELS[alloc.recipient] || alloc.recipient}</span>
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-muted-foreground">GH₵</span>
+                                          <Input type="number" min="0" step="0.5" className="w-20 h-7 text-xs" value={isEditing ? editingAllocations[alloc.id] : alloc.amount} onChange={e => setEditingAllocations(prev => ({ ...prev, [alloc.id]: parseFloat(e.target.value) || 0 }))} />
+                                          {isEditing && (
+                                            <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => handleSaveAllocation(alloc.id, editingAllocations[alloc.id])} disabled={savingAllocation === alloc.id}>
+                                              {savingAllocation === alloc.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                       </div>
                     </div>
                   );
