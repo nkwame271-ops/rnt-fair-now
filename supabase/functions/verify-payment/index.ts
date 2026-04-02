@@ -373,6 +373,7 @@ Deno.serve(async (req) => {
     });
   } catch (error: any) {
     console.error("Verify payment error:", error.message);
+    await logError({ error_stage: "top_level", error_message: error.message || String(error), severity: "critical" });
     return new Response(JSON.stringify({ error: error.message, verified: false }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

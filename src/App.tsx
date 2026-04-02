@@ -194,6 +194,7 @@ const App = () => (
                 <Route path="rent-reviews" element={<RegulatorRentReviews />} />
                 <Route path="office-fund-requests" element={<OfficeFundRequests />} />
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
+                <Route path="payment-errors" element={<PaymentErrors />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

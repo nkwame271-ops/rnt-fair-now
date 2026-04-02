@@ -218,6 +218,10 @@ Deno.serve(async (req) => {
     }
   } catch (error: any) {
     console.error("Process office payout error:", error.message);
+    try {
+      const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      await db.from("payment_processing_errors").insert({ function_name: "process-office-payout", error_stage: "top_level", error_message: error.message || String(error), severity: "critical" });
+    } catch {}
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
