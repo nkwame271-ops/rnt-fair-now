@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
 
     if (signature !== hash) {
       console.error("Invalid Paystack signature");
+      // Note: logError not available yet (supabase not created), but we log to console
       return new Response("Invalid signature", { status: 401 });
     }
 
@@ -47,6 +48,41 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // ── Error logging helper ──
+    const logError = async (opts: {
+      escrow_transaction_id?: string;
+      reference?: string;
+      function_name?: string;
+      error_stage: string;
+      error_message: string;
+      error_context?: Record<string, any>;
+      severity?: string;
+    }) => {
+      try {
+        await supabase.from("payment_processing_errors").insert({
+          function_name: "paystack-webhook",
+          severity: "warning",
+          ...opts,
+        });
+        // Notify main admins on critical errors
+        if ((opts.severity || "warning") === "critical") {
+          const { data: admins } = await supabase.from("admin_staff").select("user_id").eq("admin_type", "main_admin");
+          if (admins && admins.length > 0) {
+            await supabase.from("notifications").insert(
+              admins.map((a: any) => ({
+                user_id: a.user_id,
+                title: "⚠️ Critical Payment Error",
+                body: `[${opts.error_stage}] ${opts.error_message.slice(0, 120)}`,
+                link: "/regulator/payment-errors",
+              }))
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Failed to log error:", e);
+      }
+    };
 
     // ── Handle charge.failed ──
     if (body.event === "charge.failed") {
@@ -90,8 +126,9 @@ Deno.serve(async (req) => {
               });
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error("SMS error (failed payment):", e);
+          await logError({ reference: data.reference, error_stage: "sms_failed_payment", error_message: e.message || String(e), severity: "warning" });
         }
       }
 
@@ -130,6 +167,8 @@ Deno.serve(async (req) => {
           .update({ status: "failed", failure_reason: reason, completed_at: new Date().toISOString(), transfer_code: transferCode })
           .eq("paystack_reference", tReference);
 
+        await logError({ reference: tReference, error_stage: "transfer_failed", error_message: reason, severity: "critical", error_context: { transfer_code: transferCode, event: "transfer.failed" } });
+
         const { data: adminStaff } = await supabase
           .from("admin_staff")
           .select("user_id")
@@ -150,6 +189,8 @@ Deno.serve(async (req) => {
           .from("payout_transfers")
           .update({ status: "reversed", failure_reason: "Transfer reversed by Paystack", completed_at: new Date().toISOString(), transfer_code: transferCode })
           .eq("paystack_reference", tReference);
+
+        await logError({ reference: tReference, error_stage: "transfer_reversed", error_message: "Transfer reversed by Paystack", severity: "critical", error_context: { transfer_code: transferCode, event: "transfer.reversed" } });
 
         const { data: transfer } = await supabase
           .from("payout_transfers")
@@ -268,9 +309,11 @@ Deno.serve(async (req) => {
           return recipientCode;
         }
         console.error("Failed to create recipient:", result.message);
+        await logError({ reference, error_stage: "recipient_creation", error_message: result.message || "Failed to create Paystack recipient", severity: "critical", error_context: { account_type: accountDetails.lookupValue, payment_method: accountDetails.payment_method } });
         return null;
-      } catch (e) {
+      } catch (e: any) {
         console.error("getOrCreateRecipient error:", e);
+        await logError({ reference, error_stage: "recipient_creation", error_message: e.message || String(e), severity: "critical", error_context: { account_type: accountDetails.lookupValue } });
         return null;
       }
     };
@@ -298,9 +341,11 @@ Deno.serve(async (req) => {
           return { success: true, transferCode: result.data?.transfer_code };
         }
         console.error("Transfer failed:", result.message);
+        await logError({ reference, error_stage: "transfer_initiation", error_message: result.message || "Transfer initiation failed", severity: "critical", error_context: { amount, recipient: recipientCode } });
         return { success: false };
-      } catch (e) {
+      } catch (e: any) {
         console.error("initiateTransfer error:", e);
+        await logError({ reference, error_stage: "transfer_initiation", error_message: e.message || String(e), severity: "critical", error_context: { amount, recipient: recipientCode } });
         return { success: false };
       }
     };
@@ -418,8 +463,9 @@ Deno.serve(async (req) => {
             });
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("triggerPayouts error:", e);
+        await logError({ escrow_transaction_id: escrowTransactionId, error_stage: "trigger_payouts", error_message: e.message || String(e), severity: "critical" });
       }
     };
 
@@ -518,8 +564,9 @@ Deno.serve(async (req) => {
 
         const { data: receipt } = await supabase.from("payment_receipts").insert(receiptData).select("receipt_number").single();
         return receipt?.receipt_number || ref;
-      } catch (e) {
+      } catch (e: any) {
         console.error("Escrow completion error:", e);
+        await logError({ reference: ref, error_stage: "escrow_completion", error_message: e.message || String(e), severity: "critical", error_context: { payment_type: paymentType, user_id: userId, total_amount: totalAmt } });
         return ref;
       }
     };
@@ -545,8 +592,9 @@ Deno.serve(async (req) => {
             });
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("SMS error:", e);
+        await logError({ error_stage: "sms", error_message: e.message || String(e), severity: "warning", error_context: { user_id: userId } });
       }
     };
 
@@ -578,8 +626,9 @@ Deno.serve(async (req) => {
             },
           });
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Payment email error:", e);
+        await logError({ error_stage: "email", error_message: e.message || String(e), severity: "warning", error_context: { user_id: userId } });
       }
     };
 
@@ -598,8 +647,9 @@ Deno.serve(async (req) => {
           body: config.body(amount, meta),
           link: config.link || "/",
         });
-      } catch (e) {
+      } catch (e: any) {
         console.error("Notification insert error:", e);
+        await logError({ error_stage: "notification", error_message: e.message || String(e), severity: "warning", error_context: { user_id: userId, payment_type: paymentType } });
       }
     };
 
@@ -852,6 +902,11 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (error: any) {
     console.error("Webhook error:", error.message);
+    // Try to log top-level errors (supabase may not be available if error was early)
+    try {
+      const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      await db.from("payment_processing_errors").insert({ function_name: "paystack-webhook", error_stage: "top_level", error_message: error.message || String(error), severity: "critical" });
+    } catch {}
     return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
   }
 });

@@ -19,6 +19,12 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    const logError = async (opts: { escrow_transaction_id?: string; reference?: string; error_stage: string; error_message: string; error_context?: Record<string, any>; severity?: string }) => {
+      try {
+        await supabaseAdmin.from("payment_processing_errors").insert({ function_name: "process-office-payout", severity: "warning", ...opts });
+      } catch (e) { console.error("Failed to log error:", e); }
+    };
+
     const supabaseUser = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -158,8 +164,9 @@ Deno.serve(async (req) => {
               failure_reason: transferSuccess ? null : (transferData.message || "Transfer failed"),
             });
           }
-        } catch (transferErr) {
+        } catch (transferErr: any) {
           console.error("Paystack transfer error:", transferErr);
+          await logError({ error_stage: "paystack_transfer", error_message: transferErr.message || String(transferErr), severity: "critical", error_context: { office_id: request.office_id, amount: request.amount, requestId } });
           // Still approve the request — admin can manually process
         }
       }
@@ -211,6 +218,10 @@ Deno.serve(async (req) => {
     }
   } catch (error: any) {
     console.error("Process office payout error:", error.message);
+    try {
+      const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      await db.from("payment_processing_errors").insert({ function_name: "process-office-payout", error_stage: "top_level", error_message: error.message || String(error), severity: "critical" });
+    } catch {}
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

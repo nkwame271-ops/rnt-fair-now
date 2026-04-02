@@ -10,14 +10,18 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const { reference } = await req.json();
-    if (!reference) throw new Error("reference is required");
+  const supabaseAdmin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+  const logError = async (opts: { escrow_transaction_id?: string; reference?: string; error_stage: string; error_message: string; error_context?: Record<string, any>; severity?: string }) => {
+    try {
+      await supabaseAdmin.from("payment_processing_errors").insert({ function_name: "verify-payment", severity: "warning", ...opts });
+    } catch (e) { console.error("Failed to log error:", e); }
+  };
+
+  try {
 
     // Try to authenticate (optional — may fail after redirect)
     let userId: string | null = null;
@@ -361,6 +365,7 @@ Deno.serve(async (req) => {
       }
     } catch (payoutErr: any) {
       console.error("Verify-payment payout trigger error:", payoutErr.message);
+      await logError({ escrow_transaction_id: escrow.id, reference, error_stage: "payout_trigger", error_message: payoutErr.message || String(payoutErr), severity: "critical" });
     }
 
     return new Response(JSON.stringify({ verified: true, status: "completed" }), {
@@ -368,6 +373,7 @@ Deno.serve(async (req) => {
     });
   } catch (error: any) {
     console.error("Verify payment error:", error.message);
+    await logError({ error_stage: "top_level", error_message: error.message || String(error), severity: "critical" });
     return new Response(JSON.stringify({ error: error.message, verified: false }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

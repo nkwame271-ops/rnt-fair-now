@@ -1058,6 +1058,45 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_processing_errors: {
+        Row: {
+          created_at: string
+          error_context: Json | null
+          error_message: string
+          error_stage: string
+          escrow_transaction_id: string | null
+          function_name: string
+          id: string
+          reference: string | null
+          resolved: boolean
+          severity: string
+        }
+        Insert: {
+          created_at?: string
+          error_context?: Json | null
+          error_message: string
+          error_stage: string
+          escrow_transaction_id?: string | null
+          function_name: string
+          id?: string
+          reference?: string | null
+          resolved?: boolean
+          severity?: string
+        }
+        Update: {
+          created_at?: string
+          error_context?: Json | null
+          error_message?: string
+          error_stage?: string
+          escrow_transaction_id?: string | null
+          function_name?: string
+          id?: string
+          reference?: string | null
+          resolved?: boolean
+          severity?: string
+        }
+        Relationships: []
+      }
       payment_receipts: {
         Row: {
           created_at: string
