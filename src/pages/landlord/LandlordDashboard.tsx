@@ -169,28 +169,33 @@ const LandlordDashboard = () => {
           </div>
         </div>
 
-        {(registerPropertyEnabled || declareExistingEnabled) && (
-          <StaggeredGrid className="grid sm:grid-cols-2 gap-4">
-            {registerPropertyEnabled && (
-              <StaggeredItem>
-                <Link to="/landlord/register-property" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
-                  <PlusCircle className="h-6 w-6 text-primary mb-3" />
-                  <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">Register New Property</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Add a new property with units and pricing</p>
-                </Link>
-              </StaggeredItem>
-            )}
-            {declareExistingEnabled && (
-              <StaggeredItem>
-                <Link to="/landlord/declare-existing-tenancy" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
-                  <Building2 className="h-6 w-6 text-info mb-3" />
-                  <h3 className="font-semibold text-card-foreground group-hover:text-info transition-colors">Declare Existing Tenancy</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Migrate a tenancy that started before the platform</p>
-                </Link>
-              </StaggeredItem>
-            )}
-          </StaggeredGrid>
-        )}
+        <StaggeredGrid className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {registerPropertyEnabled && (
+            <StaggeredItem>
+              <Link to="/landlord/register-property" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
+                <PlusCircle className="h-6 w-6 text-primary mb-3" />
+                <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">Register New Property</h3>
+                <p className="text-sm text-muted-foreground mt-1">Add a new property with units and pricing</p>
+              </Link>
+            </StaggeredItem>
+          )}
+          {declareExistingEnabled && (
+            <StaggeredItem>
+              <Link to="/landlord/declare-existing-tenancy" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
+                <Building2 className="h-6 w-6 text-info mb-3" />
+                <h3 className="font-semibold text-card-foreground group-hover:text-info transition-colors">Declare Existing Tenancy</h3>
+                <p className="text-sm text-muted-foreground mt-1">Migrate a tenancy that started before the platform</p>
+              </Link>
+            </StaggeredItem>
+          )}
+          <StaggeredItem>
+            <Link to="/landlord/invite-tenant" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
+              <UserPlus className="h-6 w-6 text-primary mb-3" />
+              <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">Invite Your Tenant</h3>
+              <p className="text-sm text-muted-foreground mt-1">Send an SMS or share a link to get your tenant registered</p>
+            </Link>
+          </StaggeredItem>
+        </StaggeredGrid>
 
         <div className="bg-card rounded-xl p-6 shadow-card border border-border">
           <div className="flex items-center justify-between mb-4">
