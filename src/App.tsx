@@ -89,6 +89,7 @@ const SmsBroadcast = lazy(() => import("./pages/regulator/SmsBroadcast"));
 const RegulatorRentReviews = lazy(() => import("./pages/regulator/RegulatorRentReviews"));
 const OfficeFundRequests = lazy(() => import("./pages/regulator/OfficeFundRequests"));
 const OfficePayoutSettings = lazy(() => import("./pages/regulator/OfficePayoutSettings"));
+const PaymentErrors = lazy(() => import("./pages/regulator/PaymentErrors"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
