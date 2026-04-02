@@ -181,7 +181,6 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       : officeName;
   };
 
-  const selectedSerialSet = useMemo(() => new Set(Object.values(serialMap).filter(Boolean)), [serialMap]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
