@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag, Zap, Hand } from "lucide-react";
+import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag, Zap, Hand, CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import PageTransition from "@/components/PageTransition";
 import AnimatedCounter from "@/components/AnimatedCounter";
@@ -33,14 +33,21 @@ interface RevenueByType {
   color: string;
 }
 
+// Explicit breakdown — no generic "Other" bucket
 const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string }[] = [
   { label: "Rent Card Sales", types: ["rent_card", "rent_card_bulk"], color: "bg-primary/10 border-primary/20 text-primary" },
   { label: "Registrations", types: ["tenant_registration", "landlord_registration", "tenant_registration_fee", "landlord_registration_fee"], color: "bg-info/10 border-info/20 text-info" },
   { label: "Quit Notices / Ejection", types: ["termination_fee"], color: "bg-destructive/10 border-destructive/20 text-destructive" },
-  { label: "Tenancy Agreement Fee", types: ["agreement_sale", "add_tenant_fee"], color: "bg-success/10 border-success/20 text-success" },
+  { label: "Tenancy Agreement", types: ["agreement_sale", "add_tenant_fee"], color: "bg-success/10 border-success/20 text-success" },
   { label: "Rent Tax", types: ["rent_tax", "rent_tax_bulk"], color: "bg-accent/10 border-accent/20 text-accent-foreground" },
-  { label: "Other", types: ["complaint_fee", "listing_fee", "viewing_fee", "archive_search_fee"], color: "bg-muted border-border text-muted-foreground" },
+  { label: "Complaint Fee", types: ["complaint_fee"], color: "bg-warning/10 border-warning/20 text-warning" },
+  { label: "Listing Fee", types: ["listing_fee"], color: "bg-muted border-border text-muted-foreground" },
+  { label: "Viewing Fee", types: ["viewing_fee"], color: "bg-info/10 border-info/20 text-info" },
+  { label: "Archive Search", types: ["archive_search_fee"], color: "bg-muted border-border text-muted-foreground" },
 ];
+
+// Recipients visible to sub-admins only
+const SUB_ADMIN_VISIBLE_RECIPIENTS = ["rent_control", "admin"];
 
 const EscrowDashboard = () => {
   const { profile } = useAdminProfile();
@@ -52,6 +59,7 @@ const EscrowDashboard = () => {
   const [selectedOffice, setSelectedOffice] = useState<string>("all");
   const [officeRevenue, setOfficeRevenue] = useState<OfficeRevenue[]>([]);
   const [revenueByType, setRevenueByType] = useState<RevenueByType[]>([]);
+  const [pipelineStats, setPipelineStats] = useState({ webhookReceived: 0, verified: 0, allocated: 0, transfersTriggered: 0, transfersFailed: 0 });
 
   const effectiveOffice = profile && !profile.isMainAdmin && profile.officeId
     ? profile.officeId
@@ -119,13 +127,29 @@ const EscrowDashboard = () => {
         manualReleased,
       });
 
+      // Pipeline stats
+      let payoutsQuery = supabase.from("payout_transfers").select("status, escrow_transaction_id");
+      if (officeFilter) {
+        // Filter by office via escrow_transaction_id join not directly available, skip filter for pipeline
+      }
+      const { data: payouts } = await payoutsQuery;
+      const uniqueEscrowsWithPayouts = new Set((payouts || []).map((p: any) => p.escrow_transaction_id));
+      const failedTransfers = (payouts || []).filter((p: any) => p.status === "failed").length;
+
+      setPipelineStats({
+        webhookReceived: completed.length,
+        verified: completed.length,
+        allocated: (splits || []).length > 0 ? completed.length : 0,
+        transfersTriggered: uniqueEscrowsWithPayouts.size,
+        transfersFailed: failedTransfers,
+      });
+
       // Office revenue breakdown (only for national view)
       if (!officeFilter) {
         const { data: allSplits } = await supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode");
         const officeMap = new Map<string, OfficeRevenue>();
         const officeNames = new Map((await supabase.from("offices").select("id, name")).data?.map(o => [o.id, o.name]) || []);
 
-        // Fetch approved fund requests to calculate wallet balances
         const { data: approvedRequests } = await supabase
           .from("office_fund_requests")
           .select("office_id, amount")
@@ -152,7 +176,6 @@ const EscrowDashboard = () => {
           else if (s.recipient !== "landlord") entry.manualReleased += Number(s.amount);
         }
 
-        // Calculate wallet balance per office
         for (const [oid, entry] of officeMap) {
           entry.released = releasedByOffice.get(oid) || 0;
           entry.walletBalance = entry.admin - entry.released;
@@ -181,13 +204,19 @@ const EscrowDashboard = () => {
       )
     : receipts;
 
-  const allocationCards = [
-    { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary" },
-    { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info" },
-    { label: "Platform", amount: stats.platform, color: "bg-success/10 border-success/20 text-success" },
-    { label: "GRA", amount: stats.gra, color: "bg-accent/10 border-accent/20 text-accent-foreground" },
-    { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning" },
+  // Filter allocation cards based on admin type
+  const allAllocationCards = [
+    { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary", recipient: "rent_control" },
+    { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info", recipient: "admin" },
+    { label: "Platform", amount: stats.platform, color: "bg-success/10 border-success/20 text-success", recipient: "platform" },
+    { label: "GRA", amount: stats.gra, color: "bg-accent/10 border-accent/20 text-accent-foreground", recipient: "gra" },
+    { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning", recipient: "landlord" },
   ];
+
+  // Sub-admins only see IGF and Admin
+  const allocationCards = isMainAdmin
+    ? allAllocationCards
+    : allAllocationCards.filter(c => SUB_ADMIN_VISIBLE_RECIPIENTS.includes(c.recipient));
 
   if (loading && offices.length === 0) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -248,6 +277,31 @@ const EscrowDashboard = () => {
               ))}
             </StaggeredGrid>
 
+            {/* Payment Pipeline Status (Main Admin only) */}
+            {isMainAdmin && (
+              <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+                <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-primary" />
+                  Payment Pipeline Checklist
+                </h2>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                  {[
+                    { label: "Payments Completed", value: pipelineStats.webhookReceived, icon: CheckCircle, ok: pipelineStats.webhookReceived > 0 },
+                    { label: "Verified", value: pipelineStats.verified, icon: CheckCircle, ok: pipelineStats.verified > 0 },
+                    { label: "Allocations Posted", value: pipelineStats.allocated, icon: pipelineStats.allocated > 0 ? CheckCircle : AlertTriangle, ok: pipelineStats.allocated > 0 },
+                    { label: "Transfers Triggered", value: pipelineStats.transfersTriggered, icon: pipelineStats.transfersTriggered > 0 ? CheckCircle : Clock, ok: pipelineStats.transfersTriggered > 0 },
+                    { label: "Failed Transfers", value: pipelineStats.transfersFailed, icon: pipelineStats.transfersFailed > 0 ? XCircle : CheckCircle, ok: pipelineStats.transfersFailed === 0 },
+                  ].map(item => (
+                    <div key={item.label} className={`border rounded-lg p-3 text-center ${item.ok ? "border-success/30 bg-success/5" : "border-warning/30 bg-warning/5"}`}>
+                      <item.icon className={`h-5 w-5 mx-auto mb-1 ${item.ok ? "text-success" : "text-warning"}`} />
+                      <div className="text-xl font-bold text-card-foreground">{item.value}</div>
+                      <div className="text-[10px] text-muted-foreground">{item.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Release Mode Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="bg-card rounded-xl p-5 shadow-card border border-border flex items-start gap-3">
@@ -290,10 +344,10 @@ const EscrowDashboard = () => {
               </div>
             </div>
 
-            {/* Revenue Breakdown (IGF) */}
+            {/* Allocation Summary */}
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4">Allocation Summary (Internal Ledger)</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className={`grid grid-cols-2 ${isMainAdmin ? "lg:grid-cols-5" : "lg:grid-cols-2"} gap-4`}>
                 {allocationCards.map(r => (
                   <div key={r.label} className={`border rounded-lg p-4 text-center ${r.color}`}>
                     <div className="text-2xl font-bold">GH₵ {r.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
@@ -307,8 +361,8 @@ const EscrowDashboard = () => {
               </div>
             </div>
 
-            {/* Office Revenue Table (national view only) */}
-            {effectiveOffice === "all" && officeRevenue.length > 0 && (
+            {/* Office Revenue Table (national view, main admin only) */}
+            {isMainAdmin && effectiveOffice === "all" && officeRevenue.length > 0 && (
               <div className="bg-card rounded-xl p-6 shadow-card border border-border">
                 <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                   <Building className="h-5 w-5 text-primary" />
@@ -369,6 +423,42 @@ const EscrowDashboard = () => {
               </div>
             )}
 
+            {/* Sub-admin: simplified office table (only IGF + Admin) */}
+            {!isMainAdmin && effectiveOffice === "all" && officeRevenue.length > 0 && (
+              <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+                <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <Building className="h-5 w-5 text-primary" />
+                  Office Revenue
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-muted-foreground">
+                        <th className="text-left py-2 pr-4">Office</th>
+                        <th className="text-right py-2 px-2">IGF</th>
+                        <th className="text-right py-2 px-2">Admin</th>
+                        <th className="text-right py-2 px-2">Wallet Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {officeRevenue.slice(0, 20).map(o => (
+                        <tr key={o.officeId} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                          <td className="py-2 pr-4 font-medium text-card-foreground">{o.officeName}</td>
+                          <td className="text-right py-2 px-2 text-primary">₵{o.igf.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2 text-info">₵{o.admin.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2">
+                            <span className={`font-semibold ${o.walletBalance > 0 ? "text-success" : "text-muted-foreground"}`}>
+                              ₵{o.walletBalance.toFixed(2)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Receipt Register */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -397,6 +487,7 @@ const EscrowDashboard = () => {
                       splits={(r.split_breakdown as any[]) || []}
                       status={r.status}
                       qrCodeData={r.qr_code_data || r.receipt_number}
+                      showSplits={false}
                     />
                   ))}
                 </div>

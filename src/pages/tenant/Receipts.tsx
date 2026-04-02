@@ -76,6 +76,7 @@ const Receipts = () => {
               splits={(r.split_breakdown as any[]) || []}
               status={r.status}
               qrCodeData={r.qr_code_data || r.receipt_number}
+              showSplits={false}
             />
           ))}
         </div>
