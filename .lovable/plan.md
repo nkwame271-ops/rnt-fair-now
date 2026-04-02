@@ -1,59 +1,60 @@
 
 
-# Fix: Rent Band Fee Control — Platform Fees Must Not Override Amount
+# Fix: Invite Staff Errors & Empty Rent Cards for Sub-Admins
 
-## Problem
+## Problems Found
 
-In `determineFee()` (paystack-checkout lines 34-71), when a band-based payment type (`agreement_sale`, `add_tenant_fee`) either:
-- has no `monthlyRent` provided, or
-- no rent band matches the provided rent
+### Problem 1: Invite Staff returns 400
+The edge function logs show repeated **400** status codes. The most likely cause is `auth.admin.createUser` rejecting the request because:
+- The email was already registered from a previous attempt
+- The edge function returns `{ error: createError.message }` with status 400, but the frontend's `supabase.functions.invoke` wraps any non-2xx as a generic "Edge function returned a non-2xx code" error, hiding the real message
 
-...it **falls back to `flagData?.fee_amount`** from Platform Fees (feature_flags table). This means the Platform Fees amount field silently overrides the rent band fee, which is wrong.
+**Fix**: Improve error surfacing so the actual Paystack/auth error message reaches the UI. Also add a duplicate-email pre-check.
 
-For band-based types, Platform Fees should **only** control the on/off toggle. The amount must always come from rent bands.
+### Problem 2: Rent Cards page is empty for sub-admins
+The invite form offers `rent_cards` as a single checkbox (from `FEATURE_ROUTE_MAP`). But `RegulatorRentCards.tsx` checks for two **sub-feature keys** that don't exist in the feature map:
+- `rent_card_procurement`
+- `rent_card_sales`
 
-## Changes
+A sub-admin with `allowedFeatures: ["rent_cards"]` passes the nav filter (sees the menu item) but fails both `hasProcurement` and `hasSales` checks, so both tab panels are hidden — resulting in an empty page.
 
-### 1. `supabase/functions/paystack-checkout/index.ts` — `determineFee` function
+## Plan
 
-Current (broken):
-```
-// Falls back to feature_flags fee_amount for band-based types
-const amount = flagData?.fee_amount ?? 0;
-return { amount, enabled, rentBandId: null, paymentType };
-```
+### 1. Fix Rent Cards feature gating (this is the main issue)
 
-Fix:
-- For band-based types, if `monthlyRent` is not provided or no band matches, throw an error instead of falling back to the flat fee amount.
-- The feature_flags row for `agreement_sale_fee` and `add_tenant_fee` will only be read for its `fee_enabled` field. Its `fee_amount` is ignored.
+In `RegulatorRentCards.tsx`, update the permission checks to also accept the parent `rent_cards` key:
 
-New logic:
-```
-if (BAND_BASED_TYPES.has(paymentType)) {
-  if (monthlyRent == null || monthlyRent <= 0) {
-    throw new Error("Monthly rent is required to determine the fee for this payment type.");
-  }
-  // monthlyRent was provided but no band matched
-  throw new Error("No rent band configured for monthly rent of GH₵ " + monthlyRent);
-}
-// Only flat fee types reach here
-const amount = flagData?.fee_amount ?? 0;
-return { amount, enabled, rentBandId: null, paymentType };
+```typescript
+const hasProcurement = isMain 
+  || profile?.allowedFeatures?.includes("rent_card_procurement")
+  || profile?.allowedFeatures?.includes("rent_cards");
+const hasSales = isMain 
+  || profile?.allowedFeatures?.includes("rent_card_sales")
+  || profile?.allowedFeatures?.includes("rent_cards");
 ```
 
-### 2. Frontend pages that call checkout for band-based types
+This way, selecting `rent_cards` in the invite form grants both workspaces. Optionally, add `rent_card_procurement` and `rent_card_sales` as separate entries in `FEATURE_ROUTE_MAP` for granular control in the future.
 
-Verify that `AddTenant.tsx` and `DeclareExistingTenancy.tsx` always pass `monthlyRent` in the checkout request body. From the earlier audit, `AddTenant` was updated to pass it and `DeclareExistingTenancy` already passes it via the `agreement_sale` type. Confirm both paths, fix if missing.
+### 2. Fix invite-staff error handling
 
-### 3. Engine Room UI hint (optional but helpful)
+In `InviteStaff.tsx`, the `supabase.functions.invoke` call doesn't properly extract the error body. The current code does:
+```typescript
+const { data, error } = await supabase.functions.invoke("invite-staff", { body: {...} });
+if (error) throw new Error(error.message);
+if (data?.error) throw new Error(data.error);
+```
 
-In the Platform Fees section of `EngineRoom.tsx`, for `agreement_sale_fee` and `add_tenant_fee`, disable or hide the fee amount input and show a note: "Amount is determined by Rent Bands". This prevents regulator confusion.
+The issue: when the edge function returns a 400 with `{ error: "User already registered" }`, the Supabase client may throw with a generic message. Update to check `data?.error` first since the function returns JSON even on 400.
+
+### 3. Add duplicate email pre-check in edge function
+
+Before calling `createUser`, check if the email is already registered to give a clearer error message.
 
 ## Files to change
 
 | File | Change |
 |------|--------|
-| `supabase/functions/paystack-checkout/index.ts` | Update `determineFee` to throw instead of falling back to flat fee for band-based types |
-| `src/pages/regulator/EngineRoom.tsx` | Hide/disable fee amount input for band-based fee keys; show "Set via Rent Bands" label |
-| `src/pages/landlord/AddTenant.tsx` | Confirm `monthlyRent` is always passed (already done in prior update — verify) |
+| `src/pages/regulator/RegulatorRentCards.tsx` | Accept `rent_cards` parent key in procurement/sales permission checks |
+| `src/pages/regulator/InviteStaff.tsx` | Improve error extraction from edge function response |
+| `supabase/functions/invite-staff/index.ts` | Minor: add clearer error for duplicate emails |
 
