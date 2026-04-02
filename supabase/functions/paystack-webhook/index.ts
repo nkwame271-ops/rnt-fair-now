@@ -592,8 +592,9 @@ Deno.serve(async (req) => {
             });
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("SMS error:", e);
+        await logError({ error_stage: "sms", error_message: e.message || String(e), severity: "warning", error_context: { user_id: userId } });
       }
     };
 
