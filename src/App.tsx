@@ -43,6 +43,7 @@ const RequestRenewal = lazy(() => import("./pages/tenant/RequestRenewal"));
 const TenantTerminationRequest = lazy(() => import("./pages/tenant/TerminationRequest"));
 const ReportSidePayment = lazy(() => import("./pages/tenant/ReportSidePayment"));
 const TenantReceipts = lazy(() => import("./pages/tenant/Receipts"));
+const InviteLandlord = lazy(() => import("./pages/tenant/InviteLandlord"));
 
 // Landlord pages
 const LandlordDashboard = lazy(() => import("./pages/landlord/LandlordDashboard"));
@@ -64,6 +65,7 @@ const LandlordTerminationRequest = lazy(() => import("./pages/landlord/Terminati
 const ManageRentCards = lazy(() => import("./pages/landlord/ManageRentCards"));
 const LandlordPaymentSettings = lazy(() => import("./pages/landlord/PaymentSettings"));
 const LandlordReceipts = lazy(() => import("./pages/landlord/Receipts"));
+const InviteTenant = lazy(() => import("./pages/landlord/InviteTenant"));
 
 // Regulator pages
 const RegulatorDashboard = lazy(() => import("./pages/regulator/RegulatorDashboard"));
@@ -140,6 +142,7 @@ const App = () => (
                 <Route path="termination" element={<TenantTerminationRequest />} />
                 <Route path="report-side-payment" element={<ReportSidePayment />} />
                 <Route path="receipts" element={<TenantReceipts />} />
+                <Route path="invite-landlord" element={<InviteLandlord />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
@@ -163,6 +166,7 @@ const App = () => (
                 <Route path="rent-cards" element={<ManageRentCards />} />
                 <Route path="payment-settings" element={<LandlordPaymentSettings />} />
                 <Route path="receipts" element={<LandlordReceipts />} />
+                <Route path="invite-tenant" element={<InviteTenant />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="feedback" element={<LandlordFeedback />} />
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />

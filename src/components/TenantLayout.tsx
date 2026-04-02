@@ -16,6 +16,7 @@ import {
   Bell,
   AlertTriangle,
   ShieldAlert,
+  UserPlus,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,6 +42,7 @@ const navItems = [
   { to: "/tenant/report-side-payment", label: "Report Side Payment", icon: ShieldAlert, featureKey: "report_side_payment" },
   { to: "/tenant/preferences", label: "Preferences", icon: Bell, featureKey: "preferences" },
   { to: "/tenant/messages", label: "Messages", icon: MessageCircle, featureKey: "tenant_messages" },
+  { to: "/tenant/invite-landlord", label: "Invite Landlord", icon: UserPlus },
   { to: "/tenant/profile", label: "My Profile", icon: UserCircle },
 ];
 

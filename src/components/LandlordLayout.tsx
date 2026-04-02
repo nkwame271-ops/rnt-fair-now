@@ -18,6 +18,7 @@ import {
   Gavel,
   CreditCard,
   Wallet,
+  UserPlus,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,6 +46,7 @@ const navItems = [
   { to: "/landlord/rent-cards", label: "Manage Rent Cards", icon: Wallet, featureKey: "rent_cards" },
   { to: "/landlord/payment-settings", label: "Payment Settings", icon: CreditCard, featureKey: "payment_settings" },
   { to: "/landlord/receipts", label: "Receipts", icon: FileText, featureKey: "landlord_receipts" },
+  { to: "/landlord/invite-tenant", label: "Invite Tenant", icon: UserPlus },
   { to: "/landlord/profile", label: "My Profile", icon: UserCircle },
   { to: "/landlord/rent-increase-request", label: "Rent Increase", icon: Wallet, featureKey: "rent_increase" },
   { to: "/landlord/feedback", label: "Beta Feedback", icon: MessageSquare, featureKey: "landlord_feedback" },

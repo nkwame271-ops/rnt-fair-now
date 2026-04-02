@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
-import { AlertTriangle, CheckCircle2, Clock, ArrowRight, Shield, Loader2, RefreshCw, CreditCard } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, ArrowRight, Shield, Loader2, RefreshCw, CreditCard, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -155,6 +155,12 @@ const TenantDashboard = () => {
           ))}
         </StaggeredGrid>
 
+        {/* Invite Landlord Card */}
+        <Link to="/tenant/invite-landlord" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
+          <UserPlus className="h-6 w-6 text-primary mb-3" />
+          <h3 className="font-semibold text-card-foreground group-hover:text-primary transition-colors">Invite Your Landlord</h3>
+          <p className="text-sm text-muted-foreground mt-1">Send an SMS or share a link to get your landlord registered</p>
+        </Link>
 
         {/* Tenancy Cards */}
         {tenancyCards.length > 0 && (
