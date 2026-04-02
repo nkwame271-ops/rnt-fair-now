@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
 
     if (!callerRole) {
       return new Response(JSON.stringify({ error: "Access denied. Regulator role required." }), {
-        status: 403,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
 
     if (!callerAdmin || callerAdmin.admin_type !== "main_admin") {
       return new Response(JSON.stringify({ error: "Only Main Admins can invite staff." }), {
-        status: 403,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -72,14 +72,14 @@ Deno.serve(async (req) => {
     const { email, fullName, password, adminType, officeId, officeName, allowedFeatures } = await req.json();
     if (!email || !fullName || !password) {
       return new Response(JSON.stringify({ error: "email, fullName, and password are required" }), {
-        status: 400,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (password.length < 6) {
       return new Response(JSON.stringify({ error: "Password must be at least 6 characters" }), {
-        status: 400,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     // Sub admins must have an office
     if (resolvedAdminType === "sub_admin" && !officeId) {
       return new Response(JSON.stringify({ error: "Sub Admins must be assigned to an office" }), {
-        status: 400,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
     const { data: existingUsers } = await adminClient.auth.admin.listUsers();
     if (existingUsers?.users?.some((u: any) => u.email?.toLowerCase() === email.toLowerCase())) {
       return new Response(JSON.stringify({ error: `Email "${email}" is already registered. Use a different email.` }), {
-        status: 400,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
     if (createError) {
       return new Response(JSON.stringify({ error: createError.message }), {
-        status: 400,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
