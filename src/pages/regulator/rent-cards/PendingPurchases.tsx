@@ -139,6 +139,13 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   // Selection state
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
 
+  // Assignment mode
+  type AssignMode = "auto_qty" | "start_from" | "range" | "manual";
+  const [assignMode, setAssignMode] = useState<AssignMode>("auto_qty");
+  const [startFromSerial, setStartFromSerial] = useState("");
+  const [rangeFrom, setRangeFrom] = useState("");
+  const [rangeTo, setRangeTo] = useState("");
+
   // Mapping state
   const [mappingCards, setMappingCards] = useState<PendingCard[]>([]);
   const [serialMap, setSerialMap] = useState<Record<string, string>>({});
