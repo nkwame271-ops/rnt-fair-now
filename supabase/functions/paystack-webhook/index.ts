@@ -167,6 +167,8 @@ Deno.serve(async (req) => {
           .update({ status: "failed", failure_reason: reason, completed_at: new Date().toISOString(), transfer_code: transferCode })
           .eq("paystack_reference", tReference);
 
+        await logError({ reference: tReference, error_stage: "transfer_failed", error_message: reason, severity: "critical", error_context: { transfer_code: transferCode, event: "transfer.failed" } });
+
         const { data: adminStaff } = await supabase
           .from("admin_staff")
           .select("user_id")
