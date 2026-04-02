@@ -164,8 +164,9 @@ Deno.serve(async (req) => {
               failure_reason: transferSuccess ? null : (transferData.message || "Transfer failed"),
             });
           }
-        } catch (transferErr) {
+        } catch (transferErr: any) {
           console.error("Paystack transfer error:", transferErr);
+          await logError({ error_stage: "paystack_transfer", error_message: transferErr.message || String(transferErr), severity: "critical", error_context: { office_id: request.office_id, amount: request.amount, requestId } });
           // Still approve the request — admin can manually process
         }
       }
