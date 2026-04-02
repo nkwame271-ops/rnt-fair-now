@@ -1,100 +1,97 @@
 
 
-# Plan: Main-Account-First Payout Model
+# Plan: Add Comprehensive Error Handling & Logging for Payout System
 
-## Current State
+## Summary
 
-The system currently uses **Paystack Split Payments (subaccounts)** at transaction initialization. The `paystack-checkout` function builds a `split` object with subaccount codes from `system_settlement_accounts` and attaches it to `transaction/initialize`. Paystack distributes money automatically at charge time. The webhook then records allocations in `escrow_splits` and handles business logic.
-
-The requested change moves to a **main-account-first transfer model** where all money enters the main Paystack account, and the backend distributes via Paystack's Transfer API after verification.
+Create a `payment_processing_errors` database table to log every error that occurs during payment processing, payout transfers, and escrow operations. Then add structured error logging throughout the three key edge functions so admins can see exactly what went wrong and where.
 
 ---
 
-## Architecture Change
+## Changes
 
-```text
-CURRENT FLOW:
-  User pays → Paystack splits money at charge → Webhook records in ledger
+### 1. Database Migration — Create `payment_processing_errors` table
 
-NEW FLOW:
-  User pays → Money enters main account → Webhook verifies
-  → Backend loads split rules from Engine Room
-  → Posts allocations to escrow_splits ledger
-  → Creates Paystack transfer recipients from saved payout accounts
-  → Triggers Paystack transfers to IGF, Admin, GRA, Platform, offices
-  → Office shares respect Auto/Manual payout mode
+A dedicated error log table:
+- `id` (uuid, PK)
+- `escrow_transaction_id` (uuid, nullable) — links to the transaction
+- `reference` (text) — Paystack reference
+- `function_name` (text) — which edge function errored (e.g. "paystack-webhook", "verify-payment", "process-office-payout")
+- `error_stage` (text) — where it failed (e.g. "escrow_completion", "recipient_creation", "transfer_initiation", "split_recording", "receipt_creation", "notification", "sms", "type_finalization")
+- `error_message` (text) — the error message
+- `error_context` (jsonb) — additional context (payment_type, user_id, split_recipient, amount, Paystack response, etc.)
+- `severity` (text) — "critical" / "warning" / "info"
+- `resolved` (boolean, default false) — for admin to mark as handled
+- `created_at` (timestamptz)
+
+RLS: service_role insert, regulator read access.
+
+### 2. Update `paystack-webhook/index.ts`
+
+Add a `logError()` helper that inserts into `payment_processing_errors`. Wrap each major operation in try/catch with structured error logging:
+
+- **Signature verification failure** → log with severity "critical"
+- **Escrow completion** (`completeEscrow`) → wrap split insertion, receipt creation in individual try/catch; log failures with stage + context
+- **Recipient creation** (`getOrCreateRecipient`) → log Paystack API response on failure with the account details attempted
+- **Transfer initiation** (`initiateTransfer`) → log Paystack error response, amount, recipient
+- **Payment-type finalization** (registration updates, rent card creation, complaint status) → wrap each in try/catch, log with stage "type_finalization"
+- **Notification/SMS/Email** — already wrapped, add `logError()` calls alongside `console.error`
+- **Transfer event handling** (transfer.failed/reversed) → log with severity "critical"
+
+Also notify main admins (in-app notification) when a "critical" error occurs.
+
+### 3. Update `verify-payment/index.ts`
+
+Same `logError()` pattern:
+- Paystack API verification failure → log
+- Escrow update failure → log  
+- Type-specific finalization failures → log each with stage
+- Receipt creation failure → log
+- Payout trigger failures → log (currently swallowed with just `console.error`)
+
+### 4. Update `process-office-payout/index.ts`
+
+- Recipient creation failure → log with office_id context
+- Transfer initiation failure → log with amount, recipient, Paystack response
+- Balance calculation errors → log
+
+### 5. Admin UI — Error Log Viewer (New page: `regulator/PaymentErrors.tsx`)
+
+A simple table in the regulator dashboard showing:
+- Timestamp, function, stage, severity, message, reference
+- Filter by severity (critical/warning/info) and resolved status
+- Click to expand full error context JSON
+- "Mark Resolved" button per row
+- Add route and nav link in RegulatorLayout
+
+---
+
+## Technical Details
+
+The `logError()` helper used in all three functions:
+
+```typescript
+const logError = async (db, opts: {
+  escrow_transaction_id?: string;
+  reference?: string;
+  function_name: string;
+  error_stage: string;
+  error_message: string;
+  error_context?: Record<string, any>;
+  severity?: string;
+}) => {
+  try {
+    await db.from("payment_processing_errors").insert({
+      ...opts,
+      severity: opts.severity || "warning",
+    });
+  } catch (e) {
+    console.error("Failed to log error:", e);
+  }
+};
 ```
 
----
-
-## Changes Required
-
-### 1. Database Migration
-
-Add `paystack_recipient_code` column to `system_settlement_accounts` and `office_payout_accounts` tables to cache Paystack transfer recipient codes (avoids re-creating recipients on every payout).
-
-Add `payout_transfers` table to track individual Paystack transfer attempts:
-- `id`, `escrow_split_id`, `recipient_type` (igf/admin/platform/gra/office/landlord), `recipient_code`, `transfer_code`, `amount`, `status` (pending/success/failed/reversed), `paystack_reference`, `created_at`, `completed_at`, `failure_reason`
-
-### 2. Remove Subaccount Split from Checkout (`paystack-checkout/index.ts`)
-
-- Remove `buildPaystackSplit()` function entirely
-- Remove the `RECIPIENT_TO_ACCOUNT_TYPE` mapping
-- Remove lines 751-778 that attach `payload.split`
-- Keep everything else: fee loading, split plan calculation, escrow record creation, metadata storage
-- The split plan is still calculated and stored in escrow metadata — it just is not sent to Paystack anymore
-
-### 3. Add Transfer Payout Logic to Webhook (`paystack-webhook/index.ts`)
-
-After `completeEscrow()` records splits in the ledger, add a new `triggerPayouts()` function that:
-
-1. Loads all `escrow_splits` for this transaction
-2. For each split recipient (igf, admin, platform, gra):
-   - Loads the corresponding `system_settlement_accounts` record
-   - Creates or retrieves a Paystack transfer recipient using cached `paystack_recipient_code` or the account details (bank/momo)
-   - Caches the recipient code back to the table if newly created
-   - Initiates a Paystack transfer via `POST /transfer`
-   - Records the transfer in `payout_transfers`
-3. For `admin` (office) splits:
-   - Checks `office_payout_mode` feature flag
-   - If Auto Release: loads `office_payout_accounts` for the office, creates recipient, triggers transfer
-   - If Manual: marks split as `held` — no transfer (existing behavior)
-4. For `landlord` splits: marks as `held` in escrow (existing behavior — landlord payouts are manual)
-
-Key helper functions:
-- `getOrCreateRecipient(accountDetails)` — checks for cached recipient code, creates via Paystack API if missing, caches result
-- `initiateTransfer(recipientCode, amount, reason, reference)` — calls Paystack Transfer API
-- `recordTransfer(splitId, recipientCode, transferCode, amount, status)` — inserts into `payout_transfers`
-
-### 4. Update `verify-payment/index.ts`
-
-The existing `verify-payment` function is a fallback for redirect-based verification. After its existing finalization logic, add the same `triggerPayouts()` call to ensure transfers happen even if the webhook was missed.
-
-Use an idempotency check: skip if `payout_transfers` already exist for this escrow transaction.
-
-### 5. Update `process-office-payout/index.ts`
-
-This already has Paystack transfer logic for manual office payouts. Refactor to use the same `getOrCreateRecipient()` pattern and record transfers in `payout_transfers` for audit consistency.
-
-### 6. Webhook for Transfer Events (New Edge Function: `paystack-transfer-webhook`)
-
-Create a new function to handle Paystack transfer events (`transfer.success`, `transfer.failed`, `transfer.reversed`):
-- Verify HMAC signature
-- Update `payout_transfers` table with final status
-- On failure: mark split as `failed`, notify admin
-- On reversal: mark split as `reversed`, notify admin
-
-Register this webhook URL in Paystack dashboard alongside the existing charge webhook.
-
-### 7. UI: Replace Subaccount Code with Recipient Code (`OfficePayoutSettings.tsx`)
-
-- Rename the "Paystack Subaccount Code" field on settlement accounts to "Paystack Recipient Code" 
-- Add a "Test Payout" button (optional) that creates a GH₵ 0.01 test transfer to verify the recipient works
-- The field becomes `paystack_recipient_code` (new column) while keeping `paystack_subaccount_code` for backward compat during transition
-
-### 8. Engine Room Stays Unchanged
-
-All split rules, rent bands, fee flags, and payout mode toggles already live in the Engine Room. No changes needed — the backend already reads from `split_configurations`, `rent_bands`, `feature_flags`, and `secondary_split_configurations`.
+Each existing `console.error` call gets an accompanying `logError()` call with appropriate stage and context. The `console.error` calls are kept for edge function logs.
 
 ---
 
@@ -102,30 +99,11 @@ All split rules, rent bands, fee flags, and payout mode toggles already live in 
 
 | File | Change |
 |---|---|
-| **Migration** | Add `paystack_recipient_code` to settlement + office payout tables; create `payout_transfers` table |
-| `paystack-checkout/index.ts` | Remove `buildPaystackSplit()` and split attachment |
-| `paystack-webhook/index.ts` | Add `triggerPayouts()` after escrow completion |
-| `verify-payment/index.ts` | Add idempotent `triggerPayouts()` call |
-| `process-office-payout/index.ts` | Refactor to use shared recipient/transfer pattern; record in `payout_transfers` |
-| **New:** `paystack-transfer-webhook/index.ts` | Handle transfer.success/failed/reversed events |
-| `supabase/config.toml` | Add `paystack-transfer-webhook` function config |
-| `OfficePayoutSettings.tsx` | Update UI labels from subaccount to recipient code |
-
----
-
-## Paystack Dashboard Setup Required
-
-The user must:
-1. Set the webhook URL for transfers: `https://qjrvwcwmhuxygdanbxsz.supabase.co/functions/v1/paystack-transfer-webhook`
-2. Enable Transfers on their Paystack account (requires business verification)
-3. Ensure sufficient Paystack balance for outbound transfers
-
----
-
-## Security Notes
-
-- All Paystack API calls use `PAYSTACK_SECRET_KEY` server-side only
-- Transfer webhook validates HMAC signature identically to charge webhook
-- Idempotency: transfers check `payout_transfers` before initiating to prevent double-payouts
-- `payout_transfers` table uses service_role-only insert with regulator read access
+| **Migration** | Create `payment_processing_errors` table with RLS |
+| `paystack-webhook/index.ts` | Add `logError()` helper; wrap all operations with structured error capture |
+| `verify-payment/index.ts` | Add `logError()` helper; wrap all operations with structured error capture |
+| `process-office-payout/index.ts` | Add `logError()` helper; wrap recipient/transfer operations |
+| **New:** `src/pages/regulator/PaymentErrors.tsx` | Error log viewer with filters and resolve action |
+| `src/components/RegulatorLayout.tsx` | Add nav link for Payment Errors page |
+| `src/App.tsx` | Add route for `/regulator/payment-errors` |
 
