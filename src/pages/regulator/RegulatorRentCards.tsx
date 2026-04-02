@@ -22,8 +22,9 @@ const RegulatorRentCards = () => {
   const isMain = !profile || profile.isMainAdmin;
 
   // Permission checks for procurement/sales workspaces
-  const hasProcurement = isMain || profile?.allowedFeatures?.includes("rent_card_procurement");
-  const hasSales = isMain || profile?.allowedFeatures?.includes("rent_card_sales");
+  const hasRentCards = profile?.allowedFeatures?.includes("rent_cards");
+  const hasProcurement = isMain || hasRentCards || profile?.allowedFeatures?.includes("rent_card_procurement");
+  const hasSales = isMain || hasRentCards || profile?.allowedFeatures?.includes("rent_card_sales");
 
   if (profileLoading) return <LogoLoader message="Loading..." />;
 
