@@ -152,7 +152,24 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   const [availableSerials, setAvailableSerials] = useState<SerialOption[]>([]);
   const [loadingSerials, setLoadingSerials] = useState(false);
 
-  const officeName = profile?.isMainAdmin
+  const selectedSerialSet = useMemo(() => new Set(Object.values(serialMap).filter(Boolean)), [serialMap]);
+
+  // Computed: serials for "start_from" mode
+  const startFromPreview = useMemo(() => {
+    if (!startFromSerial || availableSerials.length === 0) return [];
+    const idx = availableSerials.findIndex(s => s.serial_number === startFromSerial);
+    if (idx === -1) return [];
+    return availableSerials.slice(idx, idx + mappingCards.length);
+  }, [startFromSerial, availableSerials, mappingCards.length]);
+
+  // Computed: serials for "range" mode
+  const rangePreview = useMemo(() => {
+    if (!rangeFrom || !rangeTo || availableSerials.length === 0) return [];
+    const fromIdx = availableSerials.findIndex(s => s.serial_number === rangeFrom);
+    const toIdx = availableSerials.findIndex(s => s.serial_number === rangeTo);
+    if (fromIdx === -1 || toIdx === -1 || toIdx < fromIdx) return [];
+    return availableSerials.slice(fromIdx, toIdx + 1);
+  }, [rangeFrom, rangeTo, availableSerials]);
     ? ""
     : GHANA_OFFICES.find(o => o.id === profile?.officeId)?.name || "";
 
