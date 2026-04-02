@@ -169,8 +169,12 @@ const EngineRoom = () => {
     if (!profile?.isMainAdmin) return;
     const fetchBands = async () => {
       setRentBandsLoading(true);
-      const { data } = await supabase.from("rent_bands").select("*").order("min_rent");
+      const [{ data }, { data: allocs }] = await Promise.all([
+        supabase.from("rent_bands").select("*").order("min_rent"),
+        supabase.from("rent_band_allocations").select("*").order("sort_order"),
+      ]);
       setRentBands((data as any[]) || []);
+      setBandAllocations((allocs as any[]) || []);
       setRentBandsLoading(false);
     };
     fetchBands();
