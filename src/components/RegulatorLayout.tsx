@@ -68,7 +68,8 @@ const RegulatorLayout = () => {
   // Filter nav items based on admin profile
   const navItems = allNavItems.filter(item => {
     // Main admin or no profile record (legacy/fallback) — show all
-    if (!profile || profile.isMainAdmin) return true;
+    if (!profile) return true;
+    if (profile.allowedFeatures.length === 0) return true; // unrestricted admin
 
     // Sub admin — only show allowed features that aren't muted
     const featureKey = getFeatureKeyForRoute(item.to);
