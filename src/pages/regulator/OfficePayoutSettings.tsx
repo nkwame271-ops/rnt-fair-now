@@ -357,6 +357,7 @@ const OfficePayoutSettings = () => {
                   </div>
 
                     <Button
+                    onClick={() => handleSaveSettlement(key)}
                     disabled={savingSettlement === key}
                     variant={hasEdits ? "default" : "outline"}
                     className="w-full sm:w-auto"
