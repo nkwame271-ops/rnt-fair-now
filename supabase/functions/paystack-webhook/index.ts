@@ -564,8 +564,9 @@ Deno.serve(async (req) => {
 
         const { data: receipt } = await supabase.from("payment_receipts").insert(receiptData).select("receipt_number").single();
         return receipt?.receipt_number || ref;
-      } catch (e) {
+      } catch (e: any) {
         console.error("Escrow completion error:", e);
+        await logError({ reference: ref, error_stage: "escrow_completion", error_message: e.message || String(e), severity: "critical", error_context: { payment_type: paymentType, user_id: userId, total_amount: totalAmt } });
         return ref;
       }
     };
