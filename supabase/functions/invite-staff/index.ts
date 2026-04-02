@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
 
     if (!callerRole) {
       return new Response(JSON.stringify({ error: "Access denied. Regulator role required." }), {
-        status: 403,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
