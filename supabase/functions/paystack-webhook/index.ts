@@ -626,8 +626,9 @@ Deno.serve(async (req) => {
             },
           });
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Payment email error:", e);
+        await logError({ error_stage: "email", error_message: e.message || String(e), severity: "warning", error_context: { user_id: userId } });
       }
     };
 
