@@ -47,8 +47,12 @@ const determineFee = async (
 
   const enabled = flagData?.fee_enabled ?? true;
 
-  // For band-based types, use rent_bands when monthlyRent is provided
-  if (BAND_BASED_TYPES.has(paymentType) && monthlyRent != null && monthlyRent > 0) {
+  // For band-based types, amount MUST come from rent_bands — never from feature_flags
+  if (BAND_BASED_TYPES.has(paymentType)) {
+    if (monthlyRent == null || monthlyRent <= 0) {
+      throw new Error("Monthly rent is required to determine the fee for this payment type.");
+    }
+
     const { data: bands } = await supabaseAdmin
       .from("rent_bands")
       .select("id, min_rent, max_rent, fee_amount")
@@ -63,9 +67,12 @@ const determineFee = async (
         }
       }
     }
+
+    // No matching band found — error, do NOT fall back to flat fee
+    throw new Error(`No rent band configured for monthly rent of GH₵ ${monthlyRent}. Please configure rent bands in Engine Room.`);
   }
 
-  // Flat fee from feature_flags
+  // Flat fee from feature_flags (only for non-band-based types)
   const amount = flagData?.fee_amount ?? 0;
   return { amount, enabled, rentBandId: null, paymentType };
 };
