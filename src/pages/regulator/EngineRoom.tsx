@@ -80,6 +80,8 @@ const RECIPIENT_LABELS: Record<string, string> = {
   landlord: "Landlord",
 };
 
+const BAND_BASED_FEE_KEYS = new Set(["agreement_sale_fee", "add_tenant_fee"]);
+
 const EngineRoom = () => {
   const { user } = useAuth();
   const { flags, loading, refetch } = useAllFeatureFlags();
