@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { ArrowRightLeft, Building2 } from "lucide-react";
+import { ArrowRightLeft, Building2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,18 +34,22 @@ interface Props {
   onStockChanged: () => void;
 }
 
+type TransferSubMode = "next_available" | "by_number";
+
 const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [selectedRegion, setSelectedRegion] = useState("");
   const [regionalAvailable, setRegionalAvailable] = useState(0);
   const [officeAllocated, setOfficeAllocated] = useState(0);
   const [allocMode, setAllocMode] = useState<"transfer" | "quota">("transfer");
+  const [transferSubMode, setTransferSubMode] = useState<TransferSubMode>("next_available");
   const [officeQuantities, setOfficeQuantities] = useState<Record<string, number>>({});
-  const [officeQuotas, setOfficeQuotas] = useState<Record<string, number>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [allocating, setAllocating] = useState(false);
   const [history, setHistory] = useState<AllocationHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [quotaUsage, setQuotaUsage] = useState<QuotaUsage[]>([]);
+  const [editingQuota, setEditingQuota] = useState<Record<string, number>>({});
+  const [updatingQuota, setUpdatingQuota] = useState<string | null>(null);
 
   const regionData = GHANA_REGIONS_OFFICES.find(r => r.region === selectedRegion);
   const offices = regionData?.offices || [];
@@ -73,7 +78,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
     };
     fetchStock();
 
-    // Fetch history
+    // Fetch history and quota usage
     setLoadingHistory(true);
     supabase
       .from("office_allocations" as any)
@@ -84,58 +89,54 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
       .then(({ data }) => {
         setHistory((data || []) as any[]);
         setLoadingHistory(false);
-
-        // Compute quota usage per office
-        const quotaEntries = (data || []).filter((d: any) => d.allocation_mode === "quota");
-        if (quotaEntries.length > 0) {
-          const officeQuotaTotals = new Map<string, { office_name: string; total: number }>();
-          for (const entry of quotaEntries as any[]) {
-            const existing = officeQuotaTotals.get(entry.office_id) || { office_name: entry.office_name, total: 0 };
-            existing.total += entry.quota_limit || entry.quantity || 0;
-            officeQuotaTotals.set(entry.office_id, existing);
-          }
-
-          // Fetch usage from serial_assignments for these offices
-          const officeIds = [...officeQuotaTotals.keys()];
-          supabase
-            .from("serial_assignments" as any)
-            .select("office_id, card_count")
-            .in("office_id", officeIds)
-            .then(({ data: assignments }) => {
-              const usageMap = new Map<string, number>();
-              for (const a of (assignments || []) as any[]) {
-                usageMap.set(a.office_id, (usageMap.get(a.office_id) || 0) + (a.card_count || 0));
-              }
-              const usage: QuotaUsage[] = [];
-              for (const [oid, info] of officeQuotaTotals) {
-                const used = usageMap.get(oid) || 0;
-                usage.push({
-                  office_id: oid,
-                  office_name: info.office_name,
-                  total_quota: info.total,
-                  used,
-                  remaining: Math.max(0, info.total - used),
-                });
-              }
-              setQuotaUsage(usage);
-            });
-        } else {
-          setQuotaUsage([]);
-        }
+        computeQuotaUsage(data || []);
       });
   }, [selectedRegion]);
 
+  const computeQuotaUsage = async (allocationData: any[]) => {
+    const quotaEntries = allocationData.filter((d: any) => d.allocation_mode === "quota");
+    if (quotaEntries.length === 0) { setQuotaUsage([]); return; }
+
+    const officeQuotaTotals = new Map<string, { office_name: string; total: number }>();
+    for (const entry of quotaEntries) {
+      const existing = officeQuotaTotals.get(entry.office_id) || { office_name: entry.office_name, total: 0 };
+      existing.total += entry.quota_limit || entry.quantity || 0;
+      officeQuotaTotals.set(entry.office_id, existing);
+    }
+
+    const officeIds = [...officeQuotaTotals.keys()];
+    const { data: assignments } = await supabase
+      .from("serial_assignments" as any)
+      .select("office_id, card_count")
+      .in("office_id", officeIds);
+
+    const usageMap = new Map<string, number>();
+    for (const a of (assignments || []) as any[]) {
+      usageMap.set(a.office_id, (usageMap.get(a.office_id) || 0) + (a.card_count || 0));
+    }
+    const usage: QuotaUsage[] = [];
+    for (const [oid, info] of officeQuotaTotals) {
+      const used = usageMap.get(oid) || 0;
+      usage.push({
+        office_id: oid,
+        office_name: info.office_name,
+        total_quota: info.total,
+        used,
+        remaining: Math.max(0, info.total - used),
+      });
+    }
+    setQuotaUsage(usage);
+  };
+
   const totalTransferQty = Object.values(officeQuantities).reduce((a, b) => a + (b || 0), 0);
   const canAllocate = selectedRegion && (
-    allocMode === "transfer" ? totalTransferQty > 0 && totalTransferQty <= regionalAvailable :
-    Object.values(officeQuotas).some(v => v > 0)
+    allocMode === "transfer"
+      ? totalTransferQty > 0 && (transferSubMode === "by_number" || totalTransferQty <= regionalAvailable)
+      : Object.values(officeQuantities).some(v => v > 0)
   );
 
   const handleAllocate = () => {
-    if (!canAllocate) {
-      toast.error("Invalid allocation");
-      return;
-    }
+    if (!canAllocate) { toast.error("Invalid allocation"); return; }
     setShowPassword(true);
   };
 
@@ -143,7 +144,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
     setAllocating(true);
     try {
       if (allocMode === "transfer") {
-        // Transfer serials for each office that has a quantity
+        const mode = transferSubMode === "by_number" ? "quantity_transfer" : "transfer";
         for (const office of offices) {
           const qty = officeQuantities[office.id] || 0;
           if (qty <= 0) continue;
@@ -151,7 +152,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
           const { data, error } = await supabase.functions.invoke("admin-action", {
             body: {
               action: "allocate_to_office",
-              target_id: `ALLOC-${office.id}-${Date.now()}`,
+              target_id: `${mode === "quantity_transfer" ? "QTYXFR" : "ALLOC"}-${office.id}-${Date.now()}`,
               reason,
               password,
               extra: {
@@ -159,19 +160,21 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                 office_id: office.id,
                 office_name: office.name,
                 quantity: qty,
-                allocation_mode: "transfer",
+                allocation_mode: mode,
+                ...(mode === "quantity_transfer" ? { quota_limit: qty } : {}),
               },
             },
           });
           if (error) throw new Error(error.message);
           if (data?.error) throw new Error(data.error);
         }
-        toast.success(`Transferred ${totalTransferQty} serial pairs to ${Object.values(officeQuantities).filter(v => v > 0).length} office(s)`);
+        const label = transferSubMode === "by_number" ? "Allocated (by number)" : "Transferred";
+        toast.success(`${label} ${totalTransferQty} serial pairs to ${Object.values(officeQuantities).filter(v => v > 0).length} office(s)`);
       } else {
-        // Quota mode — set quotas for each office
+        // Quota mode — set new quotas
         for (const office of offices) {
-          const quota = officeQuotas[office.id] || 0;
-          if (quota <= 0) continue;
+          const qty = officeQuantities[office.id] || 0;
+          if (qty <= 0) continue;
 
           const { data, error } = await supabase.functions.invoke("admin-action", {
             body: {
@@ -183,28 +186,79 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                 region: selectedRegion,
                 office_id: office.id,
                 office_name: office.name,
-                quantity: quota,
+                quantity: qty,
                 allocation_mode: "quota",
-                quota_limit: quota,
+                quota_limit: qty,
               },
             },
           });
           if (error) throw new Error(error.message);
           if (data?.error) throw new Error(data.error);
         }
-        toast.success(`Set quotas for ${Object.values(officeQuotas).filter(v => v > 0).length} office(s)`);
+        toast.success(`Set quotas for ${Object.values(officeQuantities).filter(v => v > 0).length} office(s)`);
       }
 
       setOfficeQuantities({});
-      setOfficeQuotas({});
       onStockChanged();
-      // Refresh
-      setSelectedRegion(prev => { const r = prev; setSelectedRegion(""); setTimeout(() => setSelectedRegion(r), 100); return prev; });
+      refreshRegion();
     } catch (err: any) {
       throw err;
     } finally {
       setAllocating(false);
     }
+  };
+
+  const refreshRegion = () => {
+    const r = selectedRegion;
+    setSelectedRegion("");
+    setTimeout(() => setSelectedRegion(r), 100);
+  };
+
+  const handleUpdateQuota = async (officeId: string, officeName: string) => {
+    const newTotal = editingQuota[officeId];
+    if (newTotal === undefined || newTotal === null) return;
+
+    const current = quotaUsage.find(q => q.office_id === officeId);
+    if (current && newTotal < current.used) {
+      toast.error(`Cannot reduce below used count (${current.used})`);
+      return;
+    }
+    if (current && newTotal === current.total_quota) {
+      toast.info("No change");
+      return;
+    }
+
+    setUpdatingQuota(officeId);
+    try {
+      // We need password for this, use the edge function
+      const password = prompt("Enter admin password to confirm quota change:");
+      if (!password) { setUpdatingQuota(null); return; }
+
+      const { data, error } = await supabase.functions.invoke("admin-action", {
+        body: {
+          action: "adjust_office_quota",
+          target_id: `QUOTA-ADJ-${officeId}-${Date.now()}`,
+          reason: `Quota adjusted to ${newTotal}`,
+          password,
+          extra: {
+            office_id: officeId,
+            office_name: officeName,
+            region: selectedRegion,
+            new_quota: newTotal,
+          },
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+
+      toast.success(`Quota updated to ${newTotal} for ${officeName}`);
+      setEditingQuota(prev => { const n = { ...prev }; delete n[officeId]; return n; });
+      refreshRegion();
+      onStockChanged();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update quota");
+    }
+    setUpdatingQuota(null);
   };
 
   return (
@@ -219,7 +273,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
 
         <div className="space-y-2">
           <Label>Region</Label>
-          <Select value={selectedRegion} onValueChange={v => { setSelectedRegion(v); setOfficeQuantities({}); setOfficeQuotas({}); }}>
+          <Select value={selectedRegion} onValueChange={v => { setSelectedRegion(v); setOfficeQuantities({}); setEditingQuota({}); }}>
             <SelectTrigger><SelectValue placeholder="Select region..." /></SelectTrigger>
             <SelectContent>
               {GHANA_REGIONS_OFFICES.map(r => (
@@ -244,16 +298,35 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
             </div>
 
             {/* Allocation Mode Tabs */}
-            <Tabs value={allocMode} onValueChange={v => setAllocMode(v as "transfer" | "quota")}>
+            <Tabs value={allocMode} onValueChange={v => { setAllocMode(v as "transfer" | "quota"); setOfficeQuantities({}); }}>
               <TabsList>
                 <TabsTrigger value="transfer">Transfer to Office</TabsTrigger>
                 <TabsTrigger value="quota">Priority Quota</TabsTrigger>
               </TabsList>
 
               <TabsContent value="transfer" className="space-y-3">
+                {/* Sub-mode toggle */}
+                <RadioGroup
+                  value={transferSubMode}
+                  onValueChange={v => { setTransferSubMode(v as TransferSubMode); setOfficeQuantities({}); }}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="next_available" id="sub-next" />
+                    <Label htmlFor="sub-next" className="cursor-pointer text-sm">Next Available Serials</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="by_number" id="sub-number" />
+                    <Label htmlFor="sub-number" className="cursor-pointer text-sm">Transfer by Number Only</Label>
+                  </div>
+                </RadioGroup>
+
                 <p className="text-xs text-muted-foreground">
-                  Explicitly transfer serials from regional stock to each office. Auto-selects next available serials.
+                  {transferSubMode === "next_available"
+                    ? "Physically moves next available serials from regional stock to each office."
+                    : "Allocates a quantity to the office. Office staff draw from the regional pool until the quantity is exhausted."}
                 </p>
+
                 <div className="border border-border rounded-lg divide-y divide-border">
                   {offices.map(o => (
                     <div key={o.id} className="flex items-center justify-between px-4 py-2.5">
@@ -274,8 +347,8 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                 </div>
                 {totalTransferQty > 0 && (
                   <p className="text-sm text-card-foreground">
-                    Total to transfer: <strong>{totalTransferQty}</strong> pair(s)
-                    {totalTransferQty > regionalAvailable && (
+                    Total to {transferSubMode === "next_available" ? "transfer" : "allocate"}: <strong>{totalTransferQty}</strong> pair(s)
+                    {transferSubMode === "next_available" && totalTransferQty > regionalAvailable && (
                       <span className="text-destructive ml-2">(exceeds available stock!)</span>
                     )}
                   </p>
@@ -287,23 +360,48 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                   Set a quota per office. Staff can assign from the full regional pool until their quota is reached. No specific serials are reserved — the system tracks usage.
                 </p>
 
-                {/* Current Quota Usage */}
+                {/* Current Quota Usage — Editable */}
                 {quotaUsage.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-card-foreground">Current Quota Status</p>
                     <div className="border border-border rounded-lg divide-y divide-border">
                       {quotaUsage.map(q => (
-                        <div key={q.office_id} className="flex items-center justify-between px-4 py-2.5">
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-card-foreground">{q.office_name}</span>
+                        <div key={q.office_id} className="px-4 py-2.5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm text-card-foreground">{q.office_name}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="text-muted-foreground">Used: <strong className="text-primary">{q.used}</strong></span>
+                              <Badge variant={q.remaining > 0 ? "default" : "destructive"} className="text-[10px]">
+                                {q.remaining > 0 ? `${q.remaining} remaining` : "Exhausted"}
+                              </Badge>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 text-xs">
-                            <span className="text-muted-foreground">Allocated: <strong className="text-card-foreground">{q.total_quota}</strong></span>
-                            <span className="text-muted-foreground">Used: <strong className="text-primary">{q.used}</strong></span>
-                            <Badge variant={q.remaining > 0 ? "default" : "destructive"} className="text-[10px]">
-                              {q.remaining > 0 ? `${q.remaining} remaining` : "Exhausted"}
-                            </Badge>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs text-muted-foreground whitespace-nowrap">Total Quota:</Label>
+                            <Input
+                              type="number"
+                              min={q.used}
+                              className="w-24 h-7 text-xs"
+                              value={editingQuota[q.office_id] ?? q.total_quota}
+                              onChange={e => setEditingQuota(prev => ({ ...prev, [q.office_id]: parseInt(e.target.value) || 0 }))}
+                            />
+                            {(editingQuota[q.office_id] !== undefined && editingQuota[q.office_id] !== q.total_quota) && (
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs"
+                                disabled={updatingQuota === q.office_id || (editingQuota[q.office_id] < q.used)}
+                                onClick={() => handleUpdateQuota(q.office_id, q.office_name)}
+                              >
+                                <Pencil className="h-3 w-3 mr-1" />
+                                {updatingQuota === q.office_id ? "Saving…" : "Update"}
+                              </Button>
+                            )}
+                            {editingQuota[q.office_id] !== undefined && editingQuota[q.office_id] < q.used && (
+                              <span className="text-destructive text-[10px]">Min: {q.used}</span>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -314,29 +412,39 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                 {/* Add New Quota */}
                 <p className="text-xs font-medium text-card-foreground pt-2">Add Quota</p>
                 <div className="border border-border rounded-lg divide-y divide-border">
-                  {offices.map(o => (
-                    <div key={o.id} className="flex items-center justify-between px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-card-foreground">{o.name}</span>
+                  {offices.map(o => {
+                    const existing = quotaUsage.find(q => q.office_id === o.id);
+                    if (existing) return null; // Already has quota, editable above
+                    return (
+                      <div key={o.id} className="flex items-center justify-between px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm text-card-foreground">{o.name}</span>
+                        </div>
+                        <Input
+                          type="number"
+                          min={0}
+                          className="w-24 h-8 text-xs"
+                          placeholder="Quota"
+                          value={officeQuantities[o.id] || ""}
+                          onChange={e => setOfficeQuantities(prev => ({ ...prev, [o.id]: parseInt(e.target.value) || 0 }))}
+                        />
                       </div>
-                      <Input
-                        type="number"
-                        min={0}
-                        className="w-24 h-8 text-xs"
-                        placeholder="Quota"
-                        value={officeQuotas[o.id] || ""}
-                        onChange={e => setOfficeQuotas(prev => ({ ...prev, [o.id]: parseInt(e.target.value) || 0 }))}
-                      />
-                    </div>
-                  ))}
+                    );
+                  })}
+                  {offices.every(o => quotaUsage.some(q => q.office_id === o.id)) && (
+                    <p className="text-xs text-muted-foreground text-center py-3">All offices have quotas. Use the edit controls above to adjust.</p>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
 
             <Button onClick={handleAllocate} disabled={!canAllocate || allocating}>
               <ArrowRightLeft className="h-4 w-4 mr-1" />
-              {allocating ? "Allocating..." : allocMode === "transfer" ? `Transfer ${totalTransferQty} Pair(s)` : "Set Quotas"}
+              {allocating ? "Allocating..." :
+                allocMode === "transfer"
+                  ? `${transferSubMode === "next_available" ? "Transfer" : "Allocate"} ${totalTransferQty} Pair(s)`
+                  : "Set Quotas"}
             </Button>
 
             {/* Allocation History */}
@@ -370,11 +478,17 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
       <AdminPasswordConfirm
         open={showPassword}
         onOpenChange={setShowPassword}
-        title={allocMode === "transfer" ? "Confirm Office Transfer" : "Confirm Quota Assignment"}
+        title={allocMode === "transfer"
+          ? (transferSubMode === "next_available" ? "Confirm Office Transfer" : "Confirm Quantity Allocation")
+          : "Confirm Quota Assignment"}
         description={allocMode === "transfer"
-          ? `Transfer ${totalTransferQty} serial pair(s) from regional stock to office stock. This action is logged.`
+          ? (transferSubMode === "next_available"
+              ? `Transfer ${totalTransferQty} serial pair(s) from regional stock to office stock. This action is logged.`
+              : `Allocate ${totalTransferQty} pair(s) by number to office(s). Staff will draw from regional stock. This action is logged.`)
           : `Set priority quotas for offices in ${selectedRegion}. This action is logged.`}
-        actionLabel={allocMode === "transfer" ? "Transfer" : "Set Quotas"}
+        actionLabel={allocMode === "transfer"
+          ? (transferSubMode === "next_available" ? "Transfer" : "Allocate")
+          : "Set Quotas"}
         onConfirm={handleConfirm}
       />
     </div>

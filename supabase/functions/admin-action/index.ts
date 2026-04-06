@@ -262,24 +262,25 @@ Deno.serve(async (req) => {
           throw new Error("Missing allocation parameters");
         }
 
-        if (aMode === "quota") {
-          // Quota mode: pure accounting entry — no serial transfers
+        if (aMode === "quota" || aMode === "quantity_transfer") {
+          // Quota / quantity_transfer mode: pure accounting entry — no serial transfers
           // Offices draw from regional stock and system tracks usage against quota
           await adminClient.from("office_allocations").insert({
             region: aRegion,
             office_id: aOfficeId,
             office_name: aOfficeName,
             quantity: aQuantity,
-            allocation_mode: "quota",
+            allocation_mode: aMode,
             quota_limit: aQuantity,
             allocated_by: user.id,
           });
 
-          oldState = { action: "allocate_quota" };
+          oldState = { action: aMode === "quota" ? "allocate_quota" : "allocate_quantity_transfer" };
           newState = {
             office: aOfficeName,
             quota: aQuantity,
             mode: "pool_based",
+            allocation_mode: aMode,
           };
         } else {
           // Transfer mode: find N available regional serials and move to office
@@ -662,6 +663,56 @@ Deno.serve(async (req) => {
         oldState = { id: target_id };
         await adminClient.from("termination_applications").delete().eq("id", target_id);
         newState = { status: "deleted" };
+        break;
+      }
+
+      case "adjust_office_quota": {
+        targetType = "office_quota";
+        const { office_id: qOfficeId, office_name: qOfficeName, region: qRegion, new_quota: qNewQuota } = extra || {};
+
+        if (!qOfficeId || !qRegion || qNewQuota === undefined || qNewQuota === null) {
+          throw new Error("Missing parameters: office_id, region, new_quota");
+        }
+
+        // Sum existing quota entries for this office
+        const { data: existingQuotas } = await adminClient
+          .from("office_allocations")
+          .select("quota_limit")
+          .eq("office_id", qOfficeId)
+          .eq("allocation_mode", "quota");
+
+        const currentTotal = (existingQuotas || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
+
+        // Count used from serial_assignments
+        const { data: usageData } = await adminClient
+          .from("serial_assignments")
+          .select("card_count")
+          .eq("office_id", qOfficeId);
+
+        const usedCount = (usageData || []).reduce((sum: number, a: any) => sum + (a.card_count || 0), 0);
+
+        if (qNewQuota < usedCount) {
+          throw new Error(`Cannot reduce quota below used count (${usedCount}). Office has already assigned ${usedCount} serials.`);
+        }
+
+        const delta = qNewQuota - currentTotal;
+        if (delta === 0) {
+          throw new Error("No change — new quota equals current quota");
+        }
+
+        // Insert adjustment record
+        await adminClient.from("office_allocations").insert({
+          region: qRegion,
+          office_id: qOfficeId,
+          office_name: qOfficeName || qOfficeId,
+          quantity: delta,
+          allocation_mode: "quota",
+          quota_limit: delta,
+          allocated_by: user.id,
+        });
+
+        oldState = { total_quota: currentTotal, used: usedCount };
+        newState = { total_quota: qNewQuota, delta, used: usedCount };
         break;
       }
 
