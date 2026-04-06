@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
           throw new Error("Missing allocation parameters");
         }
 
-        if (aMode === "quota" || aMode === "quantity_transfer") {
+        if (aMode === "quota") {
           // Quota / quantity_transfer mode: pure accounting entry — no serial transfers
           // Offices draw from regional stock and system tracks usage against quota
           await adminClient.from("office_allocations").insert({
@@ -326,7 +326,7 @@ Deno.serve(async (req) => {
             office_id: aOfficeId,
             office_name: aOfficeName,
             quantity: serialsToTransfer.length,
-            allocation_mode: "transfer",
+            allocation_mode: aMode || "transfer",
             start_serial: serialsToTransfer[0],
             end_serial: serialsToTransfer[serialsToTransfer.length - 1],
             serial_numbers: serialsToTransfer,

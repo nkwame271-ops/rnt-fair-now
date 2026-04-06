@@ -279,7 +279,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           .from("office_allocations" as any)
           .select("quota_limit")
           .eq("office_id", officeId)
-          .in("allocation_mode", ["quota", "quantity_transfer"]);
+          .eq("allocation_mode", "quota");
 
         const totalQuota = (quotaAllocations || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
 
