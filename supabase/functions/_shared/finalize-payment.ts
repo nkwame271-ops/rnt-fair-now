@@ -86,12 +86,25 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       autoRelease = flag?.is_enabled ?? false;
     } catch {}
 
+    // Payment types where office attribution is deferred until service is handled
+    const DEFERRED_OFFICE_TYPES = ["rent_card", "rent_card_bulk", "add_tenant_fee", "declare_existing_tenancy_fee"];
+    const isDeferredOffice = DEFERRED_OFFICE_TYPES.includes(paymentType);
+
     const splitRows = splitPlan.map((s: SplitItem) => {
       const isAdmin = s.recipient === "admin";
       const releaseMode = (isAdmin && autoRelease) ? "auto" : "manual";
-      const disbStatus = s.recipient === "landlord" ? "held"
-        : (isAdmin && !autoRelease) ? "held"
-        : "pending_transfer";
+
+      let disbStatus: string;
+      if (isAdmin && isDeferredOffice) {
+        // Defer office split until the responsible office is determined
+        disbStatus = "deferred";
+      } else if (s.recipient === "landlord") {
+        disbStatus = "held";
+      } else if (isAdmin && !autoRelease) {
+        disbStatus = "held";
+      } else {
+        disbStatus = "pending_transfer";
+      }
 
       return {
         escrow_transaction_id: escrowId,
@@ -100,7 +113,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
         description: s.description || "",
         disbursement_status: disbStatus,
         released_at: null,
-        office_id: officeId,
+        office_id: isDeferredOffice && isAdmin ? null : officeId,
         release_mode: releaseMode,
       };
     });
@@ -231,7 +244,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       const PAYSTACK_SK = Deno.env.get("PAYSTACK_SECRET_KEY");
       if (PAYSTACK_SK && splits.length > 0) {
         for (const split of splits) {
-          if (split.recipient === "landlord" || split.disbursement_status === "held" || split.amount <= 0) continue;
+          if (split.recipient === "landlord" || split.disbursement_status === "held" || split.disbursement_status === "deferred" || split.amount <= 0) continue;
 
           const accountType = RECIPIENT_TO_ACCOUNT_TYPE[split.recipient];
           let recipientCode: string | null = null;

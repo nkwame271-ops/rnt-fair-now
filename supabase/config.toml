@@ -45,3 +45,5 @@ project_id = "qjrvwcwmhuxygdanbxsz"
     verify_jwt = false
   [functions.verify-ghana-card]
     verify_jwt = false
+  [functions.finalize-office-attribution]
+    verify_jwt = false

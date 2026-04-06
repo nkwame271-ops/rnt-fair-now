@@ -279,7 +279,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           .from("office_allocations" as any)
           .select("quota_limit")
           .eq("office_id", officeId)
-          .eq("allocation_mode", "quota");
+          .in("allocation_mode", ["quota", "quantity_transfer"]);
 
         const totalQuota = (quotaAllocations || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
 
@@ -490,6 +490,29 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
               serial_numbers: group.serials,
               card_count: group.serials.length,
             });
+          }
+
+          // Finalize deferred office attribution for rent card purchases
+          if (officeId) {
+            try {
+              // Find the escrow_transaction_id from the rent card
+              const { data: cardData } = await supabase
+                .from("rent_cards")
+                .select("escrow_transaction_id")
+                .eq("id", group.cards[0].id)
+                .single();
+
+              if (cardData?.escrow_transaction_id) {
+                await supabase.functions.invoke("finalize-office-attribution", {
+                  body: {
+                    escrow_transaction_id: cardData.escrow_transaction_id,
+                    office_id: officeId,
+                  },
+                });
+              }
+            } catch (e: any) {
+              console.warn("Office attribution deferred:", e.message);
+            }
           }
         }
 
