@@ -257,6 +257,21 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
           )}
         </div>
 
+        {/* Quota Info */}
+        {quotaInfo && !loading && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2">
+            <p className="text-sm font-semibold text-card-foreground">Pool-Based Quota</p>
+            <p className="text-xs text-muted-foreground">This office draws serials from the regional pool. No specific serials are reserved.</p>
+            <div className="flex items-center gap-4 text-sm">
+              <span>Allocated: <strong className="text-card-foreground">{quotaInfo.total}</strong></span>
+              <span>Used: <strong className="text-primary">{quotaInfo.used}</strong></span>
+              <Badge variant={quotaInfo.remaining > 0 ? "default" : "destructive"}>
+                {quotaInfo.remaining > 0 ? `${quotaInfo.remaining} remaining` : "Exhausted"}
+              </Badge>
+            </div>
+          </div>
+        )}
+
         {stock && !loading && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 pt-2">
