@@ -1,35 +1,61 @@
 
 
-# Fix: Serial Generation Count, Regional Stock Display, and Quota Transfers
+# Fix: Quota Mode — Pool-Based Assignment Instead of Serial Transfer
 
-## Root Causes
+## Problem
 
-### Issue 1: Report shows 9,950 instead of 10,000
-The `ProcurementReport.tsx` query and the `generation_batches` record store the correct count. However, the Procurement Report table fetches from `generation_batches` with a default Supabase limit of 1000 rows — this is not the cause here. The actual issue is that the generation report displayed after generation uses `data?.new_state?.total_unique` which comes from the edge function's `totalGenerated` counter. If any serials were flagged as duplicates during the batch-of-100 dedup check, they'd be skipped. But more likely: the edge function's duplicate check query also has no explicit limit — so if a region has >1000 existing serials, the dedup `.in()` response gets truncated, causing some serials to be falsely treated as new or falsely skipped.
+Currently, quota mode physically moves specific serials from regional to office stock (same as transfer mode). The user wants quota mode to work fundamentally differently:
 
-**Fix**: Add `.limit(batch.length)` to the dedup query to ensure all results are returned (each batch is only 100 items, so this is safe). The real 9,950 issue likely came from 50 pre-existing serials being skipped. The count is accurate — it's just showing how many were actually created (non-duplicates).
-
-### Issue 2: Regional Stock shows 500 instead of 3500
-The `OfficeAllocation.tsx` stock query (line 46-50) has **no `.limit()` override**. Supabase defaults to 1000 rows max. With paired mode (pair_index 1 and 2), 1000 rows = 500 unique pairs. Greater Accra has 7000 rows → query only returns 1000 → shows 500 pairs.
-
-**Fix**: Use a **count query** instead of fetching all rows and counting client-side. Use `.select("id", { count: "exact", head: true })` with filters, which returns just the count without the 1000-row limit.
-
-### Issue 3: Priority Quota doesn't transfer serials
-The edge function's quota mode (line 263-276) only creates an `office_allocations` record — it does NOT update any `rent_card_serial_stock` rows. The user expects quotas to also transfer serials to the office so staff can assign from office stock.
-
-**Fix**: Make quota mode behave like transfer mode — actually move the specified quantity of serials from regional to office stock, but also record the `quota_limit` for tracking purposes.
-
----
+- **Quota** = a number assigned to an office (e.g., "Office X can assign up to 200 pairs")
+- Office staff assign serials directly **from regional stock** (not office stock)
+- System tracks how many serials the office has used against its quota
+- Once quota is exhausted, further assignment is blocked until more quota is allocated
 
 ## Changes
 
-### File 1: `src/pages/regulator/rent-cards/OfficeAllocation.tsx`
-- Replace the bulk `.select("id, stock_type, pair_index")` query with two separate count queries:
-  - Regional: `.select("id", { count: "exact", head: true }).eq("region", ...).eq("stock_type", "regional").eq("status", "available").eq("pair_index", 1)`
-  - Office: same but `.eq("stock_type", "office")`
-- This eliminates the 1000-row default limit entirely
+### 1. Edge Function: `supabase/functions/admin-action/index.ts`
 
-### File 2: `supabase/functions/admin-action/index.ts`
-- **Quota mode**: Copy the transfer logic into the quota branch — fetch N available regional serials, update them to `stock_type: "office"`, and set `office_name` to the target office. Also record `quota_limit` in the `office_allocations` record.
-- **Dedup query**: Add `.limit(batch.length)` to the duplicate-check queries in both `generate_serials` and `generate_serials_multi` (already 100 items per batch, so this is just defensive).
+**Quota branch** (~lines 265-330): Remove all serial-fetching and stock-type updating logic. Replace with:
+- Just create the `office_allocations` record with `allocation_mode: "quota"`, `quota_limit`, and `quantity` set to the quota number
+- No `serial_numbers`, no `start_serial`/`end_serial`, no updating `rent_card_serial_stock` rows
+- This makes quota a pure accounting entry
+
+### 2. Frontend: `src/pages/regulator/rent-cards/PendingPurchases.tsx`
+
+**Serial fetching** (~line 275): Currently only fetches `stock_type = 'office'` serials. Need to add a quota-based path:
+- Check if the office has quota allocations (query `office_allocations` where `allocation_mode = 'quota'` and `office_id` matches)
+- Sum the total quota for the office
+- Count how many serials the office has already assigned (from `serial_assignments` or `rent_card_serial_stock` where `assigned_by` office)
+- If `used < total_quota`, fetch available serials from **regional stock** (`stock_type = 'regional'`, same region) instead of office stock
+- Limit the fetchable serials to `remaining_quota` count
+- If no quota remaining, show a clear message: "Quota exhausted — request more allocation"
+
+**Assignment logic** (~line 368): After assigning a serial from regional stock under quota mode, do NOT change `stock_type` to `office`. Instead, mark it as `assigned` directly from regional. The `serial_assignments` record already tracks the office.
+
+### 3. Frontend: `src/pages/regulator/rent-cards/OfficeAllocation.tsx`
+
+**Quota tab UI**: Add a display showing current quota usage per office when in quota mode:
+- Total quota allocated (sum from `office_allocations`)
+- Used (count of serials assigned by that office)
+- Remaining
+
+### 4. Database: New column on `office_allocations` (optional but helpful)
+
+No schema change needed — we can compute usage from `serial_assignments` by `office_id`. The existing `quota_limit` column on `office_allocations` is sufficient.
+
+### 5. Frontend: `src/pages/regulator/rent-cards/OfficeSerialStock.tsx`
+
+For quota-based offices, show quota usage stats (allocated / used / remaining) instead of or alongside the serial stock list, since their serials live in regional stock until assigned.
+
+---
+
+## Summary of Files
+
+| Action | File |
+|--------|------|
+| Edit | `supabase/functions/admin-action/index.ts` — simplify quota branch to only record quota |
+| Edit | `PendingPurchases.tsx` — add quota-aware serial fetching from regional stock with limit enforcement |
+| Edit | `OfficeAllocation.tsx` — show quota usage stats per office |
+| Edit | `OfficeSerialStock.tsx` — display quota info for quota-based offices |
+| Deploy | `admin-action` edge function |
 
