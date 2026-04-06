@@ -107,10 +107,10 @@ const OfficeReconciliation = () => {
         .eq("status", "awaiting_serial");
 
       // 3. Fulfilled purchases (rent_cards with assigned_office_name matching)
-      const { count: fulfilledCount } = await supabase
+      const { count: fulfilledCount } = await (supabase
         .from("rent_cards")
-        .select("id", { count: "exact", head: true })
-        .eq("assigned_office_name" as any, officeName)
+        .select("id", { count: "exact", head: true }) as any)
+        .eq("assigned_office_name", officeName)
         .eq("status", "valid");
 
       // Balance: total = available + assigned + sold + spoilt

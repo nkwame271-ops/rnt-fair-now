@@ -53,7 +53,7 @@ const DailyReport = ({ profile }: Props) => {
     setSubmitted(false);
 
     try {
-      const officeRegion = selectedOfficeId ? getRegionForOffice(selectedOfficeId) : null;
+      const _officeRegion = selectedOfficeId ? getRegionForOffice(selectedOfficeId) : null;
       const today = new Date();
       const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
       const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
