@@ -263,19 +263,73 @@ Deno.serve(async (req) => {
         }
 
         if (aMode === "quota") {
-          // Just record the quota allocation
-          await adminClient.from("office_allocations").insert({
+          // Quota mode: transfer serials AND record quota_limit
+          const { data: qAvailSerials } = await adminClient
+            .from("rent_card_serial_stock")
+            .select("id, serial_number, pair_index")
+            .eq("region", aRegion)
+            .eq("stock_type", "regional")
+            .eq("status", "available")
+            .order("serial_number", { ascending: true })
+            .limit(aQuantity * 2 + 100);
+
+          if (!qAvailSerials || qAvailSerials.length === 0) {
+            throw new Error("No available regional stock for this region");
+          }
+
+          const qSerialMap = new Map<string, any[]>();
+          (qAvailSerials as any[]).forEach((s: any) => {
+            if (!qSerialMap.has(s.serial_number)) qSerialMap.set(s.serial_number, []);
+            qSerialMap.get(s.serial_number)!.push(s);
+          });
+
+          const qSerialsToTransfer: string[] = [];
+          const qIdsToUpdate: string[] = [];
+          let qCount = 0;
+          for (const [sn, rows] of qSerialMap) {
+            if (qCount >= aQuantity) break;
+            qSerialsToTransfer.push(sn);
+            rows.forEach((r: any) => qIdsToUpdate.push(r.id));
+            qCount++;
+          }
+
+          if (qSerialsToTransfer.length === 0) {
+            throw new Error("Not enough available regional stock");
+          }
+
+          const { data: qAllocRecord } = await adminClient.from("office_allocations").insert({
             region: aRegion,
             office_id: aOfficeId,
             office_name: aOfficeName,
-            quantity: aQuantity,
+            quantity: qSerialsToTransfer.length,
             allocation_mode: "quota",
             quota_limit: aQuota || aQuantity,
+            start_serial: qSerialsToTransfer[0],
+            end_serial: qSerialsToTransfer[qSerialsToTransfer.length - 1],
+            serial_numbers: qSerialsToTransfer,
             allocated_by: user.id,
-          });
+          }).select("id").single();
+
+          for (let i = 0; i < qIdsToUpdate.length; i += 500) {
+            const batch = qIdsToUpdate.slice(i, i + 500);
+            await adminClient
+              .from("rent_card_serial_stock")
+              .update({
+                stock_type: "office",
+                office_name: aOfficeName,
+                office_allocation_id: (qAllocRecord as any)?.id || null,
+              })
+              .in("id", batch);
+          }
 
           oldState = { action: "allocate_quota" };
-          newState = { office: aOfficeName, quota: aQuota || aQuantity };
+          newState = {
+            office: aOfficeName,
+            quota: aQuota || aQuantity,
+            transferred: qSerialsToTransfer.length,
+            first_serial: qSerialsToTransfer[0],
+            last_serial: qSerialsToTransfer[qSerialsToTransfer.length - 1],
+          };
         } else {
           // Transfer mode: find N available regional serials and move to office
           // Get unique serials (pair_index = 1 or null) from regional stock
