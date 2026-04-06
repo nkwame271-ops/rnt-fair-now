@@ -268,24 +268,84 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     setRangeTo("");
 
     try {
+      const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
+      const officeRegion = officeId ? getRegionForOffice(officeId) : null;
+
+      // Check if this office has quota-based allocations
+      let quotaRemaining = 0;
+      let hasQuota = false;
+      if (officeId) {
+        const { data: quotaAllocations } = await supabase
+          .from("office_allocations" as any)
+          .select("quota_limit")
+          .eq("office_id", officeId)
+          .eq("allocation_mode", "quota");
+
+        const totalQuota = (quotaAllocations || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
+
+        if (totalQuota > 0) {
+          hasQuota = true;
+          // Count how many serials this office has already assigned
+          const { data: assignments } = await supabase
+            .from("serial_assignments" as any)
+            .select("card_count")
+            .eq("office_id", officeId);
+
+          const totalUsed = (assignments || []).reduce((sum: number, a: any) => sum + (a.card_count || 0), 0);
+          quotaRemaining = totalQuota - totalUsed;
+        }
+      }
+
       let allSerials: any[] = [];
       let from = 0;
       const PAGE = 1000;
-      while (true) {
-        const { data, error } = await supabase
-          .from("rent_card_serial_stock" as any)
-          .select("id, serial_number")
-          .eq("office_name", office)
-          .eq("stock_type", "office")
-          .eq("status", "available")
-          .order("serial_number", { ascending: true })
-          .range(from, from + PAGE - 1);
 
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allSerials = allSerials.concat(data);
-        if (data.length < PAGE) break;
-        from += PAGE;
+      if (hasQuota) {
+        // Quota mode: fetch from regional stock, limited by remaining quota
+        if (quotaRemaining <= 0) {
+          toast.error("Quota exhausted — request more allocation from HQ");
+          setMappingCards([]);
+          setLoadingSerials(false);
+          return;
+        }
+        const maxFetch = Math.min(quotaRemaining, selected.length) * 2 + 200;
+        while (true) {
+          const { data, error } = await supabase
+            .from("rent_card_serial_stock" as any)
+            .select("id, serial_number")
+            .eq("region", officeRegion || "")
+            .eq("stock_type", "regional")
+            .eq("status", "available")
+            .eq("pair_index", 1)
+            .order("serial_number", { ascending: true })
+            .range(from, from + PAGE - 1);
+
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allSerials = allSerials.concat(data);
+          if (allSerials.length >= maxFetch || data.length < PAGE) break;
+          from += PAGE;
+        }
+        // Limit to remaining quota
+        allSerials = allSerials.slice(0, quotaRemaining);
+      } else {
+        // Transfer mode: fetch from office stock as before
+        while (true) {
+          const { data, error } = await supabase
+            .from("rent_card_serial_stock" as any)
+            .select("id, serial_number")
+            .eq("office_name", office)
+            .eq("stock_type", "office")
+            .eq("status", "available")
+            .order("serial_number", { ascending: true })
+            .range(from, from + PAGE - 1);
+
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allSerials = allSerials.concat(data);
+          if (data.length < PAGE) break;
+          from += PAGE;
+        }
       }
       setAvailableSerials(allSerials.map((s: any) => ({ id: s.id, serial_number: s.serial_number })));
     } catch (err: any) {

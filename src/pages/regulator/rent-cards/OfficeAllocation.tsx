@@ -21,6 +21,14 @@ interface AllocationHistoryItem {
   created_at: string;
 }
 
+interface QuotaUsage {
+  office_id: string;
+  office_name: string;
+  total_quota: number;
+  used: number;
+  remaining: number;
+}
+
 interface Props {
   onStockChanged: () => void;
 }
