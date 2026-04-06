@@ -326,7 +326,7 @@ Deno.serve(async (req) => {
             office_id: aOfficeId,
             office_name: aOfficeName,
             quantity: serialsToTransfer.length,
-            allocation_mode: "transfer",
+            allocation_mode: aMode || "transfer",
             start_serial: serialsToTransfer[0],
             end_serial: serialsToTransfer[serialsToTransfer.length - 1],
             serial_numbers: serialsToTransfer,
