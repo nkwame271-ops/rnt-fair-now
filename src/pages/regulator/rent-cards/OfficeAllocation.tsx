@@ -284,8 +284,35 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
 
               <TabsContent value="quota" className="space-y-3">
                 <p className="text-xs text-muted-foreground">
-                  Set a quota per office. Staff can assign from regional stock until their office quota is reached. Reports calculate from office allocation.
+                  Set a quota per office. Staff can assign from the full regional pool until their quota is reached. No specific serials are reserved — the system tracks usage.
                 </p>
+
+                {/* Current Quota Usage */}
+                {quotaUsage.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-card-foreground">Current Quota Status</p>
+                    <div className="border border-border rounded-lg divide-y divide-border">
+                      {quotaUsage.map(q => (
+                        <div key={q.office_id} className="flex items-center justify-between px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-card-foreground">{q.office_name}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="text-muted-foreground">Allocated: <strong className="text-card-foreground">{q.total_quota}</strong></span>
+                            <span className="text-muted-foreground">Used: <strong className="text-primary">{q.used}</strong></span>
+                            <Badge variant={q.remaining > 0 ? "default" : "destructive"} className="text-[10px]">
+                              {q.remaining > 0 ? `${q.remaining} remaining` : "Exhausted"}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add New Quota */}
+                <p className="text-xs font-medium text-card-foreground pt-2">Add Quota</p>
                 <div className="border border-border rounded-lg divide-y divide-border">
                   {offices.map(o => (
                     <div key={o.id} className="flex items-center justify-between px-4 py-2.5">
