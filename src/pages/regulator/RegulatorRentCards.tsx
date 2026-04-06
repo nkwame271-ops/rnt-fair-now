@@ -6,6 +6,8 @@ import LogoLoader from "@/components/LogoLoader";
 import PageTransition from "@/components/PageTransition";
 import SerialBatchUpload from "./rent-cards/SerialBatchUpload";
 import SerialGenerator from "./rent-cards/SerialGenerator";
+import RegionCodeManager from "./rent-cards/RegionCodeManager";
+import OfficeAllocation from "./rent-cards/OfficeAllocation";
 import OfficeSerialStock from "./rent-cards/OfficeSerialStock";
 import PendingPurchases from "./rent-cards/PendingPurchases";
 import AssignmentHistory from "./rent-cards/AssignmentHistory";
@@ -13,6 +15,7 @@ import StockAlerts from "./rent-cards/StockAlerts";
 import AdminActions from "./rent-cards/AdminActions";
 import DailyReport from "./rent-cards/DailyReport";
 import AdminReportView from "./rent-cards/AdminReportView";
+import ProcurementReport from "./rent-cards/ProcurementReport";
 
 const RegulatorRentCards = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
@@ -21,7 +24,6 @@ const RegulatorRentCards = () => {
 
   const isMain = !profile || profile.isMainAdmin;
 
-  // Permission checks for procurement/sales workspaces
   const hasRentCards = profile?.allowedFeatures?.includes("rent_cards");
   const hasProcurement = isMain || hasRentCards || profile?.allowedFeatures?.includes("rent_card_procurement");
   const hasSales = isMain || hasRentCards || profile?.allowedFeatures?.includes("rent_card_sales");
@@ -61,13 +63,26 @@ const RegulatorRentCards = () => {
               <Tabs defaultValue="generate">
                 <TabsList className="flex flex-wrap h-auto gap-1 mb-4">
                   {isMain && <TabsTrigger value="generate">Generate Serials</TabsTrigger>}
+                  {isMain && <TabsTrigger value="region_codes">Region Codes</TabsTrigger>}
+                  {isMain && <TabsTrigger value="allocation">Office Allocation</TabsTrigger>}
                   {isMain && <TabsTrigger value="batch_upload">Batch Upload</TabsTrigger>}
                   {isMain && <TabsTrigger value="alerts">Stock Alerts</TabsTrigger>}
+                  {isMain && <TabsTrigger value="proc_report">Report</TabsTrigger>}
                 </TabsList>
 
                 {isMain && (
                   <TabsContent value="generate">
                     <SerialGenerator onStockChanged={triggerRefresh} />
+                  </TabsContent>
+                )}
+                {isMain && (
+                  <TabsContent value="region_codes">
+                    <RegionCodeManager />
+                  </TabsContent>
+                )}
+                {isMain && (
+                  <TabsContent value="allocation">
+                    <OfficeAllocation onStockChanged={triggerRefresh} />
                   </TabsContent>
                 )}
                 {isMain && (
@@ -78,6 +93,11 @@ const RegulatorRentCards = () => {
                 {isMain && (
                   <TabsContent value="alerts">
                     <StockAlerts refreshKey={refreshKey} threshold={50} />
+                  </TabsContent>
+                )}
+                {isMain && (
+                  <TabsContent value="proc_report">
+                    <ProcurementReport />
                   </TabsContent>
                 )}
               </Tabs>
@@ -117,7 +137,7 @@ const RegulatorRentCards = () => {
             </TabsContent>
           )}
 
-          {/* ADMIN ACTIONS (serial-related only) */}
+          {/* ADMIN ACTIONS */}
           {isMain && (
             <TabsContent value="admin_actions">
               <AdminActions refreshKey={refreshKey} onStockChanged={triggerRefresh} />
