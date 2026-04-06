@@ -109,10 +109,12 @@ const DailyReport = ({ profile }: Props) => {
     }
     setSubmitting(true);
     try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) { toast.error("Not authenticated"); setSubmitting(false); return; }
       const { error } = await supabase.from("daily_stock_reports" as any).insert({
         office_id: selectedOfficeId,
         office_name: officeName,
-        staff_user_id: "",
+        staff_user_id: authUser.id,
         staff_name: signedName,
         report_date: new Date().toISOString().split("T")[0],
         opening_pairs: stats.openingPairs,
