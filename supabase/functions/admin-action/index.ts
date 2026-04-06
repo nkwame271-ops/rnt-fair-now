@@ -666,6 +666,56 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "adjust_office_quota": {
+        targetType = "office_quota";
+        const { office_id: qOfficeId, office_name: qOfficeName, region: qRegion, new_quota: qNewQuota } = extra || {};
+
+        if (!qOfficeId || !qRegion || qNewQuota === undefined || qNewQuota === null) {
+          throw new Error("Missing parameters: office_id, region, new_quota");
+        }
+
+        // Sum existing quota entries for this office
+        const { data: existingQuotas } = await adminClient
+          .from("office_allocations")
+          .select("quota_limit")
+          .eq("office_id", qOfficeId)
+          .eq("allocation_mode", "quota");
+
+        const currentTotal = (existingQuotas || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
+
+        // Count used from serial_assignments
+        const { data: usageData } = await adminClient
+          .from("serial_assignments")
+          .select("card_count")
+          .eq("office_id", qOfficeId);
+
+        const usedCount = (usageData || []).reduce((sum: number, a: any) => sum + (a.card_count || 0), 0);
+
+        if (qNewQuota < usedCount) {
+          throw new Error(`Cannot reduce quota below used count (${usedCount}). Office has already assigned ${usedCount} serials.`);
+        }
+
+        const delta = qNewQuota - currentTotal;
+        if (delta === 0) {
+          throw new Error("No change — new quota equals current quota");
+        }
+
+        // Insert adjustment record
+        await adminClient.from("office_allocations").insert({
+          region: qRegion,
+          office_id: qOfficeId,
+          office_name: qOfficeName || qOfficeId,
+          quantity: delta,
+          allocation_mode: "quota",
+          quota_limit: delta,
+          allocated_by: user.id,
+        });
+
+        oldState = { total_quota: currentTotal, used: usedCount };
+        newState = { total_quota: qNewQuota, delta, used: usedCount };
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
