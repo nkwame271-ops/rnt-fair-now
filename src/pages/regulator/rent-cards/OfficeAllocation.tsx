@@ -44,6 +44,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [allocating, setAllocating] = useState(false);
   const [history, setHistory] = useState<AllocationHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [quotaUsage, setQuotaUsage] = useState<QuotaUsage[]>([]);
 
   const regionData = GHANA_REGIONS_OFFICES.find(r => r.region === selectedRegion);
   const offices = regionData?.offices || [];
