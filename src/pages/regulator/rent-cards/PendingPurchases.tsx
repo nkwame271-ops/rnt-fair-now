@@ -491,6 +491,29 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
               card_count: group.serials.length,
             });
           }
+
+          // Finalize deferred office attribution for rent card purchases
+          if (officeId) {
+            try {
+              // Find the escrow_transaction_id from the rent card
+              const { data: cardData } = await supabase
+                .from("rent_cards")
+                .select("escrow_transaction_id")
+                .eq("id", group.cards[0].id)
+                .single();
+
+              if (cardData?.escrow_transaction_id) {
+                await supabase.functions.invoke("finalize-office-attribution", {
+                  body: {
+                    escrow_transaction_id: cardData.escrow_transaction_id,
+                    office_id: officeId,
+                  },
+                });
+              }
+            } catch (e: any) {
+              console.warn("Office attribution deferred:", e.message);
+            }
+          }
         }
 
         for (const [purchaseId, group] of purchaseGroups) {
