@@ -276,6 +276,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           .from("rent_card_serial_stock" as any)
           .select("id, serial_number")
           .eq("office_name", office)
+          .eq("stock_type", "office")
           .eq("status", "available")
           .order("serial_number", { ascending: true })
           .range(from, from + PAGE - 1);
