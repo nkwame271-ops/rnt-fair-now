@@ -16,6 +16,7 @@ import AdminActions from "./rent-cards/AdminActions";
 import DailyReport from "./rent-cards/DailyReport";
 import AdminReportView from "./rent-cards/AdminReportView";
 import ProcurementReport from "./rent-cards/ProcurementReport";
+import OfficeReconciliation from "./rent-cards/OfficeReconciliation";
 
 const RegulatorRentCards = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
