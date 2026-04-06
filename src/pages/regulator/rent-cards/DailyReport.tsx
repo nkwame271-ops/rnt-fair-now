@@ -53,7 +53,7 @@ const DailyReport = ({ profile }: Props) => {
     setSubmitted(false);
 
     try {
-      const _officeRegion = selectedOfficeId ? getRegionForOffice(selectedOfficeId) : null;
+      // stock_type = 'office' filter applied below
       const today = new Date();
       const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
       const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
