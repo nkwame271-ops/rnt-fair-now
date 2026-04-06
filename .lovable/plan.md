@@ -1,61 +1,64 @@
 
 
-# Fix: Quota Mode — Pool-Based Assignment Instead of Serial Transfer
+# Office Allocation: Two Transfer Modes + Editable Quota
 
-## Problem
+## Current State
+- **Transfer tab**: physically moves specific serials from regional to office stock (serial-based)
+- **Quota tab**: creates accounting entries, offices draw from regional pool (pool-based)
 
-Currently, quota mode physically moves specific serials from regional to office stock (same as transfer mode). The user wants quota mode to work fundamentally differently:
+## What Needs to Change
 
-- **Quota** = a number assigned to an office (e.g., "Office X can assign up to 200 pairs")
-- Office staff assign serials directly **from regional stock** (not office stock)
-- System tracks how many serials the office has used against its quota
-- Once quota is exhausted, further assignment is blocked until more quota is allocated
+### 1. Rename Transfer Tab to Support Two Sub-Modes
 
-## Changes
+The "Transfer to Office" tab will offer two sub-options:
+- **Next Available Serials** (existing behavior) — moves specific serials to office stock
+- **Transfer by Number** (new) — records a numerical allocation; office draws from regional stock up to that number (similar to quota but for transfer use-cases)
 
-### 1. Edge Function: `supabase/functions/admin-action/index.ts`
+Implementation: Add a radio group or sub-tabs within the Transfer tab. "Transfer by Number" calls the edge function with `allocation_mode: "quantity_transfer"`. The edge function creates an `office_allocations` record (like quota mode) but with `allocation_mode: "quantity_transfer"`. PendingPurchases will treat `quantity_transfer` the same as `quota` when checking available serials.
 
-**Quota branch** (~lines 265-330): Remove all serial-fetching and stock-type updating logic. Replace with:
-- Just create the `office_allocations` record with `allocation_mode: "quota"`, `quota_limit`, and `quantity` set to the quota number
-- No `serial_numbers`, no `start_serial`/`end_serial`, no updating `rent_card_serial_stock` rows
-- This makes quota a pure accounting entry
+### 2. Editable Quota with Increase/Decrease
 
-### 2. Frontend: `src/pages/regulator/rent-cards/PendingPurchases.tsx`
+Replace the current "Add Quota" form with an editable quota manager per office:
+- Show current total quota, used, and remaining for each office
+- Allow admin to **set a new total quota** (increase or decrease)
+- Enforce: new quota cannot be less than the number already used
+- Edge function action: `set_office_quota` — computes the delta and either inserts a positive or negative `office_allocations` entry, or updates the existing cumulative quota
+- Simpler approach: store a single `office_allocations` entry per office for quota mode, and update it in place (or insert adjustment records with positive/negative quantities)
 
-**Serial fetching** (~line 275): Currently only fetches `stock_type = 'office'` serials. Need to add a quota-based path:
-- Check if the office has quota allocations (query `office_allocations` where `allocation_mode = 'quota'` and `office_id` matches)
-- Sum the total quota for the office
-- Count how many serials the office has already assigned (from `serial_assignments` or `rent_card_serial_stock` where `assigned_by` office)
-- If `used < total_quota`, fetch available serials from **regional stock** (`stock_type = 'regional'`, same region) instead of office stock
-- Limit the fetchable serials to `remaining_quota` count
-- If no quota remaining, show a clear message: "Quota exhausted — request more allocation"
+### 3. Quota Enforcement in PendingPurchases
 
-**Assignment logic** (~line 368): After assigning a serial from regional stock under quota mode, do NOT change `stock_type` to `office`. Instead, mark it as `assigned` directly from regional. The `serial_assignments` record already tracks the office.
-
-### 3. Frontend: `src/pages/regulator/rent-cards/OfficeAllocation.tsx`
-
-**Quota tab UI**: Add a display showing current quota usage per office when in quota mode:
-- Total quota allocated (sum from `office_allocations`)
-- Used (count of serials assigned by that office)
-- Remaining
-
-### 4. Database: New column on `office_allocations` (optional but helpful)
-
-No schema change needed — we can compute usage from `serial_assignments` by `office_id`. The existing `quota_limit` column on `office_allocations` is sufficient.
-
-### 5. Frontend: `src/pages/regulator/rent-cards/OfficeSerialStock.tsx`
-
-For quota-based offices, show quota usage stats (allocated / used / remaining) instead of or alongside the serial stock list, since their serials live in regional stock until assigned.
+Already partially implemented. Extend to also check `allocation_mode = "quantity_transfer"` alongside `"quota"` when computing remaining allocation from the regional pool.
 
 ---
 
-## Summary of Files
+## Files to Change
 
-| Action | File |
-|--------|------|
-| Edit | `supabase/functions/admin-action/index.ts` — simplify quota branch to only record quota |
-| Edit | `PendingPurchases.tsx` — add quota-aware serial fetching from regional stock with limit enforcement |
-| Edit | `OfficeAllocation.tsx` — show quota usage stats per office |
-| Edit | `OfficeSerialStock.tsx` — display quota info for quota-based offices |
-| Deploy | `admin-action` edge function |
+| File | Change |
+|------|--------|
+| `OfficeAllocation.tsx` | Add sub-mode toggle under Transfer tab ("Next Available" vs "By Number"). Rework Quota tab to show editable quota per office with +/- controls and min-used validation. |
+| `admin-action/index.ts` | Add `quantity_transfer` allocation mode (accounting-only, like quota). Add `adjust_office_quota` action to increase/decrease quota with floor enforcement. |
+| `PendingPurchases.tsx` | Include `quantity_transfer` in the quota-check logic so offices with number-only transfers can also draw from regional stock. |
+
+## Technical Details
+
+**Edge Function — `allocate_to_office` with `allocation_mode: "quantity_transfer"`**:
+- Same as current quota branch: insert into `office_allocations` with no serial movement
+- Set `quota_limit` to the quantity so PendingPurchases can sum it
+
+**Edge Function — new action `adjust_office_quota`**:
+- Accepts `office_id`, `region`, `new_quota` (the desired total)
+- Sums existing quota entries for this office
+- Computes delta = `new_quota - current_total`
+- If `new_quota < used_count`, reject with error "Cannot reduce below used count"
+- Inserts an adjustment `office_allocations` record with `quantity: delta` (positive or negative)
+
+**OfficeAllocation.tsx — Quota Tab Rework**:
+- For each office with existing quota: show inline editable input with current total, used count, remaining
+- "Update" button per office to save changes
+- New offices without quota: show "Set Quota" input
+- Validation: input cannot be less than `used` count, show error inline
+
+**PendingPurchases.tsx**:
+- Change the quota check query filter from `.eq("allocation_mode", "quota")` to `.in("allocation_mode", ["quota", "quantity_transfer"])`
+- Everything else stays the same
 
