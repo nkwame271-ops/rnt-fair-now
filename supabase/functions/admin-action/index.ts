@@ -42,17 +42,24 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, target_id, reason, password, extra } = body;
 
-    if (!action || !target_id || !reason || !password) {
-      throw new Error("Missing required fields: action, target_id, reason, password");
+    if (!action || !target_id || !reason) {
+      throw new Error("Missing required fields: action, target_id, reason");
     }
 
-    // Re-authenticate admin via password
-    const verifyClient = createClient(supabaseUrl, anonKey);
-    const { error: reAuthError } = await verifyClient.auth.signInWithPassword({
-      email: user.email!,
-      password,
-    });
-    if (reAuthError) throw new Error("Password verification failed");
+    // Actions that don't require password re-authentication
+    const NO_PASSWORD_ACTIONS = ["create_payout_recipient"];
+    const requiresPassword = !NO_PASSWORD_ACTIONS.includes(action);
+
+    if (requiresPassword) {
+      if (!password) throw new Error("Missing required field: password");
+      // Re-authenticate admin via password
+      const verifyClient = createClient(supabaseUrl, anonKey);
+      const { error: reAuthError } = await verifyClient.auth.signInWithPassword({
+        email: user.email!,
+        password,
+      });
+      if (reAuthError) throw new Error("Password verification failed");
+    }
 
     let oldState: any = {};
     let newState: any = {};
