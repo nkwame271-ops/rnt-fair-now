@@ -674,12 +674,12 @@ Deno.serve(async (req) => {
           throw new Error("Missing parameters: office_id, region, new_quota");
         }
 
-        // Sum existing quota entries for this office
+        // Sum existing quota entries for this office (both quota and quantity_transfer)
         const { data: existingQuotas } = await adminClient
           .from("office_allocations")
-          .select("quota_limit")
+          .select("quota_limit, allocation_mode")
           .eq("office_id", qOfficeId)
-          .eq("allocation_mode", "quota");
+          .in("allocation_mode", ["quota", "quantity_transfer"]);
 
         const currentTotal = (existingQuotas || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
 
@@ -713,6 +713,59 @@ Deno.serve(async (req) => {
 
         oldState = { total_quota: currentTotal, used: usedCount };
         newState = { total_quota: qNewQuota, delta, used: usedCount };
+        break;
+      }
+
+      case "create_payout_recipient": {
+        targetType = "office_payout_account";
+        const { office_id: prOfficeId } = extra || {};
+        if (!prOfficeId) throw new Error("Missing office_id");
+
+        const { data: payoutAccount } = await adminClient
+          .from("office_payout_accounts")
+          .select("*")
+          .eq("office_id", prOfficeId)
+          .single();
+
+        if (!payoutAccount) throw new Error("No payout account found for this office");
+
+        const PAYSTACK_SK = Deno.env.get("PAYSTACK_SECRET_KEY");
+        if (!PAYSTACK_SK) throw new Error("Paystack secret key not configured");
+
+        const recipientPayload: any = {
+          type: (payoutAccount as any).payment_method === "momo" ? "mobile_money" : "nuban",
+          name: (payoutAccount as any).account_name || "Office Account",
+          currency: "GHS",
+        };
+
+        if ((payoutAccount as any).payment_method === "momo") {
+          recipientPayload.account_number = (payoutAccount as any).momo_number;
+          const provider = ((payoutAccount as any).momo_provider || "").toLowerCase();
+          recipientPayload.bank_code = provider === "mtn" ? "MTN" : provider === "vodafone" ? "VOD" : provider === "airteltigo" ? "ATL" : (payoutAccount as any).momo_provider;
+        } else {
+          recipientPayload.account_number = (payoutAccount as any).account_number;
+          recipientPayload.bank_code = (payoutAccount as any).bank_name;
+        }
+
+        const recipientRes = await fetch("https://api.paystack.co/transferrecipient", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${PAYSTACK_SK}`, "Content-Type": "application/json" },
+          body: JSON.stringify(recipientPayload),
+        });
+        const recipientData = await recipientRes.json();
+
+        if (!recipientData.status || !recipientData.data?.recipient_code) {
+          throw new Error(`Paystack recipient creation failed: ${recipientData.message || "Unknown error"}`);
+        }
+
+        const recipientCode = recipientData.data.recipient_code;
+        await adminClient
+          .from("office_payout_accounts")
+          .update({ paystack_recipient_code: recipientCode })
+          .eq("office_id", prOfficeId);
+
+        oldState = { paystack_recipient_code: (payoutAccount as any).paystack_recipient_code || null };
+        newState = { paystack_recipient_code: recipientCode };
         break;
       }
 

@@ -129,13 +129,38 @@ const OfficePayoutSettings = () => {
       updated_at: new Date().toISOString(),
     };
 
+    let saveSuccess = false;
     if (account?.id) {
       const { error } = await supabase.from("office_payout_accounts").update(payload).eq("id", account.id);
-      if (error) toast.error("Failed to update"); else toast.success("Payout account updated");
+      if (error) toast.error("Failed to update"); else { toast.success("Payout account updated"); saveSuccess = true; }
     } else {
       const { error } = await supabase.from("office_payout_accounts").insert(payload);
-      if (error) toast.error("Failed to save"); else toast.success("Payout account saved");
+      if (error) toast.error("Failed to save"); else { toast.success("Payout account saved"); saveSuccess = true; }
     }
+
+    // Auto-create Paystack transfer recipient after save
+    if (saveSuccess) {
+      try {
+        const { data, error } = await supabase.functions.invoke("admin-action", {
+          body: {
+            action: "create_payout_recipient",
+            target_id: `RECIPIENT-${selectedOffice}`,
+            reason: "Auto-create Paystack recipient on payout account save",
+            password: "skip", // This action doesn't need re-auth beyond admin check
+            extra: { office_id: selectedOffice },
+          },
+        });
+        if (data?.error) {
+          console.warn("Recipient creation failed:", data.error);
+          toast.info("Account saved but Paystack recipient could not be created — will retry on first payout");
+        } else if (!error) {
+          toast.success("Paystack transfer recipient created");
+        }
+      } catch (e: any) {
+        console.warn("Recipient creation error:", e.message);
+      }
+    }
+
     setSaving(false);
   };
 
