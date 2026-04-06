@@ -137,7 +137,7 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
             .from("office_allocations" as any)
             .select("quota_limit")
             .eq("office_id", selectedOfficeId)
-            .eq("allocation_mode", "quota");
+            .in("allocation_mode", ["quota", "quantity_transfer"]);
 
           const totalQuota = (quotaAllocs || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
           if (totalQuota > 0) {
