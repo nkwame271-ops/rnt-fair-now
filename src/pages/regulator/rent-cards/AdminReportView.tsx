@@ -250,6 +250,7 @@ const AdminReportView = () => {
                     <TableCell className="text-right font-semibold text-success">{r.sold_today}</TableCell>
                     <TableCell className="text-right font-semibold text-destructive">{r.spoilt_today}</TableCell>
                     <TableCell className="text-right font-semibold">{r.closing_pairs}</TableCell>
+                    <TableCell className="text-right font-semibold text-info">{r.fulfilled_purchases ?? "—"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{r.signed_name || "—"}</TableCell>
                   </TableRow>
                 ))}
