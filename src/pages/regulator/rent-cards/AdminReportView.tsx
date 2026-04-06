@@ -25,6 +25,7 @@ interface DailyReport {
   notes: string | null;
   signed_name: string | null;
   created_at: string;
+  fulfilled_purchases?: number;
 }
 
 const AdminReportView = () => {
