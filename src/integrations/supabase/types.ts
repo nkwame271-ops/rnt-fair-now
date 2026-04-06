@@ -578,6 +578,45 @@ export type Database = {
         }
         Relationships: []
       }
+      generation_batches: {
+        Row: {
+          batch_label: string
+          created_at: string | null
+          generated_by: string
+          id: string
+          paired_mode: boolean | null
+          prefix: string
+          region_details: Json
+          regions: string[]
+          total_physical_cards: number
+          total_unique_serials: number
+        }
+        Insert: {
+          batch_label: string
+          created_at?: string | null
+          generated_by: string
+          id?: string
+          paired_mode?: boolean | null
+          prefix: string
+          region_details?: Json
+          regions?: string[]
+          total_physical_cards?: number
+          total_unique_serials?: number
+        }
+        Update: {
+          batch_label?: string
+          created_at?: string | null
+          generated_by?: string
+          id?: string
+          paired_mode?: boolean | null
+          prefix?: string
+          region_details?: Json
+          regions?: string[]
+          total_physical_cards?: number
+          total_unique_serials?: number
+        }
+        Relationships: []
+      }
       illegal_payment_attempts: {
         Row: {
           attempted_amount: number
@@ -910,6 +949,54 @@ export type Database = {
           read?: boolean
           title?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      office_allocations: {
+        Row: {
+          allocated_by: string
+          allocation_mode: string
+          batch_label: string | null
+          created_at: string | null
+          end_serial: string | null
+          id: string
+          office_id: string
+          office_name: string
+          quantity: number
+          quota_limit: number | null
+          region: string
+          serial_numbers: string[]
+          start_serial: string | null
+        }
+        Insert: {
+          allocated_by: string
+          allocation_mode?: string
+          batch_label?: string | null
+          created_at?: string | null
+          end_serial?: string | null
+          id?: string
+          office_id: string
+          office_name: string
+          quantity: number
+          quota_limit?: number | null
+          region: string
+          serial_numbers?: string[]
+          start_serial?: string | null
+        }
+        Update: {
+          allocated_by?: string
+          allocation_mode?: string
+          batch_label?: string | null
+          created_at?: string | null
+          end_serial?: string | null
+          id?: string
+          office_id?: string
+          office_name?: string
+          quantity?: number
+          quota_limit?: number | null
+          region?: string
+          serial_numbers?: string[]
+          start_serial?: string | null
         }
         Relationships: []
       }
@@ -1652,6 +1739,30 @@ export type Database = {
           },
         ]
       }
+      region_codes: {
+        Row: {
+          code: string
+          id: string
+          region: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          code: string
+          id?: string
+          region: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          code?: string
+          id?: string
+          region?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       rent_assessments: {
         Row: {
           created_at: string
@@ -1847,6 +1958,7 @@ export type Database = {
           batch_label: string | null
           created_at: string
           id: string
+          office_allocation_id: string | null
           office_name: string
           pair_group: string | null
           pair_index: number | null
@@ -1856,6 +1968,7 @@ export type Database = {
           revoked_by: string | null
           serial_number: string
           status: string
+          stock_type: string
         }
         Insert: {
           assigned_at?: string | null
@@ -1864,6 +1977,7 @@ export type Database = {
           batch_label?: string | null
           created_at?: string
           id?: string
+          office_allocation_id?: string | null
           office_name: string
           pair_group?: string | null
           pair_index?: number | null
@@ -1873,6 +1987,7 @@ export type Database = {
           revoked_by?: string | null
           serial_number: string
           status?: string
+          stock_type?: string
         }
         Update: {
           assigned_at?: string | null
@@ -1881,6 +1996,7 @@ export type Database = {
           batch_label?: string | null
           created_at?: string
           id?: string
+          office_allocation_id?: string | null
           office_name?: string
           pair_group?: string | null
           pair_index?: number | null
@@ -1890,6 +2006,7 @@ export type Database = {
           revoked_by?: string | null
           serial_number?: string
           status?: string
+          stock_type?: string
         }
         Relationships: [
           {
