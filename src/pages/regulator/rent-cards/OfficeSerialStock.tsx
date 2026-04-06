@@ -76,6 +76,7 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
   const [deletingBatch, setDeletingBatch] = useState<string | null>(null);
   const [deleteCount, setDeleteCount] = useState(0);
   const [deleting, setDeleting] = useState(false);
+  const [quotaInfo, setQuotaInfo] = useState<{ total: number; used: number; remaining: number } | null>(null);
 
   const regionOffices = selectedRegion ? getOfficesForRegion(selectedRegion) : [];
   const selectedOffice = regionOffices.find(o => o.id === selectedOfficeId);
