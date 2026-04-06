@@ -135,6 +135,11 @@ const RegulatorRentCards = () => {
                     <AdminReportView />
                   </TabsContent>
                 )}
+                {isMain && (
+                  <TabsContent value="reconciliation">
+                    <OfficeReconciliation />
+                  </TabsContent>
+                )}
               </Tabs>
             </TabsContent>
           )}
