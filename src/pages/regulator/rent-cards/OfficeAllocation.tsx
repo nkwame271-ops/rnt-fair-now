@@ -77,13 +77,51 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
     setLoadingHistory(true);
     supabase
       .from("office_allocations" as any)
-      .select("id, office_name, quantity, allocation_mode, start_serial, end_serial, created_at")
+      .select("id, office_name, office_id, quantity, allocation_mode, quota_limit, start_serial, end_serial, created_at")
       .eq("region", selectedRegion)
       .order("created_at", { ascending: false })
       .limit(50)
       .then(({ data }) => {
         setHistory((data || []) as any[]);
         setLoadingHistory(false);
+
+        // Compute quota usage per office
+        const quotaEntries = (data || []).filter((d: any) => d.allocation_mode === "quota");
+        if (quotaEntries.length > 0) {
+          const officeQuotaTotals = new Map<string, { office_name: string; total: number }>();
+          for (const entry of quotaEntries as any[]) {
+            const existing = officeQuotaTotals.get(entry.office_id) || { office_name: entry.office_name, total: 0 };
+            existing.total += entry.quota_limit || entry.quantity || 0;
+            officeQuotaTotals.set(entry.office_id, existing);
+          }
+
+          // Fetch usage from serial_assignments for these offices
+          const officeIds = [...officeQuotaTotals.keys()];
+          supabase
+            .from("serial_assignments" as any)
+            .select("office_id, card_count")
+            .in("office_id", officeIds)
+            .then(({ data: assignments }) => {
+              const usageMap = new Map<string, number>();
+              for (const a of (assignments || []) as any[]) {
+                usageMap.set(a.office_id, (usageMap.get(a.office_id) || 0) + (a.card_count || 0));
+              }
+              const usage: QuotaUsage[] = [];
+              for (const [oid, info] of officeQuotaTotals) {
+                const used = usageMap.get(oid) || 0;
+                usage.push({
+                  office_id: oid,
+                  office_name: info.office_name,
+                  total_quota: info.total,
+                  used,
+                  remaining: Math.max(0, info.total - used),
+                });
+              }
+              setQuotaUsage(usage);
+            });
+        } else {
+          setQuotaUsage([]);
+        }
       });
   }, [selectedRegion]);
 
