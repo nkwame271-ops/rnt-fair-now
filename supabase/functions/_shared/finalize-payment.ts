@@ -244,7 +244,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       const PAYSTACK_SK = Deno.env.get("PAYSTACK_SECRET_KEY");
       if (PAYSTACK_SK && splits.length > 0) {
         for (const split of splits) {
-          if (split.recipient === "landlord" || split.disbursement_status === "held" || split.amount <= 0) continue;
+          if (split.recipient === "landlord" || split.disbursement_status === "held" || split.disbursement_status === "deferred" || split.amount <= 0) continue;
 
           const accountType = RECIPIENT_TO_ACCOUNT_TYPE[split.recipient];
           let recipientCode: string | null = null;

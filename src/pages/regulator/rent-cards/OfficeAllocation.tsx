@@ -94,7 +94,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   }, [selectedRegion]);
 
   const computeQuotaUsage = async (allocationData: any[]) => {
-    const quotaEntries = allocationData.filter((d: any) => d.allocation_mode === "quota");
+    const quotaEntries = allocationData.filter((d: any) => d.allocation_mode === "quota" || d.allocation_mode === "quantity_transfer");
     if (quotaEntries.length === 0) { setQuotaUsage([]); return; }
 
     const officeQuotaTotals = new Map<string, { office_name: string; total: number }>();
