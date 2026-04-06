@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Package, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,6 +76,7 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
   const [deletingBatch, setDeletingBatch] = useState<string | null>(null);
   const [deleteCount, setDeleteCount] = useState(0);
   const [deleting, setDeleting] = useState(false);
+  const [quotaInfo, setQuotaInfo] = useState<{ total: number; used: number; remaining: number } | null>(null);
 
   const regionOffices = selectedRegion ? getOfficesForRegion(selectedRegion) : [];
   const selectedOffice = regionOffices.find(o => o.id === selectedOfficeId);
@@ -93,7 +95,7 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
   const officeRegion = selectedOfficeId ? getRegionForOffice(selectedOfficeId) : null;
 
   useEffect(() => {
-    if (!officeName) { setStock(null); setRanges([]); return; }
+    if (!officeName) { setStock(null); setRanges([]); setQuotaInfo(null); return; }
     const fetchStock = async () => {
       setLoading(true);
       try {
@@ -128,13 +130,34 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
           });
         }
         setRanges(rangeList);
+
+        // Check quota allocations for this office
+        if (selectedOfficeId) {
+          const { data: quotaAllocs } = await supabase
+            .from("office_allocations" as any)
+            .select("quota_limit")
+            .eq("office_id", selectedOfficeId)
+            .eq("allocation_mode", "quota");
+
+          const totalQuota = (quotaAllocs || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
+          if (totalQuota > 0) {
+            const { data: assignments } = await supabase
+              .from("serial_assignments" as any)
+              .select("card_count")
+              .eq("office_id", selectedOfficeId);
+            const totalUsed = (assignments || []).reduce((sum: number, a: any) => sum + (a.card_count || 0), 0);
+            setQuotaInfo({ total: totalQuota, used: totalUsed, remaining: Math.max(0, totalQuota - totalUsed) });
+          } else {
+            setQuotaInfo(null);
+          }
+        }
       } catch (err: any) {
         toast.error(err.message || "Failed to load stock");
       }
       setLoading(false);
     };
     fetchStock();
-  }, [officeName, officeRegion, refreshKey]);
+  }, [officeName, officeRegion, selectedOfficeId, refreshKey]);
 
   const handleDeleteBatch = async () => {
     if (!deletingBatch || !officeName) return;
@@ -233,6 +256,21 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
             </div>
           )}
         </div>
+
+        {/* Quota Info */}
+        {quotaInfo && !loading && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2">
+            <p className="text-sm font-semibold text-card-foreground">Pool-Based Quota</p>
+            <p className="text-xs text-muted-foreground">This office draws serials from the regional pool. No specific serials are reserved.</p>
+            <div className="flex items-center gap-4 text-sm">
+              <span>Allocated: <strong className="text-card-foreground">{quotaInfo.total}</strong></span>
+              <span>Used: <strong className="text-primary">{quotaInfo.used}</strong></span>
+              <Badge variant={quotaInfo.remaining > 0 ? "default" : "destructive"}>
+                {quotaInfo.remaining > 0 ? `${quotaInfo.remaining} remaining` : "Exhausted"}
+              </Badge>
+            </div>
+          </div>
+        )}
 
         {stock && !loading && (
           <>
