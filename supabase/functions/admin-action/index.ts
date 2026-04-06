@@ -78,7 +78,6 @@ Deno.serve(async (req) => {
           serials.push(prefix + String(i).padStart(padLen, "0"));
         }
 
-        // Check for duplicates
         const existingSet = new Set<string>();
         for (let i = 0; i < serials.length; i += 100) {
           const batch = serials.slice(i, i + 100);
@@ -96,27 +95,26 @@ Deno.serve(async (req) => {
 
         const pairGroup = paired_mode ? `PG-${Date.now()}` : null;
 
-        // Insert in batches of 500
         for (let i = 0; i < newSerials.length; i += 500) {
           const batch = newSerials.slice(i, i + 500);
           const rows: any[] = [];
           for (const s of batch) {
             if (paired_mode) {
-              // Insert twice: pair_index 1 (Landlord Copy) and 2 (Tenant Copy)
               rows.push({
                 serial_number: s, office_name, status: "available",
                 batch_label: batch_label || target_id, region: region || null,
-                pair_index: 1, pair_group: pairGroup,
+                pair_index: 1, pair_group: pairGroup, stock_type: "regional",
               });
               rows.push({
                 serial_number: s, office_name, status: "available",
                 batch_label: batch_label || target_id, region: region || null,
-                pair_index: 2, pair_group: pairGroup,
+                pair_index: 2, pair_group: pairGroup, stock_type: "regional",
               });
             } else {
               rows.push({
                 serial_number: s, office_name, status: "available",
                 batch_label: batch_label || target_id, region: region || null,
+                stock_type: "regional",
               });
             }
           }
@@ -137,6 +135,217 @@ Deno.serve(async (req) => {
           office_name, region: region || null,
           batch_label: batch_label || target_id,
         };
+        break;
+      }
+
+      case "generate_serials_multi": {
+        targetType = "serial_stock";
+        const { prefix: mPrefix, pad_length: mPadLen, regions: mRegions, batch_label: mBatchLabel, paired_mode: mPairedMode } = extra || {};
+
+        if (!mPrefix || !mRegions || !Array.isArray(mRegions) || mRegions.length === 0) {
+          throw new Error("Missing multi-region generation parameters");
+        }
+
+        // Fetch region codes
+        const { data: regionCodesData } = await adminClient
+          .from("region_codes")
+          .select("region, code");
+        const codeMap = new Map<string, string>();
+        (regionCodesData || []).forEach((rc: any) => codeMap.set(rc.region, rc.code));
+
+        const padLen = mPadLen || 4;
+        const pairGroup = mPairedMode ? `PG-${Date.now()}` : null;
+        const batchLabel = mBatchLabel || target_id;
+        let totalGenerated = 0;
+        const regionDetails: any[] = [];
+
+        for (const regionEntry of mRegions) {
+          const { region: rName, code: rCode, start_range: rStart, end_range: rEnd } = regionEntry;
+          const regionCode = codeMap.get(rName) || rCode || rName.substring(0, 3).toUpperCase();
+          const qty = rEnd - rStart + 1;
+          if (qty <= 0 || qty > 10000) continue;
+
+          const serials: string[] = [];
+          for (let i = rStart; i <= rEnd; i++) {
+            serials.push(mPrefix + regionCode + "-" + String(i).padStart(padLen, "0"));
+          }
+
+          // Check duplicates
+          const existingSet = new Set<string>();
+          for (let i = 0; i < serials.length; i += 100) {
+            const batch = serials.slice(i, i + 100);
+            const { data } = await adminClient
+              .from("rent_card_serial_stock")
+              .select("serial_number")
+              .in("serial_number", batch);
+            if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
+          }
+
+          const newSerials = serials.filter(s => !existingSet.has(s));
+          if (newSerials.length === 0) {
+            regionDetails.push({ region: rName, code: regionCode, generated: 0, skipped: serials.length });
+            continue;
+          }
+
+          // Insert in batches
+          for (let i = 0; i < newSerials.length; i += 500) {
+            const batch = newSerials.slice(i, i + 500);
+            const rows: any[] = [];
+            for (const s of batch) {
+              if (mPairedMode) {
+                rows.push({
+                  serial_number: s, office_name: rName, status: "available",
+                  batch_label: batchLabel, region: rName,
+                  pair_index: 1, pair_group: pairGroup, stock_type: "regional",
+                });
+                rows.push({
+                  serial_number: s, office_name: rName, status: "available",
+                  batch_label: batchLabel, region: rName,
+                  pair_index: 2, pair_group: pairGroup, stock_type: "regional",
+                });
+              } else {
+                rows.push({
+                  serial_number: s, office_name: rName, status: "available",
+                  batch_label: batchLabel, region: rName, stock_type: "regional",
+                });
+              }
+            }
+            const { error: insertErr } = await adminClient
+              .from("rent_card_serial_stock")
+              .insert(rows);
+            if (insertErr) throw insertErr;
+          }
+
+          totalGenerated += newSerials.length;
+          regionDetails.push({
+            region: rName, code: regionCode,
+            generated: newSerials.length, skipped: serials.length - newSerials.length,
+            start: rStart, end: rEnd,
+          });
+        }
+
+        if (totalGenerated === 0) {
+          throw new Error("All serial numbers already exist across all selected regions");
+        }
+
+        // Create generation_batches record
+        const totalPhysical = mPairedMode ? totalGenerated * 2 : totalGenerated;
+        await adminClient.from("generation_batches").insert({
+          batch_label: batchLabel,
+          prefix: mPrefix,
+          regions: mRegions.map((r: any) => r.region),
+          region_details: regionDetails,
+          total_unique_serials: totalGenerated,
+          total_physical_cards: totalPhysical,
+          paired_mode: !!mPairedMode,
+          generated_by: user.id,
+        });
+
+        oldState = { action: "generate_serials_multi" };
+        newState = {
+          total_unique: totalGenerated,
+          total_physical: totalPhysical,
+          paired_mode: !!mPairedMode,
+          regions: regionDetails,
+          batch_label: batchLabel,
+        };
+        break;
+      }
+
+      case "allocate_to_office": {
+        targetType = "office_allocation";
+        const { region: aRegion, office_id: aOfficeId, office_name: aOfficeName, quantity: aQuantity, allocation_mode: aMode, quota_limit: aQuota } = extra || {};
+
+        if (!aRegion || !aOfficeId || !aOfficeName || !aQuantity) {
+          throw new Error("Missing allocation parameters");
+        }
+
+        if (aMode === "quota") {
+          // Just record the quota allocation
+          await adminClient.from("office_allocations").insert({
+            region: aRegion,
+            office_id: aOfficeId,
+            office_name: aOfficeName,
+            quantity: aQuantity,
+            allocation_mode: "quota",
+            quota_limit: aQuota || aQuantity,
+            allocated_by: user.id,
+          });
+
+          oldState = { action: "allocate_quota" };
+          newState = { office: aOfficeName, quota: aQuota || aQuantity };
+        } else {
+          // Transfer mode: find N available regional serials and move to office
+          // Get unique serials (pair_index = 1 or null) from regional stock
+          const { data: availableSerials } = await adminClient
+            .from("rent_card_serial_stock")
+            .select("id, serial_number, pair_index")
+            .eq("region", aRegion)
+            .eq("stock_type", "regional")
+            .eq("status", "available")
+            .order("serial_number", { ascending: true })
+            .limit(aQuantity * 2 + 100); // Get extra to cover both pair indices
+
+          if (!availableSerials || availableSerials.length === 0) {
+            throw new Error("No available regional stock for this region");
+          }
+
+          // Group by serial number to find pairs
+          const serialMap = new Map<string, any[]>();
+          (availableSerials as any[]).forEach((s: any) => {
+            if (!serialMap.has(s.serial_number)) serialMap.set(s.serial_number, []);
+            serialMap.get(s.serial_number)!.push(s);
+          });
+
+          // Take first N unique serials
+          const serialsToTransfer: string[] = [];
+          const idsToUpdate: string[] = [];
+          let count = 0;
+          for (const [sn, rows] of serialMap) {
+            if (count >= aQuantity) break;
+            serialsToTransfer.push(sn);
+            rows.forEach((r: any) => idsToUpdate.push(r.id));
+            count++;
+          }
+
+          if (serialsToTransfer.length === 0) {
+            throw new Error("Not enough available regional stock");
+          }
+
+          // Create allocation record
+          const { data: allocRecord } = await adminClient.from("office_allocations").insert({
+            region: aRegion,
+            office_id: aOfficeId,
+            office_name: aOfficeName,
+            quantity: serialsToTransfer.length,
+            allocation_mode: "transfer",
+            start_serial: serialsToTransfer[0],
+            end_serial: serialsToTransfer[serialsToTransfer.length - 1],
+            serial_numbers: serialsToTransfer,
+            allocated_by: user.id,
+          }).select("id").single();
+
+          // Update serials in batches
+          for (let i = 0; i < idsToUpdate.length; i += 500) {
+            const batch = idsToUpdate.slice(i, i + 500);
+            await adminClient
+              .from("rent_card_serial_stock")
+              .update({
+                stock_type: "office",
+                office_name: aOfficeName,
+                office_allocation_id: (allocRecord as any)?.id || null,
+              })
+              .in("id", batch);
+          }
+
+          oldState = { action: "allocate_transfer" };
+          newState = {
+            office: aOfficeName,
+            transferred: serialsToTransfer.length,
+            first_serial: serialsToTransfer[0],
+            last_serial: serialsToTransfer[serialsToTransfer.length - 1],
+          };
+        }
         break;
       }
 
