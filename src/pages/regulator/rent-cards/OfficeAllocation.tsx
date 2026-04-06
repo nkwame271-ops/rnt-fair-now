@@ -43,18 +43,24 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   useEffect(() => {
     if (!selectedRegion) return;
     const fetchStock = async () => {
-      const { data } = await supabase
-        .from("rent_card_serial_stock" as any)
-        .select("id, stock_type, pair_index")
-        .eq("region", selectedRegion)
-        .eq("status", "available");
-
-      const items = (data || []) as any[];
-      // Count unique serials (pair_index=1 or null)
-      const regional = items.filter(i => i.stock_type === "regional" && (i.pair_index === 1 || !i.pair_index)).length;
-      const office = items.filter(i => i.stock_type === "office" && (i.pair_index === 1 || !i.pair_index)).length;
-      setRegionalAvailable(regional);
-      setOfficeAllocated(office);
+      const [regionalRes, officeRes] = await Promise.all([
+        supabase
+          .from("rent_card_serial_stock" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("region", selectedRegion)
+          .eq("stock_type", "regional")
+          .eq("status", "available")
+          .eq("pair_index", 1),
+        supabase
+          .from("rent_card_serial_stock" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("region", selectedRegion)
+          .eq("stock_type", "office")
+          .eq("status", "available")
+          .eq("pair_index", 1),
+      ]);
+      setRegionalAvailable(regionalRes.count ?? 0);
+      setOfficeAllocated(officeRes.count ?? 0);
     };
     fetchStock();
 
