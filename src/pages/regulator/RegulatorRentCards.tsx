@@ -115,6 +115,7 @@ const RegulatorRentCards = () => {
                   <TabsTrigger value="history">Assignment History</TabsTrigger>
                   <TabsTrigger value="daily_report">Daily Report</TabsTrigger>
                   {isMain && <TabsTrigger value="admin_reports">Admin Reports</TabsTrigger>}
+                  {isMain && <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>}
                 </TabsList>
 
                 <TabsContent value="stock">
