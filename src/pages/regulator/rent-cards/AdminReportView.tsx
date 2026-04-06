@@ -235,6 +235,7 @@ const AdminReportView = () => {
                   <TableHead className="text-right">Sold</TableHead>
                   <TableHead className="text-right">Spoilt</TableHead>
                   <TableHead className="text-right">Closing</TableHead>
+                  <TableHead className="text-right">Fulfilled</TableHead>
                   <TableHead>Signed By</TableHead>
                 </TableRow>
               </TableHeader>
