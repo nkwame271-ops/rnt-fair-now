@@ -95,7 +95,7 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
   const officeRegion = selectedOfficeId ? getRegionForOffice(selectedOfficeId) : null;
 
   useEffect(() => {
-    if (!officeName) { setStock(null); setRanges([]); return; }
+    if (!officeName) { setStock(null); setRanges([]); setQuotaInfo(null); return; }
     const fetchStock = async () => {
       setLoading(true);
       try {
@@ -130,13 +130,34 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
           });
         }
         setRanges(rangeList);
+
+        // Check quota allocations for this office
+        if (selectedOfficeId) {
+          const { data: quotaAllocs } = await supabase
+            .from("office_allocations" as any)
+            .select("quota_limit")
+            .eq("office_id", selectedOfficeId)
+            .eq("allocation_mode", "quota");
+
+          const totalQuota = (quotaAllocs || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
+          if (totalQuota > 0) {
+            const { data: assignments } = await supabase
+              .from("serial_assignments" as any)
+              .select("card_count")
+              .eq("office_id", selectedOfficeId);
+            const totalUsed = (assignments || []).reduce((sum: number, a: any) => sum + (a.card_count || 0), 0);
+            setQuotaInfo({ total: totalQuota, used: totalUsed, remaining: Math.max(0, totalQuota - totalUsed) });
+          } else {
+            setQuotaInfo(null);
+          }
+        }
       } catch (err: any) {
         toast.error(err.message || "Failed to load stock");
       }
       setLoading(false);
     };
     fetchStock();
-  }, [officeName, officeRegion, refreshKey]);
+  }, [officeName, officeRegion, selectedOfficeId, refreshKey]);
 
   const handleDeleteBatch = async () => {
     if (!deletingBatch || !officeName) return;
