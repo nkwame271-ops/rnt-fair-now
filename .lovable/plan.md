@@ -1,181 +1,125 @@
 
 
-# Phase 1: Multi-Region Serial Generation + Office Allocation Layer
+# Phase 2: Office-Linked Sales Logic + Automatic Reconciliation
 
 ## Overview
 
-This phase overhauls Procurement to support multi-region generation in a single action and adds a two-tier stock model: **Regional Stock → Office Stock**. Sales, reconciliation, and enhanced alerts come in a follow-up phase.
+Phase 1 established the two-tier stock model (Regional → Office). Phase 2 ties **sales operations to the assigning office**, adds **automatic office-level reconciliation**, and updates reporting to reflect office-linked sales data.
 
-## Current Architecture
+## Current State
 
-- `rent_card_serial_stock` table stores serials with `office_name` and `region` columns
-- SerialGenerator generates for one office/region at a time
-- No concept of "regional stock" vs "office stock" — everything is flat
-- Stock alerts check total counts per office, not grouped by region
+- `PendingPurchases.tsx` assigns serials from office stock but queries by `office_name` only — does not filter by `stock_type = 'office'`
+- `serial_assignments` table records office but no reconciliation check
+- `OfficeSerialStock.tsx` shows stock but also queries regional stock via `or(office_name, region)` — should only show `stock_type = 'office'`
+- `DailyReport.tsx` similarly queries broadly instead of office-only stock
+- No reconciliation enforcement: assigned pairs vs fulfilled sales vs office-linked records are not cross-checked
+- `rent_cards` table has no `assigned_office_id` / `assigned_office_name` to track which office fulfilled the purchase
 
 ---
 
 ## Database Changes
 
-### 1. New table: `region_codes` (editable by Main Admin)
+### 1. Add office tracking to `rent_cards`
 
 ```sql
-CREATE TABLE region_codes (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  region text NOT NULL UNIQUE,
-  code text NOT NULL UNIQUE,       -- e.g. "GAR", "ASH", "WR"
-  updated_at timestamptz DEFAULT now(),
-  updated_by uuid
-);
-ALTER TABLE region_codes ENABLE ROW LEVEL SECURITY;
--- RLS: regulators manage, authenticated read
+ALTER TABLE rent_cards
+  ADD COLUMN assigned_office_id text,
+  ADD COLUMN assigned_office_name text;
 ```
 
-Seed with default codes for all 16 regions (GAR, ASH, WR, CR, ER, VR, NR, UER, UWR, BR, BER, AHR, WNR, OR, SVR, NER).
+When a serial is assigned, these columns record the office of record for that purchase.
 
-### 2. Add `stock_type` column to `rent_card_serial_stock`
+### 2. Add office tracking to `serial_assignments`
 
-```sql
-ALTER TABLE rent_card_serial_stock
-  ADD COLUMN stock_type text NOT NULL DEFAULT 'regional',
-  ADD COLUMN office_allocation_id uuid;
-```
+Already has `office_name` and `office_id`. No schema change needed — just ensure code populates them correctly.
 
-- `stock_type`: `'regional'` (generated, in regional pool) or `'office'` (transferred to specific office)
-- When serials are generated, they go into regional stock (`stock_type = 'regional'`, `region` set, `office_name` set to region name placeholder)
-- When transferred to an office, `stock_type` becomes `'office'` and `office_name` is updated
-
-### 3. New table: `office_allocations` (transfer log)
+### 3. New table: `office_reconciliation_snapshots`
 
 ```sql
-CREATE TABLE office_allocations (
+CREATE TABLE office_reconciliation_snapshots (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  region text NOT NULL,
   office_id text NOT NULL,
   office_name text NOT NULL,
-  quantity integer NOT NULL,
-  start_serial text,
-  end_serial text,
-  serial_numbers text[] NOT NULL DEFAULT '{}',
-  allocated_by uuid NOT NULL,
-  batch_label text,
-  created_at timestamptz DEFAULT now()
+  snapshot_date date NOT NULL,
+  total_office_stock integer NOT NULL DEFAULT 0,
+  available_pairs integer NOT NULL DEFAULT 0,
+  assigned_pairs integer NOT NULL DEFAULT 0,
+  sold_pairs integer NOT NULL DEFAULT 0,
+  spoilt_pairs integer NOT NULL DEFAULT 0,
+  pending_purchases integer NOT NULL DEFAULT 0,
+  fulfilled_purchases integer NOT NULL DEFAULT 0,
+  discrepancy_notes text,
+  is_balanced boolean NOT NULL DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(office_id, snapshot_date)
 );
-ALTER TABLE office_allocations ENABLE ROW LEVEL SECURITY;
--- RLS: regulators read/insert, service_role all
-```
-
-### 4. New table: `generation_batches` (full metadata per run)
-
-```sql
-CREATE TABLE generation_batches (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  batch_label text NOT NULL,
-  prefix text NOT NULL,
-  regions text[] NOT NULL,
-  region_details jsonb NOT NULL DEFAULT '[]',
-  total_unique_serials integer NOT NULL,
-  total_physical_cards integer NOT NULL,
-  paired_mode boolean DEFAULT true,
-  generated_by uuid NOT NULL,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE generation_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE office_reconciliation_snapshots ENABLE ROW LEVEL SECURITY;
+-- RLS: regulators read, service_role all
 ```
 
 ---
 
 ## Frontend Changes
 
-### 1. SerialGenerator → Multi-Region Generator
+### 1. PendingPurchases — Filter by office stock only
 
-**File**: `src/pages/regulator/rent-cards/SerialGenerator.tsx` (rewrite)
+**File**: `src/pages/regulator/rent-cards/PendingPurchases.tsx`
 
-- Replace single-region selector with a multi-region checklist (checkboxes for each of the 16 regions)
-- "Select All Regions" toggle
-- For each selected region, show editable **start number** and **end number** fields (auto-populated with defaults)
-- Serial format: `{prefix}{region_code}{padded_number}` (e.g. `RCD-2026-GAR-0001`)
-- Region codes fetched from `region_codes` table
-- Preview table showing: Region | Code | Start | End | Quantity | Sample Range
-- Summary row: total unique serials, total physical cards
-- Password confirmation dialog unchanged
-- After generation: option to download structured Excel (SheetJS) or PDF (jsPDF)
-- Each run creates a `generation_batches` record
+- When fetching available serials for assignment (line ~275), add `.eq("stock_type", "office")` to only pull from office stock
+- After assignment, write `assigned_office_id` and `assigned_office_name` to the `rent_cards` row
+- This makes the assigning office the "office of record"
 
-### 2. New component: Region Code Manager
+### 2. OfficeSerialStock — Show office stock only
 
-**File**: `src/pages/regulator/rent-cards/RegionCodeManager.tsx`
+**File**: `src/pages/regulator/rent-cards/OfficeSerialStock.tsx`
 
-- Table showing all 16 regions with their codes
-- Inline editing of codes (Main Admin only)
-- Save updates to `region_codes` table
-- Accessible from a sub-tab under Procurement
+- Remove the `or(office_name, region)` broad query (line ~61)
+- Replace with: `.eq("office_name", officeName).eq("stock_type", "office")`
+- This ensures stock counts reflect only what's been allocated to the office
 
-### 3. New component: Office Allocation
+### 3. DailyReport — Calculate from office stock only
 
-**File**: `src/pages/regulator/rent-cards/OfficeAllocation.tsx`
+**File**: `src/pages/regulator/rent-cards/DailyReport.tsx`
 
-- Select a region → see regional stock summary (total available, already allocated)
-- Two allocation modes via toggle:
-  - **Option 1 (Priority Quota)**: Set a quota number per office. Staff can assign from regional stock until their office quota is reached. System tracks `allocated_quota` vs `used_count`.
-  - **Option 2 (Transfer)**: Explicitly transfer N serials from regional stock to office stock. Choose "auto next available" or specify a starting serial. Supports transferring different quantities to all offices in the region at once (grid of office → quantity inputs).
-- Transfer action updates `rent_card_serial_stock.stock_type` from `'regional'` to `'office'` and sets `office_name` to the target office
-- Creates `office_allocations` record for audit trail
-- Show allocation history per region
+- Same fix: filter by `stock_type = 'office'` and exact `office_name`
+- Remove the region-based `or()` query
 
-### 4. Updated Procurement Tabs
+### 4. New component: Office Reconciliation
+
+**File**: `src/pages/regulator/rent-cards/OfficeReconciliation.tsx`
+
+- Select office → runs reconciliation check:
+  - **Office stock allocated** (from `office_allocations` for that office)
+  - **Assigned pairs** (serials with `status = 'assigned'`, `stock_type = 'office'`)
+  - **Fulfilled sales** (rent_cards with `assigned_office_id` matching and `status = 'valid'`)
+  - **Available remaining** (serials with `status = 'available'`, `stock_type = 'office'`)
+  - **Balance check**: allocated = available + assigned + sold + spoilt
+- Show discrepancy flag if numbers don't add up
+- "Save Snapshot" button stores to `office_reconciliation_snapshots`
+- History of past snapshots per office
+- Export reconciliation report as PDF
+
+### 5. Updated Sales Tabs
 
 **File**: `src/pages/regulator/RegulatorRentCards.tsx`
 
-Add new sub-tabs under Procurement:
-- Generate Serials (existing, reworked for multi-region)
-- Region Codes (new — Main Admin only)
-- Office Allocation (new)
-- Batch Upload (existing)
-- Stock Alerts (moved, reworked)
-- Procurement Report (new — downloadable Excel/PDF of all generation batches and allocations)
+Add new sub-tab under Sales:
+- **Reconciliation** (new) — accessible to Main Admin
 
-### 5. Stock Alerts Rework
+### 6. AdminReportView — Add office-linked sales column
 
-**File**: `src/pages/regulator/rent-cards/StockAlerts.tsx` (rewrite)
+**File**: `src/pages/regulator/rent-cards/AdminReportView.tsx`
 
-- Query office-level stock only (`stock_type = 'office'`)
-- Group display by region with collapsible headings
-- Under each region heading, show all offices with their available counts
-- Three threshold levels with color coding:
-  - **Normal** (green): ≥ threshold
-  - **Low** (amber): between critical and threshold
-  - **Critical** (red): below critical threshold (e.g. < 10)
-- Thresholds configurable (use existing `stock_alert_threshold` from `admin_staff`)
-
-### 6. Procurement Report
-
-**File**: `src/pages/regulator/rent-cards/ProcurementReport.tsx` (new)
-
-- Table of all generation batches with metadata
-- Filter by date range, region
-- Download as structured Excel (SheetJS) or PDF (jsPDF)
+- Add a "Fulfilled Purchases" column sourced from `rent_cards` where `assigned_office_name` matches
+- This gives a cross-check against the daily report's "Sold" count
 
 ---
 
 ## Edge Function Changes
 
-### `admin-action/index.ts` — `generate_serials` case
+### No new edge functions needed
 
-- Accept `regions` array instead of single `office_name`/`region`
-- For each region, use its code from `region_codes` table to build serial format
-- Accept per-region `start_range` and `end_range`
-- Insert all serials with `stock_type = 'regional'`
-- Create `generation_batches` record
-- Return summary with per-region counts
-
-### New action: `allocate_to_office`
-
-- Accept `region`, `office_id`, `office_name`, `quantity`, optional `start_serial`
-- Find N available regional serials for that region
-- Update their `stock_type` to `'office'` and `office_name` to the target office
-- Create `office_allocations` record
-- Requires Main Admin password confirmation
+All reconciliation logic runs client-side from existing table data. The serial assignment flow in `PendingPurchases.tsx` already uses direct Supabase calls (not the edge function) for the actual assignment — we just need to add `assigned_office_id` and `assigned_office_name` to the rent_cards update.
 
 ---
 
@@ -183,14 +127,11 @@ Add new sub-tabs under Procurement:
 
 | Action | File |
 |--------|------|
-| Migration | New migration SQL (4 statements) |
-| Rewrite | `SerialGenerator.tsx` |
-| Rewrite | `StockAlerts.tsx` |
-| New | `RegionCodeManager.tsx` |
-| New | `OfficeAllocation.tsx` |
-| New | `ProcurementReport.tsx` |
-| Edit | `RegulatorRentCards.tsx` (tabs) |
-| Edit | `admin-action/index.ts` (generate_serials + new action) |
-
-Phase 2 (next) will cover: sales logic tied to assigning office, automatic office-level reconciliation, and updated reporting.
+| Migration | New migration (2 statements: alter rent_cards, create reconciliation table) |
+| Edit | `PendingPurchases.tsx` (filter stock_type, write office to rent_cards) |
+| Edit | `OfficeSerialStock.tsx` (filter stock_type = office only) |
+| Edit | `DailyReport.tsx` (filter stock_type = office only) |
+| Edit | `AdminReportView.tsx` (add fulfilled purchases column) |
+| Edit | `RegulatorRentCards.tsx` (add Reconciliation tab) |
+| New | `OfficeReconciliation.tsx` |
 
