@@ -1097,6 +1097,57 @@ export type Database = {
           },
         ]
       }
+      office_reconciliation_snapshots: {
+        Row: {
+          assigned_pairs: number
+          available_pairs: number
+          created_at: string | null
+          discrepancy_notes: string | null
+          fulfilled_purchases: number
+          id: string
+          is_balanced: boolean
+          office_id: string
+          office_name: string
+          pending_purchases: number
+          snapshot_date: string
+          sold_pairs: number
+          spoilt_pairs: number
+          total_office_stock: number
+        }
+        Insert: {
+          assigned_pairs?: number
+          available_pairs?: number
+          created_at?: string | null
+          discrepancy_notes?: string | null
+          fulfilled_purchases?: number
+          id?: string
+          is_balanced?: boolean
+          office_id: string
+          office_name: string
+          pending_purchases?: number
+          snapshot_date: string
+          sold_pairs?: number
+          spoilt_pairs?: number
+          total_office_stock?: number
+        }
+        Update: {
+          assigned_pairs?: number
+          available_pairs?: number
+          created_at?: string | null
+          discrepancy_notes?: string | null
+          fulfilled_purchases?: number
+          id?: string
+          is_balanced?: boolean
+          office_id?: string
+          office_name?: string
+          pending_purchases?: number
+          snapshot_date?: string
+          sold_pairs?: number
+          spoilt_pairs?: number
+          total_office_stock?: number
+        }
+        Relationships: []
+      }
       offices: {
         Row: {
           created_at: string | null
@@ -2022,6 +2073,8 @@ export type Database = {
         Row: {
           activated_at: string | null
           advance_paid: number | null
+          assigned_office_id: string | null
+          assigned_office_name: string | null
           card_role: string | null
           created_at: string
           current_rent: number | null
@@ -2046,6 +2099,8 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           advance_paid?: number | null
+          assigned_office_id?: string | null
+          assigned_office_name?: string | null
           card_role?: string | null
           created_at?: string
           current_rent?: number | null
@@ -2070,6 +2125,8 @@ export type Database = {
         Update: {
           activated_at?: string | null
           advance_paid?: number | null
+          assigned_office_id?: string | null
+          assigned_office_name?: string | null
           card_role?: string | null
           created_at?: string
           current_rent?: number | null
