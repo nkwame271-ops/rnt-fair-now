@@ -1,54 +1,93 @@
 
 
-# Fix: Separate Quota vs. Transfer Stock & Remove Range Binding from Number-Only Mode
+# Plan: Count-Based Transfer, Auto-Recipient, and Deferred Office Payouts
 
-## Problem Summary
+## Part 1: Fix "Transfer by Number" — Count-Based Only
 
-1. **Quota and Transfer are conflated.** "Transfer by Number" currently sends `allocation_mode: "quantity_transfer"` which is treated identically to `"quota"` in PendingPurchases — both draw from regional pool. But "Transfer by Number" should actually **move serials to office stock** (same as "Next Available"), just without the admin needing to see which serials. The user wants two distinct concepts:
-   - **Transfer** (both sub-modes) = physical stock movement → serials become `stock_type: "office"`
-   - **Quota** = assignable limit only, no stock movement
+**Problem**: `quantity_transfer` currently falls into the physical transfer branch, reserving specific serials and binding to ranges. The user wants it to behave like quota: a pure accounting entry where the office draws from the full regional pool.
 
-2. **"Transfer by Number" still binds to serial ranges.** The edge function records `start_serial`/`end_serial` for quota/quantity_transfer, and PendingPurchases restricts assignment to specific serials. Number-only transfer should simply move N next-available serials to office stock without exposing ranges to the admin.
+### Changes
 
-3. **Office Stock card doesn't update after transfer** because quota-mode entries don't change `stock_type`, so the Office Stock view (which queries `stock_type = "office"`) shows nothing.
+**`supabase/functions/admin-action/index.ts`**
+- Move `quantity_transfer` back into the quota/accounting branch (alongside `"quota"`)
+- Change condition from `if (aMode === "quota")` to `if (aMode === "quota" || aMode === "quantity_transfer")`
+- Both modes create an `office_allocations` record with `quota_limit` set to the quantity — no serial movement, no `start_serial`/`end_serial`, no `stock_type` updates
 
-## Solution
+**`src/pages/regulator/rent-cards/PendingPurchases.tsx`**
+- Re-add `quantity_transfer` to the quota check: `.in("allocation_mode", ["quota", "quantity_transfer"])`
+- Both modes fetch from regional stock with enforcement against the combined quota limit
 
-### 1. Edge Function (`admin-action/index.ts`)
+**`src/pages/regulator/rent-cards/OfficeAllocation.tsx`**
+- Update `computeQuotaUsage` to include `quantity_transfer` entries alongside `quota` when computing totals
+- This ensures the Quota tab shows usage for both allocation types
 
-**Change `quantity_transfer` to behave like `transfer`**: When `allocation_mode` is `"quantity_transfer"`, use the same serial-fetching and `stock_type` update logic as `"transfer"` mode — fetch N next-available regional serials, update them to `stock_type: "office"` with the office name. The only difference from explicit transfer: don't require the admin to pick serials (which is already the case). Remove `quantity_transfer` from the quota-only branch (line 265) so it falls through to the transfer branch.
+**Net effect**: "Transfer by Number" and "Quota" both let offices assign ANY serial from the full regional pool, enforced only by count. "Next Available" remains the only mode that physically moves serials.
 
-Specifically:
-- Line 265: Change `if (aMode === "quota" || aMode === "quantity_transfer")` → `if (aMode === "quota")`
-- The `else` branch (transfer logic, lines 285-360) already handles physical movement. `quantity_transfer` will now use that same path, recording `allocation_mode: "quantity_transfer"` in the `office_allocations` record but physically moving serials.
+---
 
-### 2. PendingPurchases (`PendingPurchases.tsx`)
+## Part 2: Auto-Create Paystack Recipient on Payout Account Save
 
-**Remove `quantity_transfer` from quota check**: Line 282 currently checks `.in("allocation_mode", ["quota", "quantity_transfer"])`. Change to `.eq("allocation_mode", "quota")` only. Offices with `quantity_transfer` allocations already have their serials in office stock (`stock_type: "office"`), so they use the normal office-stock fetch path.
+**Problem**: Recipient codes are only created lazily at payout time. If missing, the payout fails silently.
 
-This means:
-- If office has **only quota allocations** → fetch from regional pool, enforce limit
-- If office has **only transfer/quantity_transfer** → fetch from office stock (normal)
-- If office has **both** → quota check applies for regional pool; office stock is also available from transfers
+### Changes
 
-### 3. OfficeAllocation UI (`OfficeAllocation.tsx`)
+**`src/pages/regulator/OfficePayoutSettings.tsx`**
+- After successful insert/update of `office_payout_accounts`, call an edge function to create/update the Paystack transfer recipient immediately
+- Store the returned `recipient_code` on the `office_payout_accounts` row
 
-**Summary cards**: Keep the two cards as-is:
-- "Regional Stock" = count of `stock_type: "regional"`, `status: "available"` (already correct)
-- "Office Stock" = count of `stock_type: "office"`, `status: "available"` (already correct — will now update properly after both transfer modes)
+**`supabase/functions/admin-action/index.ts`** (new action: `create_payout_recipient`)
+- Accepts `office_id`
+- Reads the office payout account details
+- Calls Paystack's `/transferrecipient` API
+- Stores `paystack_recipient_code` on the `office_payout_accounts` row
+- Returns success/failure to the UI so the admin sees immediate feedback
 
-**Quota tab `computeQuotaUsage`**: Already filters by `allocation_mode === "quota"` only (line 97), so no change needed there.
+---
 
-### 4. OfficeSerialStock (`OfficeSerialStock.tsx`)
+## Part 3: Deferred Office Payouts for Rent Cards, Add Tenant, and Declare Existing Tenancy
 
-No changes needed — it already queries `stock_type: "office"` which will now correctly reflect both "Next Available" and "By Number" transfers.
+**Problem**: Currently, `finalizePayment` immediately creates splits and triggers payouts (including the office/"admin" share) at payment time. But for certain payment types, the responsible office isn't known until later.
 
-## Files to Change
+### Approach
+
+**`supabase/functions/_shared/finalize-payment.ts`**
+
+For these payment types: `rent_card`, `rent_card_bulk`, `add_tenant_fee`, `declare_existing_tenancy_fee`:
+
+- When creating `escrow_splits`, mark the `admin` (office) split as `disbursement_status: "deferred"` instead of `"pending_transfer"` or `"held"`
+- Skip payout transfer creation for splits with `disbursement_status: "deferred"`
+- The office_id on the escrow may be null or preliminary at this stage
+
+**New edge function: `supabase/functions/finalize-office-attribution/index.ts`**
+
+Called when the responsible office is determined (e.g., office allocates a rent card serial, or an admin assigns a tenancy to an office):
+
+- Accepts `escrow_transaction_id` and `office_id`
+- Updates the deferred `escrow_splits` row with the correct `office_id` and changes status to `"pending_transfer"`
+- Looks up the office's `paystack_recipient_code` from `office_payout_accounts`
+- If valid recipient exists, initiates the Paystack transfer and records in `payout_transfers`
+- If no recipient, logs an error and leaves status as `"pending_transfer"` for manual resolution
+
+**Integration points** (where to call the new function):
+
+1. **Rent card serial assignment** (`PendingPurchases.tsx` — after successful assignment): call `finalize-office-attribution` with the purchase's `escrow_transaction_id` and the assigning office's ID
+2. **Add Tenant / Declare Existing Tenancy**: when the tenancy is linked to an office (already happens in existing flows), trigger attribution for the related escrow
+
+### Database
+
+- No schema migration needed — `disbursement_status` already supports custom values as text, and `office_id` already exists on `escrow_splits`
+
+---
+
+## Files Summary
 
 | File | Change |
 |------|--------|
-| `supabase/functions/admin-action/index.ts` | Move `quantity_transfer` out of the quota branch into the transfer branch so it physically moves serials |
-| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Remove `quantity_transfer` from quota-mode check; only `"quota"` triggers regional pool fetch |
-
-Two files, minimal changes. The core fix is a one-line condition change in the edge function and one-line change in PendingPurchases.
+| `supabase/functions/admin-action/index.ts` | Move `quantity_transfer` back to accounting branch; add `create_payout_recipient` action |
+| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Include `quantity_transfer` in quota check; call `finalize-office-attribution` after serial assignment |
+| `src/pages/regulator/rent-cards/OfficeAllocation.tsx` | Include `quantity_transfer` in quota usage computation |
+| `src/pages/regulator/OfficePayoutSettings.tsx` | Call recipient creation after saving payout account |
+| `supabase/functions/_shared/finalize-payment.ts` | Defer office splits for rent_card, add_tenant_fee, declare_existing_tenancy_fee |
+| `supabase/functions/finalize-office-attribution/index.ts` | New function: finalize deferred office payouts when office is determined |
+| `supabase/config.toml` | Add `finalize-office-attribution` function config |
 
