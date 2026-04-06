@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Search, CreditCard, Loader2, CheckCircle } from "lucide-react";
+import { Search, CreditCard, Loader2, CheckCircle, AlertTriangle } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { AdminProfile, GHANA_OFFICES } from "@/hooks/useAdminProfile";
+import { AdminProfile, GHANA_OFFICES, getRegionForOffice } from "@/hooks/useAdminProfile";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Dialog,
