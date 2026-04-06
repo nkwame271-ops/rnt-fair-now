@@ -53,29 +53,24 @@ const DailyReport = ({ profile }: Props) => {
     setSubmitted(false);
 
     try {
-      const officeRegion = selectedOfficeId ? getRegionForOffice(selectedOfficeId) : null;
+      // stock_type = 'office' filter applied below
       const today = new Date();
       const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
       const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
 
-      // Fetch all serials for office
+      // Fetch all serials for office (office stock only)
       let allSerials: any[] = [];
       let from = 0;
       const PAGE = 1000;
       while (true) {
-        let query = supabase
+        const { data, error } = await supabase
           .from("rent_card_serial_stock")
           .select("serial_number, status, assigned_at, created_at, pair_index")
+          .eq("office_name", officeName)
+          .eq("stock_type", "office")
           .order("serial_number", { ascending: true })
           .range(from, from + PAGE - 1);
 
-        if (officeRegion) {
-          query = query.or(`office_name.eq.${officeName},region.eq.${officeRegion}`);
-        } else {
-          query = query.eq("office_name", officeName);
-        }
-
-        const { data, error } = await query;
         if (error) throw error;
         if (!data || data.length === 0) break;
         allSerials = allSerials.concat(data);

@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Package, Trash2, Loader2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -43,27 +42,21 @@ interface Props {
   refreshKey: number;
 }
 
-// Fetches serials assigned to office OR to its parent region
-async function fetchAllSerials(officeName: string, officeRegion: string | null) {
+// Fetches serials allocated to office (stock_type = 'office' only)
+async function fetchAllSerials(officeName: string, _officeRegion: string | null) {
   let allData: any[] = [];
   let from = 0;
   const PAGE = 1000;
 
-  // Build the query: office_name match OR region match
   while (true) {
-    let query = supabase
+    const { data, error } = await supabase
       .from("rent_card_serial_stock")
       .select("serial_number, status, batch_label, region")
+      .eq("office_name", officeName)
+      .eq("stock_type", "office")
       .order("serial_number", { ascending: true })
       .range(from, from + PAGE - 1);
 
-    if (officeRegion) {
-      query = query.or(`office_name.eq.${officeName},region.eq.${officeRegion}`);
-    } else {
-      query = query.eq("office_name", officeName);
-    }
-
-    const { data, error } = await query;
     if (error) throw error;
     if (!data || data.length === 0) break;
     allData = allData.concat(data);

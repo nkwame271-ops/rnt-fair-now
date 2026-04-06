@@ -25,6 +25,7 @@ interface DailyReport {
   notes: string | null;
   signed_name: string | null;
   created_at: string;
+  fulfilled_purchases?: number;
 }
 
 const AdminReportView = () => {
@@ -51,6 +52,20 @@ const AdminReportView = () => {
       const { data, error } = await query.limit(500);
       if (error) throw error;
       const items = (data || []) as unknown as DailyReport[];
+
+      // Fetch fulfilled purchase counts per office
+      const officeNames = [...new Set(items.map(r => r.office_name))];
+      const fulfilledMap = new Map<string, number>();
+      for (const oName of officeNames) {
+        const { count } = await (supabase
+          .from("rent_cards")
+          .select("id", { count: "exact", head: true }) as any)
+          .eq("assigned_office_name", oName)
+          .eq("status", "valid");
+        fulfilledMap.set(oName, count || 0);
+      }
+      items.forEach(r => { r.fulfilled_purchases = fulfilledMap.get(r.office_name) || 0; });
+
       setReports(items);
 
       const uniqueOffices = [...new Set(items.map(r => r.office_name))].sort();
@@ -220,6 +235,7 @@ const AdminReportView = () => {
                   <TableHead className="text-right">Sold</TableHead>
                   <TableHead className="text-right">Spoilt</TableHead>
                   <TableHead className="text-right">Closing</TableHead>
+                  <TableHead className="text-right">Fulfilled</TableHead>
                   <TableHead>Signed By</TableHead>
                 </TableRow>
               </TableHeader>
@@ -234,6 +250,7 @@ const AdminReportView = () => {
                     <TableCell className="text-right font-semibold text-success">{r.sold_today}</TableCell>
                     <TableCell className="text-right font-semibold text-destructive">{r.spoilt_today}</TableCell>
                     <TableCell className="text-right font-semibold">{r.closing_pairs}</TableCell>
+                    <TableCell className="text-right font-semibold text-info">{r.fulfilled_purchases ?? "—"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{r.signed_name || "—"}</TableCell>
                   </TableRow>
                 ))}

@@ -276,6 +276,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           .from("rent_card_serial_stock" as any)
           .select("id, serial_number")
           .eq("office_name", office)
+          .eq("stock_type", "office")
           .eq("status", "available")
           .order("serial_number", { ascending: true })
           .range(from, from + PAGE - 1);
@@ -382,9 +383,15 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           continue;
         }
 
+        const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
         const { error: cardErr } = await supabase
           .from("rent_cards")
-          .update({ serial_number: chosenSerial, status: "valid" } as any)
+          .update({
+            serial_number: chosenSerial,
+            status: "valid",
+            assigned_office_id: officeId || null,
+            assigned_office_name: office,
+          } as any)
           .eq("id", card.id);
 
         if (cardErr) throw cardErr;

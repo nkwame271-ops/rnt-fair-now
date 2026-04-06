@@ -16,6 +16,7 @@ import AdminActions from "./rent-cards/AdminActions";
 import DailyReport from "./rent-cards/DailyReport";
 import AdminReportView from "./rent-cards/AdminReportView";
 import ProcurementReport from "./rent-cards/ProcurementReport";
+import OfficeReconciliation from "./rent-cards/OfficeReconciliation";
 
 const RegulatorRentCards = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
@@ -114,6 +115,7 @@ const RegulatorRentCards = () => {
                   <TabsTrigger value="history">Assignment History</TabsTrigger>
                   <TabsTrigger value="daily_report">Daily Report</TabsTrigger>
                   {isMain && <TabsTrigger value="admin_reports">Admin Reports</TabsTrigger>}
+                  {isMain && <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>}
                 </TabsList>
 
                 <TabsContent value="stock">
@@ -131,6 +133,11 @@ const RegulatorRentCards = () => {
                 {isMain && (
                   <TabsContent value="admin_reports">
                     <AdminReportView />
+                  </TabsContent>
+                )}
+                {isMain && (
+                  <TabsContent value="reconciliation">
+                    <OfficeReconciliation />
                   </TabsContent>
                 )}
               </Tabs>
