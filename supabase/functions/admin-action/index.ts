@@ -178,7 +178,8 @@ Deno.serve(async (req) => {
             const { data } = await adminClient
               .from("rent_card_serial_stock")
               .select("serial_number")
-              .in("serial_number", batch);
+              .in("serial_number", batch)
+              .limit(batch.length);
             if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
           }
 
