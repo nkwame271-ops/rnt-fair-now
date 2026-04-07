@@ -392,11 +392,19 @@ const AddTenant = () => {
           .limit(1)
           .maybeSingle();
 
-        if (escrowData?.id && property?.office_id) {
+        // Resolve office from the property
+        const { data: propOffice } = await supabase
+          .from("properties")
+          .select("office_id")
+          .eq("id", property.id)
+          .maybeSingle();
+
+        const resolvedOfficeId = propOffice?.office_id || escrowData?.office_id;
+        if (escrowData?.id && resolvedOfficeId) {
           await supabase.functions.invoke("finalize-office-attribution", {
             body: {
               escrow_transaction_id: escrowData.id,
-              office_id: property.office_id,
+              office_id: resolvedOfficeId,
             },
           });
         }
