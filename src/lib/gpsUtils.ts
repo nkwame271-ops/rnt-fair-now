@@ -27,8 +27,6 @@ export const GHANA_REGIONS: Record<string, { lat: number; lng: number }> = {
   "Volta": { lat: 6.6, lng: 0.45 },
   "Oti": { lat: 7.5, lng: 0.3 },
   "Northern": { lat: 9.4, lng: -0.8 },
-  "North East": { lat: 10.2, lng: -0.3 },
-  "Savannah": { lat: 9.0, lng: -1.8 },
   "Upper East": { lat: 10.7, lng: -0.8 },
   "Upper West": { lat: 10.3, lng: -2.5 },
   "Bono": { lat: 7.5, lng: -2.3 },
