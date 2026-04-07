@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowRightLeft, Building2, Pencil } from "lucide-react";
+import { ArrowRightLeft, Building2, Pencil, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,6 +50,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [quotaUsage, setQuotaUsage] = useState<QuotaUsage[]>([]);
   const [editingQuota, setEditingQuota] = useState<Record<string, number>>({});
   const [updatingQuota, setUpdatingQuota] = useState<string | null>(null);
+  const [resetQuotaTarget, setResetQuotaTarget] = useState<{ office_id: string; office_name: string; used: number } | null>(null);
 
   const regionData = GHANA_REGIONS_OFFICES.find(r => r.region === selectedRegion);
   const offices = regionData?.offices || [];
