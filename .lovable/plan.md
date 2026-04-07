@@ -1,28 +1,59 @@
 
 
-# Fix Plan: Two Issues
+# Fix Plan: Serial Registry, Quota Reset, Report Alignment, Batch Upload Visibility
 
-## Issue 1 — Batch Upload serials not appearing in Regional Stock
-
-**Root cause**: `SerialBatchUpload.tsx` inserts rows without setting `pair_index`. The default is `NULL`. But `OfficeAllocation.tsx` (line 67) filters regional stock with `.eq("pair_index", 1)`, so batch-uploaded serials are invisible.
-
-**Fix**: In `SerialBatchUpload.tsx`, add `pair_index: 1` to each inserted row (line 112-118). Batch uploads are unpaired single serials, so `pair_index: 1` is correct and makes them visible in the regional stock count.
-
-**File**: `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` — add `pair_index: 1` to the row object.
+## Summary
+Four interconnected issues around the rent card procurement pipeline: (1) old uploaded batches invisible in Admin Actions, (2) no way to reset/adjust used quota, (3) reports only read physical stock, not quota, (4) batch uploads missing from Procurement Report.
 
 ---
 
-## Issue 2 — Numbers Only allocation not reflected on Office Stock cards
+## Issue 1 — Serial Stock Registry in Admin Actions
 
-**Root cause**: `OfficeSerialStock.tsx` only queries serials with `stock_type = "office"`. Numbers-only allocations don't move serials (by design), so nothing appears on the office stock card. The quota info panel exists but is separate from the stock cards.
+**Problem**: Admin Actions only lets you search for batches to revoke/void. There's no way to browse all batches (especially old uploads) to find and manage them.
 
-**Fix**: Merge the quota allocation into the stock card display so the office dashboard reads correctly. Specifically:
+**Fix**: Add a "Serial Stock Registry" section at the top of `AdminActions.tsx` that auto-loads all distinct batch labels with counts on mount (no search required). Each batch shows available/assigned/revoked counts with Revoke and Delete (void) buttons.
 
-- In `OfficeSerialStock.tsx`, add the quota's `remaining` count to the "Opening Rent Card Pairs" and "Closing Rent Card Pairs" cards as an additive display component.
-- The cards will show: physical stock + quota allocation combined, with a small label distinguishing the two sources.
-- Example: Opening Pairs = `physicalAvailable + quotaRemaining`, with subtitle showing breakdown like "3 physical + 5 quota".
+**File**: `src/pages/regulator/rent-cards/AdminActions.tsx`
 
-**File**: `src/pages/regulator/rent-cards/OfficeSerialStock.tsx` — update the stock summary cards (lines 277-303) to include quota counts in the totals.
+---
+
+## Issue 2 — Quota Reset / Adjust Used Quota
+
+**Problem**: The existing `adjust_office_quota` action in the edge function only adjusts the total quota. There's no way to reset or reduce the "used" count (from `serial_assignments`). If assignments were made in error, the used count is permanent.
+
+**Fix**:
+- Add a new admin action `reset_office_quota_usage` in the edge function that deletes or adjusts `serial_assignments` rows for an office, effectively resetting or reducing the used count. Requires password + reason, logged to audit.
+- In `OfficeAllocation.tsx`, add a "Reset Used" button next to each quota entry in the Current Quota Status section. This triggers `AdminPasswordConfirm` and calls the new action.
+
+**Files**: `supabase/functions/admin-action/index.ts`, `src/pages/regulator/rent-cards/OfficeAllocation.tsx`
+
+---
+
+## Issue 3 — Report Alignment (Daily Report reads quota + activity)
+
+**Problem**: `DailyReport.tsx` only queries `stock_type = "office"` serials. Offices using quota/numbers-only mode have no physical office stock, so their reports show zeros.
+
+**Fix**: Update `DailyReport.tsx` to also fetch quota info from `office_allocations` and usage from `serial_assignments`, then merge into the report stats. Opening = physical available pairs + quota remaining. Assigned today = physical assigned today + quota assignments today. This matches what the Office Stock cards show.
+
+**File**: `src/pages/regulator/rent-cards/DailyReport.tsx`
+
+---
+
+## Issue 4 — Batch Upload missing from Procurement Report
+
+**Problem**: `ProcurementReport.tsx` only reads from `generation_batches` table. Batch uploads via `SerialBatchUpload` do not create a `generation_batches` record, so they never appear.
+
+**Fix**: Update `SerialBatchUpload.tsx` to insert a `generation_batches` record after successful upload, with `paired_mode: false`, the serial count, and the batch label. This makes uploads appear alongside generated batches in the Procurement Report.
+
+**File**: `src/pages/regulator/rent-cards/SerialBatchUpload.tsx`
+
+---
+
+## Also: Fix existing NULL pair_index data
+
+There are ~10,891 serials in the database with `pair_index = NULL` from previous batch uploads. These are invisible to allocation queries. A data fix will set `pair_index = 1` on all NULL rows.
+
+**Method**: Supabase insert tool (data update, not schema change).
 
 ---
 
@@ -30,6 +61,10 @@
 
 | File | Change |
 |------|--------|
-| `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` | Add `pair_index: 1` to inserted rows |
-| `src/pages/regulator/rent-cards/OfficeSerialStock.tsx` | Merge quota counts into office stock card display |
+| `src/pages/regulator/rent-cards/AdminActions.tsx` | Add Serial Stock Registry section showing all batches |
+| `src/pages/regulator/rent-cards/OfficeAllocation.tsx` | Add "Reset Used" button with password confirm for quota reset |
+| `src/pages/regulator/rent-cards/DailyReport.tsx` | Merge quota data into report stats |
+| `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` | Insert `generation_batches` record on upload |
+| `supabase/functions/admin-action/index.ts` | Add `reset_office_quota_usage` action |
+| Database data fix | Set `pair_index = 1` on existing NULL rows |
 
