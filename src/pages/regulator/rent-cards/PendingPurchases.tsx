@@ -683,8 +683,22 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                   <span className="font-semibold text-card-foreground">{mappingCards.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Available serials:</span>
+                  <span className="text-muted-foreground">Available serials (regional registry):</span>
                   <span className="font-semibold text-card-foreground">{availableSerials.length}</span>
+                </div>
+                {quotaContext && (
+                  <div className="flex justify-between border-t border-border pt-1 mt-1">
+                    <span className="text-muted-foreground">Quota remaining:</span>
+                    <span className={`font-semibold ${quotaContext.remaining >= mappingCards.length ? "text-success" : "text-destructive"}`}>
+                      {quotaContext.remaining}
+                    </span>
+                  </div>
+                )}
+                {quotaContext && mappingCards.length > quotaContext.remaining && (
+                  <p className="text-destructive text-xs mt-1">
+                    ⚠ Selected {mappingCards.length} cards but only {quotaContext.remaining} quota remaining. Reduce selection.
+                  </p>
+                )}
                 </div>
               </div>
 
