@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowRightLeft, Building2, Pencil } from "lucide-react";
+import { ArrowRightLeft, Building2, Pencil, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,6 +50,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [quotaUsage, setQuotaUsage] = useState<QuotaUsage[]>([]);
   const [editingQuota, setEditingQuota] = useState<Record<string, number>>({});
   const [updatingQuota, setUpdatingQuota] = useState<string | null>(null);
+  const [resetQuotaTarget, setResetQuotaTarget] = useState<{ office_id: string; office_name: string; used: number } | null>(null);
 
   const regionData = GHANA_REGIONS_OFFICES.find(r => r.region === selectedRegion);
   const offices = regionData?.offices || [];
@@ -379,7 +380,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                               </Badge>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Label className="text-xs text-muted-foreground whitespace-nowrap">Total Quota:</Label>
                             <Input
                               type="number"
@@ -397,6 +398,16 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                               >
                                 <Pencil className="h-3 w-3 mr-1" />
                                 {updatingQuota === q.office_id ? "Saving…" : "Update"}
+                              </Button>
+                            )}
+                            {q.used > 0 && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-7 text-xs"
+                                onClick={() => setResetQuotaTarget({ office_id: q.office_id, office_name: q.office_name, used: q.used })}
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" /> Reset Used
                               </Button>
                             )}
                             {editingQuota[q.office_id] !== undefined && editingQuota[q.office_id] < q.used && (
@@ -490,6 +501,35 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
           ? (transferSubMode === "next_available" ? "Transfer" : "Allocate")
           : "Set Quotas"}
         onConfirm={handleConfirm}
+      />
+
+      <AdminPasswordConfirm
+        open={!!resetQuotaTarget}
+        onOpenChange={() => setResetQuotaTarget(null)}
+        title="Reset Used Quota"
+        description={`This will reset the used quota count (${resetQuotaTarget?.used || 0}) for "${resetQuotaTarget?.office_name}". All serial assignment records for this office will be deleted. This action is logged and cannot be undone.`}
+        actionLabel="Reset Used Quota"
+        onConfirm={async (password, reason) => {
+          const { data, error } = await supabase.functions.invoke("admin-action", {
+            body: {
+              action: "reset_office_quota_usage",
+              target_id: `QUOTA-RESET-${resetQuotaTarget!.office_id}-${Date.now()}`,
+              reason,
+              password,
+              extra: {
+                office_id: resetQuotaTarget!.office_id,
+                office_name: resetQuotaTarget!.office_name,
+                region: selectedRegion,
+              },
+            },
+          });
+          if (error) throw new Error(error.message);
+          if (data?.error) throw new Error(data.error);
+          toast.success(`Used quota reset for ${resetQuotaTarget!.office_name}`);
+          setResetQuotaTarget(null);
+          refreshRegion();
+          onStockChanged();
+        }}
       />
     </div>
   );

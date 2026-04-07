@@ -121,6 +121,21 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
       const { error } = await supabase.from("rent_card_serial_stock").insert(rows);
       if (error) throw error;
 
+      // Create generation_batches record so it appears in Procurement Report
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        await supabase.from("generation_batches" as any).insert({
+          batch_label: batchLabel || `Upload-${Date.now()}`,
+          prefix: "UPLOAD",
+          regions: [selectedRegion],
+          region_details: [{ region: selectedRegion, generated: newSerials.length, skipped: skippedCount }],
+          total_unique_serials: newSerials.length,
+          total_physical_cards: newSerials.length,
+          paired_mode: false,
+          generated_by: authUser.id,
+        });
+      }
+
       const targetLabel = assignToRegion ? `${selectedRegion} region` : officeName;
       const msg = skippedCount > 0
         ? `${newSerials.length} new serial(s) added to ${targetLabel}. ${skippedCount} duplicate(s) skipped.`
