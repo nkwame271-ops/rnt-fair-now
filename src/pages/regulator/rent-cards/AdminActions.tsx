@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Loader2, RotateCcw, Trash2, ScrollText, Ban } from "lucide-react";
+import { Search, Loader2, RotateCcw, Trash2, ScrollText, Ban, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +13,22 @@ interface Props {
   onStockChanged: () => void;
 }
 
+interface BatchSummary {
+  batch_label: string;
+  available: number;
+  assigned: number;
+  revoked: number;
+  total: number;
+}
+
 const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
+  // --- Serial Stock Registry ---
+  const [registryBatches, setRegistryBatches] = useState<BatchSummary[]>([]);
+  const [registryLoading, setRegistryLoading] = useState(false);
+
   // --- Revoke Batch ---
   const [batchSearch, setBatchSearch] = useState("");
-  const [batchResults, setBatchResults] = useState<{ batch_label: string; available: number; assigned: number; revoked: number }[]>([]);
+  const [batchResults, setBatchResults] = useState<BatchSummary[]>([]);
   const [batchSearching, setBatchSearching] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
 
@@ -32,11 +44,47 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
   const [voidSearching, setVoidSearching] = useState(false);
   const [voidTarget, setVoidTarget] = useState<string | null>(null);
 
-  // (Account Management moved to Engine Room)
-
   // --- Audit Log ---
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+
+  // Load all batch labels on mount
+  const loadRegistryBatches = async () => {
+    setRegistryLoading(true);
+    try {
+      let allData: any[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data } = await supabase
+          .from("rent_card_serial_stock" as any)
+          .select("batch_label, status")
+          .not("batch_label", "is", null)
+          .range(from, from + PAGE - 1);
+        if (!data || data.length === 0) break;
+        allData = allData.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      const grouped = new Map<string, BatchSummary>();
+      for (const item of allData) {
+        const key = item.batch_label || "Unbatched";
+        if (!grouped.has(key)) grouped.set(key, { batch_label: key, available: 0, assigned: 0, revoked: 0, total: 0 });
+        const g = grouped.get(key)!;
+        g.total++;
+        if (item.status === "available") g.available++;
+        else if (item.status === "assigned") g.assigned++;
+        else if (item.status === "revoked") g.revoked++;
+      }
+      setRegistryBatches(Array.from(grouped.values()).sort((a, b) => b.total - a.total));
+    } catch {
+      toast.error("Failed to load batch registry");
+    }
+    setRegistryLoading(false);
+  };
+
+  useEffect(() => { loadRegistryBatches(); loadAuditLogs(); }, [refreshKey]);
 
   const handleBatchSearch = async () => {
     if (!batchSearch.trim()) return;
@@ -56,7 +104,7 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
       else if (item.status === "assigned") g.assigned++;
       else if (item.status === "revoked") g.revoked++;
     }
-    setBatchResults(Array.from(grouped.entries()).map(([batch_label, counts]) => ({ batch_label, ...counts })));
+    setBatchResults(Array.from(grouped.entries()).map(([batch_label, counts]) => ({ batch_label, ...counts, total: counts.available + counts.assigned + counts.revoked })));
     setBatchSearching(false);
   };
 
@@ -93,16 +141,16 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
     setVoidSearching(false);
   };
 
-
-  const handleAdminAction = async (action: string, targetId: string, password: string, reason: string, extra?: any) => {
+  const handleAdminAction = async (action: string, targetId: string, password: string, reason: string, _extra?: any) => {
     const { data, error } = await supabase.functions.invoke("admin-action", {
-      body: { action, target_id: targetId, reason, password, extra },
+      body: { action, target_id: targetId, reason, password, extra: _extra },
     });
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
     toast.success("Action completed successfully");
     onStockChanged();
     loadAuditLogs();
+    loadRegistryBatches();
   };
 
   const loadAuditLogs = async () => {
@@ -116,10 +164,46 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
     setAuditLoading(false);
   };
 
-  useEffect(() => { loadAuditLogs(); }, [refreshKey]);
-
   return (
     <div className="space-y-6">
+      {/* Serial Stock Registry — auto-loaded */}
+      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+          <Database className="h-5 w-5 text-primary" /> Serial Stock Registry
+        </h2>
+        <p className="text-sm text-muted-foreground">All uploaded and generated batches. Revoke or void unused serials directly.</p>
+        {registryLoading ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Loading batches...</p>
+        ) : registryBatches.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">No batches found.</p>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {registryBatches.map((b) => (
+              <div key={b.batch_label} className="border border-border rounded-lg p-4 flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <p className="font-mono font-bold text-sm text-card-foreground">{b.batch_label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Total: {b.total} • Available: {b.available} • Assigned: {b.assigned} • Revoked: {b.revoked}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {b.available > 0 && (
+                    <>
+                      <Button variant="destructive" size="sm" onClick={() => setRevokeTarget(b.batch_label)}>
+                        Revoke {b.available}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setVoidTarget(b.batch_label)}>
+                        <Ban className="h-3 w-3 mr-1" /> Void
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Revoke Serial Batch */}
       <div className="bg-card rounded-xl border border-border p-6 space-y-4">
         <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">

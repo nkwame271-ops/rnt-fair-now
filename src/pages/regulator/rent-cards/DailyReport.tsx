@@ -86,15 +86,38 @@ const DailyReport = ({ profile }: Props) => {
           .map(s => s.serial_number)
       ).size;
 
-      // Opening = available + assigned today (what was available at start of day)
-      const openingPairs = uniqueAvailable + uniqueAssignedToday;
+      // Fetch quota info for this office (quota + quantity_transfer modes)
+      let quotaRemaining = 0;
+      let quotaUsedToday = 0;
+      if (selectedOfficeId) {
+        const { data: quotaAllocs } = await supabase
+          .from("office_allocations" as any)
+          .select("quota_limit")
+          .eq("office_id", selectedOfficeId)
+          .in("allocation_mode", ["quota", "quantity_transfer"]);
+        const totalQuota = (quotaAllocs || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
+        if (totalQuota > 0) {
+          const { data: assignments } = await supabase
+            .from("serial_assignments" as any)
+            .select("card_count, created_at")
+            .eq("office_id", selectedOfficeId);
+          const totalUsed = (assignments || []).reduce((sum: number, a: any) => sum + (a.card_count || 0), 0);
+          quotaRemaining = Math.max(0, totalQuota - totalUsed);
+          quotaUsedToday = (assignments || []).filter((a: any) => a.created_at >= todayStart && a.created_at < todayEnd)
+            .reduce((sum: number, a: any) => sum + (a.card_count || 0), 0);
+        }
+      }
+
+      // Opening = physical available pairs + quota remaining + assigned today (what was available at start of day)
+      const physicalAvailablePairs = Math.floor(uniqueAvailable / 2);
+      const openingPairs = physicalAvailablePairs + quotaRemaining + uniqueAssignedToday + quotaUsedToday;
 
       setStats({
         openingPairs,
-        assignedToday: uniqueAssignedToday,
-        soldToday: uniqueAssignedToday, // Sold = assigned in context of rent cards
+        assignedToday: uniqueAssignedToday + quotaUsedToday,
+        soldToday: uniqueAssignedToday + quotaUsedToday,
         spoiltToday: uniqueSpoilt,
-        closingPairs: uniqueAvailable,
+        closingPairs: physicalAvailablePairs + quotaRemaining,
       });
     } catch (err: any) {
       toast.error(err.message || "Failed to generate report");

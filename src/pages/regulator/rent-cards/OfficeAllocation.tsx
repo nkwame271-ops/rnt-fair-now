@@ -379,7 +379,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                               </Badge>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Label className="text-xs text-muted-foreground whitespace-nowrap">Total Quota:</Label>
                             <Input
                               type="number"
@@ -397,6 +397,16 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                               >
                                 <Pencil className="h-3 w-3 mr-1" />
                                 {updatingQuota === q.office_id ? "Saving…" : "Update"}
+                              </Button>
+                            )}
+                            {q.used > 0 && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-7 text-xs"
+                                onClick={() => setResetQuotaTarget({ office_id: q.office_id, office_name: q.office_name, used: q.used })}
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" /> Reset Used
                               </Button>
                             )}
                             {editingQuota[q.office_id] !== undefined && editingQuota[q.office_id] < q.used && (
