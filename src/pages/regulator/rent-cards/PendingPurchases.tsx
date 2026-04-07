@@ -413,6 +413,13 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
 
   const handleConfirmAssign = async () => {
     if (!allMapped) return;
+
+    // LAYER 2 enforcement: if quota-based, block if assignment count exceeds remaining
+    if (quotaContext && mappingCards.length > quotaContext.remaining) {
+      toast.error(`Quota allows only ${quotaContext.remaining} more assignment(s), but ${mappingCards.length} selected`);
+      return;
+    }
+
     setAssigning(true);
 
     const office = resolveOffice();
