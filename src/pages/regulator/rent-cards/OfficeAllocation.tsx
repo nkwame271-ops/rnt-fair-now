@@ -502,6 +502,35 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
           : "Set Quotas"}
         onConfirm={handleConfirm}
       />
+
+      <AdminPasswordConfirm
+        open={!!resetQuotaTarget}
+        onOpenChange={() => setResetQuotaTarget(null)}
+        title="Reset Used Quota"
+        description={`This will reset the used quota count (${resetQuotaTarget?.used || 0}) for "${resetQuotaTarget?.office_name}". All serial assignment records for this office will be deleted. This action is logged and cannot be undone.`}
+        actionLabel="Reset Used Quota"
+        onConfirm={async (password, reason) => {
+          const { data, error } = await supabase.functions.invoke("admin-action", {
+            body: {
+              action: "reset_office_quota_usage",
+              target_id: `QUOTA-RESET-${resetQuotaTarget!.office_id}-${Date.now()}`,
+              reason,
+              password,
+              extra: {
+                office_id: resetQuotaTarget!.office_id,
+                office_name: resetQuotaTarget!.office_name,
+                region: selectedRegion,
+              },
+            },
+          });
+          if (error) throw new Error(error.message);
+          if (data?.error) throw new Error(data.error);
+          toast.success(`Used quota reset for ${resetQuotaTarget!.office_name}`);
+          setResetQuotaTarget(null);
+          refreshRegion();
+          onStockChanged();
+        }}
+      />
     </div>
   );
 };
