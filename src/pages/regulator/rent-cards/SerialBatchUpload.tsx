@@ -115,6 +115,7 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
         status: "available" as const,
         batch_label: batchLabel || null,
         region: assignToRegion ? selectedRegion : null,
+        pair_index: 1,
       }));
 
       const { error } = await supabase.from("rent_card_serial_stock").insert(rows);

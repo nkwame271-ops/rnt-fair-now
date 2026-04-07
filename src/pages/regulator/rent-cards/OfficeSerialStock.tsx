@@ -276,14 +276,30 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 pt-2">
               <div className="rounded-lg border border-success/30 bg-success/5 p-4 text-center">
-                <p className="text-2xl font-bold text-success">{Math.floor(stock.available / 2)}</p>
+                <p className="text-2xl font-bold text-success">
+                  {Math.floor(stock.available / 2) + (quotaInfo?.remaining || 0)}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">Opening Rent Card Pairs</p>
-                <p className="text-[10px] text-muted-foreground">{stock.available} serials</p>
+                {quotaInfo && quotaInfo.remaining > 0 ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    {Math.floor(stock.available / 2)} physical + {quotaInfo.remaining} quota
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">{stock.available} serials</p>
+                )}
               </div>
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-center">
-                <p className="text-2xl font-bold text-primary">{Math.floor(stock.assigned / 2)}</p>
+                <p className="text-2xl font-bold text-primary">
+                  {Math.floor(stock.assigned / 2) + (quotaInfo?.used || 0)}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">Assigned Rent Card Pairs</p>
-                <p className="text-[10px] text-muted-foreground">{stock.assigned} serials</p>
+                {quotaInfo && quotaInfo.used > 0 ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    {Math.floor(stock.assigned / 2)} physical + {quotaInfo.used} quota
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">{stock.assigned} serials</p>
+                )}
               </div>
               <div className="rounded-lg border border-info/30 bg-info/5 p-4 text-center">
                 <p className="text-2xl font-bold text-info">{Math.floor(stock.sold / 2)}</p>
@@ -296,9 +312,17 @@ const OfficeSerialStock = ({ profile, refreshKey }: Props) => {
                 <p className="text-[10px] text-muted-foreground">{stock.spoilt} serials</p>
               </div>
               <div className="rounded-lg border border-border p-4 text-center">
-                <p className="text-2xl font-bold text-card-foreground">{Math.floor((stock.available) / 2)}</p>
+                <p className="text-2xl font-bold text-card-foreground">
+                  {Math.floor(stock.available / 2) + (quotaInfo?.remaining || 0)}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">Closing Rent Card Pairs</p>
-                <p className="text-[10px] text-muted-foreground">{stock.total} total serials • {stock.revoked} revoked</p>
+                {quotaInfo && quotaInfo.remaining > 0 ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    {stock.total} serials + {quotaInfo.remaining} quota • {stock.revoked} revoked
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">{stock.total} total serials • {stock.revoked} revoked</p>
+                )}
               </div>
             </div>
 
