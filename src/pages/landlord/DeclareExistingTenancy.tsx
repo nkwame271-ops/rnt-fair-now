@@ -339,6 +339,30 @@ const DeclareExistingTenancy = () => {
       }
     }
 
+    // Finalize deferred office attribution for agreement_sale fee
+    try {
+      const { data: escrowData } = await supabase
+        .from("escrow_transactions")
+        .select("id, office_id")
+        .eq("user_id", user.id)
+        .eq("payment_type", "agreement_sale")
+        .eq("status", "completed")
+        .order("completed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (escrowData?.id && prop?.office_id) {
+        await supabase.functions.invoke("finalize-office-attribution", {
+          body: {
+            escrow_transaction_id: escrowData.id,
+            office_id: prop.office_id,
+          },
+        });
+      }
+    } catch (e: any) {
+      console.warn("Office attribution deferred:", e.message);
+    }
+
     setCreatedCode(registrationCode);
     setStep("done");
     toast.success("Existing tenancy declared successfully!");

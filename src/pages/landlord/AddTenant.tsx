@@ -380,6 +380,30 @@ const AddTenant = () => {
         data: { name: landlordProfile?.full_name || "", tenancy_id: regCode, property: propName },
       });
 
+      // Finalize deferred office attribution for add_tenant_fee
+      try {
+        const { data: escrowData } = await supabase
+          .from("escrow_transactions")
+          .select("id, office_id")
+          .eq("user_id", user.id)
+          .eq("payment_type", "add_tenant_fee")
+          .eq("status", "completed")
+          .order("completed_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (escrowData?.id && property?.office_id) {
+          await supabase.functions.invoke("finalize-office-attribution", {
+            body: {
+              escrow_transaction_id: escrowData.id,
+              office_id: property.office_id,
+            },
+          });
+        }
+      } catch (e: any) {
+        console.warn("Office attribution deferred:", e.message);
+      }
+
       setStep("done");
       toast.success("Tenancy agreement created and sent to tenant!");
     } catch (err: any) {

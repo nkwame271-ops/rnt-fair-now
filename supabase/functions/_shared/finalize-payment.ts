@@ -87,7 +87,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     } catch {}
 
     // Payment types where office attribution is deferred until service is handled
-    const DEFERRED_OFFICE_TYPES = ["rent_card", "rent_card_bulk", "add_tenant_fee", "declare_existing_tenancy_fee"];
+    const DEFERRED_OFFICE_TYPES = ["rent_card", "rent_card_bulk", "add_tenant_fee", "declare_existing_tenancy_fee", "agreement_sale"];
     const isDeferredOffice = DEFERRED_OFFICE_TYPES.includes(paymentType);
 
     const splitRows = splitPlan.map((s: SplitItem) => {
