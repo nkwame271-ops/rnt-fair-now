@@ -776,6 +776,42 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "reset_office_quota_usage": {
+        targetType = "office_quota";
+        const { office_id: rOfficeId, office_name: rOfficeName } = extra || {};
+
+        if (!rOfficeId) {
+          throw new Error("Missing parameter: office_id");
+        }
+
+        // Count current usage
+        const { data: usageRows } = await adminClient
+          .from("serial_assignments")
+          .select("id, card_count")
+          .eq("office_id", rOfficeId);
+
+        const totalUsed = (usageRows || []).reduce((sum: number, a: any) => sum + (a.card_count || 0), 0);
+
+        if (totalUsed === 0) {
+          throw new Error("No used quota to reset for this office");
+        }
+
+        oldState = { office_id: rOfficeId, office_name: rOfficeName, used_count: totalUsed, assignment_rows: (usageRows || []).length };
+
+        // Delete all serial_assignments for this office
+        const assignmentIds = (usageRows || []).map((r: any) => r.id);
+        for (let i = 0; i < assignmentIds.length; i += 500) {
+          const batch = assignmentIds.slice(i, i + 500);
+          await adminClient
+            .from("serial_assignments")
+            .delete()
+            .in("id", batch);
+        }
+
+        newState = { office_id: rOfficeId, office_name: rOfficeName, reset_count: totalUsed, deleted_rows: assignmentIds.length };
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
