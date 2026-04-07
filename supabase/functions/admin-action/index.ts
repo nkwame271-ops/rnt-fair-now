@@ -366,31 +366,44 @@ Deno.serve(async (req) => {
 
       case "revoke_batch": {
         targetType = "serial_stock";
-        const { data: serials } = await adminClient
-          .from("rent_card_serial_stock")
-          .select("id, serial_number, status, assigned_to_card_id")
-          .eq("batch_label", target_id)
-          .in("status", ["available"]);
+        // Paginate to handle batches with >1000 serials
+        let allRevokeIds: string[] = [];
+        let rFrom = 0;
+        const R_PAGE = 1000;
+        while (true) {
+          const { data: page } = await adminClient
+            .from("rent_card_serial_stock")
+            .select("id")
+            .eq("batch_label", target_id)
+            .eq("status", "available")
+            .range(rFrom, rFrom + R_PAGE - 1);
+          if (!page || page.length === 0) break;
+          allRevokeIds = allRevokeIds.concat(page.map((s: any) => s.id));
+          if (page.length < R_PAGE) break;
+          rFrom += R_PAGE;
+        }
 
-        if (!serials || serials.length === 0) {
+        if (allRevokeIds.length === 0) {
           throw new Error("No available (unused) serials found in this batch");
         }
 
-        oldState = { batch_label: target_id, count: serials.length, status: "available" };
+        oldState = { batch_label: target_id, count: allRevokeIds.length, status: "available" };
 
-        const ids = serials.map((s: any) => s.id);
-        const { error: updateErr } = await adminClient
-          .from("rent_card_serial_stock")
-          .update({
-            status: "revoked",
-            revoked_at: new Date().toISOString(),
-            revoked_by: user.id,
-            revoke_reason: reason,
-          })
-          .in("id", ids);
+        for (let i = 0; i < allRevokeIds.length; i += 500) {
+          const batch = allRevokeIds.slice(i, i + 500);
+          const { error: updateErr } = await adminClient
+            .from("rent_card_serial_stock")
+            .update({
+              status: "revoked",
+              revoked_at: new Date().toISOString(),
+              revoked_by: user.id,
+              revoke_reason: reason,
+            })
+            .in("id", batch);
+          if (updateErr) throw updateErr;
+        }
 
-        if (updateErr) throw updateErr;
-        newState = { status: "revoked", revoked_count: ids.length };
+        newState = { status: "revoked", revoked_count: allRevokeIds.length };
         break;
       }
 
@@ -448,30 +461,44 @@ Deno.serve(async (req) => {
 
       case "void_upload": {
         targetType = "serial_stock";
-        const { data: serials } = await adminClient
-          .from("rent_card_serial_stock")
-          .select("id, status")
-          .eq("batch_label", target_id)
-          .in("status", ["available"]);
+        // Paginate to handle batches with >1000 serials
+        let allVoidIds: string[] = [];
+        let vFrom = 0;
+        const V_PAGE = 1000;
+        while (true) {
+          const { data: page } = await adminClient
+            .from("rent_card_serial_stock")
+            .select("id")
+            .eq("batch_label", target_id)
+            .eq("status", "available")
+            .range(vFrom, vFrom + V_PAGE - 1);
+          if (!page || page.length === 0) break;
+          allVoidIds = allVoidIds.concat(page.map((s: any) => s.id));
+          if (page.length < V_PAGE) break;
+          vFrom += V_PAGE;
+        }
 
-        if (!serials || serials.length === 0) {
+        if (allVoidIds.length === 0) {
           throw new Error("No unused serials found in this batch to void");
         }
 
-        oldState = { batch_label: target_id, count: serials.length };
+        oldState = { batch_label: target_id, count: allVoidIds.length };
 
-        const ids = serials.map((s: any) => s.id);
-        await adminClient
-          .from("rent_card_serial_stock")
-          .update({
-            status: "revoked",
-            revoked_at: new Date().toISOString(),
-            revoked_by: user.id,
-            revoke_reason: `Voided upload: ${reason}`,
-          })
-          .in("id", ids);
+        for (let i = 0; i < allVoidIds.length; i += 500) {
+          const batch = allVoidIds.slice(i, i + 500);
+          const { error: updateErr } = await adminClient
+            .from("rent_card_serial_stock")
+            .update({
+              status: "revoked",
+              revoked_at: new Date().toISOString(),
+              revoked_by: user.id,
+              revoke_reason: `Voided upload: ${reason}`,
+            })
+            .in("id", batch);
+          if (updateErr) throw updateErr;
+        }
 
-        newState = { status: "revoked", voided_count: ids.length };
+        newState = { status: "revoked", voided_count: allVoidIds.length };
         break;
       }
 
