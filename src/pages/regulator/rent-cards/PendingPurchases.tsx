@@ -699,7 +699,6 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                     ⚠ Selected {mappingCards.length} cards but only {quotaContext.remaining} quota remaining. Reduce selection.
                   </p>
                 )}
-                </div>
               </div>
 
               {availableSerials.length === 0 ? (
