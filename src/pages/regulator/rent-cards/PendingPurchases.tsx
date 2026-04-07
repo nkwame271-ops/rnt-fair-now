@@ -151,6 +151,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   const [serialMap, setSerialMap] = useState<Record<string, string>>({});
   const [availableSerials, setAvailableSerials] = useState<SerialOption[]>([]);
   const [loadingSerials, setLoadingSerials] = useState(false);
+  const [quotaContext, setQuotaContext] = useState<{ remaining: number } | null>(null);
 
   // Computed: serials for "start_from" mode
   const startFromPreview = useMemo(() => {
