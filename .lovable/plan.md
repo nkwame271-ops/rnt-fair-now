@@ -1,82 +1,66 @@
 
-Fix direction
 
-What is still wrong in the current code
-- `PendingPurchases.tsx` is still turning count-based allocation into a pseudo-range by fetching regional serials and then doing `slice(0, quotaRemaining)`. That is the core reason offices only see the first allocated block instead of the full regional registry.
-- `OfficeAllocation.tsx` and `OfficeSerialStock.tsx` currently group `quantity_transfer` into the same quota usage logic, so allocation counts and stock views are still conceptually mixed.
-- `admin-action/index.ts` already keeps `quantity_transfer` as count-only, but the UI layer is wrongly converting that count into restricted serial visibility.
+# Replace All Office Mappings with Official Rent Control List
 
-Target model: 3 separate layers
-1. Regional Registry
-- Master source of selectable serials for a region
-- Read from regional `rent_card_serial_stock` only
-- Serials stay visible until actually assigned / invalidated
+## Summary
+The current platform has ~68 offices across 16 regions, many of which are incorrect. The user has provided the official Rent Control Department list with ~80 offices across 14 regions (Savannah and North East regions are removed entirely). This requires updating three data sources: the client-side constant, the database `offices` table, and the `region_codes` table.
 
-2. Office Allocation
-- Count-only limit
-- Backed by `office_allocations` entries for `quota` and `quantity_transfer`
-- No serial reservation, no range binding, no stock movement
+## Key Differences from Current Data
 
-3. Office Usage Display
-- Reporting only
-- `Allocated`, `Used`, `Remaining`
-- Derived from allocation totals minus `serial_assignments`
-- Separate from physical office stock
+**Regions removed**: Savannah (Damongo, Salaga, Bimbilla), North East (Nalerigu)
 
-Implementation plan
+**Greater Accra**: Shrinks from 24 to 14 offices. Removes Accra North, Madina, Teshie-Nungua, Kaneshie, Achimota, Dome, Lapaz, Spintex, East Legon, Airport Area, Osu, La, Cantonment, Dzorwulu, Roman Ridge, Awoshie, Ablekuma. Adds Adjen Kotoku, Ningo-Prampram, Tema New Town, Dodowa, Sowutuom, Attah Deka, Ofankor.
 
-1. Fix assignment loading so allocation never limits serial visibility
-- In `PendingPurchases.tsx`, keep using allocation totals only to compute `remaining`.
-- For count-based offices, fetch the full unused regional registry list for that region.
-- Remove the logic that truncates the serial list to `quotaRemaining`.
-- Enforce the limit only at confirmation time: if selected/auto-assigned count exceeds remaining, block assignment.
+**Ashanti**: Expands from 3-4 to 12. Adds Ejisu, Mamponteng, Asokore Mampong, Ashanti Mampong, Konongo, Nkawie, Effiduase, Asanti Bekwai, Agogo, Offinso. Removes Kumasi South. Nkawkaw moves to Eastern.
 
-2. Keep physical stock and count allocation fully separate
-- In `OfficeAllocation.tsx`, keep:
-  - `Next Available Serials` = physical stock transfer
-  - `Transfer by Number Only` = count allocation only
-  - `Priority Quota` = count allocation only
-- Update labels/help text so users clearly see that number-only/quota affect capacity, not stock.
-- Do not let count allocation update the “Already in Office Stock” card.
+**Eastern**: Expands. Adds Krobo Odumase, Kibi, Asamankese. Removes Suhum, Oda.
 
-3. Show the right regional numbers
-- Keep “regional registry available” based on actual unused regional serials.
-- Add or relabel a separate derived count for “regional unallocated capacity” if needed:
-  `regional available - outstanding count allocations`
-- This satisfies “reduce unallocated count” without hiding any serial numbers from the picker.
+**Central**: Agona Swedru replaces Swedru. Adds Buduburam. Removes Elmina, Saltpond.
 
-4. Keep office stock card pure
-- In `OfficeSerialStock.tsx`, keep stock summary based only on `stock_type = "office"`.
-- If allocation info is shown on that screen, label it separately as allocation usage, not stock.
-- Do not let `quantity_transfer` make office stock appear larger or smaller.
+**Western**: Adds Wassa Akropong, Jomoro, Ellembele.
 
-5. Preserve count-only behavior in the edge function
-- In `supabase/functions/admin-action/index.ts`, keep `quota` and `quantity_transfer` as accounting-only inserts into `office_allocations`.
-- Ensure those modes never write `start_serial`, `end_serial`, `serial_numbers`, or move `rent_card_serial_stock` rows.
-- Keep all physical serial movement in the `transfer` branch only.
+**Bono**: Brekum replaces Berekum. Dormaa East replaces Dormaa.
 
-6. Tighten deferred office payout behavior
-- `OfficePayoutSettings.tsx`: keep auto-create/update of the office transfer recipient after save, then refresh/display the stored recipient status.
-- `_shared/finalize-payment.ts`: keep office splits deferred for `rent_card`, `rent_card_bulk`, `add_tenant_fee`, and `declare_existing_tenancy_fee`, but do not lazily create office recipients at payout time.
-- `finalize-office-attribution/index.ts`: make this the only place that attributes the office and triggers payout. If no stored recipient code exists, log the issue and leave payout pending instead of attempting transfer.
+**Bono East**: Adds Nkoranza.
 
-7. Complete deferred attribution for office-owned fees
-- For rent cards, keep attribution after serial assignment.
-- For Add Tenant / Declare Existing Tenancy, hook attribution at the exact point where the responsible office is actually known, so office crediting and payout happen only after real office linkage.
+**Upper West**: Adds Lawra, Jirapa.
 
-Files to update
-- `src/pages/regulator/rent-cards/PendingPurchases.tsx`
-- `src/pages/regulator/rent-cards/OfficeAllocation.tsx`
-- `src/pages/regulator/rent-cards/OfficeSerialStock.tsx`
-- `supabase/functions/admin-action/index.ts`
-- `src/pages/regulator/OfficePayoutSettings.tsx`
-- `supabase/functions/_shared/finalize-payment.ts`
-- `supabase/functions/finalize-office-attribution/index.ts`
-- the existing office-linking points in `AddTenant.tsx` / `DeclareExistingTenancy.tsx` once traced
+**Upper East**: Removes Bawku.
 
-Expected outcome
-- Offices can see all unused regional serials for their region
-- Allocation limits how many can be assigned, not which serials are visible
-- Office stock changes only after real physical transfer
-- Allocation/usage becomes a separate reporting layer
-- Office payouts happen only after attribution and only when a valid stored recipient code exists
+**Volta**: Adds Kpando/Hohoe, Denu, Akatsi. Removes Kpando standalone.
+
+**Oti**: Kedjebi replaces Dambai and Nkwanta.
+
+**Western North**: Removes Bibiani.
+
+## Changes Required
+
+### 1. Database Migration — Update `offices` table
+- Delete offices that no longer exist (will need to handle FK constraints on `cases.office_id` and `escrow_transactions.office_id` by setting references to the regional HQ before deleting)
+- Insert new offices
+- Update renamed offices (e.g., Swedru → Agona Swedru, Berekum → Brekum, Dormaa → Dormaa East)
+- Remove region_codes entries for Savannah and North East
+
+### 2. Client-Side Constant — `src/hooks/useAdminProfile.ts`
+- Replace `GHANA_REGIONS_OFFICES` array with the exact official list (14 regions, ~80 offices)
+- All derived helpers (`GHANA_OFFICES`, `GHANA_REGIONS`, `getOfficesForRegion`, etc.) auto-update
+
+### 3. GPS Utils — `src/lib/gpsUtils.ts`
+- Remove Savannah and North East from the `GHANA_REGIONS` coordinate map
+
+### 4. Region Codes — Database
+- Delete region_codes rows for "Savannah" and "North East"
+
+### Files to Change
+
+| File | Change |
+|------|--------|
+| `src/hooks/useAdminProfile.ts` | Replace `GHANA_REGIONS_OFFICES` with official 14-region, ~80-office list |
+| `src/lib/gpsUtils.ts` | Remove Savannah and North East from region coordinates |
+| New migration SQL | Delete removed offices (with FK cleanup), insert new ones, update renames, clean region_codes |
+
+### Migration Safety
+- Before deleting old office rows, reassign any `cases.office_id` and `escrow_transactions.office_id` that reference deleted IDs to the regional HQ office
+- Update any `admin_staff.office_id`, `office_allocations.office_id`, `office_payout_accounts.office_id` text references similarly
+- This preserves data integrity while switching to the correct office list
+
