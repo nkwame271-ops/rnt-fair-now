@@ -134,19 +134,32 @@ Deno.serve(async (req) => {
           failure_reason: e.message || "Transfer error",
         });
       }
-    } else if (autoRelease && totalAdminAmount > 0) {
-      // Auto-release mode but no recipient — create fund request for manual processing
-      await adminClient.from("office_fund_requests").insert({
-        office_id,
-        amount: totalAdminAmount,
-        purpose: "Deferred office attribution — auto-release pending recipient setup",
-        requested_by: user.id,
-        status: "approved",
-        reviewed_by: user.id,
-        reviewed_at: new Date().toISOString(),
-        reviewer_notes: "Auto-approved (deferred attribution). No recipient code — manual payout needed.",
-        payout_reference: `deferred_auto_${escrow_transaction_id.slice(0, 8)}_${Date.now()}`,
+    } else if (totalAdminAmount > 0) {
+      // No recipient code — log to payment_processing_errors and leave payout pending
+      await adminClient.from("payment_processing_errors").insert({
+        escrow_transaction_id,
+        reference: `deferred_${escrow_transaction_id.slice(0, 8)}`,
+        function_name: "finalize-office-attribution",
+        error_stage: "recipient_lookup",
+        error_message: `Office ${office_id} has no paystack_recipient_code configured. Payout of GH₵ ${totalAdminAmount.toFixed(2)} left pending.`,
+        severity: "warning",
+        error_context: { office_id, amount: totalAdminAmount, auto_release: autoRelease },
       });
+
+      if (autoRelease) {
+        // Create fund request for manual processing
+        await adminClient.from("office_fund_requests").insert({
+          office_id,
+          amount: totalAdminAmount,
+          purpose: "Deferred office attribution — auto-release pending recipient setup",
+          requested_by: user.id,
+          status: "approved",
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString(),
+          reviewer_notes: "Auto-approved (deferred attribution). No recipient code — manual payout needed.",
+          payout_reference: `deferred_auto_${escrow_transaction_id.slice(0, 8)}_${Date.now()}`,
+        });
+      }
     }
 
     return new Response(JSON.stringify({ success: true, attributed_splits: splitIds.length, office_id }), {
