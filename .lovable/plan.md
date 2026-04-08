@@ -1,50 +1,44 @@
 
 
-# Fix Plan: Paired Serial Generation & Assignment
+# Plan: Add "Assign by Manual Range" to Office Allocation Transfer
 
-## Problem
+## What changes
 
-The user reports issues with how paired mode works in serial generation and assignment:
+Add a third transfer sub-mode ("by_range") alongside the existing "Next Available Serials" and "Transfer by Number Only" options. This lets an admin enter a start and end serial per office, and the system transfers all matching regional serials within that range sequentially.
 
-1. **Generation** — Currently works correctly: in paired mode, each serial number gets 2 rows (pair_index 1 and 2). No change needed here.
+## Files to change
 
-2. **Assignment** — The bug: when assigning a serial, only the `pair_index=1` row is updated to "assigned". The `pair_index=2` row for the same serial_number stays "available", creating orphaned stock and incorrect counts.
+### 1. `src/pages/regulator/rent-cards/OfficeAllocation.tsx`
 
-## Root Cause
+- Add `"by_range"` to the `TransferSubMode` type
+- Add a new RadioGroup option: "Assign by Manual Range"
+- Add state for range inputs: `officeRanges: Record<string, { start: string; end: string }>`
+- When `by_range` is selected, replace the per-office quantity input with two text inputs (Start Serial, End Serial) per office
+- Compute `totalTransferQty` from ranges: for each office with a valid range, count = numeric(end) - numeric(start) + 1
+- Update `canAllocate` to validate range inputs (start <= end, both non-empty)
+- In `handleConfirm`, for `by_range` mode, call `admin-action` with `allocation_mode: "range_transfer"` and pass `start_serial` / `end_serial` in the `extra` payload
+- Update the `AdminPasswordConfirm` description to reflect range transfer
 
-In `PendingPurchases.tsx` (line 437-447), the assignment update targets a single row by `id` (the pair_index=1 record). The pair_index=2 duplicate is never marked as assigned.
+### 2. `supabase/functions/admin-action/index.ts`
 
-## Fix
+Inside the `"allocate_to_office"` case, add handling for `allocation_mode === "range_transfer"`:
 
-### File: `src/pages/regulator/rent-cards/PendingPurchases.tsx`
+- Extract `start_serial` and `end_serial` from `extra`
+- Query `rent_card_serial_stock` for serials in the given region where `stock_type = 'regional'`, `status = 'available'`, and `serial_number` between start and end (inclusive), ordered ascending
+- Validate: if returned count is 0 or less than expected range, throw an error with details on which serials are missing/unavailable
+- Group by serial_number to capture both pair indices
+- Create the `office_allocations` record with `allocation_mode: "range_transfer"`, `start_serial`, `end_serial`, actual `serial_numbers` array, and `quantity` = unique serial count
+- Update all matched rows to `stock_type: "office"` and `office_name` (same batch logic as existing transfer mode)
+- Set `oldState`/`newState` for audit logging
 
-**Change the assignment logic** (around line 437-453): After updating the pair_index=1 row by `id`, also update the matching pair_index=2 row by `serial_number` + `pair_index=2`:
+## Validation rules (server-side in edge function)
 
-```
-// After updating pair_index=1 row:
-await supabase
-  .from("rent_card_serial_stock")
-  .update({
-    status: "assigned",
-    assigned_to_card_id: card.id,
-    assigned_at: new Date().toISOString(),
-    assigned_by: user?.id,
-  })
-  .eq("serial_number", chosenSerial)
-  .eq("pair_index", 2)
-  .eq("status", "available");
-```
+- All serials in the range must exist in regional stock for the selected region
+- All serials must have `status = 'available'`
+- The quantity (range size) must not exceed available regional stock
+- Standard password re-auth and audit logging apply (already handled by the existing flow)
 
-This ensures both copies of a paired serial are marked as assigned together — 1 serial = 1 pair = 2 physical cards.
+## No other files need changes
 
-**No changes needed to:**
-- Serial generation (`admin-action/index.ts`) — already creates pairs correctly
-- Office allocation transfer — already handles both pair indices
-- The UI display logic — already filters by pair_index=1 for display
-
-### Summary
-
-| File | Change |
-|------|--------|
-| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | After assigning pair_index=1 row, also update the pair_index=2 row for the same serial_number to "assigned" |
+The allocation history, reports, reconciliation, and stock displays already work off the `office_allocations` and `rent_card_serial_stock` tables — a range transfer updates the same fields as a regular transfer, so downstream views reflect it automatically.
 
