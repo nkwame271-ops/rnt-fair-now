@@ -1,64 +1,39 @@
 
 
-# Plan: Fix Three Issues — Unassign/Assign Serial Bugs + Print Receipt
+# Fix: OTP "Invalid or expired" Error
 
-## Issue 1: Duplicate key after unassign + "still active" on re-unassign
+## Root Cause Analysis
 
-**Root cause**: The `unassign_serial_atomic` function resets stock rows to `status = 'available'` but does NOT restore them to their original `stock_type`/`office_name` context. Additionally, the `assign_serials_atomic` function sets `assigned_to_card_id` to only `v_card_ids[1]` for ALL stock rows — so pair_index=2 stock row also points to card 1 instead of card 2. When unassigning and re-assigning, the stock rows are marked available but may have stale metadata, and the pair_index=2 row's `assigned_to_card_id` was never properly differentiated.
+Testing confirms the OTP flow works mechanically. The real issues are:
 
-The "still active" issue likely occurs because after unassign, the `rent_cards` rows are reset but the UI isn't re-querying, or because the stock rows' status briefly shows `assigned` due to caching/stale reads.
+1. **OTP gets deleted on resend**: `send-otp` deletes ALL previous OTPs for the phone before inserting a new one. If the user hits "Resend" or the app calls `send-otp` twice (e.g., navigating back and re-submitting), the first OTP is destroyed. The user then enters the old code from the first SMS → "Invalid."
 
-**Fix**: In `unassign_serial_atomic`, the reset logic is correct. The real problem is that `assign_serials_atomic` should update each stock row's `assigned_to_card_id` to the correct card per pair_index (card 1 → pair_index 1, card 2 → pair_index 2), not set all to card 1. This will also prevent orphaned references.
+2. **Indistinguishable errors**: `verify-otp` returns the same "Invalid or expired OTP" for ALL failure reasons: wrong code, already verified, expired, or no OTP found. This makes debugging impossible.
 
-## Issue 2: "Serial claimed by another admin" — assigns half, leaves half
+3. **No retry protection**: After a successful verification (`verified = true`), any second call to `verify-otp` fails because it filters for `verified = false`. If the app's response handler retries or the user double-clicks, they see the error even though verification succeeded.
 
-**Root cause**: In `assign_serials_atomic`, when updating stock rows, it does:
-```sql
-UPDATE rent_card_serial_stock
-SET status = 'assigned', assigned_to_card_id = v_card_ids[1]
-WHERE serial_number = v_serial;
-```
-This updates ALL stock rows for that serial to reference card 1. But the validation loop `FOR v_stock_row IN SELECT ... FOR UPDATE` checks each stock row's status. If pair_index=2 rows are somehow in a bad state (e.g., already assigned from a previous partial operation), the entire batch fails partway.
+## Fix
 
-More critically, the stock query in `PendingPurchases.tsx` only fetches `pair_index = 1` rows to display available serials. But the RPC validates BOTH pair_index rows. If pair_index=2 rows are in a different state (e.g., not reset properly from a previous unassign), the RPC will reject the serial even though pair_index=1 shows "available."
+### `supabase/functions/verify-otp/index.ts` — Specific error messages + tolerant matching
 
-**Fix**: 
-1. Update `assign_serials_atomic` to assign `v_card_ids[1]` to pair_index=1 stock row and `v_card_ids[2]` to pair_index=2 stock row separately.
-2. Ensure the stock validation counts both pair_index rows and requires exactly 2 available rows.
+Instead of one combined query with all filters, do a stepped lookup:
+1. Find the latest OTP for this phone (no code/verified/expiry filter)
+2. If none found → "No verification code found for this number"
+3. If found but already verified → return `{ verified: true }` (idempotent success)
+4. If found but expired → "Verification code has expired. Please request a new one"
+5. If found but code doesn't match → "Incorrect verification code"
+6. If all pass → mark as verified, return success
 
-## Issue 3: Print button prints entire page
+### `supabase/functions/send-otp/index.ts` — Soft-delete instead of hard-delete
 
-**Root cause**: `PaymentReceipt` uses `window.print()` which prints the entire page. There are no `@media print` CSS rules to hide non-receipt content.
-
-**Fix**: Add print-specific CSS that hides everything except the targeted receipt when printing. Use a technique where clicking "Print" sets a data attribute on the specific receipt, and `@media print` rules hide all other content.
-
-## Implementation
-
-### Migration: Fix `assign_serials_atomic` and `unassign_serial_atomic`
-
-Replace `assign_serials_atomic` to update stock rows per pair_index:
-- pair_index=1 → `assigned_to_card_id = v_card_ids[1]`
-- pair_index=2 → `assigned_to_card_id = v_card_ids[2]`
-
-Validate exactly 2 available stock rows exist per serial.
-
-### `PaymentReceipt.tsx` — Scoped printing
-
-Replace `window.print()` with logic that:
-1. Adds a `data-printing` attribute to the receipt element
-2. Adds a temporary `<style>` for `@media print` that hides everything except the marked receipt
-3. Calls `window.print()`
-4. Cleans up
-
-### `src/index.css` — Add base print styles
-
-Add `@media print` rules to hide navigation, sidebars, and non-essential UI.
+Instead of `DELETE` old OTPs, only delete OTPs that are already `verified = true` or expired. Keep the current unverified+unexpired OTP alive so resend doesn't break an in-progress verification. If an unexpired OTP exists, just update its code and reset expiry (upsert pattern).
 
 ## Files
 
 | File | Action |
 |------|--------|
-| New migration SQL | Fix both RPC functions |
-| `src/components/PaymentReceipt.tsx` | Scoped print logic |
-| `src/index.css` | Add `@media print` base styles |
+| `supabase/functions/verify-otp/index.ts` | Rewrite with stepped lookup and specific error messages |
+| `supabase/functions/send-otp/index.ts` | Change delete to upsert pattern — update existing unexpired OTP code instead of deleting |
+
+No frontend changes needed — the error messages will flow through to the UI automatically.
 
