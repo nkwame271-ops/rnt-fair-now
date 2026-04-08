@@ -468,27 +468,25 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                         <span className="text-sm text-card-foreground truncate">{o.name}</span>
                       </div>
                       {transferSubMode === "by_range" ? (
-                        <div className="flex items-center gap-1.5">
-                          <Input
-                            type="text"
-                            className="w-24 h-8 text-xs"
-                            placeholder="Start (e.g. 050)"
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <SerialSearchPicker
+                            serials={regionalSerials}
                             value={officeRanges[o.id]?.start || ""}
-                            onChange={e => setOfficeRanges(prev => ({
+                            onChange={v => setOfficeRanges(prev => ({
                               ...prev,
-                              [o.id]: { start: e.target.value, end: prev[o.id]?.end || "" },
+                              [o.id]: { start: v, end: prev[o.id]?.end || "" },
                             }))}
+                            placeholder="Start serial..."
                           />
                           <span className="text-xs text-muted-foreground">to</span>
-                          <Input
-                            type="text"
-                            className="w-24 h-8 text-xs"
-                            placeholder="End (e.g. 100)"
+                          <SerialSearchPicker
+                            serials={regionalSerials}
                             value={officeRanges[o.id]?.end || ""}
-                            onChange={e => setOfficeRanges(prev => ({
+                            onChange={v => setOfficeRanges(prev => ({
                               ...prev,
-                              [o.id]: { start: prev[o.id]?.start || "", end: e.target.value },
+                              [o.id]: { start: prev[o.id]?.start || "", end: v },
                             }))}
+                            placeholder="End serial..."
                           />
                           {rangeQuantities[o.id] && (
                             <Badge variant="secondary" className="text-[10px] whitespace-nowrap">{rangeQuantities[o.id]} pairs</Badge>
