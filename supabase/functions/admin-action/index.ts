@@ -294,16 +294,10 @@ Deno.serve(async (req) => {
             throw new Error("Missing start_serial or end_serial for range transfer");
           }
 
-          const startNum = parseInt(aStartSerial, 10);
-          const endNum = parseInt(aEndSerial, 10);
-          if (isNaN(startNum) || isNaN(endNum) || endNum < startNum) {
+          if (aStartSerial > aEndSerial) {
             throw new Error("Invalid serial range: end must be >= start");
           }
-          const expectedCount = endNum - startNum + 1;
 
-          // Build the list of serial suffixes we expect
-          // Serial numbers may have prefixes, so we query by range using gte/lte
-          // Fetch all regional available serials whose numeric suffix falls within the range
           const { data: availableSerials, error: fetchErr } = await adminClient
             .from("rent_card_serial_stock")
             .select("id, serial_number, pair_index")
@@ -313,7 +307,7 @@ Deno.serve(async (req) => {
             .gte("serial_number", aStartSerial)
             .lte("serial_number", aEndSerial)
             .order("serial_number", { ascending: true })
-            .limit(expectedCount * 2 + 100);
+            .limit(2000);
 
           if (fetchErr) throw new Error(`Failed to query serials: ${fetchErr.message}`);
           if (!availableSerials || availableSerials.length === 0) {
@@ -327,9 +321,8 @@ Deno.serve(async (req) => {
             serialMap.get(s.serial_number)!.push(s);
           });
 
-          const uniqueCount = serialMap.size;
-          if (uniqueCount < expectedCount) {
-            throw new Error(`Only ${uniqueCount} of ${expectedCount} serials are available in range ${aStartSerial}–${aEndSerial}. Some may be missing, already assigned, or not in regional stock.`);
+          if (serialMap.size === 0) {
+            throw new Error(`No available serials found in range ${aStartSerial}–${aEndSerial}`);
           }
 
           const serialsToTransfer: string[] = [];
