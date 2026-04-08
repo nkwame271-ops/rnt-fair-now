@@ -1,68 +1,31 @@
 
 
-# Plan: OTP-Based Password Recovery Flow
+# Fix: "FOR UPDATE is not allowed with aggregate functions"
 
-## Overview
-Replace the current "visit Rent Control office" forgot-password message with a full self-service OTP-based password reset flow. Users enter their phone number or tenant/landlord ID, receive a 6-digit SMS OTP, verify it, then set a new password. If they no longer have access to the phone, they are directed to the office.
+## Root Cause
 
-## Flow
-```text
-Login → "Forgot password?" → ForgotPassword page
-  Step 1: Enter phone number OR tenant/landlord ID
-  Step 2: System looks up phone from profiles/tenants/landlords tables
-  Step 3: Send OTP to registered phone (reuse send-otp edge function)
-  Step 4: Enter 6-digit OTP code (reuse verify-otp edge function)
-  Step 5: Set new password (calls new reset-password-otp edge function)
-  
-  Fallback: "No longer have this phone?" → manual office verification message
-```
+The `unassign_serial_atomic` database function uses `SELECT count(*) INTO v_stock_count FROM rent_card_serial_stock WHERE ... FOR UPDATE`. PostgreSQL prohibits `FOR UPDATE` on queries with aggregate functions (`count()`).
 
-## Changes
+The same issue exists for the card count query further down.
 
-### 1. New edge function: `reset-password-otp`
-- Accepts `{ phone, otp_code, new_password }`
-- Uses service_role to verify OTP is valid and marked verified
-- Looks up user by phone in `profiles` table
-- Uses `supabase.auth.admin.updateUserById()` to set the new password
-- Returns success/failure
+## Fix
 
-### 2. New page: `src/pages/ForgotPassword.tsx`
-- Multi-step form with 3 stages:
-  - **Step 1 — Identify**: Input for phone number OR tenant/landlord ID. On submit, look up the user's phone number (if ID entered, query `tenants.tenant_id` or `landlords.landlord_id` to get `user_id`, then `profiles.phone`). Show masked phone (e.g. `023****890`) for confirmation. Call `send-otp`.
-  - **Step 2 — Verify OTP**: 6-digit OTP input using existing `InputOTP` component. Call `verify-otp`. Show resend option with cooldown timer.
-  - **Step 3 — New Password**: Password + confirm password fields. Call `reset-password-otp`. On success, redirect to `/login`.
-- "Can't access this number?" link shows the manual office fallback message.
+Create a migration that replaces `unassign_serial_atomic` with corrected query structure:
 
-### 3. New edge function: `lookup-phone` (for ID-based lookup)
-- Accepts `{ identifier }` (phone or tenant/landlord ID)
-- Service_role queries `tenants`/`landlords` by ID pattern, then `profiles` by `user_id` or directly by phone
-- Returns `{ phone_masked: "023****890", phone_normalized: "233..." }` — the normalized phone is needed for OTP but the masked version is shown to the user
-- Security: returns masked phone only, never the full number
+1. **Lock rows first** with a plain `SELECT ... FOR UPDATE` (no aggregates)
+2. **Count separately** using `GET DIAGNOSTICS` or a second query without `FOR UPDATE`
 
-### 4. Update `Login.tsx`
-- Change "Forgot password?" link to navigate to `/forgot-password` instead of toggling inline message
+Specifically:
+- Replace `SELECT count(*) INTO v_stock_count FROM rent_card_serial_stock WHERE serial_number = p_serial_number FOR UPDATE` with:
+  - `PERFORM 1 FROM rent_card_serial_stock WHERE serial_number = p_serial_number FOR UPDATE;` (locks rows)
+  - `SELECT count(*) INTO v_stock_count FROM rent_card_serial_stock WHERE serial_number = p_serial_number;` (counts without lock)
+- Apply the same pattern to the card locking section — the existing `FOR v_card IN SELECT ... FOR UPDATE` loop is fine (no aggregate), but the later `SELECT count(*) INTO v_card_count` doesn't need `FOR UPDATE` since rows are already locked by the loop above.
 
-### 5. Update `App.tsx`
-- Add route: `<Route path="/forgot-password" element={<ForgotPassword />} />`
+## File
 
-### 6. Update `supabase/config.toml`
-- Add `verify_jwt = false` for `reset-password-otp` and `lookup-phone` functions
-
-## Files to create/modify
-
-| File | Action |
+| File | Change |
 |------|--------|
-| `src/pages/ForgotPassword.tsx` | Create — multi-step recovery page |
-| `supabase/functions/reset-password-otp/index.ts` | Create — verify OTP + reset password server-side |
-| `supabase/functions/lookup-phone/index.ts` | Create — find phone by ID or phone input |
-| `src/pages/Login.tsx` | Modify — link to `/forgot-password` |
-| `src/App.tsx` | Modify — add route |
-| `supabase/config.toml` | Modify — add function configs |
+| New migration SQL | `CREATE OR REPLACE FUNCTION public.unassign_serial_atomic(...)` with separated lock + count queries |
 
-## Security considerations
-- Password reset happens server-side only (service_role)
-- OTP must be verified before password change is allowed
-- Phone number is never fully exposed to the client (masked)
-- Rate limiting via existing OTP deletion (one active OTP per phone)
-- The `lookup-phone` function only returns masked phone, preventing enumeration of full numbers
+No frontend changes needed — the function signature and return type stay identical.
 
