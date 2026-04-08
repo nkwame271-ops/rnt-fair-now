@@ -458,9 +458,11 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     const isFullyMapped = mappingCards.length > 0 && mappingCards.every(c => activeMap[c.id]);
     if (!isFullyMapped) return;
 
-    // LAYER 2 enforcement: if quota-based, block if assignment count exceeds remaining
-    if (quotaContext && mappingCards.length > quotaContext.remaining) {
-      toast.error(`Quota allows only ${quotaContext.remaining} more assignment(s), but ${mappingCards.length} selected`);
+    // LAYER 2 enforcement: if quota-based, block if pair count exceeds remaining
+    // quotaContext.remaining is in pairs (serials), not raw cards
+    const pairsNeeded = Math.ceil(mappingCards.length / 2);
+    if (quotaContext && pairsNeeded > quotaContext.remaining) {
+      toast.error(`Quota allows only ${quotaContext.remaining} more serial(s), but ${pairsNeeded} needed for ${mappingCards.length} cards`);
       return;
     }
 
@@ -735,18 +737,18 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                   <span className="text-muted-foreground">Available serials:</span>
                   <span className="font-semibold text-card-foreground">{availableSerials.length}</span>
                 </div>
-                {quotaContext && (
-                  <div className="flex justify-between border-t border-border pt-1 mt-1">
-                    <span className="text-muted-foreground">Quota remaining:</span>
-                    <span className={`font-semibold ${quotaContext.remaining >= mappingCards.length ? "text-success" : "text-destructive"}`}>
-                      {quotaContext.remaining}
-                    </span>
-                  </div>
-                )}
-                {quotaContext && mappingCards.length > quotaContext.remaining && (
-                  <p className="text-destructive text-xs mt-1">
-                    ⚠ Selected {mappingCards.length} cards but only {quotaContext.remaining} quota remaining. Reduce selection.
-                  </p>
+                 {quotaContext && (
+                   <div className="flex justify-between border-t border-border pt-1 mt-1">
+                     <span className="text-muted-foreground">Quota remaining (serials/pairs):</span>
+                     <span className={`font-semibold ${quotaContext.remaining >= serialsNeeded ? "text-success" : "text-destructive"}`}>
+                       {quotaContext.remaining}
+                     </span>
+                   </div>
+                 )}
+                 {quotaContext && serialsNeeded > quotaContext.remaining && (
+                   <p className="text-destructive text-xs mt-1">
+                     ⚠ Need {serialsNeeded} serial(s) but only {quotaContext.remaining} quota remaining. Reduce selection.
+                   </p>
                 )}
               </div>
 
