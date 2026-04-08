@@ -126,6 +126,21 @@ const LandlordDashboard = () => {
 
   if (loading) return <LogoLoader message="Loading dashboard..." />;
 
+  if (landlordMissing) {
+    return (
+      <PageTransition>
+        <div className="max-w-md mx-auto mt-20 text-center space-y-4">
+          <AlertTriangle className="h-12 w-12 text-warning mx-auto" />
+          <h2 className="text-xl font-bold text-foreground">Account Setup Incomplete</h2>
+          <p className="text-muted-foreground">Your landlord profile wasn't fully initialized. Click below to complete the setup, then you can proceed with registration payment.</p>
+          <Button onClick={handleCreateMissingRecord} disabled={creatingRecord}>
+            {creatingRecord ? "Initializing..." : "Initialize My Account"}
+          </Button>
+        </div>
+      </PageTransition>
+    );
+  }
+
   return (
     <PageTransition>
       <div className="max-w-5xl mx-auto space-y-8">
