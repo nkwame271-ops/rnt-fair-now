@@ -19,23 +19,38 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Step 1: Find the latest OTP for this phone (no filters on code/verified/expiry)
     const { data: otp, error } = await supabaseAdmin
       .from("otp_verifications")
       .select("*")
       .eq("phone", normalized)
-      .eq("code", code)
-      .eq("verified", false)
-      .gte("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (error) throw error;
+
+    // Step 2: No OTP found at all
     if (!otp) {
-      return new Response(JSON.stringify({ verified: false, error: "Invalid or expired OTP" }), { status: 400, headers: corsHeaders });
+      return new Response(JSON.stringify({ verified: false, error: "No verification code found for this number" }), { status: 400, headers: corsHeaders });
     }
 
-    // Mark as verified
+    // Step 3: Already verified — return idempotent success
+    if (otp.verified && otp.code === code) {
+      return new Response(JSON.stringify({ verified: true }), { headers: corsHeaders });
+    }
+
+    // Step 4: Expired
+    if (new Date(otp.expires_at) < new Date()) {
+      return new Response(JSON.stringify({ verified: false, error: "Verification code has expired. Please request a new one" }), { status: 400, headers: corsHeaders });
+    }
+
+    // Step 5: Code doesn't match
+    if (otp.code !== code) {
+      return new Response(JSON.stringify({ verified: false, error: "Incorrect verification code" }), { status: 400, headers: corsHeaders });
+    }
+
+    // Step 6: All checks pass — mark as verified
     await supabaseAdmin.from("otp_verifications").update({ verified: true }).eq("id", otp.id);
 
     return new Response(JSON.stringify({ verified: true }), { headers: corsHeaders });
