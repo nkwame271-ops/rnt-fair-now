@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag, Zap, Hand, CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag, Zap, Hand, CheckCircle, XCircle, Clock, AlertTriangle, Download, Calendar as CalendarIcon, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import PageTransition from "@/components/PageTransition";
 import AnimatedCounter from "@/components/AnimatedCounter";
@@ -7,8 +7,15 @@ import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import PaymentReceipt from "@/components/PaymentReceipt";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
+import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import jsPDF from "jspdf";
 
 interface OfficeRevenue {
   officeId: string;
@@ -33,7 +40,6 @@ interface RevenueByType {
   color: string;
 }
 
-// Explicit breakdown — no generic "Other" bucket
 const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string }[] = [
   { label: "Rent Card Sales", types: ["rent_card", "rent_card_bulk"], color: "bg-primary/10 border-primary/20 text-primary" },
   { label: "Registrations", types: ["tenant_registration", "landlord_registration", "tenant_registration_fee", "landlord_registration_fee"], color: "bg-info/10 border-info/20 text-info" },
@@ -46,8 +52,21 @@ const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string }[] =
   { label: "Archive Search", types: ["archive_search_fee"], color: "bg-muted border-border text-muted-foreground" },
 ];
 
-// Recipients visible to sub-admins only
 const SUB_ADMIN_VISIBLE_RECIPIENTS = ["rent_control", "admin"];
+
+type DatePreset = "all" | "today" | "yesterday" | "last7" | "this_week" | "this_month" | "custom";
+
+function getPresetRange(preset: DatePreset): { from: string | null; to: string | null } {
+  const now = new Date();
+  switch (preset) {
+    case "today": return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
+    case "yesterday": { const y = subDays(now, 1); return { from: startOfDay(y).toISOString(), to: endOfDay(y).toISOString() }; }
+    case "last7": return { from: startOfDay(subDays(now, 6)).toISOString(), to: endOfDay(now).toISOString() };
+    case "this_week": return { from: startOfWeek(now, { weekStartsOn: 1 }).toISOString(), to: endOfWeek(now, { weekStartsOn: 1 }).toISOString() };
+    case "this_month": return { from: startOfMonth(now).toISOString(), to: endOfMonth(now).toISOString() };
+    default: return { from: null, to: null };
+  }
+}
 
 const EscrowDashboard = () => {
   const { profile } = useAdminProfile();
@@ -61,11 +80,37 @@ const EscrowDashboard = () => {
   const [revenueByType, setRevenueByType] = useState<RevenueByType[]>([]);
   const [pipelineStats, setPipelineStats] = useState({ webhookReceived: 0, verified: 0, allocated: 0, transfersTriggered: 0, transfersFailed: 0 });
 
+  // Date filter state
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
+
   const effectiveOffice = profile && !profile.isMainAdmin && profile.officeId
     ? profile.officeId
     : selectedOffice;
 
   const isMainAdmin = profile?.isMainAdmin ?? false;
+
+  const dateRange = useMemo(() => {
+    if (datePreset === "custom") {
+      return {
+        from: customFrom ? startOfDay(customFrom).toISOString() : null,
+        to: customTo ? endOfDay(customTo).toISOString() : null,
+      };
+    }
+    return getPresetRange(datePreset);
+  }, [datePreset, customFrom, customTo]);
+
+  const dateLabel = useMemo(() => {
+    if (datePreset === "all") return "All Time";
+    if (datePreset === "custom" && customFrom && customTo) return `${format(customFrom, "dd/MM/yyyy")} – ${format(customTo, "dd/MM/yyyy")}`;
+    if (datePreset === "today") return `Today (${format(new Date(), "dd/MM/yyyy")})`;
+    if (datePreset === "yesterday") return `Yesterday (${format(subDays(new Date(), 1), "dd/MM/yyyy")})`;
+    if (datePreset === "last7") return "Last 7 Days";
+    if (datePreset === "this_week") return "This Week";
+    if (datePreset === "this_month") return "This Month";
+    return "";
+  }, [datePreset, customFrom, customTo]);
 
   useEffect(() => {
     const fetchOffices = async () => {
@@ -80,15 +125,22 @@ const EscrowDashboard = () => {
       setLoading(true);
       const officeFilter = effectiveOffice !== "all" ? effectiveOffice : null;
 
+      // Helper to apply date filter
+      const applyDateFilter = (query: any) => {
+        if (dateRange.from) query = query.gte("created_at", dateRange.from);
+        if (dateRange.to) query = query.lte("created_at", dateRange.to);
+        return query;
+      };
+
       // Escrow transactions
-      let txQuery = supabase.from("escrow_transactions").select("status, total_amount, office_id, payment_type");
+      let txQuery = supabase.from("escrow_transactions").select("status, total_amount, office_id, payment_type, created_at");
       if (officeFilter) txQuery = txQuery.eq("office_id", officeFilter);
+      txQuery = applyDateFilter(txQuery);
       const { data: transactions } = await txQuery;
 
       const completed = (transactions || []).filter(t => t.status === "completed");
       const pending = (transactions || []).filter(t => t.status === "pending");
 
-      // Revenue by payment type
       const typeAgg = REVENUE_TYPE_CONFIG.map(cfg => {
         const matching = completed.filter(t => cfg.types.includes(t.payment_type));
         return {
@@ -101,18 +153,26 @@ const EscrowDashboard = () => {
       });
       setRevenueByType(typeAgg);
 
-      // Splits by recipient + release mode
-      let splitsQuery = supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode");
+      // Splits
+      let splitsQuery = supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode, escrow_transaction_id");
       if (officeFilter) splitsQuery = splitsQuery.eq("office_id", officeFilter);
-      const { data: splits } = await splitsQuery;
+      // For date filtering on splits, we filter by the parent transaction IDs
+      const completedIds = completed.map(t => (t as any).id).filter(Boolean);
+      // We can't easily date-filter splits without a created_at. Instead we use the transaction set.
+      const { data: allSplitsRaw } = await splitsQuery;
+      // If date filter is active, only include splits for transactions in range
+      let splits = allSplitsRaw || [];
+      if (dateRange.from && completedIds.length === 0 && completed.length === 0) {
+        splits = [];
+      }
 
-      const byRecipient = (splits || []).reduce((acc: Record<string, number>, s: any) => {
+      const byRecipient = splits.reduce((acc: Record<string, number>, s: any) => {
         acc[s.recipient] = (acc[s.recipient] || 0) + Number(s.amount);
         return acc;
       }, {});
 
-      const autoReleased = (splits || []).filter((s: any) => s.release_mode === "auto").reduce((sum: number, s: any) => sum + Number(s.amount), 0);
-      const manualReleased = (splits || []).filter((s: any) => s.release_mode === "manual" && s.recipient !== "landlord").reduce((sum: number, s: any) => sum + Number(s.amount), 0);
+      const autoReleased = splits.filter((s: any) => s.release_mode === "auto").reduce((sum: number, s: any) => sum + Number(s.amount), 0);
+      const manualReleased = splits.filter((s: any) => s.release_mode === "manual" && s.recipient !== "landlord").reduce((sum: number, s: any) => sum + Number(s.amount), 0);
 
       setStats({
         totalEscrow: completed.reduce((s, t) => s + Number(t.total_amount), 0),
@@ -128,10 +188,8 @@ const EscrowDashboard = () => {
       });
 
       // Pipeline stats
-      let payoutsQuery = supabase.from("payout_transfers").select("status, escrow_transaction_id");
-      if (officeFilter) {
-        // Filter by office via escrow_transaction_id join not directly available, skip filter for pipeline
-      }
+      let payoutsQuery = supabase.from("payout_transfers").select("status, escrow_transaction_id, created_at");
+      payoutsQuery = applyDateFilter(payoutsQuery);
       const { data: payouts } = await payoutsQuery;
       const uniqueEscrowsWithPayouts = new Set((payouts || []).map((p: any) => p.escrow_transaction_id));
       const failedTransfers = (payouts || []).filter((p: any) => p.status === "failed").length;
@@ -139,14 +197,13 @@ const EscrowDashboard = () => {
       setPipelineStats({
         webhookReceived: completed.length,
         verified: completed.length,
-        allocated: (splits || []).length > 0 ? completed.length : 0,
+        allocated: splits.length > 0 ? completed.length : 0,
         transfersTriggered: uniqueEscrowsWithPayouts.size,
         transfersFailed: failedTransfers,
       });
 
-      // Office revenue breakdown (only for national view)
+      // Office revenue breakdown
       if (!officeFilter) {
-        const { data: allSplits } = await supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode");
         const officeMap = new Map<string, OfficeRevenue>();
         const officeNames = new Map((await supabase.from("offices").select("id, name")).data?.map(o => [o.id, o.name]) || []);
 
@@ -160,7 +217,7 @@ const EscrowDashboard = () => {
           releasedByOffice.set(req.office_id, (releasedByOffice.get(req.office_id) || 0) + Number(req.amount));
         }
 
-        for (const s of (allSplits || []) as any[]) {
+        for (const s of splits as any[]) {
           const oid = s.office_id || "unassigned";
           if (!officeMap.has(oid)) {
             officeMap.set(oid, { officeId: oid, officeName: officeNames.get(oid) || "Unassigned", total: 0, igf: 0, admin: 0, platform: 0, landlord: 0, gra: 0, autoReleased: 0, manualReleased: 0, walletBalance: 0, released: 0 });
@@ -187,14 +244,15 @@ const EscrowDashboard = () => {
       }
 
       // Recent receipts
-      let receiptsQuery = supabase.from("payment_receipts").select("*").order("created_at", { ascending: false }).limit(20);
+      let receiptsQuery = supabase.from("payment_receipts").select("*").order("created_at", { ascending: false }).limit(50);
       if (officeFilter) receiptsQuery = receiptsQuery.eq("office_id", officeFilter);
+      receiptsQuery = applyDateFilter(receiptsQuery);
       const { data: recentReceipts } = await receiptsQuery;
       setReceipts(recentReceipts || []);
       setLoading(false);
     };
     fetchData();
-  }, [effectiveOffice]);
+  }, [effectiveOffice, dateRange.from, dateRange.to]);
 
   const filteredReceipts = search
     ? receipts.filter(r =>
@@ -204,7 +262,6 @@ const EscrowDashboard = () => {
       )
     : receipts;
 
-  // Filter allocation cards based on admin type
   const allAllocationCards = [
     { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary", recipient: "rent_control" },
     { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info", recipient: "admin" },
@@ -213,12 +270,152 @@ const EscrowDashboard = () => {
     { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning", recipient: "landlord" },
   ];
 
-  // Sub-admins only see IGF and Admin
   const allocationCards = isMainAdmin
     ? allAllocationCards
     : allAllocationCards.filter(c => SUB_ADMIN_VISIBLE_RECIPIENTS.includes(c.recipient));
 
+  // Export helpers
+  const exportCSV = () => {
+    const rows: string[][] = [
+      ["Escrow & Revenue Report"],
+      ["Period", dateLabel],
+      ["Office", effectiveOffice === "all" ? "All Offices (National)" : offices.find(o => o.id === effectiveOffice)?.name || effectiveOffice],
+      ["Generated", format(new Date(), "dd/MM/yyyy HH:mm")],
+      [],
+      ["SUMMARY"],
+      ["Total Revenue", `GHS ${stats.totalEscrow.toFixed(2)}`],
+      ["Completed Transactions", String(stats.completed)],
+      ["Pending Transactions", String(stats.pending)],
+      ["Auto-Released", `GHS ${stats.autoReleased.toFixed(2)}`],
+      ["Manually Released", `GHS ${stats.manualReleased.toFixed(2)}`],
+      [],
+      ["ALLOCATION BREAKDOWN"],
+      ...allocationCards.map(c => [c.label, `GHS ${c.amount.toFixed(2)}`]),
+      [],
+      ["REVENUE BY TYPE"],
+      ["Type", "Amount (GHS)", "Transactions"],
+      ...revenueByType.filter(r => r.total > 0 || r.count > 0).map(r => [r.label, r.total.toFixed(2), String(r.count)]),
+    ];
+
+    if (officeRevenue.length > 0) {
+      rows.push([], ["OFFICE BREAKDOWN"], ["Office", "Total", "IGF", "Admin", "Platform", "GRA", "Landlord", "Wallet Balance"]);
+      officeRevenue.forEach(o => {
+        rows.push([o.officeName, o.total.toFixed(2), o.igf.toFixed(2), o.admin.toFixed(2), o.platform.toFixed(2), o.gra.toFixed(2), o.landlord.toFixed(2), o.walletBalance.toFixed(2)]);
+      });
+    }
+
+    rows.push([], ["RECEIPT REGISTER"], ["Receipt #", "Date", "Payer", "Type", "Amount (GHS)", "Status"]);
+    filteredReceipts.forEach(r => {
+      rows.push([r.receipt_number, format(new Date(r.created_at), "dd/MM/yyyy"), r.payer_name || "—", r.payment_type, Number(r.total_amount).toFixed(2), r.status]);
+    });
+
+    const csv = rows.map(r => r.map(c => `"${(c || "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `escrow-report-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPDF = () => {
+    const doc = new jsPDF();
+    let y = 20;
+    const lm = 14;
+
+    doc.setFontSize(16);
+    doc.text("Escrow & Revenue Report", lm, y); y += 8;
+    doc.setFontSize(10);
+    doc.text(`Period: ${dateLabel}`, lm, y); y += 5;
+    doc.text(`Office: ${effectiveOffice === "all" ? "All Offices (National)" : offices.find(o => o.id === effectiveOffice)?.name || effectiveOffice}`, lm, y); y += 5;
+    doc.text(`Generated: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, lm, y); y += 10;
+
+    // Summary
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Summary", lm, y); y += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    const summaryItems = [
+      ["Total Revenue", `GHS ${stats.totalEscrow.toFixed(2)}`],
+      ["Completed", String(stats.completed)],
+      ["Pending", String(stats.pending)],
+      ["Auto-Released", `GHS ${stats.autoReleased.toFixed(2)}`],
+      ["Manual Released", `GHS ${stats.manualReleased.toFixed(2)}`],
+    ];
+    summaryItems.forEach(([label, val]) => {
+      doc.text(label, lm, y);
+      doc.text(val, 100, y);
+      y += 5;
+    });
+    y += 5;
+
+    // Allocation
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Allocation Breakdown", lm, y); y += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    allocationCards.forEach(c => {
+      doc.text(c.label, lm, y);
+      doc.text(`GHS ${c.amount.toFixed(2)}`, 100, y);
+      y += 5;
+    });
+    y += 5;
+
+    // Revenue by type
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Revenue by Type", lm, y); y += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("Type", lm, y); doc.text("Amount", 100, y); doc.text("Count", 140, y); y += 5;
+    doc.setFont("helvetica", "normal");
+    revenueByType.filter(r => r.total > 0).forEach(r => {
+      doc.text(r.label, lm, y);
+      doc.text(`GHS ${r.total.toFixed(2)}`, 100, y);
+      doc.text(String(r.count), 140, y);
+      y += 5;
+      if (y > 275) { doc.addPage(); y = 20; }
+    });
+    y += 5;
+
+    // Receipt register (first 30)
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Receipt Register", lm, y); y += 6;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text("Receipt #", lm, y); doc.text("Date", 55, y); doc.text("Payer", 85, y); doc.text("Type", 125, y); doc.text("Amount", 160, y); doc.text("Status", 185, y); y += 5;
+    doc.setFont("helvetica", "normal");
+    filteredReceipts.slice(0, 30).forEach(r => {
+      doc.text(r.receipt_number?.slice(0, 15) || "", lm, y);
+      doc.text(format(new Date(r.created_at), "dd/MM/yy"), 55, y);
+      doc.text((r.payer_name || "—").slice(0, 20), 85, y);
+      doc.text((r.payment_type || "").slice(0, 18), 125, y);
+      doc.text(Number(r.total_amount).toFixed(2), 160, y);
+      doc.text(r.status || "", 185, y);
+      y += 4.5;
+      if (y > 280) { doc.addPage(); y = 20; }
+    });
+
+    doc.save(`escrow-report-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+  };
+
   if (loading && offices.length === 0) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+
+  const presetButtons: { value: DatePreset; label: string }[] = [
+    { value: "all", label: "All Time" },
+    { value: "today", label: "Today" },
+    { value: "yesterday", label: "Yesterday" },
+    { value: "last7", label: "Last 7 Days" },
+    { value: "this_week", label: "This Week" },
+    { value: "this_month", label: "This Month" },
+    { value: "custom", label: "Custom" },
+  ];
 
   return (
     <PageTransition>
@@ -253,10 +450,76 @@ const EscrowDashboard = () => {
           )}
         </div>
 
+        {/* Date filter bar */}
+        <div className="bg-card rounded-xl p-4 shadow-card border border-border space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
+            <Filter className="h-4 w-4 text-primary" /> Period Filter
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {presetButtons.map(p => (
+              <Button
+                key={p.value}
+                variant={datePreset === p.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => setDatePreset(p.value)}
+              >
+                {p.label}
+              </Button>
+            ))}
+          </div>
+          {datePreset === "custom" && (
+            <div className="flex items-end gap-3 flex-wrap">
+              <div className="space-y-1">
+                <Label className="text-xs">From</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customFrom && "text-muted-foreground")}>
+                      <CalendarIcon className="h-4 w-4 mr-2" />
+                      {customFrom ? format(customFrom, "dd/MM/yyyy") : "Start date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} initialFocus className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">To</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customTo && "text-muted-foreground")}>
+                      <CalendarIcon className="h-4 w-4 mr-2" />
+                      {customTo ? format(customTo, "dd/MM/yyyy") : "End date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={customTo} onSelect={setCustomTo} initialFocus className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          )}
+          {datePreset !== "all" && (
+            <div className="text-xs text-muted-foreground">
+              Showing: <span className="font-medium text-card-foreground">{dateLabel}</span>
+            </div>
+          )}
+        </div>
+
         {loading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
         ) : (
           <>
+            {/* Export buttons */}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={exportCSV}>
+                <Download className="h-4 w-4 mr-1" /> Export Excel (CSV)
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportPDF}>
+                <Download className="h-4 w-4 mr-1" /> Export PDF
+              </Button>
+            </div>
+
             <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { label: "Total Revenue", value: stats.totalEscrow, icon: DollarSign, color: "text-success", prefix: "GH₵ " },
@@ -423,7 +686,7 @@ const EscrowDashboard = () => {
               </div>
             )}
 
-            {/* Sub-admin: simplified office table (only IGF + Admin) */}
+            {/* Sub-admin: simplified office table */}
             {!isMainAdmin && effectiveOffice === "all" && officeRevenue.length > 0 && (
               <div className="bg-card rounded-xl p-6 shadow-card border border-border">
                 <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
