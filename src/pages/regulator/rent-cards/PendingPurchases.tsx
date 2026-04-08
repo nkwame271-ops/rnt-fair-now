@@ -464,153 +464,133 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       return;
     }
 
+    // Enforce even number of cards (pairs of 2)
+    if (mappingCards.length % 2 !== 0) {
+      toast.error("Cards must be in pairs of 2. Please select an even number of cards.");
+      return;
+    }
+
     setAssigning(true);
 
     const office = resolveOffice();
     if (!office) { toast.error("No office configured"); setAssigning(false); return; }
 
     try {
-      const assignedList: string[] = [];
-      const assignedCardIds: string[] = [];
-      const processedSerials = new Set<string>();
+      const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
 
+      // Build explicit pair payloads: group cards by serial, 2 cards per serial
+      const serialToCards = new Map<string, string[]>();
       for (const card of mappingCards) {
-        const chosenSerial = activeMap[card.id];
-
-        // Only update stock rows once per unique serial (first card in pair)
-        if (!processedSerials.has(chosenSerial)) {
-          const serialRecord = availableSerials.find(s => s.serial_number === chosenSerial);
-          if (!serialRecord) { toast.error(`Serial ${chosenSerial} not found`); continue; }
-
-          const { data: updated, error: stockErr } = await supabase
-            .from("rent_card_serial_stock" as any)
-            .update({
-              status: "assigned",
-              assigned_to_card_id: card.id,
-              assigned_at: new Date().toISOString(),
-              assigned_by: user?.id,
-            })
-            .eq("id", serialRecord.id)
-            .eq("status", "available")
-            .select("id");
-
-          if (stockErr) throw stockErr;
-          if (!updated || updated.length === 0) {
-            toast.error(`Serial ${chosenSerial} was claimed by another admin`);
-            continue;
-          }
-
-          // Also mark the pair_index=2 copy as assigned (paired mode)
-          await supabase
-            .from("rent_card_serial_stock" as any)
-            .update({
-              status: "assigned",
-              assigned_to_card_id: card.id,
-              assigned_at: new Date().toISOString(),
-              assigned_by: user?.id,
-            })
-            .eq("serial_number", chosenSerial)
-            .eq("pair_index", 2)
-            .eq("status", "available");
-
-          processedSerials.add(chosenSerial);
-        }
-
-        // Always update the rent_cards row for every card in the pair
-        const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
-        const { error: cardErr } = await supabase
-          .from("rent_cards")
-          .update({
-            serial_number: chosenSerial,
-            status: "valid",
-            assigned_office_id: officeId || null,
-            assigned_office_name: office,
-          } as any)
-          .eq("id", card.id);
-
-        if (cardErr) throw cardErr;
-        assignedList.push(chosenSerial);
-        assignedCardIds.push(card.id);
+        const serial = activeMap[card.id];
+        if (!serialToCards.has(serial)) serialToCards.set(serial, []);
+        serialToCards.get(serial)!.push(card.id);
       }
 
-      if (assignedList.length > 0) {
-        const purchaseGroups = new Map<string, { cards: PendingCard[]; serials: string[] }>();
-        for (let i = 0; i < assignedCardIds.length; i++) {
-          const card = mappingCards.find(c => c.id === assignedCardIds[i])!;
-          if (!purchaseGroups.has(card.purchase_id)) {
-            purchaseGroups.set(card.purchase_id, { cards: [card], serials: [assignedList[i]] });
-          } else {
-            purchaseGroups.get(card.purchase_id)!.cards.push(card);
-            purchaseGroups.get(card.purchase_id)!.serials.push(assignedList[i]);
-          }
+      // Validate each pair has exactly 2 cards
+      const pairs: { serial_number: string; card_ids: string[] }[] = [];
+      for (const [serial, cardIds] of serialToCards) {
+        if (cardIds.length !== 2) {
+          toast.error(`Serial ${serial} mapped to ${cardIds.length} card(s), expected 2`);
+          setAssigning(false);
+          return;
+        }
+        pairs.push({ serial_number: serial, card_ids: cardIds });
+      }
+
+      // Call atomic RPC — all-or-nothing
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        "assign_serials_atomic" as any,
+        {
+          p_pairs: pairs,
+          p_office_id: officeId || null,
+          p_office_name: office,
+          p_assigned_by: user?.id,
+        }
+      );
+
+      if (rpcError) throw new Error(rpcError.message);
+
+      const result = rpcResult as any;
+      if (!result?.success) {
+        throw new Error("Assignment failed unexpectedly");
+      }
+
+      // Write serial_assignments audit records per purchase group
+      const assignedCardIds = mappingCards.map(c => c.id);
+      const purchaseGroups = new Map<string, { cards: PendingCard[]; serials: string[] }>();
+      for (const card of mappingCards) {
+        const serial = activeMap[card.id];
+        if (!purchaseGroups.has(card.purchase_id)) {
+          purchaseGroups.set(card.purchase_id, { cards: [], serials: [] });
+        }
+        const group = purchaseGroups.get(card.purchase_id)!;
+        group.cards.push(card);
+        if (!group.serials.includes(serial)) group.serials.push(serial);
+      }
+
+      for (const [purchaseId, group] of purchaseGroups) {
+        const { data: existingAudit } = await supabase
+          .from("serial_assignments" as any)
+          .select("id")
+          .eq("purchase_id", purchaseId)
+          .limit(1);
+
+        if (!existingAudit || existingAudit.length === 0) {
+          await supabase.from("serial_assignments" as any).insert({
+            purchase_id: purchaseId,
+            landlord_user_id: group.cards[0].landlord_user_id,
+            office_name: office,
+            office_id: officeId || null,
+            assigned_by: user?.id,
+            serial_numbers: group.serials,
+            card_count: group.serials.length,
+          });
         }
 
-        const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
+        // Finalize deferred office attribution
+        if (officeId) {
+          try {
+            const { data: cardData } = await supabase
+              .from("rent_cards")
+              .select("escrow_transaction_id")
+              .eq("id", group.cards[0].id)
+              .single();
 
-        for (const [purchaseId, group] of purchaseGroups) {
-          const { data: existingAudit } = await supabase
-            .from("serial_assignments" as any)
-            .select("id")
-            .eq("purchase_id", purchaseId)
-            .limit(1);
-
-          if (!existingAudit || existingAudit.length === 0) {
-            await supabase.from("serial_assignments" as any).insert({
-              purchase_id: purchaseId,
-              landlord_user_id: group.cards[0].landlord_user_id,
-              office_name: office,
-              office_id: officeId || null,
-              assigned_by: user?.id,
-              serial_numbers: group.serials,
-              card_count: group.serials.length,
-            });
-          }
-
-          // Finalize deferred office attribution for rent card purchases
-          if (officeId) {
-            try {
-              // Find the escrow_transaction_id from the rent card
-              const { data: cardData } = await supabase
-                .from("rent_cards")
-                .select("escrow_transaction_id")
-                .eq("id", group.cards[0].id)
-                .single();
-
-              if (cardData?.escrow_transaction_id) {
-                await supabase.functions.invoke("finalize-office-attribution", {
-                  body: {
-                    escrow_transaction_id: cardData.escrow_transaction_id,
-                    office_id: officeId,
-                  },
-                });
-              }
-            } catch (e: any) {
-              console.warn("Office attribution deferred:", e.message);
+            if (cardData?.escrow_transaction_id) {
+              await supabase.functions.invoke("finalize-office-attribution", {
+                body: {
+                  escrow_transaction_id: cardData.escrow_transaction_id,
+                  office_id: officeId,
+                },
+              });
             }
+          } catch (e: any) {
+            console.warn("Office attribution deferred:", e.message);
           }
         }
-
-        for (const [purchaseId, group] of purchaseGroups) {
-          setAssignedSerials(prev => ({
-            ...prev,
-            [purchaseId]: [...(prev[purchaseId] || []), ...group.serials],
-          }));
-        }
-
-        const assignedSet = new Set(assignedCardIds);
-        setPendingCards(prev => prev.filter(c => !assignedSet.has(c.id)));
-        setSelectedCardIds(prev => {
-          const next = new Set(prev);
-          assignedCardIds.forEach(id => next.delete(id));
-          return next;
-        });
-        onStockChanged();
-        toast.success(`${assignedList.length} serial(s) assigned successfully!`);
       }
+
+      // Update UI
+      for (const [purchaseId, group] of purchaseGroups) {
+        setAssignedSerials(prev => ({
+          ...prev,
+          [purchaseId]: [...(prev[purchaseId] || []), ...group.serials],
+        }));
+      }
+
+      const assignedSet = new Set(assignedCardIds);
+      setPendingCards(prev => prev.filter(c => !assignedSet.has(c.id)));
+      setSelectedCardIds(prev => {
+        const next = new Set(prev);
+        assignedCardIds.forEach(id => next.delete(id));
+        return next;
+      });
+      onStockChanged();
+      toast.success(`${result.pairs_assigned} pair(s) assigned successfully (${result.cards_assigned} cards)!`);
 
       setMappingCards([]);
     } catch (err: any) {
-      toast.error(err.message || "Assignment failed");
+      toast.error(err.message || "Assignment failed — no cards were modified");
     }
     setAssigning(false);
   };
