@@ -1,44 +1,39 @@
 
 
-# Fix: Paired Serial Assignment "Claimed by Another Admin" Error
+# Plan: Fix Serial Assignment & Unassign + Landlord Pair Display
 
-## Root Cause
+## Three Issues
 
-In `handleConfirmAssign`, the loop processes all 14 cards sequentially. Two cards share the same serial number. When the first card in a pair updates the stock row to `status="assigned"`, the second card tries to update the **same row** with `.eq("status", "available")` — which now fails because the status is already `"assigned"`. This triggers the false "claimed by another admin" error.
+### Issue 1: "Claimed by another admin" during paired assignment
+**Root cause**: `buildAndAssign()` calls `setSerialMap(newMap)` then `setTimeout(() => handleConfirmAssign(), 100)`. React state updates are async — `handleConfirmAssign` reads the old `serialMap` from state, which may be empty or partial. When the map is incomplete, the `processedSerials` logic fails because it uses stale card-to-serial mappings.
 
-## Fix
+**Fix in `PendingPurchases.tsx`**:
+- Refactor `handleConfirmAssign` to accept an optional `mapOverride` parameter
+- In `buildAndAssign`, pass `newMap` directly: `handleConfirmAssign(newMap)` instead of using `setTimeout`
+- Inside `handleConfirmAssign`, use `mapOverride ?? serialMap` to read the serial assignments
+- Remove the fragile `setTimeout` pattern entirely
 
-**File: `src/pages/regulator/rent-cards/PendingPurchases.tsx`** — `handleConfirmAssign` function (lines 470-524)
+### Issue 2: Unassign serial — incomplete state reset
+**Current behavior**: The edge function resets `serial_number` and `status` on the rent_cards row, but doesn't clear tenant/property/tenancy links or other fields.
 
-Track which serials have already been processed in this batch. When the second card in a pair encounters a serial that was already assigned by the first card in the same batch, skip the stock update (it's already done) and just update the `rent_cards` table.
+**Fix in `admin-action/index.ts`** (`unassign_serial` case):
+- When resetting `rent_cards` rows, also clear: `tenant_user_id`, `property_id`, `unit_id`, `tenancy_id`, `start_date`, `expiry_date`, `current_rent`, `previous_rent`, `advance_paid`, `last_payment_status`, `activated_at`, `qr_token`
+- This ensures the card returns to a fully clean "awaiting_serial" state
 
-### Changes:
+### Issue 3: Landlord portal — show cards in pairs
+**Current behavior**: Cards are listed individually with no visual pairing.
 
-1. Add a `Set<string>` called `processedSerials` before the loop
-2. Inside the loop, check if `chosenSerial` is already in `processedSerials`:
-   - **If NOT processed**: Do the full stock update (pair_index=1 + pair_index=2) as before. Add to `processedSerials`.
-   - **If already processed**: Skip the stock update entirely — the serial rows are already marked assigned. Only update the `rent_cards` row with the serial number and status.
-3. This ensures each unique serial's stock rows are updated exactly once, while all cards in the pair get their `rent_cards` record updated.
+**Fix in `ManageRentCards.tsx`**:
+- Group `filteredCards` by `serial_number` (cards sharing the same serial are a pair)
+- For each pair, render a single card container showing both the Landlord Copy and Tenant Copy side by side (or stacked)
+- Show the shared serial number once at the pair level, with each card's role badge (Landlord Copy / Tenant Copy)
+- For "awaiting_serial" cards, group by `purchase_id` in pairs of 2
 
-### Pseudocode:
-```
-const processedSerials = new Set<string>();
+## Files to modify
 
-for (const card of mappingCards) {
-  const chosenSerial = serialMap[card.id];
-  
-  if (!processedSerials.has(chosenSerial)) {
-    // First card in pair: update stock rows
-    update pair_index=1 WHERE status=available → check success
-    update pair_index=2 WHERE status=available
-    processedSerials.add(chosenSerial);
-  }
-  // else: second card in pair — stock already updated, skip
-  
-  // Always: update the rent_cards row
-  update rent_cards SET serial_number, status='valid' WHERE id=card.id
-}
-```
-
-No backend or database changes needed. Single file fix.
+| File | Change |
+|------|--------|
+| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Pass serial map directly to `handleConfirmAssign`, remove `setTimeout` |
+| `supabase/functions/admin-action/index.ts` | Full field reset on unassign |
+| `src/pages/landlord/ManageRentCards.tsx` | Group cards into pairs for display |
 
