@@ -30,7 +30,30 @@ const recipientLabels: Record<string, string> = {
 };
 
 const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentType, description, splits, status, qrCodeData, showSplits = true }: ReceiptProps) => {
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    const el = document.getElementById(`receipt-${receiptNumber}`);
+    if (!el) return;
+    el.setAttribute("data-printing", "true");
+    const style = document.createElement("style");
+    style.id = "receipt-print-style";
+    style.textContent = `
+      @media print {
+        body * { visibility: hidden !important; }
+        [data-printing="true"],
+        [data-printing="true"] * { visibility: visible !important; }
+        [data-printing="true"] {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    window.print();
+    el.removeAttribute("data-printing");
+    style.remove();
+  };
 
   return (
     <div className="bg-card rounded-xl border border-border p-6 space-y-5 print:shadow-none print:border-0" id={`receipt-${receiptNumber}`}>
