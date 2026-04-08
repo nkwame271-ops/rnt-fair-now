@@ -115,10 +115,22 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
     const { data } = await supabase
       .from("rent_card_serial_stock" as any)
       .select("*")
-      .eq("serial_number", serialSearch.trim())
-      .single();
-    setSerialResult(data || null);
-    if (!data) toast.error("Serial not found");
+      .eq("serial_number", serialSearch.trim().toUpperCase())
+      .eq("pair_index", 1)
+      .maybeSingle();
+    if (!data) {
+      // Fallback: try without pair_index filter (for non-paired serials)
+      const { data: fallback } = await supabase
+        .from("rent_card_serial_stock" as any)
+        .select("*")
+        .eq("serial_number", serialSearch.trim().toUpperCase())
+        .limit(1);
+      const result = (fallback as any[])?.[0] || null;
+      setSerialResult(result);
+      if (!result) toast.error("Serial not found");
+    } else {
+      setSerialResult(data);
+    }
     setSerialSearching(false);
   };
 
