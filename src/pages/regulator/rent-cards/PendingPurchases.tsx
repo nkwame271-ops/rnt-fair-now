@@ -385,24 +385,41 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   }, [cardPairs, serialMap]);
 
   // Build serial map based on mode, then call handleConfirmAssign
+  // Paired logic: card[i] → serial[Math.floor(i/2)]
   const buildAndAssign = () => {
     const newMap: Record<string, string> = {};
 
     if (assignMode === "auto_qty") {
-      for (let i = 0; i < mappingCards.length && i < availableSerials.length; i++) {
-        newMap[mappingCards[i].id] = availableSerials[i].serial_number;
+      for (let i = 0; i < mappingCards.length; i++) {
+        const serialIdx = Math.floor(i / 2);
+        if (serialIdx < availableSerials.length) {
+          newMap[mappingCards[i].id] = availableSerials[serialIdx].serial_number;
+        }
       }
     } else if (assignMode === "start_from") {
-      for (let i = 0; i < startFromPreview.length && i < mappingCards.length; i++) {
-        newMap[mappingCards[i].id] = startFromPreview[i].serial_number;
+      for (let i = 0; i < mappingCards.length; i++) {
+        const serialIdx = Math.floor(i / 2);
+        if (serialIdx < startFromPreview.length) {
+          newMap[mappingCards[i].id] = startFromPreview[serialIdx].serial_number;
+        }
       }
     } else if (assignMode === "range") {
-      for (let i = 0; i < rangePreview.length && i < mappingCards.length; i++) {
-        newMap[mappingCards[i].id] = rangePreview[i].serial_number;
+      for (let i = 0; i < mappingCards.length; i++) {
+        const serialIdx = Math.floor(i / 2);
+        if (serialIdx < rangePreview.length) {
+          newMap[mappingCards[i].id] = rangePreview[serialIdx].serial_number;
+        }
       }
     } else if (assignMode === "manual") {
-      // serialMap already populated by pickers
-      Object.assign(newMap, serialMap);
+      // pairSerialMap assigns one serial per pair; expand to both cards
+      for (const pair of cardPairs) {
+        const serial = pairSerialMap[pair.pairIndex];
+        if (serial) {
+          for (const card of pair.cards) {
+            newMap[card.id] = serial;
+          }
+        }
+      }
     }
 
     setSerialMap(newMap);
@@ -414,27 +431,27 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   const canConfirm = useMemo(() => {
     if (loadingSerials || assigning) return false;
     if (assignMode === "auto_qty") {
-      return availableSerials.length >= mappingCards.length;
+      return availableSerials.length >= serialsNeeded;
     }
     if (assignMode === "start_from") {
-      return startFromPreview.length >= mappingCards.length;
+      return startFromPreview.length >= serialsNeeded;
     }
     if (assignMode === "range") {
-      return rangePreview.length === mappingCards.length;
+      return rangePreview.length === serialsNeeded;
     }
     if (assignMode === "manual") {
-      return mappingCards.length > 0 && mappingCards.every(c => serialMap[c.id]);
+      return cardPairs.length > 0 && cardPairs.every(p => pairSerialMap[p.pairIndex]);
     }
     return false;
-  }, [assignMode, availableSerials.length, mappingCards, startFromPreview, rangePreview, serialMap, loadingSerials, assigning]);
+  }, [assignMode, availableSerials.length, serialsNeeded, cardPairs, pairSerialMap, startFromPreview, rangePreview, loadingSerials, assigning]);
 
   const confirmLabel = useMemo(() => {
-    if (assignMode === "auto_qty") return `Confirm Auto-Assignment (${mappingCards.length})`;
-    if (assignMode === "start_from") return `Assign from ${startFromSerial || "…"} (${mappingCards.length})`;
-    if (assignMode === "range") return `Assign Range (${rangePreview.length}/${mappingCards.length})`;
+    if (assignMode === "auto_qty") return `Confirm Auto-Assignment (${serialsNeeded} serials → ${mappingCards.length} cards)`;
+    if (assignMode === "start_from") return `Assign from ${startFromSerial || "…"} (${serialsNeeded} serials)`;
+    if (assignMode === "range") return `Assign Range (${rangePreview.length}/${serialsNeeded} serials)`;
     if (assignMode === "manual") return `Confirm Manual Assignment`;
     return "Confirm";
-  }, [assignMode, mappingCards.length, startFromSerial, rangePreview.length]);
+  }, [assignMode, serialsNeeded, mappingCards.length, startFromSerial, rangePreview.length]);
 
   const handleConfirmAssign = async () => {
     if (!allMapped) return;
