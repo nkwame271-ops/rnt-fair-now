@@ -488,42 +488,51 @@ Deno.serve(async (req) => {
 
       case "unassign_serial": {
         targetType = "serial_stock";
-        const { data: serial } = await adminClient
+        // Fetch all rows for this serial (paired mode has 2 rows)
+        const { data: serialRows } = await adminClient
           .from("rent_card_serial_stock")
-          .select("id, status, assigned_to_card_id, serial_number")
+          .select("id, status, assigned_to_card_id, serial_number, pair_index")
           .eq("serial_number", target_id)
-          .single();
+          .order("pair_index", { ascending: true });
 
-        if (!serial) throw new Error("Serial not found");
-        if (serial.status !== "assigned") throw new Error("Serial is not in 'assigned' status");
+        if (!serialRows || serialRows.length === 0) throw new Error("Serial not found");
 
-        if (serial.assigned_to_card_id) {
-          const { data: card } = await adminClient
-            .from("rent_cards")
-            .select("id, status, tenancy_id")
-            .eq("id", serial.assigned_to_card_id)
-            .single();
+        const primaryRow = (serialRows as any[]).find((r: any) => r.pair_index === 1) || (serialRows as any[])[0];
+        if (primaryRow.status !== "assigned") throw new Error("Serial is not in 'assigned' status");
 
-          if (card?.tenancy_id) {
-            const { data: tenancy } = await adminClient
-              .from("tenancies")
-              .select("status")
-              .eq("id", card.tenancy_id)
-              .single();
+        // Check if any linked card has an active tenancy
+        for (const row of serialRows as any[]) {
+          if (row.assigned_to_card_id) {
+            const { data: card } = await adminClient
+              .from("rent_cards")
+              .select("id, status, tenancy_id")
+              .eq("id", row.assigned_to_card_id)
+              .maybeSingle();
 
-            if (tenancy && !["terminated", "expired"].includes(tenancy.status)) {
-              throw new Error("Cannot unassign: serial is linked to an active tenancy.");
+            if (card?.tenancy_id) {
+              const { data: tenancy } = await adminClient
+                .from("tenancies")
+                .select("status")
+                .eq("id", card.tenancy_id)
+                .maybeSingle();
+
+              if (tenancy && !["terminated", "expired"].includes(tenancy.status)) {
+                throw new Error("Cannot unassign: serial is linked to an active tenancy.");
+              }
             }
-          }
 
-          await adminClient
-            .from("rent_cards")
-            .update({ serial_number: null, status: "awaiting_serial" })
-            .eq("id", serial.assigned_to_card_id);
+            // Reset the rent card back to awaiting_serial
+            await adminClient
+              .from("rent_cards")
+              .update({ serial_number: null, status: "awaiting_serial" })
+              .eq("id", row.assigned_to_card_id);
+          }
         }
 
-        oldState = { serial_number: serial.serial_number, status: serial.status };
+        oldState = { serial_number: primaryRow.serial_number, status: primaryRow.status, pair_count: (serialRows as any[]).length };
 
+        // Update ALL rows for this serial back to available
+        const idsToReset = (serialRows as any[]).map((r: any) => r.id);
         await adminClient
           .from("rent_card_serial_stock")
           .update({
@@ -532,9 +541,9 @@ Deno.serve(async (req) => {
             assigned_at: null,
             assigned_by: null,
           })
-          .eq("id", serial.id);
+          .in("id", idsToReset);
 
-        newState = { status: "available" };
+        newState = { status: "available", rows_reset: idsToReset.length };
         break;
       }
 
