@@ -1,59 +1,44 @@
 
 
-# Fix Plan: Serial Registry, Quota Reset, Report Alignment, Batch Upload Visibility
+# Plan: Daily Report Enhancements, Manual Assign Scroll Fix, Escrow Date Filtering
 
-## Summary
-Four interconnected issues around the rent card procurement pipeline: (1) old uploaded batches invisible in Admin Actions, (2) no way to reset/adjust used quota, (3) reports only read physical stock, not quota, (4) batch uploads missing from Procurement Report.
-
----
-
-## Issue 1 — Serial Stock Registry in Admin Actions
-
-**Problem**: Admin Actions only lets you search for batches to revoke/void. There's no way to browse all batches (especially old uploads) to find and manage them.
-
-**Fix**: Add a "Serial Stock Registry" section at the top of `AdminActions.tsx` that auto-loads all distinct batch labels with counts on mount (no search required). Each batch shows available/assigned/revoked counts with Revoke and Delete (void) buttons.
-
-**File**: `src/pages/regulator/rent-cards/AdminActions.tsx`
-
----
-
-## Issue 2 — Quota Reset / Adjust Used Quota
-
-**Problem**: The existing `adjust_office_quota` action in the edge function only adjusts the total quota. There's no way to reset or reduce the "used" count (from `serial_assignments`). If assignments were made in error, the used count is permanent.
-
-**Fix**:
-- Add a new admin action `reset_office_quota_usage` in the edge function that deletes or adjusts `serial_assignments` rows for an office, effectively resetting or reducing the used count. Requires password + reason, logged to audit.
-- In `OfficeAllocation.tsx`, add a "Reset Used" button next to each quota entry in the Current Quota Status section. This triggers `AdminPasswordConfirm` and calls the new action.
-
-**Files**: `supabase/functions/admin-action/index.ts`, `src/pages/regulator/rent-cards/OfficeAllocation.tsx`
-
----
-
-## Issue 3 — Report Alignment (Daily Report reads quota + activity)
-
-**Problem**: `DailyReport.tsx` only queries `stock_type = "office"` serials. Offices using quota/numbers-only mode have no physical office stock, so their reports show zeros.
-
-**Fix**: Update `DailyReport.tsx` to also fetch quota info from `office_allocations` and usage from `serial_assignments`, then merge into the report stats. Opening = physical available pairs + quota remaining. Assigned today = physical assigned today + quota assignments today. This matches what the Office Stock cards show.
+## 1. Daily Report Enhancements
 
 **File**: `src/pages/regulator/rent-cards/DailyReport.tsx`
 
----
-
-## Issue 4 — Batch Upload missing from Procurement Report
-
-**Problem**: `ProcurementReport.tsx` only reads from `generation_batches` table. Batch uploads via `SerialBatchUpload` do not create a `generation_batches` record, so they never appear.
-
-**Fix**: Update `SerialBatchUpload.tsx` to insert a `generation_batches` record after successful upload, with `paired_mode: false`, the serial count, and the batch label. This makes uploads appear alongside generated batches in the Procurement Report.
-
-**File**: `src/pages/regulator/rent-cards/SerialBatchUpload.tsx`
+### Changes:
+- Add a **date picker** field so staff can generate reports for any date (not just today). This enables missed report generation.
+- Add a **"Previous Reports"** read-only section below the form that queries `daily_stock_reports` for the selected office, showing past submissions in a table (date, opening, assigned, sold, spoilt, closing, signed by). Read-only — no edit/delete.
+- Add **report period selector**: "Daily" (single date), "Weekly" (auto-computes Mon–Sun range), "Custom Range" (from/to date picker). When Weekly or Custom is selected, stats are aggregated across the date range.
+- For Weekly/Custom: query `rent_card_serial_stock` activity and `serial_assignments` across the full date range, then sum.
+- Add **Export buttons** (CSV and PDF) using the same pattern as `AdminReportView.tsx` — structured output with headers, office name, period, stats, and sign-off metadata. Uses jsPDF and manual CSV generation.
 
 ---
 
-## Also: Fix existing NULL pair_index data
+## 2. Manual Assign Scroll Fix
 
-There are ~10,891 serials in the database with `pair_index = NULL` from previous batch uploads. These are invisible to allocation queries. A data fix will set `pair_index = 1` on all NULL rows.
+**File**: `src/pages/regulator/rent-cards/PendingPurchases.tsx`
 
-**Method**: Supabase insert tool (data update, not schema change).
+**Problem**: The manual assign list inside the Dialog uses `ScrollArea` with `max-h-[300px]`, but the dialog itself has `max-h-[90vh] overflow-hidden flex flex-col`. The inner content area uses `overflow-y-auto` but isn't constrained properly, causing content to be cut off.
+
+**Fix**:
+- Change the dialog's inner content `div` (line 678) from `className="space-y-4 flex-1 overflow-y-auto"` to use `min-h-0` to allow flex shrinking.
+- For manual mode specifically (line 833), change `ScrollArea className="max-h-[300px]"` to a taller constraint like `max-h-[40vh]` with explicit `overflow-y-auto` and visible scrollbar styling.
+- Ensure the container has proper flex layout so the footer stays fixed and the content scrolls.
+
+---
+
+## 3. Escrow Dashboard Date Filtering & Export
+
+**File**: `src/pages/regulator/EscrowDashboard.tsx`
+
+### Changes:
+- Add a **date filter bar** below the office selector with preset buttons: Today, Yesterday, Last 7 Days, This Week, This Month, Custom Range (from/to date inputs).
+- Apply the selected date range as `.gte("created_at", fromDate)` and `.lte("created_at", toDate)` on `escrow_transactions`, `escrow_splits`, `payment_receipts`, and `payout_transfers` queries.
+- All summary cards, allocation totals, revenue-by-type, pipeline stats, office breakdown, and receipt list update based on the selected period.
+- Add **Export section** with two buttons:
+  - **Export Excel (CSV)**: Structured CSV with sections — Summary row, Allocation breakdown, Revenue by Type, Office breakdown, Receipt list. Clean headers, formatted amounts.
+  - **Export PDF**: Using jsPDF — title, period, summary table, allocation table, revenue by type table, receipt register. Presentation-ready layout with borders and formatting.
 
 ---
 
@@ -61,10 +46,7 @@ There are ~10,891 serials in the database with `pair_index = NULL` from previous
 
 | File | Change |
 |------|--------|
-| `src/pages/regulator/rent-cards/AdminActions.tsx` | Add Serial Stock Registry section showing all batches |
-| `src/pages/regulator/rent-cards/OfficeAllocation.tsx` | Add "Reset Used" button with password confirm for quota reset |
-| `src/pages/regulator/rent-cards/DailyReport.tsx` | Merge quota data into report stats |
-| `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` | Insert `generation_batches` record on upload |
-| `supabase/functions/admin-action/index.ts` | Add `reset_office_quota_usage` action |
-| Database data fix | Set `pair_index = 1` on existing NULL rows |
+| `src/pages/regulator/rent-cards/DailyReport.tsx` | Date picker, previous reports view, weekly/custom range, export |
+| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Fix manual assign scroll constraints |
+| `src/pages/regulator/EscrowDashboard.tsx` | Date filter bar, filtered queries, CSV/PDF export |
 
