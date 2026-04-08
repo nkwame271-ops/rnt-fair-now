@@ -14,31 +14,50 @@ Deno.serve(async (req) => {
 
     const normalized = phone.replace(/\s/g, "").replace(/^0/, "233");
     const code = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Delete old OTPs for this phone
-    await supabaseAdmin.from("otp_verifications").delete().eq("phone", normalized);
+    // Delete only verified or expired OTPs for this phone
+    await supabaseAdmin
+      .from("otp_verifications")
+      .delete()
+      .eq("phone", normalized)
+      .or(`verified.eq.true,expires_at.lt.${new Date().toISOString()}`);
 
-    // Insert new OTP
-    const { error: insertErr } = await supabaseAdmin.from("otp_verifications").insert({
-      phone: normalized,
-      code,
-      expires_at: expiresAt,
-      verified: false,
-    });
-    if (insertErr) throw insertErr;
+    // Check if an unexpired unverified OTP already exists
+    const { data: existing } = await supabaseAdmin
+      .from("otp_verifications")
+      .select("id")
+      .eq("phone", normalized)
+      .eq("verified", false)
+      .gte("expires_at", new Date().toISOString())
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      // Update existing OTP with new code and reset expiry
+      const { error: updateErr } = await supabaseAdmin
+        .from("otp_verifications")
+        .update({ code, expires_at: expiresAt })
+        .eq("id", existing.id);
+      if (updateErr) throw updateErr;
+    } else {
+      // Insert new OTP
+      const { error: insertErr } = await supabaseAdmin
+        .from("otp_verifications")
+        .insert({ phone: normalized, code, expires_at: expiresAt, verified: false });
+      if (insertErr) throw insertErr;
+    }
 
     // Send SMS via Arkesel
     const apiKey = Deno.env.get("ARKESEL_API_KEY");
     const message = `Your RentControlGhana verification code is: ${code}. Valid for 10 minutes. Do not share.`;
 
     let smsSent = false;
-    // Try V2 first
     try {
       const v2Res = await fetch("https://api.arkesel.com/api/v2/sms/send", {
         method: "POST",
@@ -48,7 +67,6 @@ Deno.serve(async (req) => {
       if (v2Res.ok) smsSent = true;
     } catch { /* fallback */ }
 
-    // V1 fallback
     if (!smsSent) {
       try {
         const v1Url = `https://sms.arkesel.com/sms/api?action=send-sms&api_key=${apiKey}&to=${normalized}&from=RentGhana&sms=${encodeURIComponent(message)}`;
