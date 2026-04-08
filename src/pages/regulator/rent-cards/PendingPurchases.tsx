@@ -452,6 +452,19 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           continue;
         }
 
+        // Also mark the pair_index=2 copy as assigned (paired mode)
+        await supabase
+          .from("rent_card_serial_stock" as any)
+          .update({
+            status: "assigned",
+            assigned_to_card_id: card.id,
+            assigned_at: new Date().toISOString(),
+            assigned_by: user?.id,
+          })
+          .eq("serial_number", chosenSerial)
+          .eq("pair_index", 2)
+          .eq("status", "available");
+
         const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
         const { error: cardErr } = await supabase
           .from("rent_cards")
