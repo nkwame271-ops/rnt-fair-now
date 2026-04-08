@@ -1,48 +1,72 @@
 
 
-# Plan: Fix Serial Preview & Manual Range Allocation
+# Plan: Fix Paired Serial Assignment (1 Serial = 2 Cards)
 
-## Two Issues
+## Problem
 
-### 1. SerialGenerator Preview — Show Every Serial, Not Summary
-Currently the preview table shows one row per region (Region, Code, Qty, First, Last). The user wants to see **every individual serial number** listed, and whether it has a pair (pair_index 1 and 2).
+When assigning serials to rent cards, the system currently maps each card to a unique serial (1:1). But in paired mode, each serial represents a pair (landlord copy + tenant copy), so each serial should be assigned to **two consecutive cards**. Selecting 6 cards should require 3 unique serials, with each serial appearing twice.
 
-**File: `src/pages/regulator/rent-cards/SerialGenerator.tsx`**
+## Changes — Single File
 
-Replace the preview table (lines 327-358) with a full serial listing:
-- For each selected region entry, loop from `start` to `end` and render every serial: `{prefix}{code}-{padded_number}`
-- Show two columns: "Serial Number" and "Copies" (showing "2 (Paired)" or "1 (Single)" based on paired mode)
-- Keep the scrollable container with max-height, increase to ~400px since more rows
-- Add a count header: "Showing X serials (Y physical cards)"
+**File: `src/pages/regulator/rent-cards/PendingPurchases.tsx`**
 
-### 2. Office Allocation — Manual Range with Serial Search/Autocomplete
-The range transfer fails because the user types short numbers like "001" but the DB stores full serial numbers like `RCD-2026-GAR-0001`. Two sub-fixes:
+### 1. Compute `serialsNeeded` based on pairing
 
-**a) Add serial search/autocomplete to range inputs (like PendingPurchases)**
+Add a derived value: `serialsNeeded = Math.ceil(mappingCards.length / 2)` — this is the number of unique serials required. Used throughout validation, previews, and mapping.
 
-**File: `src/pages/regulator/rent-cards/OfficeAllocation.tsx`**
+### 2. Fix `buildAndAssign` — duplicate each serial
 
-- When `by_range` mode is selected and a region is chosen, fetch all available regional serials for that region (same query as PendingPurchases: `stock_type='regional'`, `status='available'`, `pair_index=1`, ordered by `serial_number`)
-- Store in state: `regionalSerials: SerialOption[]`
-- Replace the plain text inputs for Start/End with a searchable dropdown (reuse or replicate the `SerialSearchPicker` pattern from PendingPurchases) — as the admin types, show matching serials from the regional pool
-- The selected values become the **full serial numbers** (e.g. `RCD-2026-GAR-0001`)
+Currently:
+```
+card[0] → serial[0], card[1] → serial[1], card[2] → serial[2] ...
+```
 
-**b) Fix backend range query**
+Change to:
+```
+card[0] → serial[0], card[1] → serial[0], card[2] → serial[1], card[3] → serial[1] ...
+```
 
-**File: `supabase/functions/admin-action/index.ts`**
+For all modes (`auto_qty`, `start_from`, `range`), map `card[i] → serial[Math.floor(i / 2)]`.
 
-The `.gte("serial_number", aStartSerial).lte("serial_number", aEndSerial)` query (line 313-314) already works correctly **if full serial numbers are passed**. Once the frontend sends full serial numbers instead of short suffixes, this will match. No backend changes needed.
+For `manual` mode, show one picker per **pair of cards** (not per card), and assign the chosen serial to both cards in each pair.
 
-**c) Compute range quantity from actual serials**
+### 3. Fix `startFromPreview` and `rangePreview`
 
-Update `rangeQuantities` computation: instead of parsing start/end as integers, count actual serials from `regionalSerials` that fall within the selected range (between start and end serial alphabetically). This ensures accurate quantity even if some serials in the range are missing.
+- `startFromPreview`: slice `serialsNeeded` serials from the start point (not `mappingCards.length`)
+- `rangePreview`: validate that the range contains exactly `serialsNeeded` serials (not `mappingCards.length`)
+
+### 4. Fix `canConfirm` validation
+
+- `auto_qty`: `availableSerials.length >= serialsNeeded`
+- `start_from`: `startFromPreview.length >= serialsNeeded`
+- `range`: `rangePreview.length === serialsNeeded`
+- `manual`: every pair has a serial mapped
+
+### 5. Fix preview text in all modes
+
+Update the informational text to reflect pairing:
+- "Need **3 serials** for **6 cards** (paired)"
+- Auto mode: show range of 3 serials, not 6
+- Range mode: "Serials in range: 3 — Cards to assign: 6 (3 pairs) ✓"
+
+### 6. Fix manual mode UI
+
+Instead of showing one picker per card, group cards into pairs and show one picker per pair:
+- "Pair 1 (Card 1 & Card 2) — [serial picker]"
+- "Pair 2 (Card 3 & Card 4) — [serial picker]"
+
+The selected serial is assigned to both cards in the pair.
+
+## No backend changes needed
+
+The backend already handles pair_index=2 sync (from the previous fix). The `handleConfirmAssign` function already marks both pair indices as assigned. The only issue is the frontend mapping logic sending the wrong number of unique serials.
 
 ## Summary
 
-| File | Change |
-|------|--------|
-| `SerialGenerator.tsx` | Replace summary preview with full per-serial listing showing pair status |
-| `OfficeAllocation.tsx` | Add regional serial fetch, searchable serial picker for range start/end, compute range qty from actual data |
-
-No backend/migration changes needed.
+| Area | Current | Fixed |
+|------|---------|-------|
+| Serial mapping | 1 card : 1 serial | 2 cards : 1 serial |
+| 6 cards needs | 6 serials | 3 serials |
+| Validation | count ≥ cards | count ≥ ceil(cards/2) |
+| Manual UI | 1 picker/card | 1 picker/pair |
 
