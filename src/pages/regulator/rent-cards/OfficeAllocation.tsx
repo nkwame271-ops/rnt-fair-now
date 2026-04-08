@@ -34,7 +34,7 @@ interface Props {
   onStockChanged: () => void;
 }
 
-type TransferSubMode = "next_available" | "by_number";
+type TransferSubMode = "next_available" | "by_number" | "by_range";
 
 const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [selectedRegion, setSelectedRegion] = useState("");
@@ -43,6 +43,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [allocMode, setAllocMode] = useState<"transfer" | "quota">("transfer");
   const [transferSubMode, setTransferSubMode] = useState<TransferSubMode>("next_available");
   const [officeQuantities, setOfficeQuantities] = useState<Record<string, number>>({});
+  const [officeRanges, setOfficeRanges] = useState<Record<string, { start: string; end: string }>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [allocating, setAllocating] = useState(false);
   const [history, setHistory] = useState<AllocationHistoryItem[]>([]);
@@ -129,10 +130,25 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
     setQuotaUsage(usage);
   };
 
-  const totalTransferQty = Object.values(officeQuantities).reduce((a, b) => a + (b || 0), 0);
+  // Compute range quantities
+  const rangeQuantities: Record<string, number> = {};
+  for (const [officeId, range] of Object.entries(officeRanges)) {
+    const s = parseInt(range.start, 10);
+    const e = parseInt(range.end, 10);
+    if (!isNaN(s) && !isNaN(e) && e >= s && range.start.trim() && range.end.trim()) {
+      rangeQuantities[officeId] = e - s + 1;
+    }
+  }
+
+  const totalTransferQty = transferSubMode === "by_range"
+    ? Object.values(rangeQuantities).reduce((a, b) => a + b, 0)
+    : Object.values(officeQuantities).reduce((a, b) => a + (b || 0), 0);
+
   const canAllocate = selectedRegion && (
     allocMode === "transfer"
-      ? totalTransferQty > 0 && (transferSubMode === "by_number" || totalTransferQty <= regionalAvailable)
+      ? transferSubMode === "by_range"
+        ? Object.keys(rangeQuantities).length > 0 && totalTransferQty <= regionalAvailable
+        : totalTransferQty > 0 && (transferSubMode === "by_number" || totalTransferQty <= regionalAvailable)
       : Object.values(officeQuantities).some(v => v > 0)
   );
 
@@ -145,32 +161,61 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
     setAllocating(true);
     try {
       if (allocMode === "transfer") {
-        const mode = transferSubMode === "by_number" ? "quantity_transfer" : "transfer";
-        for (const office of offices) {
-          const qty = officeQuantities[office.id] || 0;
-          if (qty <= 0) continue;
+        if (transferSubMode === "by_range") {
+          // Range transfer mode
+          for (const office of offices) {
+            const range = officeRanges[office.id];
+            if (!range || !rangeQuantities[office.id]) continue;
 
-          const { data, error } = await supabase.functions.invoke("admin-action", {
-            body: {
-              action: "allocate_to_office",
-              target_id: `${mode === "quantity_transfer" ? "QTYXFR" : "ALLOC"}-${office.id}-${Date.now()}`,
-              reason,
-              password,
-              extra: {
-                region: selectedRegion,
-                office_id: office.id,
-                office_name: office.name,
-                quantity: qty,
-                allocation_mode: mode,
-                ...(mode === "quantity_transfer" ? { quota_limit: qty } : {}),
+            const { data, error } = await supabase.functions.invoke("admin-action", {
+              body: {
+                action: "allocate_to_office",
+                target_id: `RANGE-${office.id}-${Date.now()}`,
+                reason,
+                password,
+                extra: {
+                  region: selectedRegion,
+                  office_id: office.id,
+                  office_name: office.name,
+                  quantity: rangeQuantities[office.id],
+                  allocation_mode: "range_transfer",
+                  start_serial: range.start.trim(),
+                  end_serial: range.end.trim(),
+                },
               },
-            },
-          });
-          if (error) throw new Error(error.message);
-          if (data?.error) throw new Error(data.error);
+            });
+            if (error) throw new Error(error.message);
+            if (data?.error) throw new Error(data.error);
+          }
+          toast.success(`Transferred ${totalTransferQty} serial pairs (by range) to ${Object.keys(rangeQuantities).length} office(s)`);
+        } else {
+          const mode = transferSubMode === "by_number" ? "quantity_transfer" : "transfer";
+          for (const office of offices) {
+            const qty = officeQuantities[office.id] || 0;
+            if (qty <= 0) continue;
+
+            const { data, error } = await supabase.functions.invoke("admin-action", {
+              body: {
+                action: "allocate_to_office",
+                target_id: `${mode === "quantity_transfer" ? "QTYXFR" : "ALLOC"}-${office.id}-${Date.now()}`,
+                reason,
+                password,
+                extra: {
+                  region: selectedRegion,
+                  office_id: office.id,
+                  office_name: office.name,
+                  quantity: qty,
+                  allocation_mode: mode,
+                  ...(mode === "quantity_transfer" ? { quota_limit: qty } : {}),
+                },
+              },
+            });
+            if (error) throw new Error(error.message);
+            if (data?.error) throw new Error(data.error);
+          }
+          const label = transferSubMode === "by_number" ? "Allocated (by number)" : "Transferred";
+          toast.success(`${label} ${totalTransferQty} serial pairs to ${Object.values(officeQuantities).filter(v => v > 0).length} office(s)`);
         }
-        const label = transferSubMode === "by_number" ? "Allocated (by number)" : "Transferred";
-        toast.success(`${label} ${totalTransferQty} serial pairs to ${Object.values(officeQuantities).filter(v => v > 0).length} office(s)`);
       } else {
         // Quota mode — set new quotas
         for (const office of offices) {
@@ -200,6 +245,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
       }
 
       setOfficeQuantities({});
+      setOfficeRanges({});
       onStockChanged();
       refreshRegion();
     } catch (err: any) {
@@ -309,8 +355,8 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                 {/* Sub-mode toggle */}
                 <RadioGroup
                   value={transferSubMode}
-                  onValueChange={v => { setTransferSubMode(v as TransferSubMode); setOfficeQuantities({}); }}
-                  className="flex gap-4"
+                  onValueChange={v => { setTransferSubMode(v as TransferSubMode); setOfficeQuantities({}); setOfficeRanges({}); }}
+                  className="flex flex-wrap gap-4"
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="next_available" id="sub-next" />
@@ -320,36 +366,71 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                     <RadioGroupItem value="by_number" id="sub-number" />
                     <Label htmlFor="sub-number" className="cursor-pointer text-sm">Transfer by Number Only</Label>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="by_range" id="sub-range" />
+                    <Label htmlFor="sub-range" className="cursor-pointer text-sm">Assign by Manual Range</Label>
+                  </div>
                 </RadioGroup>
 
                 <p className="text-xs text-muted-foreground">
                   {transferSubMode === "next_available"
                     ? "Physically moves next available serials from regional stock to each office."
-                    : "Allocates a quantity to the office. Office staff draw from the regional pool until the quantity is exhausted."}
+                    : transferSubMode === "by_number"
+                    ? "Allocates a quantity to the office. Office staff draw from the regional pool until the quantity is exhausted."
+                    : "Enter a start and end serial number. All serials in that range are transferred from regional stock to the office."}
                 </p>
 
                 <div className="border border-border rounded-lg divide-y divide-border">
                   {offices.map(o => (
-                    <div key={o.id} className="flex items-center justify-between px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-card-foreground">{o.name}</span>
+                    <div key={o.id} className="flex items-center justify-between px-4 py-2.5 gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm text-card-foreground truncate">{o.name}</span>
                       </div>
-                      <Input
-                        type="number"
-                        min={0}
-                        className="w-24 h-8 text-xs"
-                        placeholder="0"
-                        value={officeQuantities[o.id] || ""}
-                        onChange={e => setOfficeQuantities(prev => ({ ...prev, [o.id]: parseInt(e.target.value) || 0 }))}
-                      />
+                      {transferSubMode === "by_range" ? (
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="text"
+                            className="w-24 h-8 text-xs"
+                            placeholder="Start (e.g. 050)"
+                            value={officeRanges[o.id]?.start || ""}
+                            onChange={e => setOfficeRanges(prev => ({
+                              ...prev,
+                              [o.id]: { start: e.target.value, end: prev[o.id]?.end || "" },
+                            }))}
+                          />
+                          <span className="text-xs text-muted-foreground">to</span>
+                          <Input
+                            type="text"
+                            className="w-24 h-8 text-xs"
+                            placeholder="End (e.g. 100)"
+                            value={officeRanges[o.id]?.end || ""}
+                            onChange={e => setOfficeRanges(prev => ({
+                              ...prev,
+                              [o.id]: { start: prev[o.id]?.start || "", end: e.target.value },
+                            }))}
+                          />
+                          {rangeQuantities[o.id] && (
+                            <Badge variant="secondary" className="text-[10px] whitespace-nowrap">{rangeQuantities[o.id]} pairs</Badge>
+                          )}
+                        </div>
+                      ) : (
+                        <Input
+                          type="number"
+                          min={0}
+                          className="w-24 h-8 text-xs"
+                          placeholder="0"
+                          value={officeQuantities[o.id] || ""}
+                          onChange={e => setOfficeQuantities(prev => ({ ...prev, [o.id]: parseInt(e.target.value) || 0 }))}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
                 {totalTransferQty > 0 && (
                   <p className="text-sm text-card-foreground">
-                    Total to {transferSubMode === "next_available" ? "transfer" : "allocate"}: <strong>{totalTransferQty}</strong> pair(s)
-                    {transferSubMode === "next_available" && totalTransferQty > regionalAvailable && (
+                    Total to {transferSubMode === "next_available" ? "transfer" : transferSubMode === "by_range" ? "transfer (range)" : "allocate"}: <strong>{totalTransferQty}</strong> pair(s)
+                    {(transferSubMode === "next_available" || transferSubMode === "by_range") && totalTransferQty > regionalAvailable && (
                       <span className="text-destructive ml-2">(exceeds available stock!)</span>
                     )}
                   </p>
@@ -454,7 +535,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
               <ArrowRightLeft className="h-4 w-4 mr-1" />
               {allocating ? "Allocating..." :
                 allocMode === "transfer"
-                  ? `${transferSubMode === "next_available" ? "Transfer" : "Allocate"} ${totalTransferQty} Pair(s)`
+                  ? `${transferSubMode === "next_available" ? "Transfer" : transferSubMode === "by_range" ? "Transfer Range" : "Allocate"} ${totalTransferQty} Pair(s)`
                   : "Set Quotas"}
             </Button>
 
@@ -490,15 +571,17 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
         open={showPassword}
         onOpenChange={setShowPassword}
         title={allocMode === "transfer"
-          ? (transferSubMode === "next_available" ? "Confirm Office Transfer" : "Confirm Quantity Allocation")
+          ? (transferSubMode === "next_available" ? "Confirm Office Transfer" : transferSubMode === "by_range" ? "Confirm Range Transfer" : "Confirm Quantity Allocation")
           : "Confirm Quota Assignment"}
         description={allocMode === "transfer"
           ? (transferSubMode === "next_available"
               ? `Transfer ${totalTransferQty} serial pair(s) from regional stock to office stock. This action is logged.`
+              : transferSubMode === "by_range"
+              ? `Transfer ${totalTransferQty} serial pair(s) by manual range from regional stock to office stock. The system will validate all serials in the range exist and are available. This action is logged.`
               : `Allocate ${totalTransferQty} pair(s) by number to office(s). Staff will draw from regional stock. This action is logged.`)
           : `Set priority quotas for offices in ${selectedRegion}. This action is logged.`}
         actionLabel={allocMode === "transfer"
-          ? (transferSubMode === "next_available" ? "Transfer" : "Allocate")
+          ? (transferSubMode === "next_available" || transferSubMode === "by_range" ? "Transfer" : "Allocate")
           : "Set Quotas"}
         onConfirm={handleConfirm}
       />
