@@ -41,6 +41,12 @@ const LandlordDashboard = () => {
       ]);
 
       setProfileName(profileRes.data?.full_name || "Landlord");
+      if (!landlordRes.data) {
+        setLandlordMissing(true);
+        setRegistrationFeePaid(false);
+        setLoading(false);
+        return;
+      }
       setRegistrationFeePaid(landlordRes.data?.registration_fee_paid ?? true);
       setComplianceScore((landlordRes.data as any)?.compliance_score ?? 100);
 
