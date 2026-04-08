@@ -352,6 +352,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
             .eq("office_name", office)
             .eq("stock_type", "office")
             .eq("status", "available")
+            .eq("pair_index", 1)
             .order("serial_number", { ascending: true })
             .range(from, from + PAGE - 1);
 

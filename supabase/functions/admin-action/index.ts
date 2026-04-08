@@ -493,48 +493,50 @@ Deno.serve(async (req) => {
         const primaryRow = (serialRows as any[]).find((r: any) => r.pair_index === 1) || (serialRows as any[])[0];
         if (primaryRow.status !== "assigned") throw new Error("Serial is not in 'assigned' status");
 
+        // Find ALL rent_cards linked to this serial number (not just via assigned_to_card_id)
+        const { data: linkedCards } = await adminClient
+          .from("rent_cards")
+          .select("id, status, tenancy_id")
+          .eq("serial_number", target_id);
+
+        const cardsToReset = (linkedCards || []) as any[];
+
         // Check if any linked card has an active tenancy
-        for (const row of serialRows as any[]) {
-          if (row.assigned_to_card_id) {
-            const { data: card } = await adminClient
-              .from("rent_cards")
-              .select("id, status, tenancy_id")
-              .eq("id", row.assigned_to_card_id)
+        for (const card of cardsToReset) {
+          if (card.tenancy_id) {
+            const { data: tenancy } = await adminClient
+              .from("tenancies")
+              .select("status")
+              .eq("id", card.tenancy_id)
               .maybeSingle();
 
-            if (card?.tenancy_id) {
-              const { data: tenancy } = await adminClient
-                .from("tenancies")
-                .select("status")
-                .eq("id", card.tenancy_id)
-                .maybeSingle();
-
-              if (tenancy && !["terminated", "expired"].includes(tenancy.status)) {
-                throw new Error("Cannot unassign: serial is linked to an active tenancy.");
-              }
+            if (tenancy && !["terminated", "expired"].includes(tenancy.status)) {
+              throw new Error("Cannot unassign: serial is linked to an active tenancy.");
             }
-
-            // Full factory reset of the rent card back to awaiting_serial
-            await adminClient
-              .from("rent_cards")
-              .update({
-                serial_number: null,
-                status: "awaiting_serial",
-                tenant_user_id: null,
-                property_id: null,
-                unit_id: null,
-                tenancy_id: null,
-                start_date: null,
-                expiry_date: null,
-                current_rent: null,
-                previous_rent: null,
-                advance_paid: null,
-                last_payment_status: null,
-                activated_at: null,
-                qr_token: null,
-              })
-              .eq("id", row.assigned_to_card_id);
           }
+        }
+
+        // Full factory reset of ALL rent cards linked to this serial
+        if (cardsToReset.length > 0) {
+          await adminClient
+            .from("rent_cards")
+            .update({
+              serial_number: null,
+              status: "awaiting_serial",
+              tenant_user_id: null,
+              property_id: null,
+              unit_id: null,
+              tenancy_id: null,
+              start_date: null,
+              expiry_date: null,
+              current_rent: null,
+              previous_rent: null,
+              advance_paid: null,
+              last_payment_status: null,
+              activated_at: null,
+              qr_token: null,
+            })
+            .in("id", cardsToReset.map((c: any) => c.id));
         }
 
         oldState = { serial_number: primaryRow.serial_number, status: primaryRow.status, pair_count: (serialRows as any[]).length };
