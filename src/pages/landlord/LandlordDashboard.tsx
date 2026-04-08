@@ -24,6 +24,8 @@ const LandlordDashboard = () => {
   const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
   const [complianceScore, setComplianceScore] = useState(100);
+  const [landlordMissing, setLandlordMissing] = useState(false);
+  const [creatingRecord, setCreatingRecord] = useState(false);
   const [tenancyBreakdown, setTenancyBreakdown] = useState({ active: 0, pending: 0, expired: 0, existing: 0 });
   const [stats, setStats] = useState({ properties: 0, totalUnits: 0, occupiedUnits: 0, pendingTenancies: 0, validMonths: 0, pendingMonths: 0 });
 

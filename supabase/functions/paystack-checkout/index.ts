@@ -542,13 +542,24 @@ Deno.serve(async (req) => {
       callbackPath = "/tenant/dashboard?status=success";
 
     } else if (type === "landlord_registration") {
-      const { data: landlord } = await supabase
+      let { data: landlord } = await supabase
         .from("landlords")
         .select("id, registration_fee_paid")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
-      if (!landlord) throw new Error("Landlord record not found");
+      // Defensive: auto-create landlord record if missing but user has landlord role
+      if (!landlord) {
+        const landlordId = "LL-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
+        const { data: created, error: createErr } = await supabaseAdmin
+          .from("landlords")
+          .insert({ user_id: userId, landlord_id: landlordId, registration_fee_paid: false })
+          .select("id, registration_fee_paid")
+          .single();
+        if (createErr) throw new Error("Failed to create landlord record: " + createErr.message);
+        landlord = created;
+      }
+
       if (landlord.registration_fee_paid) throw new Error("Registration fee already paid");
 
       officeId = await resolveOffice(supabaseAdmin, { userId, region: profile?.delivery_region || undefined, area: profile?.delivery_area || undefined });
