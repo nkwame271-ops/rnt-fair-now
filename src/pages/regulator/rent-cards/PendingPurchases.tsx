@@ -411,7 +411,6 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
         }
       }
     } else if (assignMode === "manual") {
-      // pairSerialMap assigns one serial per pair; expand to both cards
       for (const pair of cardPairs) {
         const serial = pairSerialMap[pair.pairIndex];
         if (serial) {
@@ -423,8 +422,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     }
 
     setSerialMap(newMap);
-    // Use timeout so state settles before confirm reads it
-    setTimeout(() => handleConfirmAssign(), 100);
+    // Pass newMap directly to avoid stale state from async React setState
+    handleConfirmAssign(newMap);
   };
 
   // Check if current mode is ready to confirm
@@ -453,8 +452,10 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     return "Confirm";
   }, [assignMode, serialsNeeded, mappingCards.length, startFromSerial, rangePreview.length]);
 
-  const handleConfirmAssign = async () => {
-    if (!allMapped) return;
+  const handleConfirmAssign = async (mapOverride?: Record<string, string>) => {
+    const activeMap = mapOverride ?? serialMap;
+    const isFullyMapped = mappingCards.length > 0 && mappingCards.every(c => activeMap[c.id]);
+    if (!isFullyMapped) return;
 
     // LAYER 2 enforcement: if quota-based, block if assignment count exceeds remaining
     if (quotaContext && mappingCards.length > quotaContext.remaining) {
@@ -473,7 +474,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       const processedSerials = new Set<string>();
 
       for (const card of mappingCards) {
-        const chosenSerial = serialMap[card.id];
+        const chosenSerial = activeMap[card.id];
 
         // Only update stock rows once per unique serial (first card in pair)
         if (!processedSerials.has(chosenSerial)) {

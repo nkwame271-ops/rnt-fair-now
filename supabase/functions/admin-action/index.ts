@@ -514,10 +514,25 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Reset the rent card back to awaiting_serial
+            // Full factory reset of the rent card back to awaiting_serial
             await adminClient
               .from("rent_cards")
-              .update({ serial_number: null, status: "awaiting_serial" })
+              .update({
+                serial_number: null,
+                status: "awaiting_serial",
+                tenant_user_id: null,
+                property_id: null,
+                unit_id: null,
+                tenancy_id: null,
+                start_date: null,
+                expiry_date: null,
+                current_rent: null,
+                previous_rent: null,
+                advance_paid: null,
+                last_payment_status: null,
+                activated_at: null,
+                qr_token: null,
+              })
               .eq("id", row.assigned_to_card_id);
           }
         }

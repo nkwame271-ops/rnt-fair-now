@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { CreditCard, Loader2, ShoppingCart, Hash, Link2, MapPin, User, Calendar, DollarSign, Clock, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -187,13 +187,43 @@ const ManageRentCards = () => {
 
   const filteredCards = filterStatus === "all" ? cards : cards.filter(c => c.status === filterStatus);
 
-  // Group cards by purchase_id for display
-  const purchaseGroups = new Map<string, EnrichedRentCard[]>();
-  for (const card of filteredCards) {
-    const key = card.purchase_id || card.id;
-    if (!purchaseGroups.has(key)) purchaseGroups.set(key, []);
-    purchaseGroups.get(key)!.push(card);
-  }
+  // Group cards into pairs: by serial_number if assigned, by purchase_id otherwise
+  const cardPairs = useMemo(() => {
+    const pairs: { key: string; serial: string | null; cards: EnrichedRentCard[] }[] = [];
+    const serialGroups = new Map<string, EnrichedRentCard[]>();
+    const awaitingCards: EnrichedRentCard[] = [];
+
+    for (const card of filteredCards) {
+      if (card.serial_number) {
+        if (!serialGroups.has(card.serial_number)) serialGroups.set(card.serial_number, []);
+        serialGroups.get(card.serial_number)!.push(card);
+      } else {
+        awaitingCards.push(card);
+      }
+    }
+
+    // Serial-paired groups
+    for (const [serial, group] of serialGroups) {
+      pairs.push({ key: serial, serial, cards: group });
+    }
+
+    // Awaiting cards: group by purchase_id in pairs of 2
+    const purchaseGroups = new Map<string, EnrichedRentCard[]>();
+    for (const card of awaitingCards) {
+      const key = card.purchase_id || card.id;
+      if (!purchaseGroups.has(key)) purchaseGroups.set(key, []);
+      purchaseGroups.get(key)!.push(card);
+    }
+    for (const [purchaseId, group] of purchaseGroups) {
+      // Split into chunks of 2
+      for (let i = 0; i < group.length; i += 2) {
+        const chunk = group.slice(i, i + 2);
+        pairs.push({ key: `await-${purchaseId}-${i}`, serial: null, cards: chunk });
+      }
+    }
+
+    return pairs;
+  }, [filteredCards]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -317,164 +347,179 @@ const ManageRentCards = () => {
           </Select>
         </div>
 
-        {/* Card List */}
-        {filteredCards.length === 0 ? (
+        {/* Card List — Paired View */}
+        {cardPairs.length === 0 ? (
           <div className="bg-card rounded-xl border border-border p-8 text-center text-muted-foreground">
             <CreditCard className="h-10 w-10 mx-auto mb-2 opacity-40" />
             <p className="text-sm">{cards.length === 0 ? "No rent cards yet. Purchase some above." : "No cards match this filter."}</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredCards.map(card => {
-              const isExpanded = expandedCard === card.id;
-              const isLinked = card.status === "active" && card.tenant_user_id;
-              const isAwaiting = card.status === "awaiting_serial";
+            {cardPairs.map(pair => {
+              const isAwaiting = !pair.serial;
+              const firstCard = pair.cards[0];
               return (
-                <div key={card.id} className="bg-card rounded-xl border border-border overflow-hidden">
-                  <button
-                    onClick={() => setExpandedCard(isExpanded ? null : card.id)}
-                    className="w-full p-4 flex items-center justify-between hover:bg-muted/30 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <CreditCard className={`h-5 w-5 ${isAwaiting ? "text-amber-500" : "text-primary"}`} />
-                      <div>
+                <div key={pair.key} className="bg-card rounded-xl border border-border overflow-hidden">
+                  {/* Pair Header */}
+                  <div className="p-4 border-b border-border bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <CreditCard className={`h-5 w-5 ${isAwaiting ? "text-amber-500" : "text-primary"}`} />
                         {isAwaiting ? (
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-3.5 w-3.5 text-amber-500" />
-                            <p className="text-sm font-medium text-amber-600">Collect from Rent Control office</p>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-3.5 w-3.5 text-amber-500" />
+                              <p className="text-sm font-medium text-amber-600">Awaiting Serial Assignment</p>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {firstCard.purchase_id && <span className="font-mono">{firstCard.purchase_id} • </span>}
+                              Purchased: {format(new Date(firstCard.purchased_at), "dd/MM/yyyy")}
+                            </p>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <p className="font-mono font-bold text-sm text-card-foreground">{card.serial_number}</p>
-                            {card.card_role && (
-                              <Badge variant="outline" className="text-[10px]">
-                                {card.card_role === "landlord_copy" ? "Landlord Copy" : card.card_role === "tenant_copy" ? "Tenant Copy" : card.card_role}
-                              </Badge>
-                            )}
+                          <div>
+                            <p className="font-mono font-bold text-sm text-card-foreground">{pair.serial}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {firstCard.purchase_id && <span className="font-mono">{firstCard.purchase_id} • </span>}
+                              Purchased: {format(new Date(firstCard.purchased_at), "dd/MM/yyyy")}
+                              {firstCard.activated_at && ` • Activated: ${format(new Date(firstCard.activated_at), "dd/MM/yyyy")}`}
+                            </p>
                           </div>
                         )}
-                        <p className="text-xs text-muted-foreground">
-                          {card.purchase_id && <span className="font-mono">{card.purchase_id} • </span>}
-                          Purchased: {format(new Date(card.purchased_at), "dd/MM/yyyy")}
-                          {card.activated_at && ` • Activated: ${format(new Date(card.activated_at), "dd/MM/yyyy")}`}
-                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px]">{pair.cards.length} card{pair.cards.length > 1 ? "s" : ""}</Badge>
+                        <Badge className={statusBadge(firstCard.status)}>{statusLabel(firstCard.status)}</Badge>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {isLinked && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Link2 className="h-3 w-3" /> Linked
-                        </span>
-                      )}
-                      <Badge className={statusBadge(card.status)}>{statusLabel(card.status)}</Badge>
-                    </div>
-                  </button>
+                  </div>
 
-                  {isExpanded && (
-                    <div className="border-t border-border p-5 space-y-4">
-                      {isAwaiting && (
-                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-sm text-amber-700">
-                          <strong>Next step:</strong> Visit your assigned Rent Control office with your Landlord ID ({card.landlord_id_code}) to collect the physical card and have the serial number assigned.
-                        </div>
-                      )}
-                      <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground text-xs mb-1">Rent Card ID</p>
-                          <p className="font-mono text-xs text-card-foreground">{card.id.slice(0, 8)}...</p>
-                        </div>
-                        {card.purchase_id && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1">Purchase ID</p>
-                            <p className="font-mono text-xs text-card-foreground">{card.purchase_id}</p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-muted-foreground text-xs mb-1">Landlord</p>
-                          <p className="font-semibold text-card-foreground">{card.landlord_name} ({card.landlord_id_code})</p>
-                        </div>
-                        {card.tenant_name && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><User className="h-3 w-3" /> Tenant</p>
-                            <p className="font-semibold text-card-foreground">{card.tenant_name} ({card.tenant_id_code})</p>
-                          </div>
-                        )}
-                        {card.property_code && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><MapPin className="h-3 w-3" /> Property</p>
-                            <p className="font-semibold text-card-foreground">{card.property_code}</p>
-                          </div>
-                        )}
-                        {card.unit_name && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1">Unit</p>
-                            <p className="font-semibold text-card-foreground">{card.unit_name}</p>
-                          </div>
-                        )}
-                        {card.tenancy_id && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1">Tenancy ID</p>
-                            <p className="font-mono text-xs text-card-foreground">{card.tenancy_id.slice(0, 8)}...</p>
-                          </div>
-                        )}
-                        {card.start_date && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><Calendar className="h-3 w-3" /> Start Date</p>
-                            <p className="font-semibold text-card-foreground">{format(new Date(card.start_date), "dd/MM/yyyy")}</p>
-                          </div>
-                        )}
-                        {card.expiry_date && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><Calendar className="h-3 w-3" /> Expiry Date</p>
-                            <p className="font-semibold text-card-foreground">{format(new Date(card.expiry_date), "dd/MM/yyyy")}</p>
-                          </div>
-                        )}
-                        {card.current_rent != null && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><DollarSign className="h-3 w-3" /> Current Rent</p>
-                            <p className="font-semibold text-card-foreground">GH₵ {card.current_rent.toLocaleString()}</p>
-                          </div>
-                        )}
-                        {card.previous_rent != null && card.previous_rent > 0 && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1">Previous Rent</p>
-                            <p className="font-semibold text-card-foreground">GH₵ {card.previous_rent.toLocaleString()}</p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-muted-foreground text-xs mb-1">Max Advance</p>
-                          <p className="font-semibold text-card-foreground">{card.max_advance ?? 6} months</p>
-                        </div>
-                        {card.advance_paid != null && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1">Advance Paid</p>
-                            <p className="font-semibold text-card-foreground">{card.advance_paid} month(s)</p>
-                          </div>
-                        )}
-                        {card.last_payment_status && card.last_payment_status !== "none" && (
-                          <div>
-                            <p className="text-muted-foreground text-xs mb-1">Last Payment Status</p>
-                            <p className="font-semibold text-card-foreground capitalize">{card.last_payment_status}</p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-muted-foreground text-xs mb-1">Card Status</p>
-                          <Badge className={statusBadge(card.status)}>{statusLabel(card.status)}</Badge>
-                        </div>
-                      </div>
+                  {/* Individual Cards in Pair */}
+                  <div className="divide-y divide-border">
+                    {pair.cards.map((card, idx) => {
+                      const isExpanded = expandedCard === card.id;
+                      const isLinked = card.status === "active" && card.tenant_user_id;
+                      const roleLabel = card.card_role === "landlord_copy" ? "Landlord Copy" : card.card_role === "tenant_copy" ? "Tenant Copy" : idx === 0 ? "Landlord Copy" : "Tenant Copy";
+                      return (
+                        <div key={card.id}>
+                          <button
+                            onClick={() => setExpandedCard(isExpanded ? null : card.id)}
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/20 transition-colors text-left"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-1 h-8 rounded-full ${idx === 0 ? "bg-primary" : "bg-accent-foreground/30"}`} />
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-[10px] font-medium">{roleLabel}</Badge>
+                                  {isLinked && (
+                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <Link2 className="h-3 w-3" /> Linked
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  ID: {card.id.slice(0, 8)}...
+                                </p>
+                              </div>
+                            </div>
+                            <Badge className={statusBadge(card.status)}>{statusLabel(card.status)}</Badge>
+                          </button>
 
-                      {card.qr_token && (
-                        <div className="flex flex-col items-center gap-2 pt-3 border-t border-border">
-                          <p className="text-xs text-muted-foreground font-medium">Verification QR Code</p>
-                          <QRCodeSVG
-                            value={`${PUBLISHED_URL}/verify/rent-card/${card.qr_token}`}
-                            size={120}
-                            level="M"
-                          />
-                          <p className="text-[10px] text-muted-foreground">Scan to verify this rent card</p>
+                          {isExpanded && (
+                            <div className="border-t border-border p-5 space-y-4 bg-muted/10">
+                              {isAwaiting && (
+                                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-sm text-amber-700">
+                                  <strong>Next step:</strong> Visit your assigned Rent Control office with your Landlord ID ({card.landlord_id_code}) to collect the physical card.
+                                </div>
+                              )}
+                              <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                                <div>
+                                  <p className="text-muted-foreground text-xs mb-1">Landlord</p>
+                                  <p className="font-semibold text-card-foreground">{card.landlord_name} ({card.landlord_id_code})</p>
+                                </div>
+                                {card.tenant_name && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><User className="h-3 w-3" /> Tenant</p>
+                                    <p className="font-semibold text-card-foreground">{card.tenant_name} ({card.tenant_id_code})</p>
+                                  </div>
+                                )}
+                                {card.property_code && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><MapPin className="h-3 w-3" /> Property</p>
+                                    <p className="font-semibold text-card-foreground">{card.property_code}</p>
+                                  </div>
+                                )}
+                                {card.unit_name && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs mb-1">Unit</p>
+                                    <p className="font-semibold text-card-foreground">{card.unit_name}</p>
+                                  </div>
+                                )}
+                                {card.tenancy_id && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs mb-1">Tenancy ID</p>
+                                    <p className="font-mono text-xs text-card-foreground">{card.tenancy_id.slice(0, 8)}...</p>
+                                  </div>
+                                )}
+                                {card.start_date && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><Calendar className="h-3 w-3" /> Start Date</p>
+                                    <p className="font-semibold text-card-foreground">{format(new Date(card.start_date), "dd/MM/yyyy")}</p>
+                                  </div>
+                                )}
+                                {card.expiry_date && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><Calendar className="h-3 w-3" /> Expiry Date</p>
+                                    <p className="font-semibold text-card-foreground">{format(new Date(card.expiry_date), "dd/MM/yyyy")}</p>
+                                  </div>
+                                )}
+                                {card.current_rent != null && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><DollarSign className="h-3 w-3" /> Current Rent</p>
+                                    <p className="font-semibold text-card-foreground">GH₵ {card.current_rent.toLocaleString()}</p>
+                                  </div>
+                                )}
+                                {card.previous_rent != null && card.previous_rent > 0 && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs mb-1">Previous Rent</p>
+                                    <p className="font-semibold text-card-foreground">GH₵ {card.previous_rent.toLocaleString()}</p>
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="text-muted-foreground text-xs mb-1">Max Advance</p>
+                                  <p className="font-semibold text-card-foreground">{card.max_advance ?? 6} months</p>
+                                </div>
+                                {card.advance_paid != null && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs mb-1">Advance Paid</p>
+                                    <p className="font-semibold text-card-foreground">{card.advance_paid} month(s)</p>
+                                  </div>
+                                )}
+                                {card.last_payment_status && card.last_payment_status !== "none" && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs mb-1">Last Payment Status</p>
+                                    <p className="font-semibold text-card-foreground capitalize">{card.last_payment_status}</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {card.qr_token && (
+                                <div className="flex flex-col items-center gap-2 pt-3 border-t border-border">
+                                  <p className="text-xs text-muted-foreground font-medium">Verification QR Code</p>
+                                  <QRCodeSVG
+                                    value={`${PUBLISHED_URL}/verify/rent-card/${card.qr_token}`}
+                                    size={120}
+                                    level="M"
+                                  />
+                                  <p className="text-[10px] text-muted-foreground">Scan to verify this rent card</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
