@@ -187,13 +187,43 @@ const ManageRentCards = () => {
 
   const filteredCards = filterStatus === "all" ? cards : cards.filter(c => c.status === filterStatus);
 
-  // Group cards by purchase_id for display
-  const purchaseGroups = new Map<string, EnrichedRentCard[]>();
-  for (const card of filteredCards) {
-    const key = card.purchase_id || card.id;
-    if (!purchaseGroups.has(key)) purchaseGroups.set(key, []);
-    purchaseGroups.get(key)!.push(card);
-  }
+  // Group cards into pairs: by serial_number if assigned, by purchase_id otherwise
+  const cardPairs = useMemo(() => {
+    const pairs: { key: string; serial: string | null; cards: EnrichedRentCard[] }[] = [];
+    const serialGroups = new Map<string, EnrichedRentCard[]>();
+    const awaitingCards: EnrichedRentCard[] = [];
+
+    for (const card of filteredCards) {
+      if (card.serial_number) {
+        if (!serialGroups.has(card.serial_number)) serialGroups.set(card.serial_number, []);
+        serialGroups.get(card.serial_number)!.push(card);
+      } else {
+        awaitingCards.push(card);
+      }
+    }
+
+    // Serial-paired groups
+    for (const [serial, group] of serialGroups) {
+      pairs.push({ key: serial, serial, cards: group });
+    }
+
+    // Awaiting cards: group by purchase_id in pairs of 2
+    const purchaseGroups = new Map<string, EnrichedRentCard[]>();
+    for (const card of awaitingCards) {
+      const key = card.purchase_id || card.id;
+      if (!purchaseGroups.has(key)) purchaseGroups.set(key, []);
+      purchaseGroups.get(key)!.push(card);
+    }
+    for (const [purchaseId, group] of purchaseGroups) {
+      // Split into chunks of 2
+      for (let i = 0; i < group.length; i += 2) {
+        const chunk = group.slice(i, i + 2);
+        pairs.push({ key: `await-${purchaseId}-${i}`, serial: null, cards: chunk });
+      }
+    }
+
+    return pairs;
+  }, [filteredCards]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
