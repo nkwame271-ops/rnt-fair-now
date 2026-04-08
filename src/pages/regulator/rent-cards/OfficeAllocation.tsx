@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { ArrowRightLeft, Building2, Pencil, RotateCcw } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { ArrowRightLeft, Building2, Pencil, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,67 @@ interface Props {
 
 type TransferSubMode = "next_available" | "by_number" | "by_range";
 
+/* ─── Serial Search Picker ─── */
+const SerialSearchPicker = ({
+  serials,
+  value,
+  onChange,
+  placeholder,
+}: {
+  serials: string[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) => {
+  const [query, setQuery] = useState(value);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setQuery(value); }, [value]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!query) return serials.slice(0, 50);
+    const q = query.toLowerCase();
+    return serials.filter(s => s.toLowerCase().includes(q)).slice(0, 50);
+  }, [serials, query]);
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative">
+        <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+        <Input
+          className="w-44 h-8 text-xs pl-6"
+          placeholder={placeholder}
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+        />
+      </div>
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 mt-1 w-56 max-h-48 overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+          {filtered.map(s => (
+            <button
+              key={s}
+              className={`w-full text-left px-3 py-1.5 text-xs font-mono hover:bg-accent ${s === value ? "bg-accent/60 font-semibold" : ""}`}
+              onClick={() => { onChange(s); setQuery(s); setOpen(false); }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [selectedRegion, setSelectedRegion] = useState("");
   const [regionalAvailable, setRegionalAvailable] = useState(0);
@@ -52,9 +113,28 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [editingQuota, setEditingQuota] = useState<Record<string, number>>({});
   const [updatingQuota, setUpdatingQuota] = useState<string | null>(null);
   const [resetQuotaTarget, setResetQuotaTarget] = useState<{ office_id: string; office_name: string; used: number } | null>(null);
+  const [regionalSerials, setRegionalSerials] = useState<string[]>([]);
 
   const regionData = GHANA_REGIONS_OFFICES.find(r => r.region === selectedRegion);
   const offices = regionData?.offices || [];
+
+  // Fetch available regional serials for range mode
+  useEffect(() => {
+    if (!selectedRegion || transferSubMode !== "by_range") { setRegionalSerials([]); return; }
+    const fetchSerials = async () => {
+      const { data } = await supabase
+        .from("rent_card_serial_stock" as any)
+        .select("serial_number")
+        .eq("region", selectedRegion)
+        .eq("stock_type", "regional")
+        .eq("status", "available")
+        .eq("pair_index", 1)
+        .order("serial_number")
+        .limit(5000);
+      setRegionalSerials((data || []).map((d: any) => d.serial_number));
+    };
+    fetchSerials();
+  }, [selectedRegion, transferSubMode]);
 
   useEffect(() => {
     if (!selectedRegion) return;
@@ -80,7 +160,6 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
     };
     fetchStock();
 
-    // Fetch history and quota usage
     setLoadingHistory(true);
     supabase
       .from("office_allocations" as any)
@@ -130,13 +209,14 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
     setQuotaUsage(usage);
   };
 
-  // Compute range quantities
+  // Compute range quantities from actual serial data
   const rangeQuantities: Record<string, number> = {};
   for (const [officeId, range] of Object.entries(officeRanges)) {
-    const s = parseInt(range.start, 10);
-    const e = parseInt(range.end, 10);
-    if (!isNaN(s) && !isNaN(e) && e >= s && range.start.trim() && range.end.trim()) {
-      rangeQuantities[officeId] = e - s + 1;
+    const s = range.start.trim();
+    const e = range.end.trim();
+    if (s && e && s <= e) {
+      const count = regionalSerials.filter(sn => sn >= s && sn <= e).length;
+      if (count > 0) rangeQuantities[officeId] = count;
     }
   }
 
@@ -388,27 +468,25 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                         <span className="text-sm text-card-foreground truncate">{o.name}</span>
                       </div>
                       {transferSubMode === "by_range" ? (
-                        <div className="flex items-center gap-1.5">
-                          <Input
-                            type="text"
-                            className="w-24 h-8 text-xs"
-                            placeholder="Start (e.g. 050)"
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <SerialSearchPicker
+                            serials={regionalSerials}
                             value={officeRanges[o.id]?.start || ""}
-                            onChange={e => setOfficeRanges(prev => ({
+                            onChange={v => setOfficeRanges(prev => ({
                               ...prev,
-                              [o.id]: { start: e.target.value, end: prev[o.id]?.end || "" },
+                              [o.id]: { start: v, end: prev[o.id]?.end || "" },
                             }))}
+                            placeholder="Start serial..."
                           />
                           <span className="text-xs text-muted-foreground">to</span>
-                          <Input
-                            type="text"
-                            className="w-24 h-8 text-xs"
-                            placeholder="End (e.g. 100)"
+                          <SerialSearchPicker
+                            serials={regionalSerials}
                             value={officeRanges[o.id]?.end || ""}
-                            onChange={e => setOfficeRanges(prev => ({
+                            onChange={v => setOfficeRanges(prev => ({
                               ...prev,
-                              [o.id]: { start: prev[o.id]?.start || "", end: e.target.value },
+                              [o.id]: { start: prev[o.id]?.start || "", end: v },
                             }))}
+                            placeholder="End serial..."
                           />
                           {rangeQuantities[o.id] && (
                             <Badge variant="secondary" className="text-[10px] whitespace-nowrap">{rangeQuantities[o.id]} pairs</Badge>

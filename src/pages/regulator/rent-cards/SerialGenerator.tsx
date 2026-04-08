@@ -324,39 +324,54 @@ const SerialGenerator = ({ onStockChanged }: Props) => {
         </div>
 
         {/* Preview Table */}
-        {showPreview && selectedEntries.length > 0 && (
-          <div className="border border-border rounded-lg p-4 space-y-2 max-h-60 overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-card-foreground">Preview</p>
-              <Button variant="ghost" size="sm" onClick={() => setShowPreview(false)}>Close</Button>
-            </div>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-muted-foreground border-b border-border">
-                  <th className="text-left py-1">Region</th>
-                  <th className="text-left py-1">Code</th>
-                  <th className="text-right py-1">Qty</th>
-                  <th className="text-left py-1 pl-4">First Serial</th>
-                  <th className="text-left py-1">Last Serial</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedEntries.map(e => {
-                  const qty = Math.max(0, e.end - e.start + 1);
-                  return (
-                    <tr key={e.region} className="border-b border-border/50">
-                      <td className="py-1.5">{e.region}</td>
-                      <td className="py-1.5 font-mono">{e.code}</td>
-                      <td className="py-1.5 text-right">{qty}</td>
-                      <td className="py-1.5 pl-4 font-mono">{prefix}{e.code}-{String(e.start).padStart(padLength, "0")}</td>
-                      <td className="py-1.5 font-mono">{prefix}{e.code}-{String(e.end).padStart(padLength, "0")}</td>
+        {showPreview && selectedEntries.length > 0 && (() => {
+          const allSerials: { serial: string; region: string; copies: number }[] = [];
+          selectedEntries.forEach(e => {
+            for (let i = e.start; i <= e.end; i++) {
+              allSerials.push({
+                serial: `${prefix}${e.code}-${String(i).padStart(padLength, "0")}`,
+                region: e.region,
+                copies: pairedMode ? 2 : 1,
+              });
+            }
+          });
+          return (
+            <div className="border border-border rounded-lg p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-card-foreground">
+                  Showing {allSerials.length.toLocaleString()} serial(s) ({(allSerials.length * (pairedMode ? 2 : 1)).toLocaleString()} physical cards)
+                </p>
+                <Button variant="ghost" size="sm" onClick={() => setShowPreview(false)}>Close</Button>
+              </div>
+              <div className="max-h-[400px] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-card">
+                    <tr className="text-muted-foreground border-b border-border">
+                      <th className="text-left py-1">#</th>
+                      <th className="text-left py-1">Serial Number</th>
+                      <th className="text-left py-1">Region</th>
+                      <th className="text-left py-1">Copies</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  </thead>
+                  <tbody>
+                    {allSerials.map((s, idx) => (
+                      <tr key={s.serial} className="border-b border-border/50">
+                        <td className="py-1 text-muted-foreground">{idx + 1}</td>
+                        <td className="py-1 font-mono">{s.serial}</td>
+                        <td className="py-1">{s.region}</td>
+                        <td className="py-1">
+                          <Badge variant={s.copies === 2 ? "default" : "secondary"} className="text-[10px]">
+                            {s.copies === 2 ? "2 (Paired)" : "1 (Single)"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <AdminPasswordConfirm
