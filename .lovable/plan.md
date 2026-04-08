@@ -1,41 +1,34 @@
 
 
-# Plan: Procurement Report Date Filter + Fix Unassign Serials
+# Fix: Range Transfer "Invalid serial range" Error
 
-## Issue 1: Procurement Report — Add Custom Date Range Filter
+## Root Cause
 
-Currently the report loads all batches with no date filtering. Add the same date preset system used in the Escrow Dashboard.
+The backend `admin-action` function (line 297-301) does `parseInt(aStartSerial, 10)` on full serial strings like `RCD-2026-GAR-0001`. `parseInt("RCD-2026-GAR-0001")` returns `NaN`, which triggers the error `"Invalid serial range: end must be >= start"`.
 
-**File: `src/pages/regulator/rent-cards/ProcurementReport.tsx`**
+The frontend was updated to send full serial strings (from the searchable picker), but the backend validation was never updated to match.
 
-- Add `DatePreset` type and `getPresetRange` helper (same as Escrow: All, Today, Yesterday, Last 7 Days, This Week, This Month, Custom)
-- Add state for `datePreset`, `customFrom`, `customTo`
-- Add a filter bar with preset buttons and custom date pickers (Calendar popovers)
-- Filter the `generation_batches` query by `created_at` using `.gte()` and `.lte()` based on the effective date range
-- Add a "Search" button to re-fetch with the selected range
-- Update PDF export to include the date range in the header
+## Fix
 
-## Issue 2: Unassign Serials — Serial Not Found
+**File: `supabase/functions/admin-action/index.ts`** (lines 297-316)
 
-The root cause is that `rent_card_serial_stock` stores **two rows** per serial number in paired mode (pair_index 1 and 2). The current search uses `.eq("serial_number", ...).single()`, which fails with a PostgREST error when 2 rows match (Supabase `.single()` throws if more than one row is returned).
+Replace the numeric `parseInt` validation with a string comparison:
 
-**File: `src/pages/regulator/rent-cards/AdminActions.tsx`**
+1. Remove `parseInt(aStartSerial)` / `parseInt(aEndSerial)` and the `isNaN` check
+2. Validate using simple string comparison: `aEndSerial < aStartSerial` (alphabetical — works because serials share a common prefix and are zero-padded)
+3. Remove `expectedCount` calculation based on integer subtraction — it's meaningless for full serial strings
+4. Instead, query all available regional serials between `aStartSerial` and `aEndSerial` using the existing `.gte()` / `.lte()` query (lines 307-316), then use the actual result count as the transfer count
+5. Remove the `uniqueCount < expectedCount` check (line 331-333) since we no longer have a pre-computed expected count — transfer whatever is found in the range, or error if zero results
 
-- Change `handleSerialSearch` to use `.eq("serial_number", ...).eq("pair_index", 1)` (or drop `.single()` and take the first result) so the lookup succeeds for paired serials
-- Display additional info: `pair_index`, `stock_type`, `assigned_to_card_id`
-- When the serial is "assigned", check if it's linked to a tenancy by looking up the `rent_cards` table via `assigned_to_card_id` — if no active tenancy, show the "Unassign" button
+The `.gte("serial_number", aStartSerial).lte("serial_number", aEndSerial)` query on lines 313-314 already works correctly with full serial strings, so no change needed there.
 
-**File: `supabase/functions/admin-action/index.ts`**
+### Updated validation logic (pseudocode):
+```
+if (aStartSerial > aEndSerial) throw "end must be >= start";
+// query serials in range...
+if (results.length === 0) throw "No serials found in range";
+// proceed with transfer using actual results
+```
 
-- In the `unassign_serial` case, change the query from `.eq("serial_number", target_id).single()` to `.eq("serial_number", target_id).order("pair_index").limit(1).single()` so it finds the primary record
-- After unassigning pair_index 1, also unassign pair_index 2 (update both rows back to `available` status and clear `assigned_to_card_id`, `assigned_at`, `assigned_by`)
-- If pair_index 2 has a separate `assigned_to_card_id`, also reset that rent card's serial back to `awaiting_serial`
-
-## Summary
-
-| File | Change |
-|------|--------|
-| `ProcurementReport.tsx` | Add date preset filter bar with custom range, filter query by `created_at` |
-| `AdminActions.tsx` | Fix `.single()` to filter by `pair_index=1`, show serial details correctly |
-| `admin-action/index.ts` | Fix `.single()` query, unassign both pair indices atomically |
+No frontend changes needed — the frontend already sends full serial strings correctly.
 
