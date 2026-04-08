@@ -481,79 +481,26 @@ Deno.serve(async (req) => {
 
       case "unassign_serial": {
         targetType = "serial_stock";
-        // Fetch all rows for this serial (paired mode has 2 rows)
-        const { data: serialRows } = await adminClient
-          .from("rent_card_serial_stock")
-          .select("id, status, assigned_to_card_id, serial_number, pair_index")
-          .eq("serial_number", target_id)
-          .order("pair_index", { ascending: true });
 
-        if (!serialRows || serialRows.length === 0) throw new Error("Serial not found");
+        // Use the atomic unassign function for full pair reset
+        const { data: unassignResult, error: unassignError } = await adminClient
+          .rpc("unassign_serial_atomic", { p_serial_number: target_id });
 
-        const primaryRow = (serialRows as any[]).find((r: any) => r.pair_index === 1) || (serialRows as any[])[0];
-        if (primaryRow.status !== "assigned") throw new Error("Serial is not in 'assigned' status");
-
-        // Find ALL rent_cards linked to this serial number (not just via assigned_to_card_id)
-        const { data: linkedCards } = await adminClient
-          .from("rent_cards")
-          .select("id, status, tenancy_id")
-          .eq("serial_number", target_id);
-
-        const cardsToReset = (linkedCards || []) as any[];
-
-        // Check if any linked card has an active tenancy
-        for (const card of cardsToReset) {
-          if (card.tenancy_id) {
-            const { data: tenancy } = await adminClient
-              .from("tenancies")
-              .select("status")
-              .eq("id", card.tenancy_id)
-              .maybeSingle();
-
-            if (tenancy && !["terminated", "expired"].includes(tenancy.status)) {
-              throw new Error("Cannot unassign: serial is linked to an active tenancy.");
-            }
-          }
+        if (unassignError) {
+          throw new Error(unassignError.message);
         }
 
-        // Full factory reset of ALL rent cards linked to this serial
-        if (cardsToReset.length > 0) {
-          await adminClient
-            .from("rent_cards")
-            .update({
-              serial_number: null,
-              status: "awaiting_serial",
-              tenant_user_id: null,
-              property_id: null,
-              unit_id: null,
-              tenancy_id: null,
-              start_date: null,
-              expiry_date: null,
-              current_rent: null,
-              previous_rent: null,
-              advance_paid: null,
-              last_payment_status: null,
-              activated_at: null,
-              qr_token: null,
-            })
-            .in("id", cardsToReset.map((c: any) => c.id));
+        const result = unassignResult as any;
+        if (!result?.success) {
+          throw new Error("Unassign failed unexpectedly");
         }
 
-        oldState = { serial_number: primaryRow.serial_number, status: primaryRow.status, pair_count: (serialRows as any[]).length };
-
-        // Update ALL rows for this serial back to available
-        const idsToReset = (serialRows as any[]).map((r: any) => r.id);
-        await adminClient
-          .from("rent_card_serial_stock")
-          .update({
-            status: "available",
-            assigned_to_card_id: null,
-            assigned_at: null,
-            assigned_by: null,
-          })
-          .in("id", idsToReset);
-
-        newState = { status: "available", rows_reset: idsToReset.length };
+        oldState = { serial_number: target_id };
+        newState = {
+          status: "available",
+          cards_reset: result.cards_reset,
+          stock_rows_reset: result.stock_rows_reset,
+        };
         break;
       }
 
