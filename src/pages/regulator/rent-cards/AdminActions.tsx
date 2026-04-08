@@ -112,24 +112,28 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
     if (!serialSearch.trim()) return;
     setSerialSearching(true);
     setSerialResult(null);
-    const { data } = await supabase
+    // Fetch ALL rows for this serial (both pair_index 1 and 2) to get full pair state
+    const { data: allRows } = await supabase
       .from("rent_card_serial_stock" as any)
       .select("*")
       .eq("serial_number", serialSearch.trim().toUpperCase())
-      .eq("pair_index", 1)
-      .maybeSingle();
-    if (!data) {
-      // Fallback: try without pair_index filter (for non-paired serials)
-      const { data: fallback } = await supabase
-        .from("rent_card_serial_stock" as any)
-        .select("*")
-        .eq("serial_number", serialSearch.trim().toUpperCase())
-        .limit(1);
-      const result = (fallback as any[])?.[0] || null;
-      setSerialResult(result);
-      if (!result) toast.error("Serial not found");
+      .order("pair_index", { ascending: true });
+
+    const rows = (allRows as any[]) || [];
+    if (rows.length === 0) {
+      toast.error("Serial not found");
+      setSerialResult(null);
     } else {
-      setSerialResult(data);
+      // Derive aggregate status: if ANY row is assigned, show assigned
+      const hasAssigned = rows.some(r => r.status === "assigned");
+      const allAvailable = rows.every(r => r.status === "available");
+      const aggregateStatus = hasAssigned ? "assigned" : allAvailable ? "available" : rows[0].status;
+      setSerialResult({
+        ...rows[0],
+        status: aggregateStatus,
+        pair_count: rows.length,
+        all_rows: rows,
+      });
     }
     setSerialSearching(false);
   };

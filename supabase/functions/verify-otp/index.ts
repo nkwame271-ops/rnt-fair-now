@@ -5,6 +5,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/** Strict normalizer: strip everything except digits, then ensure 233 prefix */
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("233")) return digits;
+  if (digits.startsWith("0")) return "233" + digits.slice(1);
+  return "233" + digits;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -12,7 +20,7 @@ Deno.serve(async (req) => {
     const { phone, code } = await req.json();
     if (!phone || !code) return new Response(JSON.stringify({ error: "Phone and code required" }), { status: 400, headers: corsHeaders });
 
-    const normalized = phone.replace(/\s/g, "").replace(/^0/, "233");
+    const normalized = normalizePhone(phone);
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,

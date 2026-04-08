@@ -109,14 +109,27 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
         return;
       }
 
-      const rows = newSerials.map(s => ({
-        serial_number: s,
-        office_name: assignToRegion ? regionOffices[0]?.name || selectedRegion : officeName!,
-        status: "available" as const,
-        batch_label: batchLabel || null,
-        region: assignToRegion ? selectedRegion : null,
-        pair_index: 1,
-      }));
+      const targetOfficeName = assignToRegion ? regionOffices[0]?.name || selectedRegion : officeName!;
+      const rows: any[] = [];
+      for (const s of newSerials) {
+        // Insert BOTH pair rows (pair_index 1 and 2) for every serial
+        rows.push({
+          serial_number: s,
+          office_name: targetOfficeName,
+          status: "available" as const,
+          batch_label: batchLabel || null,
+          region: assignToRegion ? selectedRegion : null,
+          pair_index: 1,
+        });
+        rows.push({
+          serial_number: s,
+          office_name: targetOfficeName,
+          status: "available" as const,
+          batch_label: batchLabel || null,
+          region: assignToRegion ? selectedRegion : null,
+          pair_index: 2,
+        });
+      }
 
       const { error } = await supabase.from("rent_card_serial_stock").insert(rows);
       if (error) throw error;
