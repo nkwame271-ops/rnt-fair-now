@@ -1,7 +1,7 @@
 import { QRCodeSVG } from "qrcode.react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Printer, Download } from "lucide-react";
+import { Printer } from "lucide-react";
 import { formatGHSDecimal } from "@/lib/formatters";
 
 interface Split {
@@ -33,26 +33,48 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
   const handlePrint = () => {
     const el = document.getElementById(`receipt-${receiptNumber}`);
     if (!el) return;
-    el.setAttribute("data-printing", "true");
-    const style = document.createElement("style");
-    style.id = "receipt-print-style";
-    style.textContent = `
-      @media print {
-        body * { visibility: hidden !important; }
-        [data-printing="true"],
-        [data-printing="true"] * { visibility: visible !important; }
-        [data-printing="true"] {
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: 100% !important;
-        }
+
+    // Clone the receipt into a hidden iframe for isolated printing
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "0";
+    iframe.style.width = "800px";
+    iframe.style.height = "600px";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) { document.body.removeChild(iframe); return; }
+
+    // Copy stylesheets for consistent rendering
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map(s => s.outerHTML)
+      .join("\n");
+
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head>${styles}<style>
+      body { margin: 0; padding: 24px; background: white; }
+      @media print { body { padding: 0; } }
+    </style></head><body>${el.outerHTML}</body></html>`);
+    doc.close();
+
+    // Wait for styles to load then print
+    iframe.onload = () => {
+      setTimeout(() => {
+        iframe.contentWindow?.print();
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+      }, 300);
+    };
+
+    // Fallback if onload doesn't fire (already loaded)
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          if (document.body.contains(iframe)) document.body.removeChild(iframe);
+        }, 1000);
       }
-    `;
-    document.head.appendChild(style);
-    window.print();
-    el.removeAttribute("data-printing");
-    style.remove();
+    }, 1500);
   };
 
   return (

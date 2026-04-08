@@ -5,6 +5,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/** Strict normalizer: strip everything except digits, then ensure 233 prefix */
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("233")) return digits;
+  if (digits.startsWith("0")) return "233" + digits.slice(1);
+  return "233" + digits;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -12,8 +20,7 @@ Deno.serve(async (req) => {
     const { phone } = await req.json();
     if (!phone) return new Response(JSON.stringify({ error: "Phone required" }), { status: 400, headers: corsHeaders });
 
-    const normalized = phone.replace(/\s/g, "").replace(/^0/, "233");
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const normalized = normalizePhone(phone);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     const supabaseAdmin = createClient(
@@ -31,22 +38,26 @@ Deno.serve(async (req) => {
     // Check if an unexpired unverified OTP already exists
     const { data: existing } = await supabaseAdmin
       .from("otp_verifications")
-      .select("id")
+      .select("id, code")
       .eq("phone", normalized)
       .eq("verified", false)
       .gte("expires_at", new Date().toISOString())
       .limit(1)
       .maybeSingle();
 
+    let code: string;
+
     if (existing) {
-      // Update existing OTP with new code and reset expiry
+      // Reuse the SAME code — just extend expiry so resend doesn't invalidate
+      code = existing.code;
       const { error: updateErr } = await supabaseAdmin
         .from("otp_verifications")
-        .update({ code, expires_at: expiresAt })
+        .update({ expires_at: expiresAt })
         .eq("id", existing.id);
       if (updateErr) throw updateErr;
     } else {
-      // Insert new OTP
+      // Generate fresh code
+      code = String(Math.floor(100000 + Math.random() * 900000));
       const { error: insertErr } = await supabaseAdmin
         .from("otp_verifications")
         .insert({ phone: normalized, code, expires_at: expiresAt, verified: false });
