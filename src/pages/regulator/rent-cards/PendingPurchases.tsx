@@ -738,7 +738,11 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                   <span className="font-semibold text-card-foreground">{mappingCards.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Available serials (regional registry):</span>
+                  <span className="text-muted-foreground">Serials needed (paired — 1 serial = 2 cards):</span>
+                  <span className="font-semibold text-card-foreground">{serialsNeeded}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Available serials:</span>
                   <span className="font-semibold text-card-foreground">{availableSerials.length}</span>
                 </div>
                 {quotaContext && (
@@ -798,16 +802,16 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                   {assignMode === "auto_qty" && (
                     <div className="bg-muted/20 rounded-lg p-3 space-y-1 text-sm">
                       <p className="text-muted-foreground">
-                        The next <span className="font-semibold text-card-foreground">{mappingCards.length}</span> sequential serial{mappingCards.length !== 1 ? "s" : ""} will be assigned automatically.
+                        The next <span className="font-semibold text-card-foreground">{serialsNeeded}</span> sequential serial{serialsNeeded !== 1 ? "s" : ""} will be assigned to <span className="font-semibold text-card-foreground">{mappingCards.length}</span> cards (paired).
                       </p>
                       {availableSerials.length > 0 && (
                         <p className="font-mono text-xs text-card-foreground">
-                          {availableSerials[0]?.serial_number} → {availableSerials[Math.min(mappingCards.length - 1, availableSerials.length - 1)]?.serial_number}
+                          {availableSerials[0]?.serial_number} → {availableSerials[Math.min(serialsNeeded - 1, availableSerials.length - 1)]?.serial_number}
                         </p>
                       )}
-                      {availableSerials.length < mappingCards.length && (
+                      {availableSerials.length < serialsNeeded && (
                         <p className="text-destructive text-xs mt-1">
-                          Not enough serials. Need {mappingCards.length}, only {availableSerials.length} available.
+                          Not enough serials. Need {serialsNeeded}, only {availableSerials.length} available.
                         </p>
                       )}
                     </div>
@@ -826,16 +830,16 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                       {startFromSerial && (
                         <div className="bg-muted/20 rounded-lg p-3 text-sm space-y-1">
                           <p className="text-muted-foreground">
-                            Will assign <span className="font-semibold text-card-foreground">{Math.min(startFromPreview.length, mappingCards.length)}</span> serial{mappingCards.length !== 1 ? "s" : ""} starting from <span className="font-mono text-xs">{startFromSerial}</span>
+                            Will use <span className="font-semibold text-card-foreground">{Math.min(startFromPreview.length, serialsNeeded)}</span> serial{serialsNeeded !== 1 ? "s" : ""} for <span className="font-semibold text-card-foreground">{mappingCards.length}</span> cards (paired), starting from <span className="font-mono text-xs">{startFromSerial}</span>
                           </p>
                           {startFromPreview.length > 0 && (
                             <p className="font-mono text-xs text-card-foreground">
-                              {startFromPreview[0]?.serial_number} → {startFromPreview[Math.min(mappingCards.length - 1, startFromPreview.length - 1)]?.serial_number}
+                              {startFromPreview[0]?.serial_number} → {startFromPreview[Math.min(serialsNeeded - 1, startFromPreview.length - 1)]?.serial_number}
                             </p>
                           )}
-                          {startFromPreview.length < mappingCards.length && (
+                          {startFromPreview.length < serialsNeeded && (
                             <p className="text-destructive text-xs mt-1">
-                              Only {startFromPreview.length} serial{startFromPreview.length !== 1 ? "s" : ""} available from this point. Need {mappingCards.length}.
+                              Only {startFromPreview.length} serial{startFromPreview.length !== 1 ? "s" : ""} available from this point. Need {serialsNeeded}.
                             </p>
                           )}
                         </div>
@@ -866,18 +870,18 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                       {rangeFrom && rangeTo && (
                         <div className="bg-muted/20 rounded-lg p-3 text-sm space-y-1">
                           <p className="text-muted-foreground">
-                            Serials in range: <span className="font-semibold text-card-foreground">{rangePreview.length}</span> — Cards to assign: <span className="font-semibold text-card-foreground">{mappingCards.length}</span>
+                            Serials in range: <span className="font-semibold text-card-foreground">{rangePreview.length}</span> — Serials needed: <span className="font-semibold text-card-foreground">{serialsNeeded}</span> (for {mappingCards.length} cards, paired)
                           </p>
-                          {rangePreview.length !== mappingCards.length && (
+                          {rangePreview.length !== serialsNeeded && (
                             <p className="text-destructive text-xs">
-                              {rangePreview.length > mappingCards.length
-                                ? `Range has ${rangePreview.length - mappingCards.length} more serial(s) than cards selected.`
-                                : `Range has ${mappingCards.length - rangePreview.length} fewer serial(s) than cards selected.`}
+                              {rangePreview.length > serialsNeeded
+                                ? `Range has ${rangePreview.length - serialsNeeded} more serial(s) than needed.`
+                                : `Range has ${serialsNeeded - rangePreview.length} fewer serial(s) than needed.`}
                               {" "}Count must match exactly.
                             </p>
                           )}
-                          {rangePreview.length === mappingCards.length && (
-                            <p className="text-success text-xs font-medium">✓ Count matches perfectly.</p>
+                          {rangePreview.length === serialsNeeded && (
+                            <p className="text-success text-xs font-medium">✓ {rangePreview.length} serials will cover {mappingCards.length} cards (paired).</p>
                           )}
                         </div>
                       )}
@@ -886,18 +890,29 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
 
                   {assignMode === "manual" && (
                     <div className="max-h-[50vh] overflow-y-auto border border-border rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Select one serial per pair of cards. Each serial covers 2 cards (landlord + tenant copy).
+                      </p>
                       <div className="space-y-3">
-                        {mappingCards.map((card, idx) => (
-                          <div key={card.id} className="space-y-1">
+                        {cardPairs.map((pair) => (
+                          <div key={pair.pairIndex} className="space-y-1">
                             <Label className="text-xs text-muted-foreground">
-                              Card {idx + 1} — {card.landlord_name} ({card.id.slice(0, 8)}…)
+                              Pair {pair.pairIndex} — {pair.cards.map((c, i) => `Card ${(pair.pairIndex - 1) * 2 + i + 1}`).join(" & ")} ({pair.cards[0].landlord_name})
                             </Label>
                             <SerialSearchPicker
                               options={availableSerials.filter(
-                                s => !selectedSerialSet.has(s.serial_number) || serialMap[card.id] === s.serial_number
+                                s => !selectedSerialSet.has(s.serial_number) || pairSerialMap[pair.pairIndex] === s.serial_number
                               )}
-                              value={serialMap[card.id] || ""}
-                              onChange={val => setSerialMap(prev => ({ ...prev, [card.id]: val }))}
+                              value={pairSerialMap[pair.pairIndex] || ""}
+                              onChange={val => {
+                                setSerialMap(prev => {
+                                  const next = { ...prev };
+                                  for (const card of pair.cards) {
+                                    next[card.id] = val;
+                                  }
+                                  return next;
+                                });
+                              }}
                             />
                           </div>
                         ))}
