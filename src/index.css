@@ -123,3 +123,15 @@
     box-shadow: var(--shadow-glow);
   }
 }
+
+@media print {
+  nav, aside, header, footer,
+  .sidebar, .print\\:hidden,
+  [data-sidebar], [role="navigation"] {
+    display: none !important;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+  }
+}
