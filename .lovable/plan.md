@@ -1,31 +1,64 @@
 
 
-# Fix: "FOR UPDATE is not allowed with aggregate functions"
+# Plan: Fix Three Issues — Unassign/Assign Serial Bugs + Print Receipt
 
-## Root Cause
+## Issue 1: Duplicate key after unassign + "still active" on re-unassign
 
-The `unassign_serial_atomic` database function uses `SELECT count(*) INTO v_stock_count FROM rent_card_serial_stock WHERE ... FOR UPDATE`. PostgreSQL prohibits `FOR UPDATE` on queries with aggregate functions (`count()`).
+**Root cause**: The `unassign_serial_atomic` function resets stock rows to `status = 'available'` but does NOT restore them to their original `stock_type`/`office_name` context. Additionally, the `assign_serials_atomic` function sets `assigned_to_card_id` to only `v_card_ids[1]` for ALL stock rows — so pair_index=2 stock row also points to card 1 instead of card 2. When unassigning and re-assigning, the stock rows are marked available but may have stale metadata, and the pair_index=2 row's `assigned_to_card_id` was never properly differentiated.
 
-The same issue exists for the card count query further down.
+The "still active" issue likely occurs because after unassign, the `rent_cards` rows are reset but the UI isn't re-querying, or because the stock rows' status briefly shows `assigned` due to caching/stale reads.
 
-## Fix
+**Fix**: In `unassign_serial_atomic`, the reset logic is correct. The real problem is that `assign_serials_atomic` should update each stock row's `assigned_to_card_id` to the correct card per pair_index (card 1 → pair_index 1, card 2 → pair_index 2), not set all to card 1. This will also prevent orphaned references.
 
-Create a migration that replaces `unassign_serial_atomic` with corrected query structure:
+## Issue 2: "Serial claimed by another admin" — assigns half, leaves half
 
-1. **Lock rows first** with a plain `SELECT ... FOR UPDATE` (no aggregates)
-2. **Count separately** using `GET DIAGNOSTICS` or a second query without `FOR UPDATE`
+**Root cause**: In `assign_serials_atomic`, when updating stock rows, it does:
+```sql
+UPDATE rent_card_serial_stock
+SET status = 'assigned', assigned_to_card_id = v_card_ids[1]
+WHERE serial_number = v_serial;
+```
+This updates ALL stock rows for that serial to reference card 1. But the validation loop `FOR v_stock_row IN SELECT ... FOR UPDATE` checks each stock row's status. If pair_index=2 rows are somehow in a bad state (e.g., already assigned from a previous partial operation), the entire batch fails partway.
 
-Specifically:
-- Replace `SELECT count(*) INTO v_stock_count FROM rent_card_serial_stock WHERE serial_number = p_serial_number FOR UPDATE` with:
-  - `PERFORM 1 FROM rent_card_serial_stock WHERE serial_number = p_serial_number FOR UPDATE;` (locks rows)
-  - `SELECT count(*) INTO v_stock_count FROM rent_card_serial_stock WHERE serial_number = p_serial_number;` (counts without lock)
-- Apply the same pattern to the card locking section — the existing `FOR v_card IN SELECT ... FOR UPDATE` loop is fine (no aggregate), but the later `SELECT count(*) INTO v_card_count` doesn't need `FOR UPDATE` since rows are already locked by the loop above.
+More critically, the stock query in `PendingPurchases.tsx` only fetches `pair_index = 1` rows to display available serials. But the RPC validates BOTH pair_index rows. If pair_index=2 rows are in a different state (e.g., not reset properly from a previous unassign), the RPC will reject the serial even though pair_index=1 shows "available."
 
-## File
+**Fix**: 
+1. Update `assign_serials_atomic` to assign `v_card_ids[1]` to pair_index=1 stock row and `v_card_ids[2]` to pair_index=2 stock row separately.
+2. Ensure the stock validation counts both pair_index rows and requires exactly 2 available rows.
 
-| File | Change |
+## Issue 3: Print button prints entire page
+
+**Root cause**: `PaymentReceipt` uses `window.print()` which prints the entire page. There are no `@media print` CSS rules to hide non-receipt content.
+
+**Fix**: Add print-specific CSS that hides everything except the targeted receipt when printing. Use a technique where clicking "Print" sets a data attribute on the specific receipt, and `@media print` rules hide all other content.
+
+## Implementation
+
+### Migration: Fix `assign_serials_atomic` and `unassign_serial_atomic`
+
+Replace `assign_serials_atomic` to update stock rows per pair_index:
+- pair_index=1 → `assigned_to_card_id = v_card_ids[1]`
+- pair_index=2 → `assigned_to_card_id = v_card_ids[2]`
+
+Validate exactly 2 available stock rows exist per serial.
+
+### `PaymentReceipt.tsx` — Scoped printing
+
+Replace `window.print()` with logic that:
+1. Adds a `data-printing` attribute to the receipt element
+2. Adds a temporary `<style>` for `@media print` that hides everything except the marked receipt
+3. Calls `window.print()`
+4. Cleans up
+
+### `src/index.css` — Add base print styles
+
+Add `@media print` rules to hide navigation, sidebars, and non-essential UI.
+
+## Files
+
+| File | Action |
 |------|--------|
-| New migration SQL | `CREATE OR REPLACE FUNCTION public.unassign_serial_atomic(...)` with separated lock + count queries |
-
-No frontend changes needed — the function signature and return type stay identical.
+| New migration SQL | Fix both RPC functions |
+| `src/components/PaymentReceipt.tsx` | Scoped print logic |
+| `src/index.css` | Add `@media print` base styles |
 
