@@ -47,3 +47,7 @@ project_id = "qjrvwcwmhuxygdanbxsz"
     verify_jwt = false
   [functions.finalize-office-attribution]
     verify_jwt = false
+  [functions.lookup-phone]
+    verify_jwt = false
+  [functions.reset-password-otp]
+    verify_jwt = false
