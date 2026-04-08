@@ -1,52 +1,39 @@
 
 
-# Plan: Daily Report Enhancements, Manual Assign Scroll Fix, Escrow Date Filtering
+# Fix Plan: Landlord Registration Not Completing
 
-## 1. Daily Report Enhancements
+## Root Cause Analysis
 
-**File**: `src/pages/regulator/rent-cards/DailyReport.tsx`
+**User**: OWUSU DORIS (user_id: `df2a213c-985f-40a4-8d7f-930e328674f1`, phone: 0244539484)
 
-### Changes:
-- Add a **date picker** field so staff can generate reports for any date (not just today). This enables missed report generation.
-- Add a **"Previous Reports"** read-only section below the form that queries `daily_stock_reports` for the selected office, showing past submissions in a table (date, opening, assigned, sold, spoilt, closing, signed by). Read-only — no edit/delete.
-- Add **report period selector**: "Daily" (single date), "Weekly" (auto-computes Mon–Sun range), "Custom Range" (from/to date picker). When Weekly or Custom is selected, stats are aggregated across the date range.
-- For Weekly/Custom: query `rent_card_serial_stock` activity and `serial_assignments` across the full date range, then sum.
-- Add **Export buttons** (CSV and PDF) using the same pattern as `AdminReportView.tsx` — structured output with headers, office name, period, stats, and sign-off metadata. Uses jsPDF and manual CSV generation.
+**What happened**: The user's `auth.users` record and `profiles` row were created successfully, and `user_roles` has `role = landlord`. However, **no row exists in the `landlords` table**. The `landlords.insert` during registration (line 192 of `RegisterLandlord.tsx`) likely failed due to an RLS policy or network issue, but the user was already signed in by that point.
 
----
+**Why she's stuck**: 
+- The dashboard shows "Unpaid" and "N/A" because there's no landlord record to read
+- The "Pay Registration Fee" button calls `paystack-checkout` with `type: landlord_registration`, which queries `landlords` table first — since no record exists, it throws "Landlord record not found"
+- She was still able to buy rent cards because that flow only checks authentication, not the landlord record
+- The webhook's `handleSideEffects` for `landlord_registration` does an UPDATE, not an INSERT — so even if payment succeeded, it couldn't create the missing record
 
-## 2. Manual Assign Scroll Fix
+## Fixes
 
-**File**: `src/pages/regulator/rent-cards/PendingPurchases.tsx`
+### Fix 1 — Immediate data fix for OWUSU DORIS
+Insert the missing landlord record for this specific user via a migration, with `registration_fee_paid: false` so the normal payment flow can proceed.
 
-**Problem**: The manual assign list inside the Dialog uses `ScrollArea` with `max-h-[300px]`, but the dialog itself has `max-h-[90vh] overflow-hidden flex flex-col`. The inner content area uses `overflow-y-auto` but isn't constrained properly, causing content to be cut off.
+### Fix 2 — Defensive landlord record creation in checkout
+In `paystack-checkout/index.ts` (line 544-551), instead of throwing "Landlord record not found", auto-create the missing landlord record when the user has role=landlord but no landlord row. This prevents future occurrences.
 
-**Fix**:
-- Change the dialog's inner content `div` (line 678) from `className="space-y-4 flex-1 overflow-y-auto"` to use `min-h-0` to allow flex shrinking.
-- For manual mode specifically (line 833), change `ScrollArea className="max-h-[300px]"` to a taller constraint like `max-h-[40vh]` with explicit `overflow-y-auto` and visible scrollbar styling.
-- Ensure the container has proper flex layout so the footer stays fixed and the content scrolls.
+### Fix 3 — Defensive upsert in webhook side effects
+In `finalize-payment.ts` `handleSideEffects` for `landlord_registration` (line 382-389), if no landlord record exists, INSERT one instead of only doing an UPDATE. This ensures payment completion always results in a valid landlord record.
 
----
-
-## 3. Escrow Dashboard Date Filtering & Export
-
-**File**: `src/pages/regulator/EscrowDashboard.tsx`
-
-### Changes:
-- Add a **date filter bar** below the office selector with preset buttons: Today, Yesterday, Last 7 Days, This Week, This Month, Custom Range (from/to date inputs).
-- Apply the selected date range as `.gte("created_at", fromDate)` and `.lte("created_at", toDate)` on `escrow_transactions`, `escrow_splits`, `payment_receipts`, and `payout_transfers` queries.
-- All summary cards, allocation totals, revenue-by-type, pipeline stats, office breakdown, and receipt list update based on the selected period.
-- Add **Export section** with two buttons:
-  - **Export Excel (CSV)**: Structured CSV with sections — Summary row, Allocation breakdown, Revenue by Type, Office breakdown, Receipt list. Clean headers, formatted amounts.
-  - **Export PDF**: Using jsPDF — title, period, summary table, allocation table, revenue by type table, receipt register. Presentation-ready layout with borders and formatting.
-
----
+### Fix 4 — Defensive check on the dashboard
+In `LandlordDashboard.tsx`, if the landlord record query returns null, show a recovery UI that creates the missing record and then allows the user to proceed with payment.
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/pages/regulator/rent-cards/DailyReport.tsx` | Date picker, previous reports view, weekly/custom range, export |
-| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Fix manual assign scroll constraints |
-| `src/pages/regulator/EscrowDashboard.tsx` | Date filter bar, filtered queries, CSV/PDF export |
+| Database migration | Insert landlord record for user `df2a213c-...` |
+| `supabase/functions/paystack-checkout/index.ts` | Auto-create landlord record if missing when `type=landlord_registration` |
+| `supabase/functions/_shared/finalize-payment.ts` | Upsert landlord record in `handleSideEffects` instead of update-only |
+| `src/pages/landlord/LandlordDashboard.tsx` | Add recovery path when landlord record is missing |
 
