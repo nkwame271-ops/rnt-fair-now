@@ -380,13 +380,18 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
       }).eq("user_id", userId);
     }
   } else if (paymentType === "landlord_registration") {
-    const { data: landlord } = await supabaseAdmin.from("landlords").select("registration_fee_paid").eq("user_id", userId).single();
+    const { data: landlord } = await supabaseAdmin.from("landlords").select("registration_fee_paid").eq("user_id", userId).maybeSingle();
+    const regData = {
+      registration_fee_paid: true,
+      registration_date: new Date().toISOString(),
+      expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    };
     if (landlord && !landlord.registration_fee_paid) {
-      await supabaseAdmin.from("landlords").update({
-        registration_fee_paid: true,
-        registration_date: new Date().toISOString(),
-        expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-      }).eq("user_id", userId);
+      await supabaseAdmin.from("landlords").update(regData).eq("user_id", userId);
+    } else if (!landlord) {
+      // Defensive: create landlord record if missing
+      const landlordId = "LL-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
+      await supabaseAdmin.from("landlords").insert({ user_id: userId, landlord_id: landlordId, ...regData });
     }
   } else if (paymentType === "listing_fee") {
     const propertyId = escrow.related_property_id;

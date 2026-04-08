@@ -24,6 +24,8 @@ const LandlordDashboard = () => {
   const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
   const [payingFee, setPayingFee] = useState(false);
   const [complianceScore, setComplianceScore] = useState(100);
+  const [landlordMissing, setLandlordMissing] = useState(false);
+  const [creatingRecord, setCreatingRecord] = useState(false);
   const [tenancyBreakdown, setTenancyBreakdown] = useState({ active: 0, pending: 0, expired: 0, existing: 0 });
   const [stats, setStats] = useState({ properties: 0, totalUnits: 0, occupiedUnits: 0, pendingTenancies: 0, validMonths: 0, pendingMonths: 0 });
 
@@ -39,6 +41,12 @@ const LandlordDashboard = () => {
       ]);
 
       setProfileName(profileRes.data?.full_name || "Landlord");
+      if (!landlordRes.data) {
+        setLandlordMissing(true);
+        setRegistrationFeePaid(false);
+        setLoading(false);
+        return;
+      }
       setRegistrationFeePaid(landlordRes.data?.registration_fee_paid ?? true);
       setComplianceScore((landlordRes.data as any)?.compliance_score ?? 100);
 
@@ -77,6 +85,26 @@ const LandlordDashboard = () => {
     fetch();
   }, [user]);
 
+  const handleCreateMissingRecord = async () => {
+    if (!user) return;
+    setCreatingRecord(true);
+    try {
+      const landlordId = "LL-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
+      const { error } = await supabase.from("landlords").insert({
+        user_id: user.id,
+        landlord_id: landlordId,
+        registration_fee_paid: false,
+      });
+      if (error) throw error;
+      setLandlordMissing(false);
+      toast.success("Account initialized successfully!");
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to initialize account");
+      setCreatingRecord(false);
+    }
+  };
+
   const handlePayRegistrationFee = async () => {
     setPayingFee(true);
     try {
@@ -97,6 +125,21 @@ const LandlordDashboard = () => {
   };
 
   if (loading) return <LogoLoader message="Loading dashboard..." />;
+
+  if (landlordMissing) {
+    return (
+      <PageTransition>
+        <div className="max-w-md mx-auto mt-20 text-center space-y-4">
+          <AlertTriangle className="h-12 w-12 text-warning mx-auto" />
+          <h2 className="text-xl font-bold text-foreground">Account Setup Incomplete</h2>
+          <p className="text-muted-foreground">Your landlord profile wasn't fully initialized. Click below to complete the setup, then you can proceed with registration payment.</p>
+          <Button onClick={handleCreateMissingRecord} disabled={creatingRecord}>
+            {creatingRecord ? "Initializing..." : "Initialize My Account"}
+          </Button>
+        </div>
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition>
