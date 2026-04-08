@@ -1,34 +1,44 @@
 
 
-# Fix: Range Transfer "Invalid serial range" Error
+# Fix: Paired Serial Assignment "Claimed by Another Admin" Error
 
 ## Root Cause
 
-The backend `admin-action` function (line 297-301) does `parseInt(aStartSerial, 10)` on full serial strings like `RCD-2026-GAR-0001`. `parseInt("RCD-2026-GAR-0001")` returns `NaN`, which triggers the error `"Invalid serial range: end must be >= start"`.
-
-The frontend was updated to send full serial strings (from the searchable picker), but the backend validation was never updated to match.
+In `handleConfirmAssign`, the loop processes all 14 cards sequentially. Two cards share the same serial number. When the first card in a pair updates the stock row to `status="assigned"`, the second card tries to update the **same row** with `.eq("status", "available")` — which now fails because the status is already `"assigned"`. This triggers the false "claimed by another admin" error.
 
 ## Fix
 
-**File: `supabase/functions/admin-action/index.ts`** (lines 297-316)
+**File: `src/pages/regulator/rent-cards/PendingPurchases.tsx`** — `handleConfirmAssign` function (lines 470-524)
 
-Replace the numeric `parseInt` validation with a string comparison:
+Track which serials have already been processed in this batch. When the second card in a pair encounters a serial that was already assigned by the first card in the same batch, skip the stock update (it's already done) and just update the `rent_cards` table.
 
-1. Remove `parseInt(aStartSerial)` / `parseInt(aEndSerial)` and the `isNaN` check
-2. Validate using simple string comparison: `aEndSerial < aStartSerial` (alphabetical — works because serials share a common prefix and are zero-padded)
-3. Remove `expectedCount` calculation based on integer subtraction — it's meaningless for full serial strings
-4. Instead, query all available regional serials between `aStartSerial` and `aEndSerial` using the existing `.gte()` / `.lte()` query (lines 307-316), then use the actual result count as the transfer count
-5. Remove the `uniqueCount < expectedCount` check (line 331-333) since we no longer have a pre-computed expected count — transfer whatever is found in the range, or error if zero results
+### Changes:
 
-The `.gte("serial_number", aStartSerial).lte("serial_number", aEndSerial)` query on lines 313-314 already works correctly with full serial strings, so no change needed there.
+1. Add a `Set<string>` called `processedSerials` before the loop
+2. Inside the loop, check if `chosenSerial` is already in `processedSerials`:
+   - **If NOT processed**: Do the full stock update (pair_index=1 + pair_index=2) as before. Add to `processedSerials`.
+   - **If already processed**: Skip the stock update entirely — the serial rows are already marked assigned. Only update the `rent_cards` row with the serial number and status.
+3. This ensures each unique serial's stock rows are updated exactly once, while all cards in the pair get their `rent_cards` record updated.
 
-### Updated validation logic (pseudocode):
+### Pseudocode:
 ```
-if (aStartSerial > aEndSerial) throw "end must be >= start";
-// query serials in range...
-if (results.length === 0) throw "No serials found in range";
-// proceed with transfer using actual results
+const processedSerials = new Set<string>();
+
+for (const card of mappingCards) {
+  const chosenSerial = serialMap[card.id];
+  
+  if (!processedSerials.has(chosenSerial)) {
+    // First card in pair: update stock rows
+    update pair_index=1 WHERE status=available → check success
+    update pair_index=2 WHERE status=available
+    processedSerials.add(chosenSerial);
+  }
+  // else: second card in pair — stock already updated, skip
+  
+  // Always: update the rent_cards row
+  update rent_cards SET serial_number, status='valid' WHERE id=card.id
+}
 ```
 
-No frontend changes needed — the frontend already sends full serial strings correctly.
+No backend or database changes needed. Single file fix.
 
