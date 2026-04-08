@@ -1,39 +1,50 @@
 
 
-# Fix Plan: Landlord Registration Not Completing
+# Fix Plan: Paired Serial Generation & Assignment
 
-## Root Cause Analysis
+## Problem
 
-**User**: OWUSU DORIS (user_id: `df2a213c-985f-40a4-8d7f-930e328674f1`, phone: 0244539484)
+The user reports issues with how paired mode works in serial generation and assignment:
 
-**What happened**: The user's `auth.users` record and `profiles` row were created successfully, and `user_roles` has `role = landlord`. However, **no row exists in the `landlords` table**. The `landlords.insert` during registration (line 192 of `RegisterLandlord.tsx`) likely failed due to an RLS policy or network issue, but the user was already signed in by that point.
+1. **Generation** — Currently works correctly: in paired mode, each serial number gets 2 rows (pair_index 1 and 2). No change needed here.
 
-**Why she's stuck**: 
-- The dashboard shows "Unpaid" and "N/A" because there's no landlord record to read
-- The "Pay Registration Fee" button calls `paystack-checkout` with `type: landlord_registration`, which queries `landlords` table first — since no record exists, it throws "Landlord record not found"
-- She was still able to buy rent cards because that flow only checks authentication, not the landlord record
-- The webhook's `handleSideEffects` for `landlord_registration` does an UPDATE, not an INSERT — so even if payment succeeded, it couldn't create the missing record
+2. **Assignment** — The bug: when assigning a serial, only the `pair_index=1` row is updated to "assigned". The `pair_index=2` row for the same serial_number stays "available", creating orphaned stock and incorrect counts.
 
-## Fixes
+## Root Cause
 
-### Fix 1 — Immediate data fix for OWUSU DORIS
-Insert the missing landlord record for this specific user via a migration, with `registration_fee_paid: false` so the normal payment flow can proceed.
+In `PendingPurchases.tsx` (line 437-447), the assignment update targets a single row by `id` (the pair_index=1 record). The pair_index=2 duplicate is never marked as assigned.
 
-### Fix 2 — Defensive landlord record creation in checkout
-In `paystack-checkout/index.ts` (line 544-551), instead of throwing "Landlord record not found", auto-create the missing landlord record when the user has role=landlord but no landlord row. This prevents future occurrences.
+## Fix
 
-### Fix 3 — Defensive upsert in webhook side effects
-In `finalize-payment.ts` `handleSideEffects` for `landlord_registration` (line 382-389), if no landlord record exists, INSERT one instead of only doing an UPDATE. This ensures payment completion always results in a valid landlord record.
+### File: `src/pages/regulator/rent-cards/PendingPurchases.tsx`
 
-### Fix 4 — Defensive check on the dashboard
-In `LandlordDashboard.tsx`, if the landlord record query returns null, show a recovery UI that creates the missing record and then allows the user to proceed with payment.
+**Change the assignment logic** (around line 437-453): After updating the pair_index=1 row by `id`, also update the matching pair_index=2 row by `serial_number` + `pair_index=2`:
 
-## Files to Change
+```
+// After updating pair_index=1 row:
+await supabase
+  .from("rent_card_serial_stock")
+  .update({
+    status: "assigned",
+    assigned_to_card_id: card.id,
+    assigned_at: new Date().toISOString(),
+    assigned_by: user?.id,
+  })
+  .eq("serial_number", chosenSerial)
+  .eq("pair_index", 2)
+  .eq("status", "available");
+```
+
+This ensures both copies of a paired serial are marked as assigned together — 1 serial = 1 pair = 2 physical cards.
+
+**No changes needed to:**
+- Serial generation (`admin-action/index.ts`) — already creates pairs correctly
+- Office allocation transfer — already handles both pair indices
+- The UI display logic — already filters by pair_index=1 for display
+
+### Summary
 
 | File | Change |
 |------|--------|
-| Database migration | Insert landlord record for user `df2a213c-...` |
-| `supabase/functions/paystack-checkout/index.ts` | Auto-create landlord record if missing when `type=landlord_registration` |
-| `supabase/functions/_shared/finalize-payment.ts` | Upsert landlord record in `handleSideEffects` instead of update-only |
-| `src/pages/landlord/LandlordDashboard.tsx` | Add recovery path when landlord record is missing |
+| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | After assigning pair_index=1 row, also update the pair_index=2 row for the same serial_number to "assigned" |
 
