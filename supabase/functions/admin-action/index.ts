@@ -321,9 +321,8 @@ Deno.serve(async (req) => {
             serialMap.get(s.serial_number)!.push(s);
           });
 
-          const uniqueCount = serialMap.size;
-          if (uniqueCount < expectedCount) {
-            throw new Error(`Only ${uniqueCount} of ${expectedCount} serials are available in range ${aStartSerial}–${aEndSerial}. Some may be missing, already assigned, or not in regional stock.`);
+          if (serialMap.size === 0) {
+            throw new Error(`No available serials found in range ${aStartSerial}–${aEndSerial}`);
           }
 
           const serialsToTransfer: string[] = [];
