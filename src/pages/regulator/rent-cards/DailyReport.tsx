@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { AdminProfile, GHANA_REGIONS, getOfficesForRegion, getRegionForOffice } from "@/hooks/useAdminProfile";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2 } from "lucide-react";
-import { format, startOfWeek, endOfWeek, startOfDay, endOfDay, subDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";

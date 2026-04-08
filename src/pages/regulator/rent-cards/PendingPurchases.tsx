@@ -847,7 +847,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                           </div>
                         ))}
                       </div>
-                    </ScrollArea>
+                    </div>
                   )}
                 </>
               )}
