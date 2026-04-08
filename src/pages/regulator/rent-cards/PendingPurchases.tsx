@@ -470,43 +470,51 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     try {
       const assignedList: string[] = [];
       const assignedCardIds: string[] = [];
+      const processedSerials = new Set<string>();
 
       for (const card of mappingCards) {
         const chosenSerial = serialMap[card.id];
-        const serialRecord = availableSerials.find(s => s.serial_number === chosenSerial);
-        if (!serialRecord) { toast.error(`Serial ${chosenSerial} not found`); continue; }
 
-        const { data: updated, error: stockErr } = await supabase
-          .from("rent_card_serial_stock" as any)
-          .update({
-            status: "assigned",
-            assigned_to_card_id: card.id,
-            assigned_at: new Date().toISOString(),
-            assigned_by: user?.id,
-          })
-          .eq("id", serialRecord.id)
-          .eq("status", "available")
-          .select("id");
+        // Only update stock rows once per unique serial (first card in pair)
+        if (!processedSerials.has(chosenSerial)) {
+          const serialRecord = availableSerials.find(s => s.serial_number === chosenSerial);
+          if (!serialRecord) { toast.error(`Serial ${chosenSerial} not found`); continue; }
 
-        if (stockErr) throw stockErr;
-        if (!updated || updated.length === 0) {
-          toast.error(`Serial ${chosenSerial} was claimed by another admin`);
-          continue;
+          const { data: updated, error: stockErr } = await supabase
+            .from("rent_card_serial_stock" as any)
+            .update({
+              status: "assigned",
+              assigned_to_card_id: card.id,
+              assigned_at: new Date().toISOString(),
+              assigned_by: user?.id,
+            })
+            .eq("id", serialRecord.id)
+            .eq("status", "available")
+            .select("id");
+
+          if (stockErr) throw stockErr;
+          if (!updated || updated.length === 0) {
+            toast.error(`Serial ${chosenSerial} was claimed by another admin`);
+            continue;
+          }
+
+          // Also mark the pair_index=2 copy as assigned (paired mode)
+          await supabase
+            .from("rent_card_serial_stock" as any)
+            .update({
+              status: "assigned",
+              assigned_to_card_id: card.id,
+              assigned_at: new Date().toISOString(),
+              assigned_by: user?.id,
+            })
+            .eq("serial_number", chosenSerial)
+            .eq("pair_index", 2)
+            .eq("status", "available");
+
+          processedSerials.add(chosenSerial);
         }
 
-        // Also mark the pair_index=2 copy as assigned (paired mode)
-        await supabase
-          .from("rent_card_serial_stock" as any)
-          .update({
-            status: "assigned",
-            assigned_to_card_id: card.id,
-            assigned_at: new Date().toISOString(),
-            assigned_by: user?.id,
-          })
-          .eq("serial_number", chosenSerial)
-          .eq("pair_index", 2)
-          .eq("status", "available");
-
+        // Always update the rent_cards row for every card in the pair
         const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
         const { error: cardErr } = await supabase
           .from("rent_cards")
