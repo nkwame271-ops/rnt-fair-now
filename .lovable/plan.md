@@ -1,44 +1,48 @@
 
 
-# Plan: Add "Assign by Manual Range" to Office Allocation Transfer
+# Plan: Fix Serial Preview & Manual Range Allocation
 
-## What changes
+## Two Issues
 
-Add a third transfer sub-mode ("by_range") alongside the existing "Next Available Serials" and "Transfer by Number Only" options. This lets an admin enter a start and end serial per office, and the system transfers all matching regional serials within that range sequentially.
+### 1. SerialGenerator Preview — Show Every Serial, Not Summary
+Currently the preview table shows one row per region (Region, Code, Qty, First, Last). The user wants to see **every individual serial number** listed, and whether it has a pair (pair_index 1 and 2).
 
-## Files to change
+**File: `src/pages/regulator/rent-cards/SerialGenerator.tsx`**
 
-### 1. `src/pages/regulator/rent-cards/OfficeAllocation.tsx`
+Replace the preview table (lines 327-358) with a full serial listing:
+- For each selected region entry, loop from `start` to `end` and render every serial: `{prefix}{code}-{padded_number}`
+- Show two columns: "Serial Number" and "Copies" (showing "2 (Paired)" or "1 (Single)" based on paired mode)
+- Keep the scrollable container with max-height, increase to ~400px since more rows
+- Add a count header: "Showing X serials (Y physical cards)"
 
-- Add `"by_range"` to the `TransferSubMode` type
-- Add a new RadioGroup option: "Assign by Manual Range"
-- Add state for range inputs: `officeRanges: Record<string, { start: string; end: string }>`
-- When `by_range` is selected, replace the per-office quantity input with two text inputs (Start Serial, End Serial) per office
-- Compute `totalTransferQty` from ranges: for each office with a valid range, count = numeric(end) - numeric(start) + 1
-- Update `canAllocate` to validate range inputs (start <= end, both non-empty)
-- In `handleConfirm`, for `by_range` mode, call `admin-action` with `allocation_mode: "range_transfer"` and pass `start_serial` / `end_serial` in the `extra` payload
-- Update the `AdminPasswordConfirm` description to reflect range transfer
+### 2. Office Allocation — Manual Range with Serial Search/Autocomplete
+The range transfer fails because the user types short numbers like "001" but the DB stores full serial numbers like `RCD-2026-GAR-0001`. Two sub-fixes:
 
-### 2. `supabase/functions/admin-action/index.ts`
+**a) Add serial search/autocomplete to range inputs (like PendingPurchases)**
 
-Inside the `"allocate_to_office"` case, add handling for `allocation_mode === "range_transfer"`:
+**File: `src/pages/regulator/rent-cards/OfficeAllocation.tsx`**
 
-- Extract `start_serial` and `end_serial` from `extra`
-- Query `rent_card_serial_stock` for serials in the given region where `stock_type = 'regional'`, `status = 'available'`, and `serial_number` between start and end (inclusive), ordered ascending
-- Validate: if returned count is 0 or less than expected range, throw an error with details on which serials are missing/unavailable
-- Group by serial_number to capture both pair indices
-- Create the `office_allocations` record with `allocation_mode: "range_transfer"`, `start_serial`, `end_serial`, actual `serial_numbers` array, and `quantity` = unique serial count
-- Update all matched rows to `stock_type: "office"` and `office_name` (same batch logic as existing transfer mode)
-- Set `oldState`/`newState` for audit logging
+- When `by_range` mode is selected and a region is chosen, fetch all available regional serials for that region (same query as PendingPurchases: `stock_type='regional'`, `status='available'`, `pair_index=1`, ordered by `serial_number`)
+- Store in state: `regionalSerials: SerialOption[]`
+- Replace the plain text inputs for Start/End with a searchable dropdown (reuse or replicate the `SerialSearchPicker` pattern from PendingPurchases) — as the admin types, show matching serials from the regional pool
+- The selected values become the **full serial numbers** (e.g. `RCD-2026-GAR-0001`)
 
-## Validation rules (server-side in edge function)
+**b) Fix backend range query**
 
-- All serials in the range must exist in regional stock for the selected region
-- All serials must have `status = 'available'`
-- The quantity (range size) must not exceed available regional stock
-- Standard password re-auth and audit logging apply (already handled by the existing flow)
+**File: `supabase/functions/admin-action/index.ts`**
 
-## No other files need changes
+The `.gte("serial_number", aStartSerial).lte("serial_number", aEndSerial)` query (line 313-314) already works correctly **if full serial numbers are passed**. Once the frontend sends full serial numbers instead of short suffixes, this will match. No backend changes needed.
 
-The allocation history, reports, reconciliation, and stock displays already work off the `office_allocations` and `rent_card_serial_stock` tables — a range transfer updates the same fields as a regular transfer, so downstream views reflect it automatically.
+**c) Compute range quantity from actual serials**
+
+Update `rangeQuantities` computation: instead of parsing start/end as integers, count actual serials from `regionalSerials` that fall within the selected range (between start and end serial alphabetically). This ensures accurate quantity even if some serials in the range are missing.
+
+## Summary
+
+| File | Change |
+|------|--------|
+| `SerialGenerator.tsx` | Replace summary preview with full per-serial listing showing pair status |
+| `OfficeAllocation.tsx` | Add regional serial fetch, searchable serial picker for range start/end, compute range qty from actual data |
+
+No backend/migration changes needed.
 
