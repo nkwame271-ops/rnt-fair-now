@@ -1,39 +1,27 @@
 
 
-# Plan: Fix Serial Assignment & Unassign + Landlord Pair Display
+# Plan: Fix Serial Assignment, Unassign, and Landlord Pair Display
 
-## Three Issues
+## Issue 1: "Claimed by another admin" — Root Cause Found
 
-### Issue 1: "Claimed by another admin" during paired assignment
-**Root cause**: `buildAndAssign()` calls `setSerialMap(newMap)` then `setTimeout(() => handleConfirmAssign(), 100)`. React state updates are async — `handleConfirmAssign` reads the old `serialMap` from state, which may be empty or partial. When the map is incomplete, the `processedSerials` logic fails because it uses stale card-to-serial mappings.
+The **transfer/office stock** query (line 347-356 in `PendingPurchases.tsx`) does NOT filter by `pair_index = 1`, unlike the quota path (line 335). This means `availableSerials` contains **both** pair_index=1 and pair_index=2 rows for each serial — doubling the list. The `Math.floor(i/2)` pairing logic then maps cards to wrong serials, causing duplicate stock update attempts and the false "claimed" error.
 
-**Fix in `PendingPurchases.tsx`**:
-- Refactor `handleConfirmAssign` to accept an optional `mapOverride` parameter
-- In `buildAndAssign`, pass `newMap` directly: `handleConfirmAssign(newMap)` instead of using `setTimeout`
-- Inside `handleConfirmAssign`, use `mapOverride ?? serialMap` to read the serial assignments
-- Remove the fragile `setTimeout` pattern entirely
+**Fix**: Add `.eq("pair_index", 1)` to the office stock query (line 354), matching the quota path.
 
-### Issue 2: Unassign serial — incomplete state reset
-**Current behavior**: The edge function resets `serial_number` and `status` on the rent_cards row, but doesn't clear tenant/property/tenancy links or other fields.
+## Issue 2: Unassign — Partial Reset
 
-**Fix in `admin-action/index.ts`** (`unassign_serial` case):
-- When resetting `rent_cards` rows, also clear: `tenant_user_id`, `property_id`, `unit_id`, `tenancy_id`, `start_date`, `expiry_date`, `current_rent`, `previous_rent`, `advance_paid`, `last_payment_status`, `activated_at`, `qr_token`
-- This ensures the card returns to a fully clean "awaiting_serial" state
+The unassign logic finds rent cards via `assigned_to_card_id` on stock rows. But during assignment, both stock rows (pair_index 1 and 2) store the **same** card ID (the first card processed). The second card in the pair is never referenced by any stock row, so it's never reset during unassign.
 
-### Issue 3: Landlord portal — show cards in pairs
-**Current behavior**: Cards are listed individually with no visual pairing.
+**Fix**: Instead of relying on `assigned_to_card_id`, query `rent_cards` by `serial_number` to find ALL cards linked to that serial, then reset all of them.
 
-**Fix in `ManageRentCards.tsx`**:
-- Group `filteredCards` by `serial_number` (cards sharing the same serial are a pair)
-- For each pair, render a single card container showing both the Landlord Copy and Tenant Copy side by side (or stacked)
-- Show the shared serial number once at the pair level, with each card's role badge (Landlord Copy / Tenant Copy)
-- For "awaiting_serial" cards, group by `purchase_id` in pairs of 2
+## Issue 3: Landlord Pair Display
 
-## Files to modify
+Already implemented in previous edit — verify it's working correctly after the above fixes.
+
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Pass serial map directly to `handleConfirmAssign`, remove `setTimeout` |
-| `supabase/functions/admin-action/index.ts` | Full field reset on unassign |
-| `src/pages/landlord/ManageRentCards.tsx` | Group cards into pairs for display |
+| `src/pages/regulator/rent-cards/PendingPurchases.tsx` | Add `.eq("pair_index", 1)` to office stock query (line 354) |
+| `supabase/functions/admin-action/index.ts` | In `unassign_serial`: find cards by `serial_number` instead of `assigned_to_card_id` |
 
