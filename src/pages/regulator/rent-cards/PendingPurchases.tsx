@@ -153,13 +153,16 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   const [loadingSerials, setLoadingSerials] = useState(false);
   const [quotaContext, setQuotaContext] = useState<{ remaining: number } | null>(null);
 
+  // Paired mode: 1 serial = 2 cards
+  const serialsNeeded = useMemo(() => Math.ceil(mappingCards.length / 2), [mappingCards.length]);
+
   // Computed: serials for "start_from" mode
   const startFromPreview = useMemo(() => {
     if (!startFromSerial || availableSerials.length === 0) return [];
     const idx = availableSerials.findIndex(s => s.serial_number === startFromSerial);
     if (idx === -1) return [];
-    return availableSerials.slice(idx, idx + mappingCards.length);
-  }, [startFromSerial, availableSerials, mappingCards.length]);
+    return availableSerials.slice(idx, idx + serialsNeeded);
+  }, [startFromSerial, availableSerials, serialsNeeded]);
 
   // Computed: serials for "range" mode
   const rangePreview = useMemo(() => {
@@ -172,6 +175,18 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
 
   // Filter out already-selected serials for manual mode pickers
   const selectedSerialSet = useMemo(() => new Set(Object.values(serialMap).filter(Boolean)), [serialMap]);
+
+  // Group cards into pairs for manual mode
+  const cardPairs = useMemo(() => {
+    const pairs: { cards: PendingCard[]; pairIndex: number }[] = [];
+    for (let i = 0; i < mappingCards.length; i += 2) {
+      pairs.push({
+        cards: mappingCards.slice(i, i + 2),
+        pairIndex: Math.floor(i / 2) + 1,
+      });
+    }
+    return pairs;
+  }, [mappingCards]);
 
   const officeName = profile?.isMainAdmin
     ? ""
@@ -358,6 +373,16 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   };
 
   const allMapped = mappingCards.length > 0 && mappingCards.every(c => serialMap[c.id]);
+
+  // For manual mode with pairing: derive pairSerialMap (pairIndex -> serial)
+  const pairSerialMap = useMemo(() => {
+    const map: Record<number, string> = {};
+    for (const pair of cardPairs) {
+      const val = serialMap[pair.cards[0].id];
+      if (val) map[pair.pairIndex] = val;
+    }
+    return map;
+  }, [cardPairs, serialMap]);
 
   // Build serial map based on mode, then call handleConfirmAssign
   const buildAndAssign = () => {
