@@ -1,72 +1,41 @@
 
 
-# Plan: Fix Paired Serial Assignment (1 Serial = 2 Cards)
+# Plan: Procurement Report Date Filter + Fix Unassign Serials
 
-## Problem
+## Issue 1: Procurement Report — Add Custom Date Range Filter
 
-When assigning serials to rent cards, the system currently maps each card to a unique serial (1:1). But in paired mode, each serial represents a pair (landlord copy + tenant copy), so each serial should be assigned to **two consecutive cards**. Selecting 6 cards should require 3 unique serials, with each serial appearing twice.
+Currently the report loads all batches with no date filtering. Add the same date preset system used in the Escrow Dashboard.
 
-## Changes — Single File
+**File: `src/pages/regulator/rent-cards/ProcurementReport.tsx`**
 
-**File: `src/pages/regulator/rent-cards/PendingPurchases.tsx`**
+- Add `DatePreset` type and `getPresetRange` helper (same as Escrow: All, Today, Yesterday, Last 7 Days, This Week, This Month, Custom)
+- Add state for `datePreset`, `customFrom`, `customTo`
+- Add a filter bar with preset buttons and custom date pickers (Calendar popovers)
+- Filter the `generation_batches` query by `created_at` using `.gte()` and `.lte()` based on the effective date range
+- Add a "Search" button to re-fetch with the selected range
+- Update PDF export to include the date range in the header
 
-### 1. Compute `serialsNeeded` based on pairing
+## Issue 2: Unassign Serials — Serial Not Found
 
-Add a derived value: `serialsNeeded = Math.ceil(mappingCards.length / 2)` — this is the number of unique serials required. Used throughout validation, previews, and mapping.
+The root cause is that `rent_card_serial_stock` stores **two rows** per serial number in paired mode (pair_index 1 and 2). The current search uses `.eq("serial_number", ...).single()`, which fails with a PostgREST error when 2 rows match (Supabase `.single()` throws if more than one row is returned).
 
-### 2. Fix `buildAndAssign` — duplicate each serial
+**File: `src/pages/regulator/rent-cards/AdminActions.tsx`**
 
-Currently:
-```
-card[0] → serial[0], card[1] → serial[1], card[2] → serial[2] ...
-```
+- Change `handleSerialSearch` to use `.eq("serial_number", ...).eq("pair_index", 1)` (or drop `.single()` and take the first result) so the lookup succeeds for paired serials
+- Display additional info: `pair_index`, `stock_type`, `assigned_to_card_id`
+- When the serial is "assigned", check if it's linked to a tenancy by looking up the `rent_cards` table via `assigned_to_card_id` — if no active tenancy, show the "Unassign" button
 
-Change to:
-```
-card[0] → serial[0], card[1] → serial[0], card[2] → serial[1], card[3] → serial[1] ...
-```
+**File: `supabase/functions/admin-action/index.ts`**
 
-For all modes (`auto_qty`, `start_from`, `range`), map `card[i] → serial[Math.floor(i / 2)]`.
-
-For `manual` mode, show one picker per **pair of cards** (not per card), and assign the chosen serial to both cards in each pair.
-
-### 3. Fix `startFromPreview` and `rangePreview`
-
-- `startFromPreview`: slice `serialsNeeded` serials from the start point (not `mappingCards.length`)
-- `rangePreview`: validate that the range contains exactly `serialsNeeded` serials (not `mappingCards.length`)
-
-### 4. Fix `canConfirm` validation
-
-- `auto_qty`: `availableSerials.length >= serialsNeeded`
-- `start_from`: `startFromPreview.length >= serialsNeeded`
-- `range`: `rangePreview.length === serialsNeeded`
-- `manual`: every pair has a serial mapped
-
-### 5. Fix preview text in all modes
-
-Update the informational text to reflect pairing:
-- "Need **3 serials** for **6 cards** (paired)"
-- Auto mode: show range of 3 serials, not 6
-- Range mode: "Serials in range: 3 — Cards to assign: 6 (3 pairs) ✓"
-
-### 6. Fix manual mode UI
-
-Instead of showing one picker per card, group cards into pairs and show one picker per pair:
-- "Pair 1 (Card 1 & Card 2) — [serial picker]"
-- "Pair 2 (Card 3 & Card 4) — [serial picker]"
-
-The selected serial is assigned to both cards in the pair.
-
-## No backend changes needed
-
-The backend already handles pair_index=2 sync (from the previous fix). The `handleConfirmAssign` function already marks both pair indices as assigned. The only issue is the frontend mapping logic sending the wrong number of unique serials.
+- In the `unassign_serial` case, change the query from `.eq("serial_number", target_id).single()` to `.eq("serial_number", target_id).order("pair_index").limit(1).single()` so it finds the primary record
+- After unassigning pair_index 1, also unassign pair_index 2 (update both rows back to `available` status and clear `assigned_to_card_id`, `assigned_at`, `assigned_by`)
+- If pair_index 2 has a separate `assigned_to_card_id`, also reset that rent card's serial back to `awaiting_serial`
 
 ## Summary
 
-| Area | Current | Fixed |
-|------|---------|-------|
-| Serial mapping | 1 card : 1 serial | 2 cards : 1 serial |
-| 6 cards needs | 6 serials | 3 serials |
-| Validation | count ≥ cards | count ≥ ceil(cards/2) |
-| Manual UI | 1 picker/card | 1 picker/pair |
+| File | Change |
+|------|--------|
+| `ProcurementReport.tsx` | Add date preset filter bar with custom range, filter query by `created_at` |
+| `AdminActions.tsx` | Fix `.single()` to filter by `pair_index=1`, show serial details correctly |
+| `admin-action/index.ts` | Fix `.single()` query, unassign both pair indices atomically |
 
