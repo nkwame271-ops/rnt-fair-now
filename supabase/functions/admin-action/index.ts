@@ -263,7 +263,7 @@ Deno.serve(async (req) => {
 
       case "allocate_to_office": {
         targetType = "office_allocation";
-        const { region: aRegion, office_id: aOfficeId, office_name: aOfficeName, quantity: aQuantity, allocation_mode: aMode, quota_limit: aQuota } = extra || {};
+        const { region: aRegion, office_id: aOfficeId, office_name: aOfficeName, quantity: aQuantity, allocation_mode: aMode, quota_limit: aQuota, start_serial: aStartSerial, end_serial: aEndSerial } = extra || {};
 
         if (!aRegion || !aOfficeId || !aOfficeName || !aQuantity) {
           throw new Error("Missing allocation parameters");
@@ -271,7 +271,6 @@ Deno.serve(async (req) => {
 
         if (aMode === "quota" || aMode === "quantity_transfer") {
           // Quota / quantity_transfer mode: pure accounting entry — no serial transfers
-          // Offices draw from regional stock and system tracks usage against quota
           await adminClient.from("office_allocations").insert({
             region: aRegion,
             office_id: aOfficeId,
@@ -289,9 +288,93 @@ Deno.serve(async (req) => {
             mode: "pool_based",
             allocation_mode: aMode,
           };
+        } else if (aMode === "range_transfer") {
+          // Range transfer mode: transfer serials within a specific range
+          if (!aStartSerial || !aEndSerial) {
+            throw new Error("Missing start_serial or end_serial for range transfer");
+          }
+
+          const startNum = parseInt(aStartSerial, 10);
+          const endNum = parseInt(aEndSerial, 10);
+          if (isNaN(startNum) || isNaN(endNum) || endNum < startNum) {
+            throw new Error("Invalid serial range: end must be >= start");
+          }
+          const expectedCount = endNum - startNum + 1;
+
+          // Build the list of serial suffixes we expect
+          // Serial numbers may have prefixes, so we query by range using gte/lte
+          // Fetch all regional available serials whose numeric suffix falls within the range
+          const { data: availableSerials, error: fetchErr } = await adminClient
+            .from("rent_card_serial_stock")
+            .select("id, serial_number, pair_index")
+            .eq("region", aRegion)
+            .eq("stock_type", "regional")
+            .eq("status", "available")
+            .gte("serial_number", aStartSerial)
+            .lte("serial_number", aEndSerial)
+            .order("serial_number", { ascending: true })
+            .limit(expectedCount * 2 + 100);
+
+          if (fetchErr) throw new Error(`Failed to query serials: ${fetchErr.message}`);
+          if (!availableSerials || availableSerials.length === 0) {
+            throw new Error(`No available regional serials found in range ${aStartSerial}–${aEndSerial}`);
+          }
+
+          // Group by serial_number
+          const serialMap = new Map<string, any[]>();
+          (availableSerials as any[]).forEach((s: any) => {
+            if (!serialMap.has(s.serial_number)) serialMap.set(s.serial_number, []);
+            serialMap.get(s.serial_number)!.push(s);
+          });
+
+          const uniqueCount = serialMap.size;
+          if (uniqueCount < expectedCount) {
+            throw new Error(`Only ${uniqueCount} of ${expectedCount} serials are available in range ${aStartSerial}–${aEndSerial}. Some may be missing, already assigned, or not in regional stock.`);
+          }
+
+          const serialsToTransfer: string[] = [];
+          const idsToUpdate: string[] = [];
+          for (const [sn, rows] of serialMap) {
+            serialsToTransfer.push(sn);
+            rows.forEach((r: any) => idsToUpdate.push(r.id));
+          }
+
+          // Create allocation record
+          const { data: allocRecord } = await adminClient.from("office_allocations").insert({
+            region: aRegion,
+            office_id: aOfficeId,
+            office_name: aOfficeName,
+            quantity: serialsToTransfer.length,
+            allocation_mode: "range_transfer",
+            start_serial: aStartSerial,
+            end_serial: aEndSerial,
+            serial_numbers: serialsToTransfer,
+            allocated_by: user.id,
+          }).select("id").single();
+
+          // Update serials in batches
+          for (let i = 0; i < idsToUpdate.length; i += 500) {
+            const batch = idsToUpdate.slice(i, i + 500);
+            await adminClient
+              .from("rent_card_serial_stock")
+              .update({
+                stock_type: "office",
+                office_name: aOfficeName,
+                office_allocation_id: (allocRecord as any)?.id || null,
+              })
+              .in("id", batch);
+          }
+
+          oldState = { action: "allocate_range_transfer" };
+          newState = {
+            office: aOfficeName,
+            transferred: serialsToTransfer.length,
+            start_serial: aStartSerial,
+            end_serial: aEndSerial,
+            allocation_mode: "range_transfer",
+          };
         } else {
           // Transfer mode: find N available regional serials and move to office
-          // Get unique serials (pair_index = 1 or null) from regional stock
           const { data: availableSerials } = await adminClient
             .from("rent_card_serial_stock")
             .select("id, serial_number, pair_index")
@@ -299,20 +382,18 @@ Deno.serve(async (req) => {
             .eq("stock_type", "regional")
             .eq("status", "available")
             .order("serial_number", { ascending: true })
-            .limit(aQuantity * 2 + 100); // Get extra to cover both pair indices
+            .limit(aQuantity * 2 + 100);
 
           if (!availableSerials || availableSerials.length === 0) {
             throw new Error("No available regional stock for this region");
           }
 
-          // Group by serial number to find pairs
           const serialMap = new Map<string, any[]>();
           (availableSerials as any[]).forEach((s: any) => {
             if (!serialMap.has(s.serial_number)) serialMap.set(s.serial_number, []);
             serialMap.get(s.serial_number)!.push(s);
           });
 
-          // Take first N unique serials
           const serialsToTransfer: string[] = [];
           const idsToUpdate: string[] = [];
           let count = 0;
@@ -327,7 +408,6 @@ Deno.serve(async (req) => {
             throw new Error("Not enough available regional stock");
           }
 
-          // Create allocation record
           const { data: allocRecord } = await adminClient.from("office_allocations").insert({
             region: aRegion,
             office_id: aOfficeId,
@@ -340,7 +420,6 @@ Deno.serve(async (req) => {
             allocated_by: user.id,
           }).select("id").single();
 
-          // Update serials in batches
           for (let i = 0; i < idsToUpdate.length; i += 500) {
             const batch = idsToUpdate.slice(i, i + 500);
             await adminClient
