@@ -1,39 +1,54 @@
 
+Fix all remaining issues as one integrity pass, not as isolated patches. The current code shows earlier fixes landed, but there are still deeper consistency problems causing the same errors to resurface.
 
-# Fix: OTP "Invalid or expired" Error
+1. Stabilize OTP across all flows
+- Update `supabase/functions/send-otp/index.ts` and `verify-otp/index.ts` to use one strict phone normalizer everywhere: strip non-digits, accept `0...`, `233...`, and `+233...`, and store/verify the exact same canonical value.
+- Stop rotating the OTP code while an unexpired active code already exists. Reuse the current code until expiry so resend/double-send cannot invalidate a code “within time”.
+- Keep verify idempotent for already-verified codes and return specific failures only when the code is truly wrong/expired.
+- Apply this across all OTP entry points already using these functions: registration, forgot password, and digital signature.
 
-## Root Cause Analysis
+2. Repair existing broken serial stock data
+- Add a migration that audits and repairs malformed `rent_card_serial_stock` rows created before the pair-based fixes.
+- Backfill missing second rows for serials that only have `pair_index = 1` but should exist as pairs.
+- Clean up stale stock/card links where `assigned_to_card_id`, `serial_number`, and card state no longer agree.
+- Rebuild any incomplete pair state so one serial always maps to exactly 2 stock rows and 2 cards.
 
-Testing confirms the OTP flow works mechanically. The real issues are:
+3. Fix the source of recurring serial errors
+- `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` still inserts only one stock row per serial. Change it to insert both pair rows with correct `pair_index` and paired metadata.
+- Harden `supabase/functions/admin-action/index.ts` allocation flows so office transfers only move complete serial pairs, never partial rows.
+- Keep `assign_serials_atomic` / `unassign_serial_atomic` as the single source of truth, but add stricter validation so malformed stock is rejected early with a clear error instead of creating half-assigned states.
 
-1. **OTP gets deleted on resend**: `send-otp` deletes ALL previous OTPs for the phone before inserting a new one. If the user hits "Resend" or the app calls `send-otp` twice (e.g., navigating back and re-submitting), the first OTP is destroyed. The user then enters the old code from the first SMS → "Invalid."
+4. Fix “assigns half / claimed by another admin”
+- In `src/pages/regulator/rent-cards/PendingPurchases.tsx`, align quota math with pairs, not raw card count.
+- Right now the screen mixes “cards” and “pairs”; that can block valid assignments and produce misleading partial-state behavior. Standardize the whole flow so:
+  - 16 selected cards = 8 serial pairs
+  - quota checks use pairs
+  - audit usage and remaining allocation use the same unit
+- Also ensure the available serial picker only exposes serials whose full 2-row pair is available.
 
-2. **Indistinguishable errors**: `verify-otp` returns the same "Invalid or expired OTP" for ALL failure reasons: wrong code, already verified, expired, or no OTP found. This makes debugging impossible.
+5. Fix “landlord sees one assigned card and one unassigned”
+- After the stock/data repair, verify assignment always writes both cards in the pair in one transaction.
+- Update landlord/admin views to read paired state consistently, so a serial is shown as a complete pair instead of mixing one assigned card with one awaiting card when legacy data is malformed.
+- Improve admin serial lookup (`src/pages/regulator/rent-cards/AdminActions.tsx`) to inspect the full pair, not just the `pair_index = 1` row.
 
-3. **No retry protection**: After a successful verification (`verified = true`), any second call to `verify-otp` fails because it filters for `verified = false`. If the app's response handler retries or the user double-clicks, they see the error even though verification succeeded.
+6. Fix receipt printing properly
+- Replace the current in-page `window.print()` visibility hack in `src/components/PaymentReceipt.tsx`.
+- Render a dedicated receipt-only print document/window/iframe with only the selected receipt markup and styles, so Escrow print can never include the whole dashboard.
+- Keep `src/index.css` print rules minimal/global, but move receipt isolation into the component print flow.
 
-## Fix
+Files to touch
+- `supabase/functions/send-otp/index.ts`
+- `supabase/functions/verify-otp/index.ts`
+- `supabase/functions/admin-action/index.ts`
+- new migration to repair legacy serial stock + harden pair integrity
+- `src/pages/regulator/rent-cards/SerialBatchUpload.tsx`
+- `src/pages/regulator/rent-cards/PendingPurchases.tsx`
+- `src/pages/regulator/rent-cards/AdminActions.tsx`
+- `src/components/PaymentReceipt.tsx`
+- possibly small supporting updates in receipt/landlord pair display pages if needed after data repair
 
-### `supabase/functions/verify-otp/index.ts` — Specific error messages + tolerant matching
-
-Instead of one combined query with all filters, do a stepped lookup:
-1. Find the latest OTP for this phone (no code/verified/expiry filter)
-2. If none found → "No verification code found for this number"
-3. If found but already verified → return `{ verified: true }` (idempotent success)
-4. If found but expired → "Verification code has expired. Please request a new one"
-5. If found but code doesn't match → "Incorrect verification code"
-6. If all pass → mark as verified, return success
-
-### `supabase/functions/send-otp/index.ts` — Soft-delete instead of hard-delete
-
-Instead of `DELETE` old OTPs, only delete OTPs that are already `verified = true` or expired. Keep the current unverified+unexpired OTP alive so resend doesn't break an in-progress verification. If an unexpired OTP exists, just update its code and reset expiry (upsert pattern).
-
-## Files
-
-| File | Action |
-|------|--------|
-| `supabase/functions/verify-otp/index.ts` | Rewrite with stepped lookup and specific error messages |
-| `supabase/functions/send-otp/index.ts` | Change delete to upsert pattern — update existing unexpired OTP code instead of deleting |
-
-No frontend changes needed — the error messages will flow through to the UI automatically.
-
+Validation plan
+- OTP: send, resend, verify same code within window, wrong code, expired code, forgot-password retry, signature retry
+- Serials: upload new batch, allocate to office, assign 8 pairs/16 cards, unassign, reassign same serials, confirm landlord sees both cards together
+- Admin actions: search serial before and after unassign, verify no stale “active/assigned” mismatch
+- Escrow: print from multiple receipts and confirm only the clicked receipt prints
