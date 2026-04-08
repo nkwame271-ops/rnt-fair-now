@@ -18,6 +18,7 @@ import RegulatorLayout from "./components/RegulatorLayout";
 const RoleSelect = lazy(() => import("./pages/RoleSelect"));
 const Login = lazy(() => import("./pages/Login"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const RegisterTenant = lazy(() => import("./pages/RegisterTenant"));
 const RegisterLandlord = lazy(() => import("./pages/RegisterLandlord"));
 const RegulatorLogin = lazy(() => import("./pages/RegulatorLogin"));
@@ -121,6 +122,7 @@ const App = () => (
               <Route path="/regulator/login" element={<RegulatorLogin />} />
               <Route path="/verify/:role/:id" element={<VerifyRegistration />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/verify-tenancy/:tenancyId" element={<VerifyTenancy />} />
               <Route path="/verify/rent-card/:token" element={<VerifyRentCard />} />
               <Route path="/verify/receipt/:receiptNumber" element={<VerifyReceipt />} />
