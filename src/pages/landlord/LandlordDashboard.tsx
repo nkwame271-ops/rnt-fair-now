@@ -85,6 +85,26 @@ const LandlordDashboard = () => {
     fetch();
   }, [user]);
 
+  const handleCreateMissingRecord = async () => {
+    if (!user) return;
+    setCreatingRecord(true);
+    try {
+      const landlordId = "LL-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
+      const { error } = await supabase.from("landlords").insert({
+        user_id: user.id,
+        landlord_id: landlordId,
+        registration_fee_paid: false,
+      });
+      if (error) throw error;
+      setLandlordMissing(false);
+      toast.success("Account initialized successfully!");
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to initialize account");
+      setCreatingRecord(false);
+    }
+  };
+
   const handlePayRegistrationFee = async () => {
     setPayingFee(true);
     try {
