@@ -3145,6 +3145,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_serials_atomic: {
+        Args: {
+          p_assigned_by: string
+          p_office_id: string
+          p_office_name: string
+          p_pairs: Json
+        }
+        Returns: Json
+      }
       generate_case_number: { Args: never; Returns: string }
       generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
@@ -3163,6 +3172,10 @@ export type Database = {
       resolve_office_id: {
         Args: { p_area?: string; p_region: string }
         Returns: string
+      }
+      unassign_serial_atomic: {
+        Args: { p_serial_number: string }
+        Returns: Json
       }
     }
     Enums: {
