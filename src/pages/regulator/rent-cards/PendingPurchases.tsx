@@ -675,7 +675,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
               <span className="ml-2 text-sm text-muted-foreground">Loading available serials…</span>
             </div>
           ) : (
-            <div className="space-y-4 flex-1 overflow-y-auto">
+            <div className="space-y-4 flex-1 overflow-y-auto min-h-0">
               {/* Summary */}
               <div className="bg-muted/30 rounded-lg p-3 space-y-1 text-sm">
                 <div className="flex justify-between">
@@ -830,8 +830,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                   )}
 
                   {assignMode === "manual" && (
-                    <ScrollArea className="max-h-[300px]">
-                      <div className="space-y-3 pr-3">
+                    <div className="max-h-[50vh] overflow-y-auto border border-border rounded-lg p-3">
+                      <div className="space-y-3">
                         {mappingCards.map((card, idx) => (
                           <div key={card.id} className="space-y-1">
                             <Label className="text-xs text-muted-foreground">
