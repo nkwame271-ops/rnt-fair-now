@@ -889,7 +889,6 @@ Deno.serve(async (req) => {
         const clearRegion = extra?.region;
         if (!clearRegion) throw new Error("Missing region for clearing allocation history");
 
-        // Get current records for audit
         const { data: existingAllocs } = await adminClient
           .from("office_allocations")
           .select("id")
@@ -905,6 +904,127 @@ Deno.serve(async (req) => {
         if (delErr) throw new Error(`Failed to clear history: ${delErr.message}`);
 
         newState = { region: clearRegion, records_deleted: existingAllocs?.length || 0 };
+        break;
+      }
+
+      case "inventory_adjustment": {
+        targetType = "inventory_adjustment";
+        const { office_id: iaOfficeId, office_name: iaOfficeName, region: iaRegion, adjustment_type: iaType, quantity: iaQty, note: iaNote } = extra || {};
+
+        if (!iaOfficeId || !iaOfficeName || !iaRegion || !iaType || !iaQty) {
+          throw new Error("Missing inventory adjustment parameters");
+        }
+        if (!["increase", "decrease"].includes(iaType)) {
+          throw new Error("adjustment_type must be 'increase' or 'decrease'");
+        }
+        if (iaQty <= 0 || iaQty > 10000) {
+          throw new Error("Quantity must be between 1 and 10,000");
+        }
+
+        if (iaType === "increase") {
+          // Insert synthetic stock rows with ADJ- prefix
+          const ts = Date.now();
+          const rows: any[] = [];
+          for (let i = 1; i <= iaQty; i++) {
+            const serial = `ADJ-${ts}-${String(i).padStart(4, "0")}`;
+            rows.push({
+              serial_number: serial,
+              office_name: iaOfficeName,
+              status: "available",
+              stock_type: "office",
+              region: iaRegion,
+              pair_index: 1,
+              batch_label: `ADJ-${ts}`,
+            });
+            rows.push({
+              serial_number: serial,
+              office_name: iaOfficeName,
+              status: "available",
+              stock_type: "office",
+              region: iaRegion,
+              pair_index: 2,
+              batch_label: `ADJ-${ts}`,
+            });
+          }
+          for (let i = 0; i < rows.length; i += 500) {
+            const batch = rows.slice(i, i + 500);
+            const { error: insErr } = await adminClient
+              .from("rent_card_serial_stock")
+              .insert(batch);
+            if (insErr) throw new Error(`Failed to insert adjustment stock: ${insErr.message}`);
+          }
+        } else {
+          // Decrease: mark N available office stock rows as revoked
+          const { data: availRows, error: fetchErr } = await adminClient
+            .from("rent_card_serial_stock")
+            .select("id")
+            .eq("office_name", iaOfficeName)
+            .eq("stock_type", "office")
+            .eq("status", "available")
+            .eq("pair_index", 1)
+            .limit(iaQty);
+
+          if (fetchErr) throw new Error(`Failed to query stock: ${fetchErr.message}`);
+          if (!availRows || availRows.length < iaQty) {
+            throw new Error(`Not enough available stock. Found ${availRows?.length || 0}, need ${iaQty}`);
+          }
+
+          // Also get pair_index=2 for same serials
+          const ids1 = availRows.map((r: any) => r.id);
+          // Get serial numbers for these rows
+          const { data: serialRows } = await adminClient
+            .from("rent_card_serial_stock")
+            .select("serial_number")
+            .in("id", ids1);
+
+          const serials = (serialRows || []).map((r: any) => r.serial_number);
+          // Get all rows (both pair indices) for these serials
+          let allIds: string[] = [];
+          for (let i = 0; i < serials.length; i += 100) {
+            const batch = serials.slice(i, i + 100);
+            const { data: pairRows } = await adminClient
+              .from("rent_card_serial_stock")
+              .select("id")
+              .in("serial_number", batch)
+              .eq("office_name", iaOfficeName)
+              .eq("stock_type", "office")
+              .eq("status", "available");
+            if (pairRows) allIds = allIds.concat(pairRows.map((r: any) => r.id));
+          }
+
+          for (let i = 0; i < allIds.length; i += 500) {
+            const batch = allIds.slice(i, i + 500);
+            await adminClient
+              .from("rent_card_serial_stock")
+              .update({
+                status: "revoked",
+                revoked_at: new Date().toISOString(),
+                revoked_by: user.id,
+                revoke_reason: `Inventory decrease: ${reason}`,
+              })
+              .in("id", batch);
+          }
+        }
+
+        // Record adjustment
+        await adminClient.from("inventory_adjustments").insert({
+          office_id: iaOfficeId,
+          office_name: iaOfficeName,
+          region: iaRegion,
+          adjustment_type: iaType,
+          quantity: iaQty,
+          reason,
+          note: iaNote || null,
+          performed_by: user.id,
+        });
+
+        oldState = { action: "inventory_adjustment" };
+        newState = {
+          office: iaOfficeName,
+          adjustment_type: iaType,
+          quantity: iaQty,
+          note: iaNote,
+        };
         break;
       }
 
