@@ -46,6 +46,12 @@ const DeclareExistingTenancy = () => {
   const [expiryDate, setExpiryDate] = useState("");
   const [agreementFile, setAgreementFile] = useState<File | null>(null);
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
+  // Inline audio recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [createdCode, setCreatedCode] = useState("");
   const [availableRentCards, setAvailableRentCards] = useState<{ id: string; serial_number: string }[]>([]);
