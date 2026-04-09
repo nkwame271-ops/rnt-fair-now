@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { GHANA_REGIONS_OFFICES } from "@/hooks/useAdminProfile";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import jsPDF from "jspdf";
 
 interface AllocationHistoryItem {
   id: string;
@@ -619,7 +620,59 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
 
             {/* Allocation History */}
             <div className="space-y-2 pt-4 border-t border-border">
-              <p className="text-sm font-medium text-card-foreground">Allocation History</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-card-foreground">Allocation History</p>
+                {history.length > 0 && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const doc = new jsPDF();
+                        doc.setFontSize(14);
+                        doc.text(`Allocation History — ${selectedRegion}`, 14, 20);
+                        doc.setFontSize(9);
+                        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+
+                        let y = 38;
+                        doc.setFontSize(8);
+                        doc.setFont("helvetica", "bold");
+                        doc.text("Office", 14, y);
+                        doc.text("Mode", 80, y);
+                        doc.text("Qty", 120, y);
+                        doc.text("Start", 140, y);
+                        doc.text("End", 165, y);
+                        doc.text("Date", 185, y);
+                        y += 6;
+                        doc.setFont("helvetica", "normal");
+
+                        history.forEach(h => {
+                          if (y > 280) { doc.addPage(); y = 20; }
+                          doc.text(h.office_name, 14, y);
+                          doc.text(h.allocation_mode, 80, y);
+                          doc.text(String(h.quantity), 120, y);
+                          doc.text(h.start_serial || "—", 140, y);
+                          doc.text(h.end_serial || "—", 165, y);
+                          doc.text(new Date(h.created_at).toLocaleDateString(), 185, y);
+                          y += 5;
+                        });
+                        doc.save(`allocation-history-${selectedRegion}-${Date.now()}.pdf`);
+                        toast.success("Report downloaded");
+                      }}
+                    >
+                      <Download className="h-3 w-3 mr-1" /> Download
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive border-destructive/30"
+                      onClick={() => setClearHistoryOpen(true)}
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" /> Clear
+                    </Button>
+                  </div>
+                )}
+              </div>
               {loadingHistory ? (
                 <p className="text-xs text-muted-foreground">Loading...</p>
               ) : history.length === 0 ? (
