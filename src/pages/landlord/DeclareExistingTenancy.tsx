@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Search, CheckCircle2, Upload, Loader2, FileText, AlertCircle, Phone, UserPlus } from "lucide-react";
+import { ArrowLeft, Search, CheckCircle2, Upload, Loader2, FileText, AlertCircle, Phone, UserPlus, Mic, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +46,12 @@ const DeclareExistingTenancy = () => {
   const [expiryDate, setExpiryDate] = useState("");
   const [agreementFile, setAgreementFile] = useState<File | null>(null);
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
+  // Inline audio recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [createdCode, setCreatedCode] = useState("");
   const [availableRentCards, setAvailableRentCards] = useState<{ id: string; serial_number: string }[]>([]);
@@ -55,6 +61,41 @@ const DeclareExistingTenancy = () => {
   // Rent band fee
   const [rentBandFee, setRentBandFee] = useState<number | null>(null);
   const [feeEnabled, setFeeEnabled] = useState(true);
+
+  // Audio recording handlers
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4"
+        : MediaRecorder.isTypeSupported("audio/ogg") ? "audio/ogg" : "";
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+      };
+      recorder.onerror = () => {
+        toast.error("Audio recording failed.");
+        stream.getTracks().forEach(t => t.stop());
+        setIsRecording(false);
+      };
+      recorder.start();
+      setIsRecording(true);
+    } catch {
+      toast.error("Could not access microphone. Please allow microphone access.");
+    }
+  };
+  const stopRecording = () => { mediaRecorderRef.current?.stop(); setIsRecording(false); };
+  const deleteRecording = () => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioBlob(null);
+    setAudioUrl(null);
+  };
 
   const property = properties.find(p => p.id === selectedPropertyId);
   const unit = property?.units.find(u => u.id === selectedUnitId);
@@ -238,9 +279,11 @@ const DeclareExistingTenancy = () => {
       }
     }
 
-    if (formData.hasVoiceFile && voiceFile) {
-      const path = `existing-voice/${user.id}/${Date.now()}_${voiceFile.name}`;
-      const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(path, voiceFile);
+    // Upload voice file or recorded audio blob
+    const voiceToUpload = voiceFile || (audioBlob ? new File([audioBlob], `recording_${Date.now()}.${audioBlob.type.includes("mp4") ? "mp4" : audioBlob.type.includes("ogg") ? "ogg" : "webm"}`, { type: audioBlob.type }) : null);
+    if ((formData.hasVoiceFile || audioBlob) && voiceToUpload) {
+      const path = `existing-voice/${user.id}/${Date.now()}_${voiceToUpload.name}`;
+      const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(path, voiceToUpload, { contentType: voiceToUpload.type });
       if (!uploadErr) {
         const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(path);
         voiceUrl = urlData.publicUrl;
@@ -656,8 +699,32 @@ const DeclareExistingTenancy = () => {
 
           <div className="space-y-3">
             <Label>Voice Message (optional)</Label>
-            <Input type="file" accept="audio/*" onChange={(e) => setVoiceFile(e.target.files?.[0] || null)} />
-            <p className="text-xs text-muted-foreground">Record or upload a voice description of the tenancy</p>
+            <div className="flex items-center gap-3">
+              {!isRecording && !audioBlob && (
+                <Button type="button" variant="outline" size="sm" onClick={startRecording}>
+                  <Mic className="h-4 w-4 mr-1" /> Record
+                </Button>
+              )}
+              {isRecording && (
+                <Button type="button" variant="destructive" size="sm" onClick={stopRecording}>
+                  <Square className="h-4 w-4 mr-1" /> Stop
+                </Button>
+              )}
+              {audioBlob && audioUrl && (
+                <div className="flex items-center gap-2 flex-1">
+                  <audio controls src={audioUrl} className="h-8 flex-1" />
+                  <Button type="button" variant="ghost" size="sm" onClick={deleteRecording}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            {!audioBlob && (
+              <>
+                <Input type="file" accept="audio/*" onChange={(e) => setVoiceFile(e.target.files?.[0] || null)} />
+                <p className="text-xs text-muted-foreground">Or upload an existing audio file</p>
+              </>
+            )}
           </div>
 
           <div className="space-y-3 border-t border-border pt-4">
@@ -732,7 +799,7 @@ const DeclareExistingTenancy = () => {
                 ["Rent Card (Landlord)", availableRentCards.find(c => c.id === selectedRentCardId)?.serial_number || "—"],
                 ["Rent Card (Tenant)", availableRentCards.find(c => c.id === selectedRentCardId2)?.serial_number || "—"],
                 ["Agreement Upload", agreementFile ? agreementFile.name : "None"],
-                ["Voice Message", voiceFile ? voiceFile.name : "None"],
+                ["Voice Message", audioBlob ? "Recorded" : voiceFile ? voiceFile.name : "None"],
                 ["Status", "Existing Tenancy — Awaiting Verification"],
               ].map(([label, value]) => (
                 <div key={label}>

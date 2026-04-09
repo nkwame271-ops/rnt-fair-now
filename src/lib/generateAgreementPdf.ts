@@ -64,6 +64,7 @@ export interface AgreementPdfData {
     hasPolytank?: boolean;
   };
   propertyId?: string;
+  tenancyId?: string;
 }
 
 const DEFAULT_TERMS = [
@@ -115,7 +116,9 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   };
 
   // Generate QR code
-  const verifyUrl = `https://www.rentcontrolghana.com/verify/tenancy/${data.registrationCode}`;
+  const verifyUrl = data.tenancyId
+    ? `https://rentghanapilot.lovable.app/verify-tenancy/${data.tenancyId}`
+    : `https://rentghanapilot.lovable.app/verify-tenancy/${data.registrationCode}`;
   let qrDataUrl = "";
   try {
     qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 200, margin: 1, errorCorrectionLevel: "H" });

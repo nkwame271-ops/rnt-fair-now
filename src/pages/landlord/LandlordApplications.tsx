@@ -62,13 +62,21 @@ const LandlordApplications = () => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4"
+        : MediaRecorder.isTypeSupported("audio/ogg") ? "audio/ogg" : "";
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       chunksRef.current = [];
       recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
         setAudioBlob(blob);
         stream.getTracks().forEach(t => t.stop());
+      };
+      recorder.onerror = () => {
+        toast.error("Audio recording failed. Please try again.");
+        stream.getTracks().forEach(t => t.stop());
+        setRecording(false);
       };
       recorder.start();
       mediaRecorderRef.current = recorder;
