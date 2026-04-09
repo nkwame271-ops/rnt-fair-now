@@ -28,6 +28,66 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    // --- Handle claim_pending_tenancy early (no admin role or password required) ---
+    const rawBody = await req.json();
+    if (rawBody.action === "claim_pending_tenancy") {
+      const claimPhone = rawBody.phone;
+      const newUserId = rawBody.new_user_id;
+      if (!claimPhone || !newUserId) {
+        return new Response(JSON.stringify({ error: "Missing phone or new_user_id" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Find pending tenant records matching this phone
+      const { data: pendingRows, error: pendErr } = await adminClient
+        .from("pending_tenants")
+        .select("id, tenancy_id")
+        .eq("phone", claimPhone)
+        .is("claimed_by", null);
+
+      if (pendErr || !pendingRows || pendingRows.length === 0) {
+        return new Response(JSON.stringify({ success: true, claimed: 0 }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let claimed = 0;
+      for (const row of pendingRows) {
+        // Link the tenancy to the new user
+        if (row.tenancy_id) {
+          await adminClient
+            .from("tenancies")
+            .update({ tenant_user_id: newUserId })
+            .eq("id", row.tenancy_id);
+        }
+
+        // Mark pending_tenant as claimed
+        await adminClient
+          .from("pending_tenants")
+          .update({ claimed_by: newUserId, claimed_at: new Date().toISOString() })
+          .eq("id", row.id);
+
+        claimed++;
+      }
+
+      // Audit log
+      await adminClient.from("admin_audit_log").insert({
+        admin_user_id: user.id,
+        action: "claim_pending_tenancy",
+        target_type: "pending_tenants",
+        target_id: newUserId,
+        reason: `Auto-claim on registration for phone ${claimPhone}`,
+        old_state: { pending_ids: pendingRows.map((r: any) => r.id) },
+        new_state: { claimed },
+      });
+
+      return new Response(JSON.stringify({ success: true, claimed }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Verify caller is main_admin
     const { data: adminStaff } = await adminClient
       .from("admin_staff")
@@ -39,7 +99,7 @@ Deno.serve(async (req) => {
       throw new Error("Only Main Admin can perform this action");
     }
 
-    const body = await req.json();
+    const body = rawBody;
     const { action, target_id, reason, password, extra } = body;
 
     if (!action || !target_id || !reason) {
