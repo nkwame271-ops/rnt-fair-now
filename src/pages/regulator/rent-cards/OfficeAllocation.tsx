@@ -817,6 +817,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
         description={`This will ${adjType === "increase" ? "add" : "remove"} ${adjQuantity} pairs ${adjType === "increase" ? "to" : "from"} ${adjOfficeName} available stock. This is recorded as an auditable inventory adjustment.`}
         actionLabel={`${adjType === "increase" ? "+" : "−"}${adjQuantity} Pairs`}
         onConfirm={async (password, reason) => {
+          const idempotencyKey = `ADJ-${adjOfficeId}-${adjType}-${adjQuantity}-${Date.now()}`;
           const { data, error } = await supabase.functions.invoke("admin-action", {
             body: {
               action: "inventory_adjustment",
@@ -830,6 +831,9 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                 adjustment_type: adjType,
                 quantity: adjQuantity,
                 note: adjNote || null,
+                idempotency_key: idempotencyKey,
+                reference_id: adjReferenceId || null,
+                correction_tag: adjCorrectionTag && adjCorrectionTag !== "none" ? adjCorrectionTag : null,
               },
             },
           });
@@ -839,6 +843,8 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
           setAdjQuantity(0);
           setAdjReason("");
           setAdjNote("");
+          setAdjReferenceId("");
+          setAdjCorrectionTag("");
           onStockChanged();
         }}
       />
