@@ -263,7 +263,7 @@ const MyAgreements = () => {
 
   const handleDownload = async (t: TenancyView) => {
     const doc = await generateAgreementPdf({
-      registrationCode: t.registration_code,
+      tenancyId: t.id,
       landlordName: t.landlordName,
       tenantName,
       tenantId: tenantIdCode,

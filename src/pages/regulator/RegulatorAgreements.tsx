@@ -112,6 +112,7 @@ const RegulatorAgreements = () => {
 
   const downloadPdf = async (a: any) => {
     const data: AgreementPdfData = {
+      tenancyId: a.id,
       registrationCode: a.registration_code,
       landlordName: a._landlordName,
       tenantName: a._tenantName,
