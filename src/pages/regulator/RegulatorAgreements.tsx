@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { FileText, Download, Search, ExternalLink, Calendar, DollarSign, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,12 +46,12 @@ const RegulatorAgreements = () => {
 
       const [profilesRes, unitsRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, phone").in("user_id", userIds),
-        supabase.from("units").select("id, unit_name, unit_type, property_id, monthly_rent").in("id", unitIds),
+        supabase.from("units").select("id, unit_name, unit_type, property_id, monthly_rent, has_toilet_bathroom, has_kitchen, water_available, electricity_available, has_borehole, has_polytank, amenities, custom_amenities, room_count, bathroom_count").in("id", unitIds),
       ]);
 
       const propertyIds = [...new Set((unitsRes.data || []).map(u => u.property_id))];
       const { data: properties } = propertyIds.length > 0
-        ? await supabase.from("properties").select("id, property_name, address, region, area").in("id", propertyIds)
+        ? await supabase.from("properties").select("id, property_name, address, region, area, gps_location, ghana_post_gps, property_condition").in("id", propertyIds)
         : { data: [] };
 
       // Get tenant IDs
@@ -65,6 +66,8 @@ const RegulatorAgreements = () => {
       setAgreements(tenancies.map(t => {
         const unit = unitMap.get(t.unit_id);
         const prop = unit ? propMap.get(unit.property_id) : null;
+        const unitAmenities = [...((unit as any)?.amenities || [])];
+        if ((unit as any)?.custom_amenities) unitAmenities.push(...(unit as any).custom_amenities.split(",").map((s: string) => s.trim()));
         return {
           ...t,
           _tenantName: profileMap.get(t.tenant_user_id)?.full_name || "Unknown",
@@ -78,6 +81,21 @@ const RegulatorAgreements = () => {
           _propertyAddress: prop?.address || "—",
           _region: prop?.region || "—",
           _tenantIdCode: tenantIdMap.get(t.tenant_user_id) || t.tenant_id_code,
+          _propertyId: prop?.id || null,
+          _gpsLocation: (prop as any)?.gps_location || "",
+          _ghanaPostGps: (prop as any)?.ghana_post_gps || "",
+          _propertyCondition: (prop as any)?.property_condition || "",
+          _bedroomCount: (unit as any)?.room_count || 0,
+          _bathroomCount: (unit as any)?.bathroom_count || 0,
+          _amenities: unitAmenities,
+          _facilities: {
+            hasToiletBathroom: (unit as any)?.has_toilet_bathroom || false,
+            hasKitchen: (unit as any)?.has_kitchen || false,
+            waterAvailable: (unit as any)?.water_available || false,
+            electricityAvailable: (unit as any)?.electricity_available || false,
+            hasBorehole: (unit as any)?.has_borehole || false,
+            hasPolytank: (unit as any)?.has_polytank || false,
+          },
         };
       }));
       setLoading(false);
@@ -107,6 +125,16 @@ const RegulatorAgreements = () => {
       startDate: a.start_date,
       endDate: a.end_date,
       region: a._region,
+      tenantPhone: a._tenantPhone,
+      landlordPhone: a._landlordPhone,
+      gpsAddress: a._gpsLocation,
+      ghanaPostGps: a._ghanaPostGps,
+      propertyCondition: a._propertyCondition,
+      bedroomCount: a._bedroomCount,
+      bathroomCount: a._bathroomCount,
+      amenities: a._amenities,
+      facilities: a._facilities,
+      propertyId: a._propertyId,
     };
     const doc = await generateAgreementPdf(data);
     doc.save(`Agreement_${a.registration_code}.pdf`);
@@ -191,17 +219,17 @@ const RegulatorAgreements = () => {
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Tenant</div>
-                  <div className="text-sm font-medium text-foreground">{a._tenantName}</div>
+                  <Link to={`/regulator/tenants?search=${encodeURIComponent(a._tenantName)}`} className="text-sm font-medium text-primary hover:underline">{a._tenantName}</Link>
                   <div className="text-xs text-muted-foreground">{a._tenantPhone}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Landlord</div>
-                  <div className="text-sm font-medium text-foreground">{a._landlordName}</div>
+                  <Link to={`/regulator/landlords?search=${encodeURIComponent(a._landlordName)}`} className="text-sm font-medium text-primary hover:underline">{a._landlordName}</Link>
                   <div className="text-xs text-muted-foreground">{a._landlordPhone}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Property</div>
-                  <div className="text-sm text-foreground">{a._propertyName} • {a._unitName}</div>
+                  <Link to={a._propertyId ? `/regulator/properties?id=${a._propertyId}` : "#"} className="text-sm text-primary hover:underline">{a._propertyName} • {a._unitName}</Link>
                   <div className="text-xs text-muted-foreground">{a._propertyAddress}</div>
                 </div>
                 <div>
