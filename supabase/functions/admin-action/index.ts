@@ -884,6 +884,30 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "clear_allocation_history": {
+        targetType = "office_allocations";
+        const clearRegion = extra?.region;
+        if (!clearRegion) throw new Error("Missing region for clearing allocation history");
+
+        // Get current records for audit
+        const { data: existingAllocs } = await adminClient
+          .from("office_allocations")
+          .select("id")
+          .eq("region", clearRegion);
+
+        oldState = { region: clearRegion, record_count: existingAllocs?.length || 0 };
+
+        const { error: delErr } = await adminClient
+          .from("office_allocations")
+          .delete()
+          .eq("region", clearRegion);
+
+        if (delErr) throw new Error(`Failed to clear history: ${delErr.message}`);
+
+        newState = { region: clearRegion, records_deleted: existingAllocs?.length || 0 };
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
