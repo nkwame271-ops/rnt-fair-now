@@ -746,6 +746,30 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
           onStockChanged();
         }}
       />
+
+      <AdminPasswordConfirm
+        open={clearHistoryOpen}
+        onOpenChange={setClearHistoryOpen}
+        title="Clear Allocation History"
+        description={`This will permanently delete all allocation history records for ${selectedRegion}. This action is logged and cannot be undone.`}
+        actionLabel="Clear History"
+        onConfirm={async (password, reason) => {
+          const { data, error } = await supabase.functions.invoke("admin-action", {
+            body: {
+              action: "clear_allocation_history",
+              target_id: `ALLOC-CLEAR-${selectedRegion}-${Date.now()}`,
+              reason,
+              password,
+              extra: { region: selectedRegion },
+            },
+          });
+          if (error) throw new Error(error.message);
+          if (data?.error) throw new Error(data.error);
+          toast.success("Allocation history cleared");
+          setClearHistoryOpen(false);
+          refreshRegion();
+        }}
+      />
     </div>
   );
 };
