@@ -85,8 +85,8 @@ const RegulatorAgreements = () => {
           _gpsLocation: (prop as any)?.gps_location || "",
           _ghanaPostGps: (prop as any)?.ghana_post_gps || "",
           _propertyCondition: (prop as any)?.property_condition || "",
-          _bedroomCount: (unit as any)?.room_count || 0,
-          _bathroomCount: (unit as any)?.bathroom_count || 0,
+          _bedroomCount: (prop as any)?.room_count || 0,
+          _bathroomCount: (prop as any)?.bathroom_count || 0,
           _amenities: unitAmenities,
           _facilities: {
             hasToiletBathroom: (unit as any)?.has_toilet_bathroom || false,
