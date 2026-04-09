@@ -1,207 +1,80 @@
 
 
-# Plan: System Audit & Fix — Reconciliation + Stock Integrity
+# System Audit — Final Gap Validation & Fix Plan
 
-## Audit Summary
-
-After thorough inspection of the database schema, edge functions, and frontend code, here are the findings for each audit item:
+## Audit Results (12 Reconciliation Items + 8 Feature Items)
 
 ---
 
-## 1. PAIR MODEL (REMOVE ÷2 LOGIC) — **GAPS FOUND**
+### RECONCILIATION & STOCK INTEGRITY
 
-**Current state**: Cards are paired by `purchase_id` but there's no explicit `pair_id`. Reconciliation uses `Math.floor(count / 2)` on lines 176-178 of `OfficeReconciliation.tsx`.
+| # | Item | Status | Gap |
+|---|------|--------|-----|
+| 1 | Pair model (÷2 removal) | **DONE** | Reconciliation uses `COUNT(DISTINCT purchase_id)` — no ÷2 logic |
+| 2 | Event-specific timestamps | **DONE** | `unassigned_at`, `assigned_at`, `created_at` all exist on stock table |
+| 3 | State-based unassign tracking | **DONE** | Uses `unassigned_at` column, not `admin_audit_log` |
+| 4 | Stock accounting formula | **DONE** | Formula implemented in `OfficeReconciliation.tsx` line 197 |
+| 5 | Adjustment stock flagging | **DONE** | `stock_source` column exists with values `generation/adjustment/upload` |
+| 6 | Safe decrease logic | **DONE** | `inventory_adjustment_atomic` RPC uses FIFO + adjustment-first ordering |
+| 7 | Concurrency protection | **DONE** | RPC uses `SELECT FOR UPDATE`; assignment/unassignment already atomic |
+| 8 | Idempotency for admin actions | **DONE** | `idempotency_key` column + check in RPC |
+| 9 | Negative stock validation | **DONE** | RPC raises exception if `available < requested` |
+| 10 | +149 correction traceability | **DONE** | `reference_id` + `correction_tag` fields on `inventory_adjustments` + UI in OfficeAllocation |
+| 11 | Historical consistency | **DONE** | `reconciliation_period_snapshots` table + "Save Period Snapshot" button |
+| 12 | Unassign/reassign integrity | **DONE** | Atomic RPCs with `FOR UPDATE`; existing unique constraint sufficient |
 
-**Fix**:
-- Do NOT create a new table — use `purchase_id` as the implicit pair identifier (every purchase creates exactly 2 cards)
-- Replace all `÷2` logic in `OfficeReconciliation.tsx` with `COUNT(DISTINCT purchase_id)` queries
-- Update metrics to count by `purchase_id` groups instead of dividing raw card counts
+### LANDLORD & TENANT FEATURES
 
----
+| # | Item | Status | Gap |
+|---|------|--------|-----|
+| 13 | PDF with real property data | **DONE** | Enhanced `AgreementPdfData` with GPS, amenities, conditions, "Assessed Recoverable Rent" |
+| 14 | Clickable entity names | **DONE** | Links in `RegulatorAgreements.tsx` |
+| 15 | Vacant/Occupied registration | **DONE** | `occupancyStatus` toggle in `RegisterProperty.tsx` with redirect |
+| 16 | Flexible advance field | **DONE** | Numeric `<Input>` in `DeclareExistingTenancy.tsx` |
+| 17 | **Placeholder tenant bug** | **GAP** | `claim_pending_tenancy` called from `RegisterTenant.tsx` but NOT implemented in `admin-action` edge function. Tenants who register after being invited will never see their tenancy. |
+| 18 | Rent lock after declaration | **DONE** | `occupiedUnitIds` + `readOnly` + lock icon in `EditProperty.tsx` |
+| 19 | Tenancy expiry automation | **DONE** | `tenancy-expiry-check` edge function handles auto-expiry, off-market, notifications |
+| 20 | Rent review sync | **DONE** | `RegulatorRentReviews.tsx` updates both `units.monthly_rent` and `tenancies.agreed_rent` |
 
-## 2. EVENT-SPECIFIC TIMESTAMPS — **PARTIALLY IMPLEMENTED**
+### QR & AUDIO
 
-**Current state**: `rent_cards` has `created_at`, `purchased_at`, `activated_at`. `rent_card_serial_stock` has `created_at`, `assigned_at`, `revoked_at`. Missing: `unassigned_at` on stock table, `paid_at` on cards (currently using `purchased_at` which is close but not explicit).
-
-**Fix**:
-- Add `unassigned_at` column to `rent_card_serial_stock`
-- Update `unassign_serial_atomic` function to set `unassigned_at = now()` when resetting stock rows
-- Use `purchased_at` as the payment timestamp (already exists, aliased as `paid_at` in queries)
-
----
-
-## 3. STATE-BASED UNASSIGN TRACKING — **GAP FOUND**
-
-**Current state**: Unassigned pairs count comes from `admin_audit_log` (line 128-133 of reconciliation). This is fragile — logs can be missing, delayed, or inconsistent.
-
-**Fix**:
-- Use the new `unassigned_at` column on `rent_card_serial_stock` to count unassigned pairs in a period
-- Query: `WHERE unassigned_at BETWEEN from AND to AND pair_index = 1` gives exact count
-- Remove `admin_audit_log` dependency for this metric
-
----
-
-## 4. STOCK ACCOUNTING FORMULA — **NOT IMPLEMENTED**
-
-**Current state**: Available stock is just a raw count of `status = 'available'` rows. No formula-based derivation.
-
-**Fix**:
-- Implement the formula in reconciliation view:
-  ```
-  Available = Initial Allocation + Adj Increases - Adj Decreases - Assigned + Unassign Returns
-  ```
-- Add a "Formula Verification" row that compares the formula result against the actual `status = 'available'` count
-- Flag discrepancies
+| # | Item | Status | Gap |
+|---|------|--------|-----|
+| 21 | QR code verification | **MOSTLY DONE** | Agreement PDF uses correct URL. **BUT** `generateTenancyCardPdf.ts` line 81 still uses old URL: `www.rentcontrolghana.com/verify-tenancy/` — needs fix |
+| 22 | Verify page expanded data | **DONE** | `verify-tenancy` edge function returns property, unit, signing dates, agreement status |
+| 23 | Audio MIME detection | **DONE** | All 4 recording files use `isTypeSupported` with webm/mp4/ogg fallback |
+| 24 | Audio playback in admin | **DONE** | `RegulatorComplaints.tsx` and `RegulatorApplications.tsx` have `<audio>` controls |
 
 ---
 
-## 5. ADJUSTMENT STOCK FLAGGING — **GAP FOUND**
+## GAPS TO FIX (2 items)
 
-**Current state**: Adjustment-created stock uses `ADJ-` serial prefix (convention only). No queryable flag column.
+### Gap 1: `claim_pending_tenancy` — Missing Backend Handler
 
-**Fix**:
-- Add `stock_source` column to `rent_card_serial_stock` (default: `'generation'`, values: `'generation'`, `'adjustment'`, `'upload'`)
-- Set `stock_source = 'adjustment'` in the `inventory_adjustment` increase case
-- Set `stock_source = 'upload'` in `SerialBatchUpload`
-- Update reporting to separate real vs adjustment stock
+**Problem**: `RegisterTenant.tsx` line 227 calls `supabase.functions.invoke("admin-action", { body: { action: "claim_pending_tenancy", phone, new_user_id } })` — but this case does NOT exist in `admin-action/index.ts`. The call silently fails (caught by try/catch). This means tenants invited by landlords via "Declare Existing Tenancy" will register but never get linked to their pending tenancy. Their dashboard will be empty.
 
----
+**Fix**: Add a `case "claim_pending_tenancy"` to `admin-action/index.ts` that:
+1. Receives `phone` and `new_user_id` from the body (no password required — this runs during registration)
+2. Queries `pending_tenants` for matching phone number with `status = 'pending'`
+3. For each match, updates `tenancies.tenant_user_id` to the new user ID
+4. Marks `pending_tenants.status = 'claimed'`
+5. Returns count of claimed tenancies
 
-## 6. SAFE DECREASE LOGIC — **GAP FOUND**
+This case should NOT require admin role or password since it's called during tenant registration.
 
-**Current state**: Decrease selects rows with `.limit(iaQty)` but no explicit ordering — non-deterministic.
+### Gap 2: Tenancy Card PDF — Wrong Verify URL
 
-**Fix**:
-- Add `.order("created_at", { ascending: true })` (FIFO) to decrease query in `admin-action` `inventory_adjustment` case
-- Prefer adjustment stock first: `.order("serial_number", { ascending: true })` which puts `ADJ-` prefixed rows first alphabetically
+**Problem**: `src/lib/generateTenancyCardPdf.ts` line 81 uses the old URL `www.rentcontrolghana.com/verify-tenancy/` instead of `https://rentghanapilot.lovable.app/verify-tenancy/`.
 
----
-
-## 7. CONCURRENCY PROTECTION — **PARTIALLY IMPLEMENTED**
-
-**Current state**: `assign_serials_atomic` and `unassign_serial_atomic` use `SELECT FOR UPDATE` correctly. But `inventory_adjustment` in the edge function has no transaction isolation — concurrent requests could select the same rows for decrease.
-
-**Fix**:
-- Create a new RPC function `inventory_adjustment_atomic` that wraps the decrease logic in a transaction with `SELECT FOR UPDATE`
-- Call this RPC from the edge function instead of doing multi-step queries
+**Fix**: Update the URL to match the agreement PDF pattern.
 
 ---
 
-## 8. IDEMPOTENCY FOR ADMIN ACTIONS — **GAP FOUND**
-
-**Current state**: No idempotency keys. Retried requests create duplicate adjustments.
-
-**Fix**:
-- Add `idempotency_key` column to `inventory_adjustments` table (unique, nullable)
-- Generate key client-side: `${action}-${office}-${timestamp}`
-- Check for existing key before processing; return previous result if found
-
----
-
-## 9. NEGATIVE STOCK VALIDATION — **PARTIALLY IMPLEMENTED**
-
-**Current state**: Decrease checks `availRows.length < iaQty` but this is a count check on fetched rows, not a transactional guarantee.
-
-**Fix**:
-- Move validation into the `inventory_adjustment_atomic` RPC (item 7) where it's protected by row locks
-- Reject if `available_count < requested` within the transaction
-
----
-
-## 10. +149 CORRECTION TRACEABILITY — **GAP FOUND**
-
-**Current state**: `inventory_adjustments` has `reason` and `note` but no `reference_id` or `correction_tag`.
-
-**Fix**:
-- Add `reference_id` and `correction_tag` columns to `inventory_adjustments`
-- The +149 correction will be tagged with `correction_tag = 'reconciliation_correction'` and a meaningful `reference_id`
-
----
-
-## 11. HISTORICAL CONSISTENCY — **PARTIALLY IMPLEMENTED**
-
-**Current state**: `office_reconciliation_snapshots` table exists but metrics are recalculated live (no period snapshots). Past reports will show different numbers if stock changes retroactively.
-
-**Fix**:
-- With event-specific timestamps (item 2), all metrics become reconstructable from timestamps
-- Add a "Save Period Snapshot" button that stores the current metrics output as a JSON blob in a new `reconciliation_period_snapshots` table
-- Past saved snapshots remain immutable
-
----
-
-## 12. UNASSIGN/REASSIGN DATA INTEGRITY — **MOSTLY CORRECT**
-
-**Current state**: `assign_serials_atomic` validates 2 stock rows, both `available`, both cards `awaiting_serial`. `unassign_serial_atomic` resets everything atomically. Both use `FOR UPDATE`.
-
-**Fix needed**:
-- Add unique constraint: one serial cannot be assigned to multiple active cards. Currently no constraint prevents this at DB level (the RPC logic prevents it but a constraint is safer).
-- Add: `CREATE UNIQUE INDEX ON rent_card_serial_stock (serial_number, pair_index) WHERE status = 'assigned'` — this already exists as `rent_card_serial_stock_serial_pair_unique` but it's unconditional (not filtered to `assigned` only). The existing constraint is sufficient since a serial+pair_index combo is always unique.
-
-**Conclusion**: The existing unique constraint `(serial_number, pair_index)` already prevents duplicate assignments. No additional constraint needed.
-
----
-
-## Implementation Plan
-
-### Migration 1: Schema additions
-```sql
-ALTER TABLE rent_card_serial_stock ADD COLUMN unassigned_at timestamptz;
-ALTER TABLE rent_card_serial_stock ADD COLUMN stock_source text NOT NULL DEFAULT 'generation';
-
-ALTER TABLE inventory_adjustments ADD COLUMN reference_id text;
-ALTER TABLE inventory_adjustments ADD COLUMN correction_tag text;
-ALTER TABLE inventory_adjustments ADD COLUMN idempotency_key text UNIQUE;
-
-CREATE TABLE reconciliation_period_snapshots (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  period_from timestamptz NOT NULL,
-  period_to timestamptz NOT NULL,
-  preset text,
-  metrics jsonb NOT NULL,
-  created_by uuid NOT NULL,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE reconciliation_period_snapshots ENABLE ROW LEVEL SECURITY;
-```
-
-### Migration 2: Atomic adjustment RPC
-Create `inventory_adjustment_atomic` PL/pgSQL function with:
-- Row-level locking for decreases
-- FIFO ordering (oldest first, adjustment stock first)
-- Negative stock validation inside transaction
-- Idempotency key check
-
-### Update `unassign_serial_atomic`
-- Set `unassigned_at = now()` on stock rows during reset
-
-### Edge function changes (`admin-action/index.ts`)
-- `inventory_adjustment` case: call new RPC instead of multi-step queries
-- Accept and pass `idempotency_key`, `reference_id`, `correction_tag`
-
-### Frontend changes (`OfficeReconciliation.tsx`)
-- Replace all `÷2` with `COUNT(DISTINCT purchase_id)` queries
-- Use `unassigned_at` for unassign metric instead of `admin_audit_log`
-- Add formula verification row
-- Add "Save Period Snapshot" button
-- Show real vs adjustment stock breakdown
-
-### Frontend changes (`OfficeAllocation.tsx`)
-- Add `reference_id` and `correction_tag` fields to adjustment form
-- Generate and send `idempotency_key`
-
-### Frontend changes (`SerialBatchUpload.tsx`)
-- Set `stock_source = 'upload'` on inserted rows
-
----
-
-## Files to Create/Modify
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| New migration | Schema additions (columns, table, RPC) |
-| `supabase/functions/admin-action/index.ts` | Use new RPC, pass new fields |
-| `src/pages/regulator/rent-cards/OfficeReconciliation.tsx` | Remove ÷2, use timestamps, add formula check, snapshots |
-| `src/pages/regulator/rent-cards/OfficeAllocation.tsx` | Add idempotency + reference fields |
-| `src/pages/regulator/rent-cards/SerialBatchUpload.tsx` | Set stock_source |
-| Update `unassign_serial_atomic` function | Add `unassigned_at` |
+| `supabase/functions/admin-action/index.ts` | Add `claim_pending_tenancy` case (no password/admin check) |
+| `src/lib/generateTenancyCardPdf.ts` | Fix verify URL on line 81 |
 
+Everything else is already correctly implemented across the system.
