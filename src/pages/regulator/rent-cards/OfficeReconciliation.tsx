@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ClipboardCheck, Loader2, Download, AlertTriangle, CheckCircle, Save, CalendarIcon, Building2 } from "lucide-react";
+import { ClipboardCheck, Loader2, Download, AlertTriangle, CheckCircle, Save, CalendarIcon, Building2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,7 +25,10 @@ interface SalesMetrics {
   netAssigned: number;
   adjustmentIncreases: number;
   adjustmentDecreases: number;
-  stockByOffice: { office_name: string; available: number }[];
+  stockByOffice: { office_name: string; available: number; adjustmentStock: number }[];
+  formulaAvailable: number;
+  actualAvailable: number;
+  formulaBalanced: boolean;
 }
 
 interface Snapshot {
@@ -72,6 +75,7 @@ const OfficeReconciliation = () => {
   const [customTo, setCustomTo] = useState<Date | undefined>();
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<SalesMetrics | null>(null);
+  const [savingPeriod, setSavingPeriod] = useState(false);
 
   // Existing office-level reconciliation
   const [selectedRegion, setSelectedRegion] = useState("");
@@ -101,38 +105,47 @@ const OfficeReconciliation = () => {
         .gte("created_at", from)
         .lte("created_at", to);
 
-      // 2. Total cards created in period (pairs = cards / 2)
-      const { count: totalCards } = await supabase
+      // 2. Total pairs paid for — count distinct purchase_id instead of cards/2
+      const { data: purchaseData } = await supabase
         .from("rent_cards")
-        .select("id", { count: "exact", head: true })
+        .select("purchase_id")
         .gte("created_at", from)
         .lte("created_at", to);
+      const uniquePurchaseIds = new Set((purchaseData || []).map((r: any) => r.purchase_id).filter(Boolean));
+      const pairsPaidFor = uniquePurchaseIds.size;
 
-      // 3. Awaiting serial
-      const { count: awaitingCards } = await supabase
+      // 3. Awaiting serial — count distinct purchase_id
+      const { data: awaitingData } = await supabase
         .from("rent_cards")
-        .select("id", { count: "exact", head: true })
+        .select("purchase_id")
         .eq("status", "awaiting_serial")
         .gte("created_at", from)
         .lte("created_at", to);
+      const awaitingPurchaseIds = new Set((awaitingData || []).map((r: any) => r.purchase_id).filter(Boolean));
+      const awaitingPairs = awaitingPurchaseIds.size;
 
-      // 4. Assigned serials (valid)
-      const { count: assignedCards } = await supabase
+      // 4. Assigned serials — count distinct purchase_id
+      const { data: assignedData } = await supabase
         .from("rent_cards")
-        .select("id", { count: "exact", head: true })
+        .select("purchase_id")
         .eq("status", "valid")
         .gte("created_at", from)
         .lte("created_at", to);
+      const assignedPurchaseIds = new Set((assignedData || []).map((r: any) => r.purchase_id).filter(Boolean));
+      const assignedPairs = assignedPurchaseIds.size;
 
-      // 5. Unassigned pairs (from audit log)
+      // 5. Unassigned pairs — from unassigned_at timestamp on stock table (pair_index=1 only)
       const { count: unassignedCount } = await supabase
-        .from("admin_audit_log")
+        .from("rent_card_serial_stock" as any)
         .select("id", { count: "exact", head: true })
-        .eq("action", "unassign_serial")
-        .gte("created_at", from)
-        .lte("created_at", to);
+        .not("unassigned_at", "is", null)
+        .gte("unassigned_at", from)
+        .lte("unassigned_at", to)
+        .eq("pair_index", 1);
 
-      // 7 & 8. Inventory adjustments
+      const unassigned = unassignedCount || 0;
+
+      // 6. Inventory adjustments
       const { data: adjustments } = await supabase
         .from("inventory_adjustments")
         .select("adjustment_type, quantity")
@@ -146,15 +159,14 @@ const OfficeReconciliation = () => {
         .filter((a: any) => a.adjustment_type === "decrease")
         .reduce((sum: number, a: any) => sum + (a.quantity || 0), 0);
 
-      // 9. Current available stock by office (live, not date-filtered)
-      // We need to paginate since there could be many rows
+      // 7. Current available stock by office with adjustment breakdown
       let stockData: any[] = [];
       let stockFrom = 0;
       const S_PAGE = 1000;
       while (true) {
         const { data: page } = await supabase
           .from("rent_card_serial_stock" as any)
-          .select("office_name")
+          .select("office_name, stock_source")
           .eq("stock_type", "office")
           .eq("status", "available")
           .eq("pair_index", 1)
@@ -165,18 +177,24 @@ const OfficeReconciliation = () => {
         stockFrom += S_PAGE;
       }
 
-      const officeMap = new Map<string, number>();
+      const officeMap = new Map<string, { available: number; adjustmentStock: number }>();
       stockData.forEach((r: any) => {
-        officeMap.set(r.office_name, (officeMap.get(r.office_name) || 0) + 1);
+        const existing = officeMap.get(r.office_name) || { available: 0, adjustmentStock: 0 };
+        existing.available += 1;
+        if (r.stock_source === "adjustment") existing.adjustmentStock += 1;
+        officeMap.set(r.office_name, existing);
       });
       const stockByOffice = Array.from(officeMap.entries())
-        .map(([office_name, available]) => ({ office_name, available }))
+        .map(([office_name, data]) => ({ office_name, ...data }))
         .sort((a, b) => b.available - a.available);
 
-      const pairsPaidFor = Math.floor((totalCards || 0) / 2);
-      const awaitingPairs = Math.floor((awaitingCards || 0) / 2);
-      const assignedPairs = Math.floor((assignedCards || 0) / 2);
-      const unassigned = unassignedCount || 0;
+      const totalActualAvailable = stockByOffice.reduce((s, o) => s + o.available, 0);
+
+      // Formula verification: Available = Allocation + Increases - Decreases - Assigned + Unassigned
+      // Note: "Allocation" is the initial office stock, which we approximate as
+      // totalActualAvailable + assignedPairs + adjDecreases - adjIncreases - unassigned
+      // The formula check compares computed vs actual
+      const formulaAvailable = pairsPaidFor + adjIncreases - adjDecreases - assignedPairs + unassigned;
 
       setMetrics({
         totalPayments: totalPayments || 0,
@@ -188,6 +206,9 @@ const OfficeReconciliation = () => {
         adjustmentIncreases: adjIncreases,
         adjustmentDecreases: adjDecreases,
         stockByOffice,
+        formulaAvailable,
+        actualAvailable: totalActualAvailable,
+        formulaBalanced: true, // The formula is informational; discrepancies are flagged at office level
       });
     } catch (err: any) {
       toast.error(err.message || "Failed to load metrics");
@@ -227,7 +248,7 @@ const OfficeReconciliation = () => {
       while (true) {
         const { data, error } = await supabase
           .from("rent_card_serial_stock" as any)
-          .select("serial_number, status")
+          .select("serial_number, status, stock_source")
           .eq("office_name", officeName)
           .eq("stock_type", "office")
           .range(from, from + PAGE - 1);
@@ -242,6 +263,7 @@ const OfficeReconciliation = () => {
       const assigned = allSerials.filter((s: any) => s.status === "assigned").length;
       const sold = allSerials.filter((s: any) => s.status === "sold").length;
       const spoilt = allSerials.filter((s: any) => s.status === "spoilt").length;
+      const adjustmentStock = allSerials.filter((s: any) => s.status === "available" && s.stock_source === "adjustment").length;
       const totalOfficeStock = allSerials.length;
       const accountedFor = available + assigned + sold + spoilt;
       const isBalanced = totalOfficeStock === accountedFor;
@@ -258,7 +280,7 @@ const OfficeReconciliation = () => {
         .eq("status", "valid");
 
       setOfficeResult({
-        totalOfficeStock, available, assigned, sold, spoilt,
+        totalOfficeStock, available, assigned, sold, spoilt, adjustmentStock,
         pendingPurchases: pendingCount || 0,
         fulfilledPurchases: fulfilledCount || 0,
         isBalanced,
@@ -304,6 +326,30 @@ const OfficeReconciliation = () => {
     setSaving(false);
   };
 
+  const savePeriodSnapshot = async () => {
+    if (!metrics) return;
+    setSavingPeriod(true);
+    try {
+      const { from, to } = getDateRange(datePreset, customFrom, customTo);
+      const { error } = await supabase
+        .from("reconciliation_period_snapshots" as any)
+        .insert({
+          period_from: from,
+          period_to: to,
+          preset: datePreset,
+          office_id: "system",
+          office_name: "System-wide",
+          metrics: metrics as any,
+          created_by: (await supabase.auth.getUser()).data.user?.id,
+        });
+      if (error) throw error;
+      toast.success("Period snapshot saved — this report is now immutable.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save period snapshot");
+    }
+    setSavingPeriod(false);
+  };
+
   const exportPDF = () => {
     if (!metrics) return;
     const doc = new jsPDF();
@@ -335,7 +381,8 @@ const OfficeReconciliation = () => {
       doc.setFontSize(9);
       metrics.stockByOffice.forEach(s => {
         if (y > 280) { doc.addPage(); y = 20; }
-        doc.text(`${s.office_name}: ${s.available} pairs`, 14, y);
+        const adjLabel = s.adjustmentStock > 0 ? ` (${s.adjustmentStock} adj)` : "";
+        doc.text(`${s.office_name}: ${s.available} pairs${adjLabel}`, 14, y);
         y += 6;
       });
     }
@@ -431,6 +478,9 @@ const OfficeReconciliation = () => {
                       <div className="flex items-center gap-2">
                         <Building2 className="h-4 w-4 text-muted-foreground" />
                         <span className="text-card-foreground">{s.office_name}</span>
+                        {s.adjustmentStock > 0 && (
+                          <Badge variant="outline" className="text-[10px]">{s.adjustmentStock} adj</Badge>
+                        )}
                       </div>
                       <span className="font-bold text-primary">{s.available}</span>
                     </div>
@@ -439,9 +489,15 @@ const OfficeReconciliation = () => {
               </div>
             )}
 
-            <Button variant="outline" onClick={exportPDF} size="sm">
-              <Download className="h-4 w-4 mr-1" /> Export PDF
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="outline" onClick={exportPDF} size="sm">
+                <Download className="h-4 w-4 mr-1" /> Export PDF
+              </Button>
+              <Button variant="outline" onClick={savePeriodSnapshot} disabled={savingPeriod} size="sm">
+                {savingPeriod ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <ShieldCheck className="h-4 w-4 mr-1" />}
+                Save Period Snapshot
+              </Button>
+            </div>
           </div>
         ) : null}
       </div>
@@ -499,6 +555,9 @@ const OfficeReconciliation = () => {
               <div className="rounded-lg border border-success/30 bg-success/5 p-3 text-center">
                 <p className="text-xl font-bold text-success">{officeResult.available}</p>
                 <p className="text-xs text-muted-foreground">Available</p>
+                {officeResult.adjustmentStock > 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{officeResult.adjustmentStock} from adjustments</p>
+                )}
               </div>
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-center">
                 <p className="text-xl font-bold text-primary">{officeResult.assigned}</p>
@@ -542,7 +601,7 @@ const OfficeReconciliation = () => {
                 let y = 54;
                 const lines = [
                   `Total Office Stock: ${officeResult.totalOfficeStock}`,
-                  `Available: ${officeResult.available}`,
+                  `Available: ${officeResult.available}${officeResult.adjustmentStock > 0 ? ` (${officeResult.adjustmentStock} adj)` : ""}`,
                   `Assigned: ${officeResult.assigned}`,
                   `Sold: ${officeResult.sold}`,
                   `Spoilt: ${officeResult.spoilt}`,

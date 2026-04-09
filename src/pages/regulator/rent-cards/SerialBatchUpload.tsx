@@ -120,6 +120,7 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
           batch_label: batchLabel || null,
           region: assignToRegion ? selectedRegion : null,
           pair_index: 1,
+          stock_source: "upload",
         });
         rows.push({
           serial_number: s,
@@ -128,6 +129,7 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
           batch_label: batchLabel || null,
           region: assignToRegion ? selectedRegion : null,
           pair_index: 2,
+          stock_source: "upload",
         });
       }
 

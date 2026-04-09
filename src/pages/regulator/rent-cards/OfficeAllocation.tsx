@@ -125,6 +125,8 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [adjQuantity, setAdjQuantity] = useState(0);
   const [adjReason, setAdjReason] = useState("");
   const [adjNote, setAdjNote] = useState("");
+  const [adjReferenceId, setAdjReferenceId] = useState("");
+  const [adjCorrectionTag, setAdjCorrectionTag] = useState("");
   const [showAdjPassword, setShowAdjPassword] = useState(false);
 
   const adjRegionData = GHANA_REGIONS_OFFICES.find(r => r.region === adjRegion);
@@ -778,6 +780,25 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
           <Label>Note (optional)</Label>
           <Textarea value={adjNote} onChange={e => setAdjNote(e.target.value)} placeholder="Additional context..." rows={2} />
         </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Reference ID (optional)</Label>
+            <Input value={adjReferenceId} onChange={e => setAdjReferenceId(e.target.value)} placeholder="e.g. RECON-2026-001" />
+          </div>
+          <div className="space-y-2">
+            <Label>Correction Tag (optional)</Label>
+            <Select value={adjCorrectionTag} onValueChange={setAdjCorrectionTag}>
+              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="reconciliation_correction">Reconciliation Correction</SelectItem>
+                <SelectItem value="physical_count_adjustment">Physical Count Adjustment</SelectItem>
+                <SelectItem value="damage_writeoff">Damage Write-off</SelectItem>
+                <SelectItem value="transfer_correction">Transfer Correction</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         <Button
           disabled={!adjOfficeId || !adjQuantity || !adjReason.trim()}
@@ -796,6 +817,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
         description={`This will ${adjType === "increase" ? "add" : "remove"} ${adjQuantity} pairs ${adjType === "increase" ? "to" : "from"} ${adjOfficeName} available stock. This is recorded as an auditable inventory adjustment.`}
         actionLabel={`${adjType === "increase" ? "+" : "−"}${adjQuantity} Pairs`}
         onConfirm={async (password, reason) => {
+          const idempotencyKey = `ADJ-${adjOfficeId}-${adjType}-${adjQuantity}-${Date.now()}`;
           const { data, error } = await supabase.functions.invoke("admin-action", {
             body: {
               action: "inventory_adjustment",
@@ -809,6 +831,9 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                 adjustment_type: adjType,
                 quantity: adjQuantity,
                 note: adjNote || null,
+                idempotency_key: idempotencyKey,
+                reference_id: adjReferenceId || null,
+                correction_tag: adjCorrectionTag && adjCorrectionTag !== "none" ? adjCorrectionTag : null,
               },
             },
           });
@@ -818,6 +843,8 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
           setAdjQuantity(0);
           setAdjReason("");
           setAdjNote("");
+          setAdjReferenceId("");
+          setAdjCorrectionTag("");
           onStockChanged();
         }}
       />
