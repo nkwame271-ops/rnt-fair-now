@@ -107,6 +107,7 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [officeQuantities, setOfficeQuantities] = useState<Record<string, number>>({});
   const [officeRanges, setOfficeRanges] = useState<Record<string, { start: string; end: string }>>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [clearHistoryOpen, setClearHistoryOpen] = useState(false);
   const [allocating, setAllocating] = useState(false);
   const [history, setHistory] = useState<AllocationHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
