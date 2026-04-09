@@ -647,6 +647,45 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_adjustments: {
+        Row: {
+          adjustment_type: string
+          created_at: string
+          id: string
+          note: string | null
+          office_id: string
+          office_name: string
+          performed_by: string
+          quantity: number
+          reason: string
+          region: string
+        }
+        Insert: {
+          adjustment_type: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          office_id: string
+          office_name: string
+          performed_by: string
+          quantity: number
+          reason: string
+          region: string
+        }
+        Update: {
+          adjustment_type?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          office_id?: string
+          office_name?: string
+          performed_by?: string
+          quantity?: number
+          reason?: string
+          region?: string
+        }
+        Relationships: []
+      }
       kyc_verifications: {
         Row: {
           ai_match_result: string | null

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { ArrowRightLeft, Building2, Download, Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Building2, Download, Pencil, RotateCcw, Search, Trash2, PlusCircle, MinusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { GHANA_REGIONS_OFFICES } from "@/hooks/useAdminProfile";
@@ -116,6 +117,19 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [updatingQuota, setUpdatingQuota] = useState<string | null>(null);
   const [resetQuotaTarget, setResetQuotaTarget] = useState<{ office_id: string; office_name: string; used: number } | null>(null);
   const [regionalSerials, setRegionalSerials] = useState<string[]>([]);
+
+  // Inventory adjustment state
+  const [adjRegion, setAdjRegion] = useState("");
+  const [adjOfficeId, setAdjOfficeId] = useState("");
+  const [adjType, setAdjType] = useState<"increase" | "decrease">("increase");
+  const [adjQuantity, setAdjQuantity] = useState(0);
+  const [adjReason, setAdjReason] = useState("");
+  const [adjNote, setAdjNote] = useState("");
+  const [showAdjPassword, setShowAdjPassword] = useState(false);
+
+  const adjRegionData = GHANA_REGIONS_OFFICES.find(r => r.region === adjRegion);
+  const adjOffices = adjRegionData?.offices || [];
+  const adjOfficeName = adjOffices.find(o => o.id === adjOfficeId)?.name || "";
 
   const regionData = GHANA_REGIONS_OFFICES.find(r => r.region === selectedRegion);
   const offices = regionData?.offices || [];
@@ -698,6 +712,115 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
           </>
         )}
       </div>
+
+      {/* ─── Inventory Adjustment Tool ─── */}
+      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+          {adjType === "increase" ? <PlusCircle className="h-5 w-5 text-success" /> : <MinusCircle className="h-5 w-5 text-destructive" />}
+          Inventory Adjustment
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Post auditable corrections to office available stock without changing the original allocation quota.
+        </p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Region</Label>
+            <Select value={adjRegion} onValueChange={v => { setAdjRegion(v); setAdjOfficeId(""); }}>
+              <SelectTrigger><SelectValue placeholder="Select region..." /></SelectTrigger>
+              <SelectContent>
+                {GHANA_REGIONS_OFFICES.map(r => (
+                  <SelectItem key={r.region} value={r.region}>{r.region}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {adjRegion && (
+            <div className="space-y-2">
+              <Label>Office</Label>
+              <Select value={adjOfficeId} onValueChange={setAdjOfficeId}>
+                <SelectTrigger><SelectValue placeholder="Select office..." /></SelectTrigger>
+                <SelectContent>
+                  {adjOffices.map(o => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Adjustment Type</Label>
+            <RadioGroup value={adjType} onValueChange={v => setAdjType(v as "increase" | "decrease")} className="flex gap-4">
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="increase" id="adj-inc" />
+                <Label htmlFor="adj-inc" className="cursor-pointer text-sm text-success">Increase (+)</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="decrease" id="adj-dec" />
+                <Label htmlFor="adj-dec" className="cursor-pointer text-sm text-destructive">Decrease (−)</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          <div className="space-y-2">
+            <Label>Quantity (pairs)</Label>
+            <Input type="number" min={1} value={adjQuantity || ""} onChange={e => setAdjQuantity(parseInt(e.target.value) || 0)} placeholder="e.g. 149" />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Reason <span className="text-destructive">*</span></Label>
+          <Input value={adjReason} onChange={e => setAdjReason(e.target.value)} placeholder="e.g. Reconciliation correction — physical count exceeded system count" />
+        </div>
+        <div className="space-y-2">
+          <Label>Note (optional)</Label>
+          <Textarea value={adjNote} onChange={e => setAdjNote(e.target.value)} placeholder="Additional context..." rows={2} />
+        </div>
+
+        <Button
+          disabled={!adjOfficeId || !adjQuantity || !adjReason.trim()}
+          onClick={() => setShowAdjPassword(true)}
+          variant={adjType === "increase" ? "default" : "destructive"}
+        >
+          {adjType === "increase" ? <PlusCircle className="h-4 w-4 mr-1" /> : <MinusCircle className="h-4 w-4 mr-1" />}
+          Post {adjType === "increase" ? "+" : "−"}{adjQuantity} Pair Adjustment
+        </Button>
+      </div>
+
+      <AdminPasswordConfirm
+        open={showAdjPassword}
+        onOpenChange={setShowAdjPassword}
+        title={`Post Inventory ${adjType === "increase" ? "Increase" : "Decrease"}`}
+        description={`This will ${adjType === "increase" ? "add" : "remove"} ${adjQuantity} pairs ${adjType === "increase" ? "to" : "from"} ${adjOfficeName} available stock. This is recorded as an auditable inventory adjustment.`}
+        actionLabel={`${adjType === "increase" ? "+" : "−"}${adjQuantity} Pairs`}
+        onConfirm={async (password, reason) => {
+          const { data, error } = await supabase.functions.invoke("admin-action", {
+            body: {
+              action: "inventory_adjustment",
+              target_id: `ADJ-${adjOfficeId}-${Date.now()}`,
+              reason: reason || adjReason,
+              password,
+              extra: {
+                office_id: adjOfficeId,
+                office_name: adjOfficeName,
+                region: adjRegion,
+                adjustment_type: adjType,
+                quantity: adjQuantity,
+                note: adjNote || null,
+              },
+            },
+          });
+          if (error) throw new Error(error.message);
+          if (data?.error) throw new Error(data.error);
+          toast.success(`Inventory adjustment posted: ${adjType === "increase" ? "+" : "−"}${adjQuantity} pairs to ${adjOfficeName}`);
+          setAdjQuantity(0);
+          setAdjReason("");
+          setAdjNote("");
+          onStockChanged();
+        }}
+      />
 
       <AdminPasswordConfirm
         open={showPassword}
