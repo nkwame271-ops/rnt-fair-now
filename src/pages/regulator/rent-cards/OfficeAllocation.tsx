@@ -125,6 +125,8 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [adjQuantity, setAdjQuantity] = useState(0);
   const [adjReason, setAdjReason] = useState("");
   const [adjNote, setAdjNote] = useState("");
+  const [adjReferenceId, setAdjReferenceId] = useState("");
+  const [adjCorrectionTag, setAdjCorrectionTag] = useState("");
   const [showAdjPassword, setShowAdjPassword] = useState(false);
 
   const adjRegionData = GHANA_REGIONS_OFFICES.find(r => r.region === adjRegion);
