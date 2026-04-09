@@ -222,6 +222,15 @@ const RegisterTenant = () => {
 
       setGeneratedId(tenantId);
 
+      // Claim any pending tenancies linked to this phone number
+      try {
+        await supabase.functions.invoke("admin-action", {
+          body: { action: "claim_pending_tenancy", phone: phoneDigits, new_user_id: userId },
+        });
+      } catch (claimErr) {
+        console.warn("Pending tenancy claim attempt:", claimErr);
+      }
+
       sendNotification("account_created", {
         phone: phoneDigits,
         email: email || undefined,

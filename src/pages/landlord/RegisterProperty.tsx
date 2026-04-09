@@ -68,6 +68,7 @@ const RegisterProperty = () => {
   const [images, setImages] = useState<File[]>([]);
   const [ownershipType, setOwnershipType] = useState("owner");
   const [propertyStructure, setPropertyStructure] = useState<"single_unit" | "multi_unit">("single_unit");
+  const [occupancyStatus, setOccupancyStatus] = useState<"vacant" | "occupied">("vacant");
   const [units, setUnits] = useState<UnitForm[]>([createEmptyUnit(0)]);
 
   const areas = region ? areasByRegion[region] || [] : [];
@@ -152,6 +153,7 @@ const RegisterProperty = () => {
       });
 
       let propertyStatus = "pending_assessment";
+      const isOccupied = occupancyStatus === "occupied";
       let existingPropertyId: string | undefined;
 
       if (dupCheck?.match === "high") {
@@ -189,6 +191,7 @@ const RegisterProperty = () => {
         property_category: propertyCategory,
         listed_on_marketplace: false,
         property_status: propertyStatus,
+        occupancy_type: isOccupied ? "occupied" : "vacant",
         ownership_type: ownershipType,
         property_structure: propertyStructure,
         normalized_address: normalizedAddr,
@@ -268,7 +271,11 @@ const RegisterProperty = () => {
       }
 
       toast.success(`Property registered! Code: ${propertyCode}. ${propertyStatus === "pending_identity_review" ? "Under identity review." : "Under assessment."}`);
-      navigate("/landlord/my-properties");
+      if (isOccupied) {
+        navigate(`/landlord/declare-existing-tenancy?propertyId=${prop.id}`);
+      } else {
+        navigate("/landlord/my-properties");
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to register property");
     } finally {
@@ -381,6 +388,27 @@ const RegisterProperty = () => {
                 </p>
               </div>
 
+              {/* Occupancy Status */}
+              <div className="space-y-3">
+                <Label>Occupancy Status *</Label>
+                <RadioGroup value={occupancyStatus} onValueChange={(v) => setOccupancyStatus(v as "vacant" | "occupied")} className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <RadioGroupItem value="vacant" />
+                    <span className="text-sm">Vacant — no current tenant</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <RadioGroupItem value="occupied" />
+                    <span className="text-sm">Occupied — has existing tenant</span>
+                  </label>
+                </RadioGroup>
+                {occupancyStatus === "occupied" && (
+                  <div className="flex items-center gap-2 text-xs text-info bg-info/5 p-3 rounded-lg border border-info/20">
+                    <AlertTriangle className="h-3.5 w-3.5 text-info shrink-0" />
+                    <span>This property is occupied. After registration, you will be redirected to declare the existing tenancy. The property will not be listed on the marketplace.</span>
+                  </div>
+                )}
+              </div>
+
               {/* GPS — Map Picker */}
               <ErrorBoundary section="Property Location Map">
                 <PropertyLocationPicker
@@ -426,13 +454,15 @@ const RegisterProperty = () => {
               </div>
 
               {/* Processing notice */}
-              <div className="flex items-center gap-3 rounded-lg border border-primary/30 p-4 bg-primary/5">
-                <Store className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Marketplace Listing</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Your property will be listed on the marketplace after it has been assessed and approved by Rent Control.</p>
+              {occupancyStatus === "vacant" && (
+                <div className="flex items-center gap-3 rounded-lg border border-primary/30 p-4 bg-primary/5">
+                  <Store className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Marketplace Listing</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Your property will be listed on the marketplace after it has been assessed and approved by Rent Control.</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Images */}
               <ErrorBoundary section="Image Upload">

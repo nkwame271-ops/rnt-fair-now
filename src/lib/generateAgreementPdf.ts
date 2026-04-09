@@ -46,6 +46,24 @@ export interface AgreementPdfData {
   serialCode?: string;
   version?: number;
   rentCardSerials?: { landlord?: string; tenant?: string };
+  // Enhanced fields
+  gpsAddress?: string;
+  ghanaPostGps?: string;
+  tenantPhone?: string;
+  landlordPhone?: string;
+  bedroomCount?: number;
+  bathroomCount?: number;
+  propertyCondition?: string;
+  amenities?: string[];
+  facilities?: {
+    hasToiletBathroom?: boolean;
+    hasKitchen?: boolean;
+    waterAvailable?: boolean;
+    electricityAvailable?: boolean;
+    hasBorehole?: boolean;
+    hasPolytank?: boolean;
+  };
+  propertyId?: string;
 }
 
 const DEFAULT_TERMS = [
@@ -157,29 +175,99 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   y += 10;
   left("LANDLORD:", y, 11, "bold");
   left(data.landlordName, y + 6, 11);
+  if (data.landlordPhone) {
+    doc.setFontSize(9);
+    doc.text(`Phone: ${data.landlordPhone}`, 80, y + 6);
+  }
   y += 16;
   left("TENANT:", y, 11, "bold");
   left(`${data.tenantName}  (ID: ${data.tenantId})`, y + 6, 11);
+  if (data.tenantPhone) {
+    doc.setFontSize(9);
+    doc.text(`Phone: ${data.tenantPhone}`, 80, y + 12);
+    y += 6;
+  }
   y += 20;
   line(y);
   y += 10;
 
-  // Property details
-  left("PROPERTY DETAILS", y, 13, "bold");
+  // Property Location
+  left("PROPERTY LOCATION", y, 13, "bold");
   y += 10;
-  const details = [
+  const locationDetails: [string, string][] = [
     ["Property:", data.propertyName],
     ["Address:", data.propertyAddress],
-    ["Unit:", `${data.unitName} (${data.unitType})`],
     ["Region:", data.region],
   ];
-  details.forEach(([label, value]) => {
+  if (data.ghanaPostGps) locationDetails.push(["Ghana Post GPS:", data.ghanaPostGps]);
+  if (data.gpsAddress) locationDetails.push(["GPS Coordinates:", data.gpsAddress]);
+  locationDetails.forEach(([label, value]) => {
     left(label, y, 10, "bold");
     doc.setFont("helvetica", "normal");
     doc.text(value, 65, y);
     y += 7;
   });
   y += 5;
+  line(y);
+  y += 10;
+
+  // Type of Accommodation
+  checkPage(40);
+  left("TYPE OF ACCOMMODATION", y, 13, "bold");
+  y += 10;
+  const accomDetails: [string, string][] = [
+    ["Unit:", `${data.unitName} (${data.unitType})`],
+  ];
+  if (data.bedroomCount !== undefined && data.bedroomCount > 0) accomDetails.push(["Bedrooms:", String(data.bedroomCount)]);
+  if (data.bathroomCount !== undefined && data.bathroomCount > 0) accomDetails.push(["Bathrooms:", String(data.bathroomCount)]);
+  accomDetails.forEach(([label, value]) => {
+    left(label, y, 10, "bold");
+    doc.setFont("helvetica", "normal");
+    doc.text(value, 65, y);
+    y += 7;
+  });
+
+  // Facilities
+  if (data.facilities) {
+    const facilityList: string[] = [];
+    if (data.facilities.hasToiletBathroom) facilityList.push("Toilet/Bathroom");
+    if (data.facilities.hasKitchen) facilityList.push("Kitchen");
+    if (data.facilities.waterAvailable) facilityList.push("Running Water");
+    if (data.facilities.electricityAvailable) facilityList.push("Electricity");
+    if (data.facilities.hasBorehole) facilityList.push("Borehole");
+    if (data.facilities.hasPolytank) facilityList.push("Polytank");
+    if (facilityList.length > 0) {
+      left("Facilities:", y, 10, "bold");
+      doc.setFont("helvetica", "normal");
+      doc.text(facilityList.join(", "), 65, y);
+      y += 7;
+    }
+  }
+  y += 5;
+
+  // Available Amenities
+  if (data.amenities && data.amenities.length > 0) {
+    checkPage(20);
+    left("AVAILABLE AMENITIES", y, 13, "bold");
+    y += 10;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(data.amenities.join(", "), 20, y);
+    y += 10;
+  }
+
+  // Condition of Property
+  if (data.propertyCondition) {
+    checkPage(25);
+    left("CONDITION OF PROPERTY", y, 13, "bold");
+    y += 10;
+    const condLines = doc.splitTextToSize(data.propertyCondition, w - 45);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(condLines, 20, y);
+    y += condLines.length * 5 + 5;
+  }
+
   line(y);
   y += 10;
 
@@ -190,8 +278,8 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   checkPage(60);
   left("FINANCIAL TERMS", y, 13, "bold");
   y += 10;
-  const financial = [
-    ["Monthly Rent:", formatGHS(data.monthlyRent)],
+  const financial: [string, string][] = [
+    ["Assessed Recoverable Rent Per Month:", formatGHS(data.monthlyRent)],
     ["Advance Period:", `${data.advanceMonths} month(s)`],
     ["Total Advance:", formatGHS(data.monthlyRent * data.advanceMonths)],
     [`Govt. Tax (${(taxRate * 100).toFixed(0)}%):`, `${formatGHS(taxAmount)} per month`],
@@ -202,7 +290,7 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   financial.forEach(([label, value]) => {
     left(label, y, 10, "bold");
     doc.setFont("helvetica", "normal");
-    doc.text(value, 75, y);
+    doc.text(value, 95, y);
     y += 7;
   });
   y += 5;

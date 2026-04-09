@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
 
       await supabase.from("notifications").insert([
         { user_id: t.tenant_user_id, title: "Tenancy Expired", body: `Your tenancy ${t.registration_code} has expired. The unit is now unlocked.`, link: "/tenant/my-agreements" },
-        { user_id: t.landlord_user_id, title: "Tenancy Expired", body: `Tenancy ${t.registration_code} has expired. The unit is now vacant.`, link: "/landlord/agreements" },
+        { user_id: t.landlord_user_id, title: "Tenancy Expired", body: `Tenancy ${t.registration_code} has expired. The unit is now vacant. Your property is now off-market. You can relist it from My Properties when ready.`, link: "/landlord/my-properties" },
       ]);
       expiredCount++;
     }

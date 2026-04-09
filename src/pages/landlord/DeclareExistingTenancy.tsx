@@ -616,15 +616,14 @@ const DeclareExistingTenancy = () => {
             </div>
             <div className="space-y-2">
               <Label>Advance Already Paid (months)</Label>
-              <Select value={advancePaid} onValueChange={setAdvancePaid}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 7 }, (_, i) => (
-                    <SelectItem key={i} value={i.toString()}>{i} month{i !== 1 ? "s" : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Maximum 6 months (Act 220)</p>
+              <Input
+                type="number"
+                min="0"
+                value={advancePaid}
+                onChange={(e) => setAdvancePaid(e.target.value)}
+                placeholder="e.g. 6"
+              />
+              <p className="text-xs text-muted-foreground">Enter the number of months already paid as advance for this existing tenancy</p>
             </div>
             <div className="space-y-2">
               <Label>Tenancy Start Date</Label>
