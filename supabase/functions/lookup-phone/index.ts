@@ -46,8 +46,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Check if it's a tenant ID (e.g. TEN-XXXXXX)
-    if (!phone && /^TEN-/i.test(trimmed)) {
+    // Check if it's a tenant ID — accept both TEN- (legacy) and TN- (current)
+    if (!phone && /^(TEN-|TN-)/i.test(trimmed)) {
       const { data: tenant } = await supabaseAdmin
         .from("tenants")
         .select("user_id")
@@ -63,8 +63,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Check if it's a landlord ID (e.g. LLD-XXXXXX)
-    if (!phone && /^LLD-/i.test(trimmed)) {
+    // Check if it's a landlord ID — accept both LLD- (legacy) and LL- (current)
+    if (!phone && /^(LLD-|LL-)/i.test(trimmed)) {
       const { data: landlord } = await supabaseAdmin
         .from("landlords")
         .select("user_id")
@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
     }
 
     if (!phone) {
-      return new Response(JSON.stringify({ error: "No account found for this identifier" }), { status: 404, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "No account found for this identifier. Please check the phone number or ID and try again." }), { status: 404, headers: corsHeaders });
     }
 
     // Normalize phone for OTP sending (ensure 233 prefix)

@@ -53,10 +53,23 @@ const ForgotPassword = () => {
       setMaskedPhone(data.phone_masked);
       setNormalizedPhone(data.phone_normalized);
 
-      // Send OTP
-      await supabase.functions.invoke("send-otp", {
+      // Send OTP and verify it was actually delivered
+      const { data: otpData, error: otpError } = await supabase.functions.invoke("send-otp", {
         body: { phone: data.phone_normalized },
       });
+
+      if (otpError || otpData?.error) {
+        toast.error(otpData?.error || "Failed to send OTP. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      if (otpData?.smsSent === false) {
+        console.warn("send-otp returned smsSent=false", otpData);
+        toast.error("OTP could not be sent to your phone. Please try again later.");
+        setLoading(false);
+        return;
+      }
 
       setCooldown(COOLDOWN_SECONDS);
       setStep(2);
@@ -81,7 +94,9 @@ const ForgotPassword = () => {
       });
 
       if (error || data?.error || !data?.verified) {
-        toast.error(data?.error || "Invalid or expired OTP. Please try again.");
+        const reason = data?.error || error?.message || "Invalid or expired OTP. Please try again.";
+        console.warn("verify-otp failed:", { error, data });
+        toast.error(reason);
         setLoading(false);
         return;
       }
@@ -166,8 +181,8 @@ const ForgotPassword = () => {
               <Label>Phone Number or ID</Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="024 555 1234 or TEN-XXXXXX"
+                 <Input
+                   placeholder="024 555 1234 or TN-2026-XXXX"
                   className="pl-10"
                   value={identifier}
                   onChange={(e) => {
@@ -182,7 +197,7 @@ const ForgotPassword = () => {
                   required
                 />
               </div>
-              <p className="text-xs text-muted-foreground">e.g. 024 555 1234, TEN-AB1234, or LLD-CD5678</p>
+              <p className="text-xs text-muted-foreground">e.g. 024 555 1234, TN-2026-AB1234, or LL-2026-CD5678</p>
             </div>
             <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={loading}>
               {loading ? "Looking up..." : "Find My Account"}
