@@ -650,38 +650,47 @@ export type Database = {
       inventory_adjustments: {
         Row: {
           adjustment_type: string
+          correction_tag: string | null
           created_at: string
           id: string
+          idempotency_key: string | null
           note: string | null
           office_id: string
           office_name: string
           performed_by: string
           quantity: number
           reason: string
+          reference_id: string | null
           region: string
         }
         Insert: {
           adjustment_type: string
+          correction_tag?: string | null
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           note?: string | null
           office_id: string
           office_name: string
           performed_by: string
           quantity: number
           reason: string
+          reference_id?: string | null
           region: string
         }
         Update: {
           adjustment_type?: string
+          correction_tag?: string | null
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           note?: string | null
           office_id?: string
           office_name?: string
           performed_by?: string
           quantity?: number
           reason?: string
+          reference_id?: string | null
           region?: string
         }
         Relationships: []
@@ -1829,6 +1838,42 @@ export type Database = {
           },
         ]
       }
+      reconciliation_period_snapshots: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          id: string
+          metrics: Json
+          office_id: string
+          office_name: string
+          period_from: string
+          period_to: string
+          preset: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          id?: string
+          metrics: Json
+          office_id: string
+          office_name: string
+          period_from: string
+          period_to: string
+          preset?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          metrics?: Json
+          office_id?: string
+          office_name?: string
+          period_from?: string
+          period_to?: string
+          preset?: string | null
+        }
+        Relationships: []
+      }
       region_codes: {
         Row: {
           code: string
@@ -2058,7 +2103,9 @@ export type Database = {
           revoked_by: string | null
           serial_number: string
           status: string
+          stock_source: string
           stock_type: string
+          unassigned_at: string | null
         }
         Insert: {
           assigned_at?: string | null
@@ -2077,7 +2124,9 @@ export type Database = {
           revoked_by?: string | null
           serial_number: string
           status?: string
+          stock_source?: string
           stock_type?: string
+          unassigned_at?: string | null
         }
         Update: {
           assigned_at?: string | null
@@ -2096,7 +2145,9 @@ export type Database = {
           revoked_by?: string | null
           serial_number?: string
           status?: string
+          stock_source?: string
           stock_type?: string
+          unassigned_at?: string | null
         }
         Relationships: [
           {
@@ -3202,6 +3253,22 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      inventory_adjustment_atomic: {
+        Args: {
+          p_adjustment_type: string
+          p_correction_tag?: string
+          p_idempotency_key?: string
+          p_note?: string
+          p_office_id: string
+          p_office_name: string
+          p_performed_by: string
+          p_quantity: number
+          p_reason: string
+          p_reference_id?: string
+          p_region: string
+        }
+        Returns: Json
       }
       is_main_admin: { Args: { _user_id: string }; Returns: boolean }
       recalculate_compliance_score: {
