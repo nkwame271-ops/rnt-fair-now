@@ -697,8 +697,32 @@ const DeclareExistingTenancy = () => {
 
           <div className="space-y-3">
             <Label>Voice Message (optional)</Label>
-            <Input type="file" accept="audio/*" onChange={(e) => setVoiceFile(e.target.files?.[0] || null)} />
-            <p className="text-xs text-muted-foreground">Record or upload a voice description of the tenancy</p>
+            <div className="flex items-center gap-3">
+              {!isRecording && !audioBlob && (
+                <Button type="button" variant="outline" size="sm" onClick={startRecording}>
+                  <Mic className="h-4 w-4 mr-1" /> Record
+                </Button>
+              )}
+              {isRecording && (
+                <Button type="button" variant="destructive" size="sm" onClick={stopRecording}>
+                  <Square className="h-4 w-4 mr-1" /> Stop
+                </Button>
+              )}
+              {audioBlob && audioUrl && (
+                <div className="flex items-center gap-2 flex-1">
+                  <audio controls src={audioUrl} className="h-8 flex-1" />
+                  <Button type="button" variant="ghost" size="sm" onClick={deleteRecording}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            {!audioBlob && (
+              <>
+                <Input type="file" accept="audio/*" onChange={(e) => setVoiceFile(e.target.files?.[0] || null)} />
+                <p className="text-xs text-muted-foreground">Or upload an existing audio file</p>
+              </>
+            )}
           </div>
 
           <div className="space-y-3 border-t border-border pt-4">
