@@ -302,8 +302,16 @@ const RegulatorComplaints = () => {
                           </div>
                           <div className="pt-2">
                             <div className="text-xs font-semibold text-muted-foreground mb-1">DESCRIPTION</div>
-                            <div className="text-sm text-foreground bg-background rounded-lg p-3 border border-border whitespace-pre-wrap">{c.description}</div>
+                             <div className="text-sm text-foreground bg-background rounded-lg p-3 border border-border whitespace-pre-wrap">{c.description}</div>
                           </div>
+                          {c.audio_url && (
+                            <div className="pt-2">
+                              <div className="text-xs font-semibold text-muted-foreground mb-1">AUDIO RECORDING</div>
+                              <audio controls className="w-full h-10" src={c.audio_url} preload="metadata">
+                                Your browser does not support audio playback.
+                              </audio>
+                            </div>
+                          )}
                         </div>
                         <div className="space-y-3">
                           <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -414,6 +422,14 @@ const RegulatorComplaints = () => {
                 <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusColors[c.status] || ""}`}>{c.status.replace("_", " ")}</span>
               </div>
               <div className="text-sm text-foreground">{c.description}</div>
+              {c.audio_url && (
+                <div>
+                  <div className="text-xs font-semibold text-muted-foreground mb-1">Audio Recording</div>
+                  <audio controls className="w-full h-10" src={c.audio_url} preload="metadata">
+                    Your browser does not support audio playback.
+                  </audio>
+                </div>
+              )}
               {c.tenant_name && <div className="text-sm text-muted-foreground">Regarding tenant: <strong className="text-foreground">{c.tenant_name}</strong></div>}
               {/* Appointment Schedule Info */}
               {scheduleMap[c.id] && (
