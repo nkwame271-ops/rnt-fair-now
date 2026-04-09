@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Download, Search, ExternalLink, Calendar, DollarSign, Trash2 } from "lucide-react";
+import { FileText, Download, Search, Calendar, DollarSign, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,12 +46,12 @@ const RegulatorAgreements = () => {
 
       const [profilesRes, unitsRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, phone").in("user_id", userIds),
-        supabase.from("units").select("id, unit_name, unit_type, property_id, monthly_rent, has_toilet_bathroom, has_kitchen, water_available, electricity_available, has_borehole, has_polytank, amenities, custom_amenities, room_count, bathroom_count").in("id", unitIds),
+        supabase.from("units").select("id, unit_name, unit_type, property_id, monthly_rent, has_toilet_bathroom, has_kitchen, water_available, electricity_available, has_borehole, has_polytank, amenities, custom_amenities").in("id", unitIds),
       ]);
 
       const propertyIds = [...new Set((unitsRes.data || []).map(u => u.property_id))];
       const { data: properties } = propertyIds.length > 0
-        ? await supabase.from("properties").select("id, property_name, address, region, area, gps_location, ghana_post_gps, property_condition").in("id", propertyIds)
+        ? await supabase.from("properties").select("id, property_name, address, region, area, gps_location, ghana_post_gps, property_condition, room_count, bathroom_count").in("id", propertyIds)
         : { data: [] };
 
       // Get tenant IDs
