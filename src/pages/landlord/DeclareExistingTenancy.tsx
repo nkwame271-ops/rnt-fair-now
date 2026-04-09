@@ -370,7 +370,7 @@ const DeclareExistingTenancy = () => {
         await supabase.functions.invoke("send-sms", {
           body: {
             phone: formData.tenantPhone,
-            message: `Hello ${formData.tenantName}, your landlord has declared an existing tenancy on RentControlGhana. Please register at https://rentghanapilot.lovable.app to view and confirm your tenancy. Ref: ${registrationCode}`,
+            message: `Hello ${formData.tenantName}, your landlord has declared an existing tenancy on RentControlGhana. Please register at https://www.rentcontrolghana.com to view and confirm your tenancy. Ref: ${registrationCode}`,
           },
         });
         // Mark SMS sent

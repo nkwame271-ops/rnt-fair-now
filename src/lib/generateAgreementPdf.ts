@@ -117,8 +117,8 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
 
   // Generate QR code
   const verifyUrl = data.tenancyId
-    ? `https://rentghanapilot.lovable.app/verify-tenancy/${data.tenancyId}`
-    : `https://rentghanapilot.lovable.app/verify-tenancy/${data.registrationCode}`;
+    ? `https://www.rentcontrolghana.com/verify-tenancy/${data.tenancyId}`
+    : `https://www.rentcontrolghana.com/verify-tenancy/${data.registrationCode}`;
   let qrDataUrl = "";
   try {
     qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 200, margin: 1, errorCorrectionLevel: "H" });
