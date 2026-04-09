@@ -780,6 +780,25 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
           <Label>Note (optional)</Label>
           <Textarea value={adjNote} onChange={e => setAdjNote(e.target.value)} placeholder="Additional context..." rows={2} />
         </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Reference ID (optional)</Label>
+            <Input value={adjReferenceId} onChange={e => setAdjReferenceId(e.target.value)} placeholder="e.g. RECON-2026-001" />
+          </div>
+          <div className="space-y-2">
+            <Label>Correction Tag (optional)</Label>
+            <Select value={adjCorrectionTag} onValueChange={setAdjCorrectionTag}>
+              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="reconciliation_correction">Reconciliation Correction</SelectItem>
+                <SelectItem value="physical_count_adjustment">Physical Count Adjustment</SelectItem>
+                <SelectItem value="damage_writeoff">Damage Write-off</SelectItem>
+                <SelectItem value="transfer_correction">Transfer Correction</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         <Button
           disabled={!adjOfficeId || !adjQuantity || !adjReason.trim()}
