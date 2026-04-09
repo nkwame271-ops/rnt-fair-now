@@ -55,6 +55,7 @@ const EditProperty = () => {
   const [propertyStatus, setPropertyStatus] = useState("");
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
   const [units, setUnits] = useState<EditableUnit[]>([]);
+  const [occupiedUnitIds, setOccupiedUnitIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user || !id) return;
@@ -95,6 +96,20 @@ const EditProperty = () => {
         amenities: u.amenities || [],
         custom_amenities: u.custom_amenities || "",
       })));
+
+      // Check which units have active tenancies (rent locked)
+      const unitIds = (unitData || []).map((u: any) => u.id);
+      if (unitIds.length > 0) {
+        const { data: activeTenancies } = await supabase
+          .from("tenancies")
+          .select("unit_id")
+          .in("unit_id", unitIds)
+          .in("status", ["active", "pending", "renewal_window", "existing_declared", "awaiting_verification", "verified_existing"]);
+        if (activeTenancies) {
+          setOccupiedUnitIds(new Set(activeTenancies.map((t: any) => t.unit_id)));
+        }
+      }
+
       setLoading(false);
     };
     fetchData();
