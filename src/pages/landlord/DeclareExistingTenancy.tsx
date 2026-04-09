@@ -279,9 +279,11 @@ const DeclareExistingTenancy = () => {
       }
     }
 
-    if (formData.hasVoiceFile && voiceFile) {
-      const path = `existing-voice/${user.id}/${Date.now()}_${voiceFile.name}`;
-      const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(path, voiceFile);
+    // Upload voice file or recorded audio blob
+    const voiceToUpload = voiceFile || (audioBlob ? new File([audioBlob], `recording_${Date.now()}.${audioBlob.type.includes("mp4") ? "mp4" : audioBlob.type.includes("ogg") ? "ogg" : "webm"}`, { type: audioBlob.type }) : null);
+    if ((formData.hasVoiceFile || audioBlob) && voiceToUpload) {
+      const path = `existing-voice/${user.id}/${Date.now()}_${voiceToUpload.name}`;
+      const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(path, voiceToUpload, { contentType: voiceToUpload.type });
       if (!uploadErr) {
         const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(path);
         voiceUrl = urlData.publicUrl;
@@ -797,7 +799,7 @@ const DeclareExistingTenancy = () => {
                 ["Rent Card (Landlord)", availableRentCards.find(c => c.id === selectedRentCardId)?.serial_number || "—"],
                 ["Rent Card (Tenant)", availableRentCards.find(c => c.id === selectedRentCardId2)?.serial_number || "—"],
                 ["Agreement Upload", agreementFile ? agreementFile.name : "None"],
-                ["Voice Message", voiceFile ? voiceFile.name : "None"],
+                ["Voice Message", audioBlob ? "Recorded" : voiceFile ? voiceFile.name : "None"],
                 ["Status", "Existing Tenancy — Awaiting Verification"],
               ].map(([label, value]) => (
                 <div key={label}>
