@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { ArrowRightLeft, Building2, Pencil, RotateCcw, Search } from "lucide-react";
+import { ArrowRightLeft, Building2, Download, Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
