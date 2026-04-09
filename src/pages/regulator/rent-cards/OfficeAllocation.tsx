@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { ArrowRightLeft, Building2, Download, Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Building2, Download, Pencil, RotateCcw, Search, Trash2, PlusCircle, MinusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { GHANA_REGIONS_OFFICES } from "@/hooks/useAdminProfile";
@@ -116,6 +117,19 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [updatingQuota, setUpdatingQuota] = useState<string | null>(null);
   const [resetQuotaTarget, setResetQuotaTarget] = useState<{ office_id: string; office_name: string; used: number } | null>(null);
   const [regionalSerials, setRegionalSerials] = useState<string[]>([]);
+
+  // Inventory adjustment state
+  const [adjRegion, setAdjRegion] = useState("");
+  const [adjOfficeId, setAdjOfficeId] = useState("");
+  const [adjType, setAdjType] = useState<"increase" | "decrease">("increase");
+  const [adjQuantity, setAdjQuantity] = useState(0);
+  const [adjReason, setAdjReason] = useState("");
+  const [adjNote, setAdjNote] = useState("");
+  const [showAdjPassword, setShowAdjPassword] = useState(false);
+
+  const adjRegionData = GHANA_REGIONS_OFFICES.find(r => r.region === adjRegion);
+  const adjOffices = adjRegionData?.offices || [];
+  const adjOfficeName = adjOffices.find(o => o.id === adjOfficeId)?.name || "";
 
   const regionData = GHANA_REGIONS_OFFICES.find(r => r.region === selectedRegion);
   const offices = regionData?.offices || [];
