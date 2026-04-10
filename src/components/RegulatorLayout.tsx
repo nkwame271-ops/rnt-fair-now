@@ -96,8 +96,8 @@ const RegulatorLayout = () => {
         <div className="p-5 flex items-center gap-2 border-b border-sidebar-border">
           <Shield className="h-6 w-6 text-sidebar-primary" />
           <span className="font-bold text-lg">Rent Control</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive text-destructive-foreground font-semibold ml-auto">
-            {profile?.isMainAdmin ? "ADMIN" : profile ? "STAFF" : "ADMIN"}
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ml-auto ${profile?.isSuperAdmin ? "bg-destructive text-destructive-foreground" : "bg-destructive text-destructive-foreground"}`}>
+            {profile?.isSuperAdmin ? "SUPER ADMIN" : profile?.isMainAdmin ? "ADMIN" : profile ? "STAFF" : "ADMIN"}
           </span>
         </div>
         {profile && !profile.isMainAdmin && profile.officeName && (
