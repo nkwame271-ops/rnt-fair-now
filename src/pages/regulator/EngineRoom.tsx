@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAllFeatureFlags, invalidateFeatureFlags } from "@/hooks/useFeatureFlag";
 import { useAdminProfile, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
+import { useModuleVisibility } from "@/hooks/useModuleVisibility";
 import LogoLoader from "@/components/LogoLoader";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
