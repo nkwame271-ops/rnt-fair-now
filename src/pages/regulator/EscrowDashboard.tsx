@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag, Zap, Hand, CheckCircle, XCircle, Clock, AlertTriangle, Download, Calendar as CalendarIcon, Filter } from "lucide-react";
+import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag, Zap, Hand, CheckCircle, XCircle, Clock, AlertTriangle, Download, Calendar as CalendarIcon, Filter, Info } from "lucide-react";
+import { useModuleVisibility } from "@/hooks/useModuleVisibility";
 import { supabase } from "@/integrations/supabase/client";
 import PageTransition from "@/components/PageTransition";
 import AnimatedCounter from "@/components/AnimatedCounter";
