@@ -666,55 +666,90 @@ const SuperAdminDashboard = () => {
           {/* TAB 3: Staff Management */}
           <TabsContent value="staff">
             <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-foreground">All Staff & Admins</h3>
+                <Button size="sm" onClick={() => setCreateStaffDialog(true)}>
+                  <UserPlus className="h-4 w-4 mr-1" /> Create New Staff
+                </Button>
+              </div>
+
               {staffLoading ? (
                 <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
               ) : (
-                <div className="bg-card rounded-xl border border-border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/50">
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Name</th>
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Role</th>
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Office</th>
-                        <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {staff.map(s => (
-                        <tr key={s.user_id} className="border-b border-border/50 hover:bg-muted/30">
-                          <td className="py-3 px-4">
-                            <div className="font-medium text-foreground">{s.full_name}</div>
-                            <div className="text-xs text-muted-foreground">{s.email}</div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge variant={s.admin_type === "super_admin" ? "destructive" : s.admin_type === "main_admin" ? "default" : "secondary"}>
-                              {s.admin_type === "super_admin" ? "SUPER ADMIN" : s.admin_type === "main_admin" ? "ADMIN" : "STAFF"}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground">{s.office_name || "—"}</td>
-                          <td className="py-3 px-4 text-right">
-                            {s.user_id !== user?.id && (
-                              <>
-                                {s.admin_type === "main_admin" && (
-                                  <Button size="sm" variant="outline" className="text-xs" onClick={() => handlePromoteToSuperAdmin(s.user_id)}>
-                                    Promote to Super Admin
-                                  </Button>
-                                )}
-                                {s.admin_type === "super_admin" && (
-                                  <Button size="sm" variant="outline" className="text-xs text-destructive" onClick={() => handleDemoteFromSuperAdmin(s.user_id)}>
-                                    Demote to Admin
-                                  </Button>
-                                )}
-                              </>
+                <div className="space-y-3">
+                  {staff.map(s => {
+                    const isYou = s.user_id === user?.id;
+                    return (
+                      <div key={s.user_id} className={`bg-card rounded-xl border p-4 space-y-3 ${s.is_frozen ? "border-destructive/50 bg-destructive/5" : "border-border"}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-foreground">{s.full_name}</span>
+                              {isYou && <Badge variant="outline" className="text-[10px]">You</Badge>}
+                              {s.is_frozen && <Badge variant="destructive" className="text-[10px]">FROZEN</Badge>}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">{s.email}</div>
+                          </div>
+                          <Badge variant={s.admin_type === "super_admin" ? "destructive" : s.admin_type === "main_admin" ? "default" : "secondary"}>
+                            {s.admin_type === "super_admin" ? "SUPER ADMIN" : s.admin_type === "main_admin" ? "ADMIN" : "STAFF"}
+                          </Badge>
+                        </div>
+
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span>Office: <strong className="text-foreground">{s.office_name || "Headquarters"}</strong></span>
+                          <span>Last Login: <strong className="text-foreground">{s.last_login ? new Date(s.last_login).toLocaleString() : "Never"}</strong></span>
+                        </div>
+
+                        {s.allowed_features && s.allowed_features.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {s.allowed_features.slice(0, 5).map(f => (
+                              <Badge key={f} variant="outline" className="text-[10px]">{f}</Badge>
+                            ))}
+                            {s.allowed_features.length > 5 && (
+                              <Badge variant="outline" className="text-[10px]">+{s.allowed_features.length - 5} more</Badge>
                             )}
-                            {s.user_id === user?.id && (
-                              <span className="text-xs text-muted-foreground italic">You</span>
+                          </div>
+                        )}
+
+                        {!isYou && (
+                          <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+                              setEditFeaturesDialog({ open: true, staff: s });
+                              setEditFeatures(s.allowed_features || []);
+                              setEditOffice({ office_id: s.office_id || "", office_name: s.office_name || "" });
+                            }}>
+                              <Pencil className="h-3 w-3 mr-1" /> Edit
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setResetPwDialog({ open: true, userId: s.user_id, name: s.full_name || "" })}>
+                              <Lock className="h-3 w-3 mr-1" /> Reset Password
+                            </Button>
+                            {s.admin_type === "main_admin" && (
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handlePromoteToSuperAdmin(s.user_id)}>
+                                Promote to Super Admin
+                              </Button>
                             )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            {s.admin_type === "super_admin" && (
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDemoteFromSuperAdmin(s.user_id)}>
+                                Demote to Admin
+                              </Button>
+                            )}
+                            {s.is_frozen ? (
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-primary" onClick={() => handleUnfreezeStaff(s)}>
+                                <CheckCircle className="h-3 w-3 mr-1" /> Unfreeze
+                              </Button>
+                            ) : (
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-amber-600" onClick={() => handleFreezeStaff(s)}>
+                                <Ban className="h-3 w-3 mr-1" /> Freeze
+                              </Button>
+                            )}
+                            <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => handleDeleteStaff(s)}>
+                              <Trash2 className="h-3 w-3 mr-1" /> Delete
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
