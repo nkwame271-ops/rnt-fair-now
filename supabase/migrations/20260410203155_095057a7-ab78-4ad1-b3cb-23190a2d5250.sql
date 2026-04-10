@@ -1,0 +1,1 @@
+UPDATE public.admin_staff SET admin_type = 'super_admin', updated_at = now() WHERE user_id = 'a12b6cd2-d2c1-4003-9aa8-5ca1b297abd3';
