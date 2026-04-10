@@ -138,9 +138,20 @@ const SuperAdminDashboard = () => {
   const [labelEdits, setLabelEdits] = useState<Record<string, string>>({});
   const [labelSaving, setLabelSaving] = useState<string | null>(null);
 
-  // Staff
+  // Staff management
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [staffLoading, setStaffLoading] = useState(true);
+  const [confirmAction, setConfirmAction] = useState<{ open: boolean; title: string; desc: string; label: string; onConfirm: (pw: string, reason: string) => Promise<void> }>({ open: false, title: "", desc: "", label: "", onConfirm: async () => {} });
+  const [resetPwDialog, setResetPwDialog] = useState<{ open: boolean; userId: string; name: string }>({ open: false, userId: "", name: "" });
+  const [newPassword, setNewPassword] = useState("");
+  const [createStaffDialog, setCreateStaffDialog] = useState(false);
+  const [newStaff, setNewStaff] = useState({ email: "", full_name: "", password: "", phone: "", admin_type: "sub_admin", office_id: "", office_name: "" });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [editFeaturesDialog, setEditFeaturesDialog] = useState<{ open: boolean; staff: StaffRow | null }>({ open: false, staff: null });
+  const [editFeatures, setEditFeatures] = useState<string[]>([]);
+  const [editOffice, setEditOffice] = useState({ office_id: "", office_name: "" });
+  const [editSaving, setEditSaving] = useState(false);
+  const [offices, setOffices] = useState<{ id: string; name: string }[]>([]);
 
   // Platform config
   const [operationalDate, setOperationalDate] = useState("2025-04-07");
