@@ -606,6 +606,11 @@ const SuperAdminDashboard = () => {
               </div>
             </div>
           </TabsContent>
+
+          {/* TAB 5: Activity Logs */}
+          <TabsContent value="activity">
+            <ActivityLogsTab staff={staff} />
+          </TabsContent>
         </Tabs>
       </div>
     </PageTransition>
