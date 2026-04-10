@@ -111,6 +111,7 @@ const RegulatorAgreements = () => {
   });
 
   const downloadPdf = async (a: any) => {
+    const isExisting = a.tenancy_type === "existing_migration";
     const data: AgreementPdfData = {
       tenancyId: a.id,
       registrationCode: a.registration_code,
@@ -136,9 +137,10 @@ const RegulatorAgreements = () => {
       amenities: a._amenities,
       facilities: a._facilities,
       propertyId: a._propertyId,
+      isExistingTenancy: isExisting,
     };
     const doc = await generateAgreementPdf(data);
-    doc.save(`Agreement_${a.registration_code}.pdf`);
+    doc.save(`${isExisting ? "Existing_Tenancy_Details" : "Agreement"}_${a.registration_code}.pdf`);
   };
 
   const exportCSV = () => {

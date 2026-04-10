@@ -324,11 +324,13 @@ const RegulatorTenants = () => {
                               <span className="font-mono text-xs text-primary font-semibold">{tc.registration_code}</span>
                               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${tc.status === "active" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>{tc.status}</span>
                             </div>
-                            <div className="font-medium text-foreground">{tc._propertyName}</div>
+                            <div className="font-medium text-foreground">
+                              <Link to={tc._propertyId ? `/regulator/properties?id=${tc._propertyId}` : "#"} className="text-primary hover:underline">{tc._propertyName}</Link>
+                            </div>
                             <div className="text-muted-foreground text-xs">{tc._propertyAddress} • {tc._unitName}</div>
                             <div className="text-muted-foreground text-xs">{tc._region}</div>
                             <div className="mt-1.5 flex justify-between text-xs">
-                              <span className="text-muted-foreground">Landlord: <span className="text-foreground">{tc._landlordName}</span></span>
+                              <span className="text-muted-foreground">Landlord: <Link to={`/regulator/landlords?search=${encodeURIComponent(tc._landlordName || "")}`} className="text-primary hover:underline">{tc._landlordName}</Link></span>
                               <span className="font-medium text-foreground">GH₵ {tc.agreed_rent?.toLocaleString()}/mo</span>
                             </div>
                             <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
