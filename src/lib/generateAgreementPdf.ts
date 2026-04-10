@@ -46,6 +46,7 @@ export interface AgreementPdfData {
   serialCode?: string;
   version?: number;
   rentCardSerials?: { landlord?: string; tenant?: string };
+  isExistingTenancy?: boolean;
   // Enhanced fields
   gpsAddress?: string;
   ghanaPostGps?: string;

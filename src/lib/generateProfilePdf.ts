@@ -41,6 +41,9 @@ interface ProfileData {
     _propertyName?: string;
     _unitName?: string;
     _region?: string;
+    _tenantPhone?: string;
+    _landlordPhone?: string;
+    _propertyId?: string;
   }>;
   complaints?: Array<{
     complaint_code: string;
@@ -53,7 +56,24 @@ interface ProfileData {
     property_name: string | null;
     address: string;
     region: string;
-    units?: Array<{ unit_name: string; monthly_rent: number; status: string }>;
+    gps_location?: string | null;
+    ghana_post_gps?: string | null;
+    property_condition?: string | null;
+    room_count?: number | null;
+    bathroom_count?: number | null;
+    units?: Array<{
+      unit_name: string;
+      monthly_rent: number;
+      status: string;
+      unit_type?: string;
+      has_toilet_bathroom?: boolean;
+      has_kitchen?: boolean;
+      water_available?: boolean;
+      electricity_available?: boolean;
+      has_borehole?: boolean;
+      has_polytank?: boolean;
+      amenities?: string[];
+    }>;
   }>;
 }
 
@@ -137,28 +157,67 @@ export const generateProfilePdf = (data: ProfileData) => {
     addLine("KYC Status:", "Not submitted");
   }
 
-  // Properties (landlord)
+  // Properties (landlord) — enriched with location, accommodation, amenities, condition, facilities
   if (data.properties && data.properties.length > 0) {
     addSection(`Properties (${data.properties.length})`);
     data.properties.forEach((p) => {
-      addLine("Property:", `${p.property_name || "Unnamed"} (${p.property_code})`);
+      // Property Location
+      addLine("Property:", `${p.property_name || "Unnamed"} (${p.property_code})`, true);
       addLine("Address:", `${p.address}, ${p.region}`);
+      if (p.ghana_post_gps) addLine("Ghana Post GPS:", p.ghana_post_gps);
+      if (p.gps_location) addLine("GPS Coordinates:", p.gps_location);
+
+      // Type of Accommodation & Condition
+      if (p.room_count || p.bathroom_count) {
+        const accom: string[] = [];
+        if (p.room_count) accom.push(`${p.room_count} Bedroom(s)`);
+        if (p.bathroom_count) accom.push(`${p.bathroom_count} Bathroom(s)`);
+        addLine("Accommodation:", accom.join(", "));
+      }
+      if (p.property_condition) addLine("Property Condition:", p.property_condition);
+
+      // Units with facilities and amenities
       (p.units || []).forEach((u) => {
-        addLine(`  Unit:`, `${u.unit_name} • ${formatGHS(u.monthly_rent)}/mo • ${u.status}`);
+        addLine(`  Unit:`, `${u.unit_name}${u.unit_type ? ` (${u.unit_type})` : ""} • ${formatGHS(u.monthly_rent)}/mo • ${u.status}`);
+
+        // Facilities
+        const facilities: string[] = [];
+        if (u.has_toilet_bathroom) facilities.push("Toilet/Bathroom");
+        if (u.has_kitchen) facilities.push("Kitchen");
+        if (u.water_available) facilities.push("Running Water");
+        if (u.electricity_available) facilities.push("Electricity");
+        if (u.has_borehole) facilities.push("Borehole");
+        if (u.has_polytank) facilities.push("Polytank");
+        if (facilities.length > 0) {
+          addLine("  Facilities:", facilities.join(", "));
+        }
+
+        // Available Amenities
+        if (u.amenities && u.amenities.length > 0) {
+          addLine("  Amenities:", u.amenities.join(", "));
+        }
       });
       y += 2;
     });
   }
 
-  // Tenancies
+  // Tenancies — enriched with contact details
   if (data.tenancies && data.tenancies.length > 0) {
     addSection(`Tenancy History (${data.tenancies.length})`);
     data.tenancies.forEach((t) => {
       addLine("Agreement:", `${t.registration_code} (${t.status})`);
       if (t._propertyName) addLine("Property:", `${t._propertyName} • ${t._unitName || ""}`);
-      if (t._landlordName) addLine("Landlord:", t._landlordName);
-      if (t._tenantName) addLine("Tenant:", t._tenantName);
-      addLine("Rent:", `${formatGHS(t.agreed_rent)}/mo`);
+      if (t._landlordName) {
+        let landlordInfo = t._landlordName;
+        if (t._landlordPhone) landlordInfo += ` (${t._landlordPhone})`;
+        addLine("Landlord:", landlordInfo);
+      }
+      if (t._tenantName) {
+        let tenantInfo = t._tenantName;
+        if (t._tenantPhone) tenantInfo += ` (${t._tenantPhone})`;
+        addLine("Tenant:", tenantInfo);
+      }
+      addLine("Assessed Recoverable Rent Per Month:", formatGHS(t.agreed_rent));
       addLine("Period:", `${new Date(t.start_date).toLocaleDateString()} — ${new Date(t.end_date).toLocaleDateString()}`);
       y += 2;
     });
