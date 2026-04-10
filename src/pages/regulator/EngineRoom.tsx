@@ -462,6 +462,7 @@ const EngineRoom = () => {
 
   const isMainAdmin = profile?.isMainAdmin ?? false;
   const isSubAdmin = profile && !profile.isMainAdmin;
+  const { isVisible } = useModuleVisibility("engine_room");
 
   const visibleFlags = isSubAdmin
     ? flags.filter(f => {
