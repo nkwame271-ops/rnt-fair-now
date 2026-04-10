@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
           ...opts,
         });
         if ((opts.severity || "warning") === "critical") {
-          const { data: admins } = await supabase.from("admin_staff").select("user_id").eq("admin_type", "main_admin");
+          const { data: admins } = await supabase.from("admin_staff").select("user_id").in("admin_type", ["main_admin", "super_admin"]);
           if (admins && admins.length > 0) {
             await supabase.from("notifications").insert(
               admins.map((a: any) => ({

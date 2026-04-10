@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .single();
 
-    if (!adminStaff || adminStaff.admin_type !== "main_admin") {
+    if (!adminStaff || (adminStaff.admin_type !== "main_admin" && adminStaff.admin_type !== "super_admin")) {
       throw new Error("Only Main Admin can perform this action");
     }
 
