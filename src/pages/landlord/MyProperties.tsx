@@ -138,7 +138,8 @@ const MyProperties = () => {
 
     const params = new URLSearchParams(window.location.search);
     const payStatus = params.get("status");
-    const ref = params.get("reference") || params.get("trxref");
+    const ref = params.get("reference") || params.get("trxref") || sessionStorage.getItem("pendingPaymentReference");
+    if (ref) sessionStorage.removeItem("pendingPaymentReference");
 
     if (ref || payStatus === "listed") {
       window.history.replaceState({}, "", window.location.pathname);
@@ -313,6 +314,7 @@ const MyProperties = () => {
         }
 
         if (data?.authorization_url) {
+          if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
           window.location.href = data.authorization_url;
         } else {
           if (data && !data.error) {

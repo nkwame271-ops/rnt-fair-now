@@ -258,6 +258,7 @@ const FileComplaint = () => {
       if (data?.error) throw new Error(data.error);
 
       if (data?.authorization_url) {
+        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
         window.location.href = data.authorization_url;
       } else if (data?.skipped || (data && !data.error)) {
         // Fee waived — update complaint to submitted directly

@@ -79,7 +79,19 @@ const AddTenant = () => {
 
   // Check if fee was paid via callback — restore form and auto-submit
   useEffect(() => {
-    if (searchParams.get("status") === "fee_paid") {
+    // Verify payment on return from Paystack
+    const ref = searchParams.get("reference") || searchParams.get("trxref") || sessionStorage.getItem("pendingPaymentReference");
+    if (ref) {
+      sessionStorage.removeItem("pendingPaymentReference");
+      supabase.functions.invoke("verify-payment", { body: { reference: ref } })
+        .then(({ data }) => {
+          if (data?.verified) toast.success("Payment verified!");
+          else toast.info("Payment is being processed.");
+        })
+        .catch(() => toast.info("Payment is being processed."));
+    }
+
+    if (searchParams.get("status") === "fee_paid" || ref) {
       const saved = sessionStorage.getItem("addTenantFormData");
       if (saved) {
         try {
@@ -133,6 +145,7 @@ const AddTenant = () => {
         return;
       }
       if (data?.authorization_url) {
+        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
         window.location.href = data.authorization_url;
       }
     } catch (err: any) {

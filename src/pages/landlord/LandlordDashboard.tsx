@@ -114,6 +114,7 @@ const LandlordDashboard = () => {
       if (error) throw new Error(error.message || "Payment initiation failed");
       if (data?.error) throw new Error(data.error);
       if (data?.authorization_url) {
+        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
         window.location.href = data.authorization_url;
       } else {
         throw new Error("No checkout URL received");

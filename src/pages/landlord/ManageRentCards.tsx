@@ -128,9 +128,10 @@ const ManageRentCards = () => {
     fetchCards();
 
     const params = new URLSearchParams(window.location.search);
-    const ref = params.get("reference") || params.get("trxref");
+    const ref = params.get("reference") || params.get("trxref") || sessionStorage.getItem("pendingPaymentReference");
 
     if (ref) {
+      sessionStorage.removeItem("pendingPaymentReference");
       window.history.replaceState({}, "", window.location.pathname);
       supabase.functions.invoke("verify-payment", { body: { reference: ref } })
         .then(({ data }) => {
@@ -170,6 +171,7 @@ const ManageRentCards = () => {
         return;
       }
       if (data?.authorization_url) {
+        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
         window.location.href = data.authorization_url;
       } else {
         throw new Error("No checkout URL received");
