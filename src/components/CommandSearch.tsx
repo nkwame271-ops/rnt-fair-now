@@ -44,6 +44,10 @@ const keywordMap: Record<string, { description: string; keywords: string[] }> = 
   "/regulator/support-chats": { description: "Live support chat sessions", keywords: ["chat", "help", "support", "message"] },
   "/regulator/sms-broadcast": { description: "Send bulk SMS notifications", keywords: ["broadcast", "text", "notification", "bulk"] },
   "/regulator/api-keys": { description: "Manage agency API keys", keywords: ["api", "key", "integration", "external", "agency"] },
+  "/regulator/super-admin": { description: "Super Admin control panel", keywords: ["super", "staff", "permissions", "visibility", "logs", "rename", "feature", "module", "activity", "audit"] },
+  "/regulator/office-fund-requests": { description: "Office wallet and fund requests", keywords: ["wallet", "fund", "request", "office", "money"] },
+  "/regulator/office-payout-settings": { description: "Configure office payout accounts", keywords: ["payout", "bank", "momo", "disbursement", "account"] },
+  "/regulator/payment-errors": { description: "View payment processing errors", keywords: ["error", "failure", "payment", "debug", "issue"] },
 
   // Landlord
   "/landlord/dashboard": { description: "Landlord overview dashboard", keywords: ["overview", "summary", "home"] },
@@ -127,10 +131,10 @@ const CommandSearch = ({ items }: CommandSearchProps) => {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/50 text-muted-foreground text-sm hover:bg-muted transition-colors max-w-[240px] w-full"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/50 text-muted-foreground text-sm hover:bg-muted transition-colors w-full"
       >
         <Search className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate hidden sm:inline">Search features...</span>
+        <span className="truncate">Search...</span>
         <kbd className="ml-auto pointer-events-none hidden sm:inline-flex h-5 select-none items-center gap-1 rounded border border-border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
           <span className="text-xs">⌘</span>K
         </kbd>

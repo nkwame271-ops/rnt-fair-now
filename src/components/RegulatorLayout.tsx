@@ -144,14 +144,13 @@ const RegulatorLayout = () => {
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-4">
-          <button onClick={() => setMobileOpen(true)} className="lg:hidden">
+          <button onClick={() => setMobileOpen(true)} className="lg:hidden shrink-0">
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-bold text-sm lg:hidden">Rent Control — Admin</span>
-          <div className="flex-1 flex justify-center max-w-md mx-4">
+          <div className="flex-1 flex justify-center max-w-md">
             <CommandSearch items={navItems} />
           </div>
-          <div className="ml-auto">
+          <div className="shrink-0">
             <NotificationBell />
           </div>
         </header>
