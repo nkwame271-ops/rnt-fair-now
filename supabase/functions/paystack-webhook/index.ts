@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
           ...opts,
         });
         if ((opts.severity || "warning") === "critical") {
-          const { data: admins } = await supabase.from("admin_staff").select("user_id").eq("admin_type", "main_admin");
+          const { data: admins } = await supabase.from("admin_staff").select("user_id").in("admin_type", ["main_admin", "super_admin"]);
           if (admins && admins.length > 0) {
             await supabase.from("notifications").insert(
               admins.map((a: any) => ({
@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
 
         await logError({ reference: tReference, error_stage: "transfer_failed", error_message: reason, severity: "critical", error_context: { transfer_code: transferCode } });
 
-        const { data: adminStaff } = await supabase.from("admin_staff").select("user_id").eq("admin_type", "main_admin");
+        const { data: adminStaff } = await supabase.from("admin_staff").select("user_id").in("admin_type", ["main_admin", "super_admin"]);
         if (adminStaff && adminStaff.length > 0) {
           await supabase.from("notifications").insert(
             adminStaff.map((a: any) => ({
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
             .eq("id", transfer.escrow_split_id);
         }
 
-        const { data: adminStaff } = await supabase.from("admin_staff").select("user_id").eq("admin_type", "main_admin");
+        const { data: adminStaff } = await supabase.from("admin_staff").select("user_id").in("admin_type", ["main_admin", "super_admin"]);
         if (adminStaff && adminStaff.length > 0) {
           await supabase.from("notifications").insert(
             adminStaff.map((a: any) => ({
