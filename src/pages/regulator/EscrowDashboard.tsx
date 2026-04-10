@@ -756,6 +756,7 @@ const EscrowDashboard = () => {
             )}
 
             {/* Receipt Register */}
+            {isVisible("escrow", "receipts") && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Receipt Register</h2>
