@@ -522,25 +522,27 @@ const EscrowDashboard = () => {
               </Button>
             </div>
 
-            <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { label: "Total Revenue", value: stats.totalEscrow, icon: DollarSign, color: "text-success", prefix: "GH₵ " },
-                { label: "Completed", value: stats.completed, icon: TrendingUp, color: "text-primary" },
-                { label: "Pending", value: stats.pending, icon: Wallet, color: "text-warning" },
-                { label: "Total Receipts", value: receipts.length, icon: Receipt, color: "text-info" },
-              ].map(s => (
-                <StaggeredItem key={s.label}>
-                  <div className="bg-card rounded-xl p-5 shadow-card border border-border">
-                    <s.icon className={`h-5 w-5 ${s.color} mb-2`} />
-                    <div className="text-2xl font-bold text-card-foreground">
-                      {s.prefix && <span className="text-lg">{s.prefix}</span>}
-                      <AnimatedCounter value={s.value} />
+            {isVisible("escrow", "total_revenue") && (
+              <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: "Total Revenue", value: stats.totalEscrow, icon: DollarSign, color: "text-success", prefix: "GH₵ " },
+                  { label: "Completed", value: stats.completed, icon: TrendingUp, color: "text-primary" },
+                  { label: "Pending", value: stats.pending, icon: Wallet, color: "text-warning" },
+                  { label: "Total Receipts", value: receipts.length, icon: Receipt, color: "text-info" },
+                ].map(s => (
+                  <StaggeredItem key={s.label}>
+                    <div className="bg-card rounded-xl p-5 shadow-card border border-border">
+                      <s.icon className={`h-5 w-5 ${s.color} mb-2`} />
+                      <div className="text-2xl font-bold text-card-foreground">
+                        {s.prefix && <span className="text-lg">{s.prefix}</span>}
+                        <AnimatedCounter value={s.value} />
+                      </div>
+                      <div className="text-xs text-muted-foreground">{s.label}</div>
                     </div>
-                    <div className="text-xs text-muted-foreground">{s.label}</div>
-                  </div>
-                </StaggeredItem>
-              ))}
-            </StaggeredGrid>
+                  </StaggeredItem>
+                ))}
+              </StaggeredGrid>
+            )}
 
             {/* Payment Pipeline Status (Main Admin only + visibility check) */}
             {isMainAdmin && isVisible("escrow", "payment_pipeline") && (
