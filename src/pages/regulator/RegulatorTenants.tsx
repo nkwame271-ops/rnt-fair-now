@@ -108,11 +108,11 @@ const RegulatorTenants = () => {
       (tenanciesRes.data || []).forEach(t => {
         const unit = unitMap.get(t.unit_id);
         const prop = unit ? propMap.get(unit.property_id) : null;
-        const landlordProfile = landlordProfileMap.get(t.landlord_user_id);
+        const landlordProfile = landlordProfileMap.get(t.landlord_user_id) as any;
         const enriched = {
           ...t,
-          _landlordName: landlordProfile?.full_name || "Unknown",
-          _landlordPhone: landlordProfile?.phone || "",
+          _landlordName: (landlordProfile?.full_name as string) || "Unknown",
+          _landlordPhone: (landlordProfile?.phone as string) || "",
           _propertyName: prop?.property_name || "—",
           _propertyAddress: prop?.address || "—",
           _unitName: unit?.unit_name || "—",
