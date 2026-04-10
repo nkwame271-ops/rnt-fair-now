@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAllFeatureFlags, invalidateFeatureFlags } from "@/hooks/useFeatureFlag";
 import { useAdminProfile, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
+import { useModuleVisibility } from "@/hooks/useModuleVisibility";
 import LogoLoader from "@/components/LogoLoader";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 
@@ -461,6 +462,7 @@ const EngineRoom = () => {
 
   const isMainAdmin = profile?.isMainAdmin ?? false;
   const isSubAdmin = profile && !profile.isMainAdmin;
+  const { isVisible } = useModuleVisibility("engine_room");
 
   const visibleFlags = isSubAdmin
     ? flags.filter(f => {
@@ -662,7 +664,7 @@ const EngineRoom = () => {
       )}
 
       {/* Split Engine Configuration */}
-      {isMainAdmin && (
+      {isMainAdmin && isVisible("engine_room", "split_engine") && (
         <div>
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
             <Cog className="h-5 w-5 text-primary" /> Split Engine
@@ -790,7 +792,7 @@ const EngineRoom = () => {
       )}
 
       {/* Rent Bands Configuration */}
-      {isMainAdmin && (
+      {isMainAdmin && isVisible("engine_room", "rent_bands") && (
         <div>
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
             <DollarSign className="h-5 w-5 text-primary" /> Rent Bands
@@ -963,7 +965,7 @@ const EngineRoom = () => {
 
 
       {/* Account Management — Main Admin Only */}
-      {isMainAdmin && (
+      {isMainAdmin && isVisible("engine_room", "account_management") && (
         <div>
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
             <UserX className="h-5 w-5 text-destructive" /> Account Management
@@ -1028,7 +1030,7 @@ const EngineRoom = () => {
       )}
 
       {/* Staff Feature Access — Main Admin only */}
-      {isMainAdmin && (
+      {isMainAdmin && isVisible("engine_room", "staff_permissions") && (
         <div>
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
             <UserCog className="h-5 w-5 text-primary" /> Staff Feature Access
