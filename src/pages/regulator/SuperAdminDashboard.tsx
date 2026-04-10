@@ -393,25 +393,6 @@ const SuperAdminDashboard = () => {
     });
   };
 
-  const handleResetPassword = async () => {
-    if (!newPassword || newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
-    setConfirmAction({
-      open: true,
-      title: `Reset Password for ${resetPwDialog.name}`,
-      desc: "Enter your admin password to confirm this action.",
-      label: "Reset Password",
-      onConfirm: async (pw, reason) => {
-        await handleAdminAction("reset_staff_password", resetPwDialog.userId, pw, reason, { new_password: newPassword });
-        toast.success("Password reset successfully");
-        setResetPwDialog({ open: false, userId: "", name: "" });
-        setNewPassword("");
-      },
-    });
-  };
-
   const handleCreateStaff = async () => {
     if (!newStaff.email || !newStaff.full_name || !newStaff.password || !newStaff.phone) {
       toast.error("Please fill in all required fields");
