@@ -468,9 +468,18 @@ const RegulatorProperties = () => {
                         <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">{p.units?.length || 0}</span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`text-xs ${statusColors[pStatus] || "text-muted-foreground"}`}>
-                          {statusLabels[pStatus] || pStatus}
-                        </Badge>
+                        <div className="space-y-1">
+                          <Badge variant="outline" className={`text-xs ${statusColors[pStatus] || "text-muted-foreground"}`}>
+                            {statusLabels[pStatus] || pStatus}
+                          </Badge>
+                          {pStatus === "occupied" && pendingExistingMap.has(p.id) && (
+                            <div>
+                              <Badge variant="outline" className="text-[10px] bg-warning/10 text-warning border-warning/30">
+                                Pending Tenancy Agreement Completion
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{assessmentBadge(p.assessment_status || "pending")}</TableCell>
                       <TableCell>
