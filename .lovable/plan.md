@@ -1,39 +1,26 @@
 
 
-# Enhance Super Admin Dashboard — Staff Ordering, Granular Feature Control, Regulators Tab
+# Improve Module Visibility — Show Admin Picker for "Selected Admins" and Super Admin Emails
 
-## What's Already Done (skip these)
-- Feature Renaming across portals (Tab 2)
-- Module-Level Visibility Control for Escrow, Rent Cards, Engine Room, Analytics (Tab 1)
-- Procurement/Rent Card button-level controls (inventory adjustment, stock correction, etc.)
-- Staff CRUD: create, freeze, delete, reset password (Tab 3)
-- Ledger baseline / operational start date (Tab 4)
-- Payment processor charges display (1.95% + GHS 1) (Tab 4)
-- Activity Logs (Tab 5)
-- Sidebar shows "SUPER ADMIN" badge
+## Problem
+When you set a section's visibility to "Selected Admins", there is no way to choose which admins get access — the dropdown just saves the value with no admin picker. Similarly, when "Super Admin Only" is selected, there is no indication of who the super admins are. On mobile (430px), the fixed-width select trigger may also overflow.
 
-## What Needs to Change
+## Changes
 
-### 1. Super Admin account pinned to top of staff list
-In the Staff tab, sort staff so `super_admin` accounts always appear first, then `main_admin`, then `sub_admin`.
+### `src/pages/regulator/SuperAdminDashboard.tsx`
 
-### 2. New "Regulators" tab
-Add a dedicated tab showing only `main_admin` and `super_admin` accounts. When you click on a regulator's card, it expands inline to show:
-- Full list of all platform features with checkboxes to enable/disable each one
-- Muted features with toggle switches
-- Office assignment
-- Last login and activity summary
+1. **"Selected Admins" — show admin multi-select picker**
+   After the visibility Select, when the value is `selected_admins`, render a collapsible section below with checkboxes listing every admin/staff by email and name. Checking/unchecking updates the `allowed_admin_ids` array on the `module_visibility_config` row. This uses the `staff` state already loaded.
 
-### 3. Replace comma-separated feature editing with a proper checklist UI
-The current "Edit Staff" dialog uses a text input for comma-separated feature keys. Replace this with:
-- A scrollable checklist of all available features (using the `FEATURE_ROUTE_MAP` keys)
-- Each feature has a checkbox (allowed) and a mute toggle
-- Grouped by category for clarity
+2. **"Super Admin Only" — show super admin emails**
+   When visibility is `super_admin_only`, show a small info line below listing the email(s) of all super admins on the platform (filtered from the `staff` array where `admin_type === "super_admin"`).
 
-### 4. Sidebar: more prominent Super Admin indicator
-Make the Super Admin badge visually distinct — use a gold/amber color instead of the same destructive red used for other badges.
+3. **Mobile layout fix**
+   Change the visibility row from `flex items-center justify-between` to a stacked layout on small screens. Change `w-[180px]` to `w-full sm:w-[180px]` so the select fits on mobile. Stack the label and select vertically on small screens using `flex-col sm:flex-row`.
 
-## Files Modified
-- `src/pages/regulator/SuperAdminDashboard.tsx` — sort staff list, add Regulators tab, replace feature edit dialog with checklist UI
-- `src/components/RegulatorLayout.tsx` — update Super Admin badge styling
+### Database
+No schema changes needed — `module_visibility_config` already has the `allowed_admin_ids` column (uuid array).
+
+## Result
+When you pick "Selected Admins", a list of all admins appears with checkboxes so you can choose exactly who sees that section. When you pick "Super Admin Only", you see the super admin email(s). The layout works cleanly on mobile.
 
