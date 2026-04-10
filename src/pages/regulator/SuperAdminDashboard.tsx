@@ -650,28 +650,78 @@ const SuperAdminDashboard = () => {
                       {mod.sections.map(sec => {
                         const vis = getVisibility(mod.module, sec.key);
                         const isSaving = saving === `${mod.module}.${sec.key}`;
+                        const rule = visRules.find(r => r.module_key === mod.module && r.section_key === sec.key);
+                        const superAdmins = staff.filter(s => s.admin_type === "super_admin");
                         return (
-                          <div key={sec.key} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 border border-border/50">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-[10px]">{sec.level}</Badge>
-                              <span className="text-sm text-foreground">{sec.label}</span>
+                          <div key={sec.key} className="py-2 px-3 rounded-lg bg-muted/30 border border-border/50 space-y-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-[10px]">{sec.level}</Badge>
+                                <span className="text-sm text-foreground">{sec.label}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {isSaving && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
+                                <Select
+                                  value={vis}
+                                  onValueChange={(v) => handleVisibilityChange(mod.module, sec.key, sec.level, v)}
+                                >
+                                  <SelectTrigger className="w-full sm:w-[180px] h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">All Admins</SelectItem>
+                                    <SelectItem value="super_admin_only">Super Admin Only</SelectItem>
+                                    <SelectItem value="selected_admins">Selected Admins</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              {isSaving && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
-                              <Select
-                                value={vis}
-                                onValueChange={(v) => handleVisibilityChange(mod.module, sec.key, sec.level, v)}
-                              >
-                                <SelectTrigger className="w-[180px] h-8 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="all">All Admins</SelectItem>
-                                  <SelectItem value="super_admin_only">Super Admin Only</SelectItem>
-                                  <SelectItem value="selected_admins">Selected Admins</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
+
+                            {/* Show super admin emails when super_admin_only */}
+                            {vis === "super_admin_only" && superAdmins.length > 0 && (
+                              <div className="text-xs text-muted-foreground bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1.5">
+                                <span className="font-medium text-amber-600">Super Admins:</span>{" "}
+                                {superAdmins.map(sa => sa.email || sa.full_name).join(", ")}
+                              </div>
+                            )}
+
+                            {/* Show admin multi-select picker when selected_admins */}
+                            {vis === "selected_admins" && (
+                              <div className="bg-background border border-border rounded-lg p-3 space-y-2">
+                                <p className="text-xs font-medium text-muted-foreground">Select which admins can access this:</p>
+                                <div className="max-h-48 overflow-y-auto space-y-1.5">
+                                  {staff.filter(s => s.admin_type !== "super_admin").map(s => {
+                                    const isChecked = rule?.allowed_admin_ids?.includes(s.user_id) || false;
+                                    return (
+                                      <label key={s.user_id} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted/50 cursor-pointer">
+                                        <Checkbox
+                                          checked={isChecked}
+                                          onCheckedChange={async (checked) => {
+                                            const newIds = checked
+                                              ? [...(rule?.allowed_admin_ids || []), s.user_id]
+                                              : (rule?.allowed_admin_ids || []).filter(id => id !== s.user_id);
+
+                                            if (rule?.id) {
+                                              await supabase
+                                                .from("module_visibility_config")
+                                                .update({ allowed_admin_ids: newIds, updated_by: user?.id, updated_at: new Date().toISOString() } as any)
+                                                .eq("id", rule.id);
+                                              setVisRules(prev => prev.map(r => r.id === rule.id ? { ...r, allowed_admin_ids: newIds } : r));
+                                              invalidateVisibilityCache();
+                                            }
+                                          }}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                          <span className="text-sm text-foreground">{s.full_name}</span>
+                                          {s.email && <span className="text-xs text-muted-foreground ml-1.5">({s.email})</span>}
+                                        </div>
+                                        <Badge variant="outline" className="text-[10px] flex-shrink-0">{s.admin_type}</Badge>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
