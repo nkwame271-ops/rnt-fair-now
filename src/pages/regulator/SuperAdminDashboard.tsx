@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
-import { Shield, Eye, Save, Tag, Users, Calendar, Loader2, Plus, Trash2, Info, Activity, Lock, Ban, UserPlus, Pencil, CheckCircle } from "lucide-react";
+import { Shield, Eye, Save, Tag, Users, Calendar, Loader2, Plus, Trash2, Info, Activity, Lock, Ban, UserPlus, Pencil, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdminProfile } from "@/hooks/useAdminProfile";
+import { useAdminProfile, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
 import { invalidateVisibilityCache } from "@/hooks/useModuleVisibility";
 import { invalidateLabelCache } from "@/hooks/useFeatureLabel";
 import PageTransition from "@/components/PageTransition";
@@ -94,6 +96,39 @@ const RENAMEABLE_FEATURES: { key: string; portal: string; defaultLabel: string }
   { key: "payments", portal: "tenant", defaultLabel: "Payments" },
 ];
 
+// All feature keys with human-readable labels for checklist
+const ALL_FEATURE_KEYS: { key: string; label: string }[] = Object.entries(FEATURE_ROUTE_MAP)
+  .filter(([key]) => key !== "super_admin") // super_admin is not assignable
+  .map(([key]) => {
+    const labelMap: Record<string, string> = {
+      dashboard: "Overview / Dashboard",
+      tenants: "Tenants",
+      landlords: "Landlords",
+      properties: "Properties",
+      complaints: "Complaints",
+      applications: "Applications",
+      agreements: "Agreements",
+      agreement_templates: "Agreement Templates",
+      rent_assessments: "Rent Assessments",
+      terminations: "Terminations",
+      rent_cards: "Rent Cards",
+      escrow: "Escrow & Revenue",
+      analytics: "Analytics",
+      kyc: "KYC Verification",
+      engine_room: "Engine Room",
+      invite_staff: "Invite Staff",
+      feedback: "Beta Feedback",
+      support_chats: "Support Chats",
+      sms_broadcast: "SMS Broadcast",
+      api_keys: "Agency APIs",
+      office_wallet: "Office Wallet",
+      payout_settings: "Payout Settings",
+      rent_reviews: "Rent Reviews",
+      payment_errors: "Payment Errors",
+    };
+    return { key, label: labelMap[key] || key };
+  });
+
 interface VisRule {
   id?: string;
   module_key: string;
@@ -118,11 +153,15 @@ interface StaffRow {
   office_name: string | null;
   office_id: string | null;
   allowed_features: string[] | null;
+  muted_features: string[] | null;
   full_name?: string;
   email?: string;
   last_login?: string | null;
   is_frozen?: boolean;
 }
+
+// Sort priority: super_admin first, then main_admin, then sub_admin
+const staffSortOrder = (type: string) => type === "super_admin" ? 0 : type === "main_admin" ? 1 : 2;
 
 const SuperAdminDashboard = () => {
   const { user } = useAuth();
@@ -149,9 +188,13 @@ const SuperAdminDashboard = () => {
   const [createLoading, setCreateLoading] = useState(false);
   const [editFeaturesDialog, setEditFeaturesDialog] = useState<{ open: boolean; staff: StaffRow | null }>({ open: false, staff: null });
   const [editFeatures, setEditFeatures] = useState<string[]>([]);
+  const [editMuted, setEditMuted] = useState<string[]>([]);
   const [editOffice, setEditOffice] = useState({ office_id: "", office_name: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [offices, setOffices] = useState<{ id: string; name: string }[]>([]);
+
+  // Regulators tab
+  const [expandedRegulator, setExpandedRegulator] = useState<string | null>(null);
 
   // Platform config
   const [operationalDate, setOperationalDate] = useState("2025-04-07");
@@ -160,7 +203,7 @@ const SuperAdminDashboard = () => {
   const fetchStaff = useCallback(async () => {
     setStaffLoading(true);
     const [{ data: staffData }, { data: officeData }] = await Promise.all([
-      supabase.from("admin_staff").select("user_id, admin_type, office_name, office_id, allowed_features"),
+      supabase.from("admin_staff").select("user_id, admin_type, office_name, office_id, allowed_features, muted_features"),
       supabase.from("offices").select("id, name"),
     ]);
     setOffices((officeData || []).map((o: any) => ({ id: o.id, name: o.name })));
@@ -172,16 +215,18 @@ const SuperAdminDashboard = () => {
         supabase.from("admin_activity_log").select("user_id, created_at").eq("event_type", "login").in("user_id", userIds).order("created_at", { ascending: false }),
       ]);
       const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, { name: p.full_name, email: p.email }]));
-      // Get most recent login per user
       const loginMap = new Map<string, string>();
       (loginLogs || []).forEach((l: any) => { if (!loginMap.has(l.user_id)) loginMap.set(l.user_id, l.created_at); });
 
-      setStaff(staffData.map((s: any) => ({
+      const sorted = staffData.map((s: any) => ({
         ...s,
         full_name: nameMap.get(s.user_id)?.name || "Unknown",
         email: nameMap.get(s.user_id)?.email || "",
         last_login: loginMap.get(s.user_id) || null,
-      })));
+        muted_features: s.muted_features || [],
+      })).sort((a: any, b: any) => staffSortOrder(a.admin_type) - staffSortOrder(b.admin_type));
+
+      setStaff(sorted);
     }
     setStaffLoading(false);
   }, []);
@@ -326,7 +371,7 @@ const SuperAdminDashboard = () => {
     if (error) toast.error("Failed to promote");
     else {
       toast.success("Promoted to Super Admin");
-      setStaff(prev => prev.map(s => s.user_id === userId ? { ...s, admin_type: "super_admin" } : s));
+      setStaff(prev => prev.map(s => s.user_id === userId ? { ...s, admin_type: "super_admin" } : s).sort((a, b) => staffSortOrder(a.admin_type) - staffSortOrder(b.admin_type)));
     }
   };
 
@@ -338,7 +383,7 @@ const SuperAdminDashboard = () => {
     if (error) toast.error("Failed to demote");
     else {
       toast.success("Demoted to Main Admin");
-      setStaff(prev => prev.map(s => s.user_id === userId ? { ...s, admin_type: "main_admin" } : s));
+      setStaff(prev => prev.map(s => s.user_id === userId ? { ...s, admin_type: "main_admin" } : s).sort((a, b) => staffSortOrder(a.admin_type) - staffSortOrder(b.admin_type)));
     }
   };
 
@@ -432,6 +477,7 @@ const SuperAdminDashboard = () => {
         .from("admin_staff")
         .update({
           allowed_features: editFeatures.length > 0 ? editFeatures : null,
+          muted_features: editMuted.length > 0 ? editMuted : null,
           office_id: editOffice.office_id || null,
           office_name: editOffice.office_name || null,
           updated_at: new Date().toISOString(),
@@ -441,7 +487,7 @@ const SuperAdminDashboard = () => {
       toast.success("Staff updated");
       setStaff(prev => prev.map(s =>
         s.user_id === editFeaturesDialog.staff!.user_id
-          ? { ...s, allowed_features: editFeatures.length > 0 ? editFeatures : null, office_id: editOffice.office_id || null, office_name: editOffice.office_name || null }
+          ? { ...s, allowed_features: editFeatures.length > 0 ? editFeatures : null, muted_features: editMuted.length > 0 ? editMuted : null, office_id: editOffice.office_id || null, office_name: editOffice.office_name || null }
           : s
       ));
       setEditFeaturesDialog({ open: false, staff: null });
@@ -467,6 +513,13 @@ const SuperAdminDashboard = () => {
     setConfigSaving(false);
   };
 
+  const openEditDialog = (s: StaffRow) => {
+    setEditFeaturesDialog({ open: true, staff: s });
+    setEditFeatures(s.allowed_features || []);
+    setEditMuted(s.muted_features || []);
+    setEditOffice({ office_id: s.office_id || "", office_name: s.office_name || "" });
+  };
+
   if (profileLoading) return <LogoLoader message="Loading..." />;
 
   if (!profile?.isSuperAdmin) {
@@ -481,12 +534,84 @@ const SuperAdminDashboard = () => {
     );
   }
 
+  const regulators = staff.filter(s => s.admin_type === "main_admin" || s.admin_type === "super_admin");
+
+  const renderStaffCard = (s: StaffRow, showActions = true) => {
+    const isYou = s.user_id === user?.id;
+    return (
+      <div key={s.user_id} className={`bg-card rounded-xl border p-4 space-y-3 ${s.is_frozen ? "border-destructive/50 bg-destructive/5" : "border-border"}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-foreground">{s.full_name}</span>
+              {isYou && <Badge variant="outline" className="text-[10px]">You</Badge>}
+              {s.is_frozen && <Badge variant="destructive" className="text-[10px]">FROZEN</Badge>}
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">{s.email}</div>
+          </div>
+          <Badge className={s.admin_type === "super_admin" ? "bg-amber-500 text-white border-amber-600" : s.admin_type === "main_admin" ? "" : ""} variant={s.admin_type === "main_admin" ? "default" : s.admin_type === "sub_admin" ? "secondary" : "default"}>
+            {s.admin_type === "super_admin" ? "SUPER ADMIN" : s.admin_type === "main_admin" ? "ADMIN" : "STAFF"}
+          </Badge>
+        </div>
+
+        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+          <span>Office: <strong className="text-foreground">{s.office_name || "Headquarters"}</strong></span>
+          <span>Last Login: <strong className="text-foreground">{s.last_login ? new Date(s.last_login).toLocaleString() : "Never"}</strong></span>
+        </div>
+
+        {s.allowed_features && s.allowed_features.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {s.allowed_features.slice(0, 5).map(f => (
+              <Badge key={f} variant="outline" className="text-[10px]">{f}</Badge>
+            ))}
+            {s.allowed_features.length > 5 && (
+              <Badge variant="outline" className="text-[10px]">+{s.allowed_features.length - 5} more</Badge>
+            )}
+          </div>
+        )}
+
+        {showActions && !isYou && (
+          <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEditDialog(s)}>
+              <Pencil className="h-3 w-3 mr-1" /> Edit
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setResetPwDialog({ open: true, userId: s.user_id, name: s.full_name || "" })}>
+              <Lock className="h-3 w-3 mr-1" /> Reset Password
+            </Button>
+            {s.admin_type === "main_admin" && (
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handlePromoteToSuperAdmin(s.user_id)}>
+                Promote to Super Admin
+              </Button>
+            )}
+            {s.admin_type === "super_admin" && (
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDemoteFromSuperAdmin(s.user_id)}>
+                Demote to Admin
+              </Button>
+            )}
+            {s.is_frozen ? (
+              <Button size="sm" variant="outline" className="h-7 text-xs text-primary" onClick={() => handleUnfreezeStaff(s)}>
+                <CheckCircle className="h-3 w-3 mr-1" /> Unfreeze
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="h-7 text-xs text-destructive/70" onClick={() => handleFreezeStaff(s)}>
+                <Ban className="h-3 w-3 mr-1" /> Freeze
+              </Button>
+            )}
+            <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => handleDeleteStaff(s)}>
+              <Trash2 className="h-3 w-3 mr-1" /> Delete
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <PageTransition>
       <div className="max-w-5xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-            <Shield className="h-7 w-7 text-destructive" /> Super Admin Control Panel
+            <Shield className="h-7 w-7 text-amber-500" /> Super Admin Control Panel
           </h1>
           <p className="text-muted-foreground mt-1">
             Full platform control — manage visibility, labels, staff roles, and data baseline.
@@ -497,6 +622,7 @@ const SuperAdminDashboard = () => {
           <TabsList className="flex flex-wrap h-auto gap-1">
             <TabsTrigger value="visibility"><Eye className="h-3.5 w-3.5 mr-1" /> Module Visibility</TabsTrigger>
             <TabsTrigger value="labels"><Tag className="h-3.5 w-3.5 mr-1" /> Feature Renaming</TabsTrigger>
+            <TabsTrigger value="regulators"><Shield className="h-3.5 w-3.5 mr-1" /> Regulators</TabsTrigger>
             <TabsTrigger value="staff"><Users className="h-3.5 w-3.5 mr-1" /> Staff & Admins</TabsTrigger>
             <TabsTrigger value="data"><Calendar className="h-3.5 w-3.5 mr-1" /> Ledger & Data</TabsTrigger>
             <TabsTrigger value="activity"><Activity className="h-3.5 w-3.5 mr-1" /> Activity Logs</TabsTrigger>
@@ -644,7 +770,113 @@ const SuperAdminDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* TAB 3: Staff Management */}
+          {/* TAB 3: Regulators */}
+          <TabsContent value="regulators">
+            <div className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-4 border border-border">
+                <p className="text-xs text-muted-foreground">
+                  All Admins and Super Admins on the platform. Click on a regulator to view and manage their feature access, muted features, and office assignment.
+                </p>
+              </div>
+
+              {staffLoading ? (
+                <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+              ) : regulators.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">No regulators found.</div>
+              ) : (
+                <div className="space-y-3">
+                  {regulators.map(s => {
+                    const isExpanded = expandedRegulator === s.user_id;
+                    const isYou = s.user_id === user?.id;
+                    return (
+                      <div key={s.user_id} className="bg-card rounded-xl border border-border overflow-hidden">
+                        <button
+                          className="w-full p-4 flex items-center justify-between gap-3 hover:bg-muted/30 transition-colors text-left"
+                          onClick={() => setExpandedRegulator(isExpanded ? null : s.user_id)}
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-foreground">{s.full_name}</span>
+                                {isYou && <Badge variant="outline" className="text-[10px]">You</Badge>}
+                              </div>
+                              <div className="text-xs text-muted-foreground">{s.email}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge className={s.admin_type === "super_admin" ? "bg-amber-500 text-white border-amber-600" : ""} variant={s.admin_type === "main_admin" ? "default" : "default"}>
+                              {s.admin_type === "super_admin" ? "SUPER ADMIN" : "ADMIN"}
+                            </Badge>
+                            {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="border-t border-border p-4 space-y-4 bg-muted/10">
+                            <div className="grid grid-cols-2 gap-4 text-xs">
+                              <div>
+                                <span className="text-muted-foreground">Office:</span>{" "}
+                                <strong className="text-foreground">{s.office_name || "Headquarters"}</strong>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Last Login:</span>{" "}
+                                <strong className="text-foreground">{s.last_login ? new Date(s.last_login).toLocaleString() : "Never"}</strong>
+                              </div>
+                            </div>
+
+                            <div>
+                              <h4 className="text-sm font-semibold text-foreground mb-2">Feature Access</h4>
+                              <div className="text-[10px] text-muted-foreground mb-2">
+                                {(!s.allowed_features || s.allowed_features.length === 0)
+                                  ? "✅ Unrestricted — has access to all features"
+                                  : `Restricted to ${s.allowed_features.length} feature(s)`
+                                }
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-60 overflow-y-auto">
+                                {ALL_FEATURE_KEYS.map(feat => {
+                                  const isAllowed = !s.allowed_features || s.allowed_features.length === 0 || s.allowed_features.includes(feat.key);
+                                  const isMuted = s.muted_features?.includes(feat.key) || false;
+                                  return (
+                                    <div key={feat.key} className={`text-xs px-2 py-1.5 rounded border flex items-center gap-1.5 ${isAllowed && !isMuted ? "border-primary/30 bg-primary/5 text-foreground" : isMuted ? "border-destructive/30 bg-destructive/5 text-muted-foreground line-through" : "border-border bg-muted/20 text-muted-foreground"}`}>
+                                      {isAllowed && !isMuted ? <CheckCircle className="h-3 w-3 text-primary shrink-0" /> : <Ban className="h-3 w-3 text-muted-foreground/50 shrink-0" />}
+                                      {feat.label}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {!isYou && (
+                              <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEditDialog(s)}>
+                                  <Pencil className="h-3 w-3 mr-1" /> Edit Features & Office
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setResetPwDialog({ open: true, userId: s.user_id, name: s.full_name || "" })}>
+                                  <Lock className="h-3 w-3 mr-1" /> Reset Password
+                                </Button>
+                                {s.admin_type === "main_admin" && (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handlePromoteToSuperAdmin(s.user_id)}>
+                                    Promote to Super Admin
+                                  </Button>
+                                )}
+                                {s.admin_type === "super_admin" && (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDemoteFromSuperAdmin(s.user_id)}>
+                                    Demote to Admin
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* TAB 4: Staff Management */}
           <TabsContent value="staff">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -658,85 +890,13 @@ const SuperAdminDashboard = () => {
                 <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
               ) : (
                 <div className="space-y-3">
-                  {staff.map(s => {
-                    const isYou = s.user_id === user?.id;
-                    return (
-                      <div key={s.user_id} className={`bg-card rounded-xl border p-4 space-y-3 ${s.is_frozen ? "border-destructive/50 bg-destructive/5" : "border-border"}`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-foreground">{s.full_name}</span>
-                              {isYou && <Badge variant="outline" className="text-[10px]">You</Badge>}
-                              {s.is_frozen && <Badge variant="destructive" className="text-[10px]">FROZEN</Badge>}
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-0.5">{s.email}</div>
-                          </div>
-                          <Badge variant={s.admin_type === "super_admin" ? "destructive" : s.admin_type === "main_admin" ? "default" : "secondary"}>
-                            {s.admin_type === "super_admin" ? "SUPER ADMIN" : s.admin_type === "main_admin" ? "ADMIN" : "STAFF"}
-                          </Badge>
-                        </div>
-
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>Office: <strong className="text-foreground">{s.office_name || "Headquarters"}</strong></span>
-                          <span>Last Login: <strong className="text-foreground">{s.last_login ? new Date(s.last_login).toLocaleString() : "Never"}</strong></span>
-                        </div>
-
-                        {s.allowed_features && s.allowed_features.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {s.allowed_features.slice(0, 5).map(f => (
-                              <Badge key={f} variant="outline" className="text-[10px]">{f}</Badge>
-                            ))}
-                            {s.allowed_features.length > 5 && (
-                              <Badge variant="outline" className="text-[10px]">+{s.allowed_features.length - 5} more</Badge>
-                            )}
-                          </div>
-                        )}
-
-                        {!isYou && (
-                          <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
-                              setEditFeaturesDialog({ open: true, staff: s });
-                              setEditFeatures(s.allowed_features || []);
-                              setEditOffice({ office_id: s.office_id || "", office_name: s.office_name || "" });
-                            }}>
-                              <Pencil className="h-3 w-3 mr-1" /> Edit
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setResetPwDialog({ open: true, userId: s.user_id, name: s.full_name || "" })}>
-                              <Lock className="h-3 w-3 mr-1" /> Reset Password
-                            </Button>
-                            {s.admin_type === "main_admin" && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handlePromoteToSuperAdmin(s.user_id)}>
-                                Promote to Super Admin
-                              </Button>
-                            )}
-                            {s.admin_type === "super_admin" && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDemoteFromSuperAdmin(s.user_id)}>
-                                Demote to Admin
-                              </Button>
-                            )}
-                            {s.is_frozen ? (
-                              <Button size="sm" variant="outline" className="h-7 text-xs text-primary" onClick={() => handleUnfreezeStaff(s)}>
-                                <CheckCircle className="h-3 w-3 mr-1" /> Unfreeze
-                              </Button>
-                            ) : (
-                              <Button size="sm" variant="outline" className="h-7 text-xs text-destructive/70" onClick={() => handleFreezeStaff(s)}>
-                                <Ban className="h-3 w-3 mr-1" /> Freeze
-                              </Button>
-                            )}
-                            <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => handleDeleteStaff(s)}>
-                              <Trash2 className="h-3 w-3 mr-1" /> Delete
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {staff.map(s => renderStaffCard(s))}
                 </div>
               )}
             </div>
           </TabsContent>
 
-          {/* TAB 4: Ledger & Data Controls */}
+          {/* TAB 5: Ledger & Data Controls */}
           <TabsContent value="data">
             <div className="space-y-6">
               <div className="bg-card rounded-xl p-6 border border-border space-y-4">
@@ -788,7 +948,7 @@ const SuperAdminDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* TAB 5: Activity Logs */}
+          {/* TAB 6: Activity Logs */}
           <TabsContent value="activity">
             <ActivityLogsTab staff={staff} />
           </TabsContent>
@@ -905,16 +1065,16 @@ const SuperAdminDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Staff Dialog */}
+      {/* Edit Staff Dialog — Checklist UI */}
       <Dialog open={editFeaturesDialog.open} onOpenChange={(v) => { if (!v) setEditFeaturesDialog({ open: false, staff: null }); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="h-5 w-5 text-primary" /> Edit — {editFeaturesDialog.staff?.full_name}
             </DialogTitle>
             <DialogDescription>Update office assignment and feature permissions.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 overflow-y-auto flex-1">
             <div className="space-y-1">
               <Label className="text-xs">Office</Label>
               <Select value={editOffice.office_id} onValueChange={(v) => {
@@ -927,14 +1087,60 @@ const SuperAdminDashboard = () => {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
-              <Label className="text-xs">Allowed Features (comma-separated)</Label>
-              <Input
-                value={editFeatures.join(", ")}
-                onChange={(e) => setEditFeatures(e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                placeholder="e.g. complaints, agreements, rent_cards"
-              />
-              <p className="text-[10px] text-muted-foreground">Leave empty to grant all features (default for admins).</p>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Allowed Features</Label>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => setEditFeatures(ALL_FEATURE_KEYS.map(f => f.key))}>
+                    Select All
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => setEditFeatures([])}>
+                    Clear All
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Empty = unrestricted access to all features.</p>
+              <div className="border border-border rounded-lg p-3 max-h-52 overflow-y-auto space-y-1.5">
+                {ALL_FEATURE_KEYS.map(feat => {
+                  const isChecked = editFeatures.includes(feat.key);
+                  return (
+                    <div key={feat.key} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`feat-${feat.key}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          if (checked) setEditFeatures(prev => [...prev, feat.key]);
+                          else setEditFeatures(prev => prev.filter(f => f !== feat.key));
+                        }}
+                      />
+                      <label htmlFor={`feat-${feat.key}`} className="text-xs text-foreground cursor-pointer flex-1">{feat.label}</label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Muted Features</Label>
+              <p className="text-[10px] text-muted-foreground">Muted features are hidden even if allowed. Use to temporarily hide a feature.</p>
+              <div className="border border-border rounded-lg p-3 max-h-40 overflow-y-auto space-y-1.5">
+                {ALL_FEATURE_KEYS.map(feat => {
+                  const isMuted = editMuted.includes(feat.key);
+                  return (
+                    <div key={feat.key} className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-foreground">{feat.label}</span>
+                      <Switch
+                        checked={isMuted}
+                        onCheckedChange={(checked) => {
+                          if (checked) setEditMuted(prev => [...prev, feat.key]);
+                          else setEditMuted(prev => prev.filter(f => f !== feat.key));
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
           <DialogFooter>
