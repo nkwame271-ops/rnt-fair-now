@@ -568,7 +568,9 @@ const EscrowDashboard = () => {
             )}
 
             {/* Release Mode Stats */}
+            {(isVisible("escrow", "auto_release") || isVisible("escrow", "manual_release")) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {isVisible("escrow", "auto_release") && (
               <div className="bg-card rounded-xl p-5 shadow-card border border-border flex items-start gap-3">
                 <Zap className="h-5 w-5 text-success mt-0.5" />
                 <div>
@@ -578,6 +580,8 @@ const EscrowDashboard = () => {
                   <div className="text-xs text-muted-foreground">Auto-Released Funds</div>
                 </div>
               </div>
+              )}
+              {isVisible("escrow", "manual_release") && (
               <div className="bg-card rounded-xl p-5 shadow-card border border-border flex items-start gap-3">
                 <Hand className="h-5 w-5 text-info mt-0.5" />
                 <div>
@@ -587,9 +591,12 @@ const EscrowDashboard = () => {
                   <div className="text-xs text-muted-foreground">Manually Released Funds</div>
                 </div>
               </div>
+              )}
             </div>
+            )}
 
             {/* Revenue by Type */}
+            {isVisible("escrow", "revenue_by_type") && (
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                 <Tag className="h-5 w-5 text-primary" />
