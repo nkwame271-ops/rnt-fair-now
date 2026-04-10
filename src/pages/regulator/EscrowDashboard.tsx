@@ -265,16 +265,26 @@ const EscrowDashboard = () => {
     : receipts;
 
   const allAllocationCards = [
-    { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary", recipient: "rent_control" },
-    { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info", recipient: "admin" },
-    { label: "Platform", amount: stats.platform, color: "bg-success/10 border-success/20 text-success", recipient: "platform" },
-    { label: "GRA", amount: stats.gra, color: "bg-accent/10 border-accent/20 text-accent-foreground", recipient: "gra" },
-    { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning", recipient: "landlord" },
+    { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary", recipient: "rent_control", visibilityKey: "allocation_igf" },
+    { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info", recipient: "admin", visibilityKey: "allocation_admin" },
+    { label: "Platform", amount: stats.platform, color: "bg-success/10 border-success/20 text-success", recipient: "platform", visibilityKey: "allocation_platform" },
+    { label: "GRA", amount: stats.gra, color: "bg-accent/10 border-accent/20 text-accent-foreground", recipient: "gra", visibilityKey: "allocation_gra" },
+    { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning", recipient: "landlord", visibilityKey: "allocation_landlord" },
   ];
 
-  const allocationCards = isMainAdmin
+  const allocationCards = (isMainAdmin
     ? allAllocationCards
-    : allAllocationCards.filter(c => SUB_ADMIN_VISIBLE_RECIPIENTS.includes(c.recipient));
+    : allAllocationCards.filter(c => SUB_ADMIN_VISIBLE_RECIPIENTS.includes(c.recipient))
+  ).filter(c => isVisible("escrow", c.visibilityKey));
+
+  const visibleAllocationTotal = allocationCards.reduce((sum, c) => sum + c.amount, 0);
+
+  // Filter revenue by type cards based on visibility
+  const visibleRevenueByType = revenueByType.filter(r => {
+    const config = REVENUE_TYPE_CONFIG.find(c => c.label === r.label);
+    return config ? isVisible("escrow", config.visibilityKey) : true;
+  });
+  const visibleRevenueTotal = visibleRevenueByType.reduce((sum, r) => sum + r.total, 0);
 
   // Export helpers
   const exportCSV = () => {
