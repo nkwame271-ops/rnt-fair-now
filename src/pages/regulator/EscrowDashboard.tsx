@@ -91,6 +91,7 @@ const EscrowDashboard = () => {
     : selectedOffice;
 
   const isMainAdmin = profile?.isMainAdmin ?? false;
+  const { isVisible } = useModuleVisibility("escrow");
 
   const dateRange = useMemo(() => {
     if (datePreset === "custom") {
