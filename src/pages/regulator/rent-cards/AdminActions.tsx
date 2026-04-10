@@ -184,7 +184,8 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
 
   return (
     <div className="space-y-6">
-      {/* Serial Stock Registry — auto-loaded */}
+      {/* Serial Stock Registry */}
+      {isVisible("rent_cards", "stock_correction") && (
       <div className="bg-card rounded-xl border border-border p-6 space-y-4">
         <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
           <Database className="h-5 w-5 text-primary" /> Serial Stock Registry
@@ -220,9 +221,10 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
             ))}
           </div>
         )}
-      </div>
+      )}
 
       {/* Revoke Serial Batch */}
+      {isVisible("rent_cards", "batch_revoke") && (
       <div className="bg-card rounded-xl border border-border p-6 space-y-4">
         <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
           <Trash2 className="h-5 w-5 text-destructive" /> Revoke Serial Batch
