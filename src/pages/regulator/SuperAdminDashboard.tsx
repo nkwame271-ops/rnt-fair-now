@@ -719,7 +719,7 @@ const SuperAdminDashboard = () => {
                                 <CheckCircle className="h-3 w-3 mr-1" /> Unfreeze
                               </Button>
                             ) : (
-                              <Button size="sm" variant="outline" className="h-7 text-xs text-amber-600" onClick={() => handleFreezeStaff(s)}>
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-destructive/70" onClick={() => handleFreezeStaff(s)}>
                                 <Ban className="h-3 w-3 mr-1" /> Freeze
                               </Button>
                             )}
