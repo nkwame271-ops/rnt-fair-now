@@ -41,16 +41,16 @@ interface RevenueByType {
   color: string;
 }
 
-const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string }[] = [
-  { label: "Rent Card Sales", types: ["rent_card", "rent_card_bulk"], color: "bg-primary/10 border-primary/20 text-primary" },
-  { label: "Registrations", types: ["tenant_registration", "landlord_registration", "tenant_registration_fee", "landlord_registration_fee"], color: "bg-info/10 border-info/20 text-info" },
-  { label: "Quit Notices / Ejection", types: ["termination_fee"], color: "bg-destructive/10 border-destructive/20 text-destructive" },
-  { label: "Tenancy Agreement", types: ["agreement_sale", "add_tenant_fee"], color: "bg-success/10 border-success/20 text-success" },
-  { label: "Rent Tax", types: ["rent_tax", "rent_tax_bulk"], color: "bg-accent/10 border-accent/20 text-accent-foreground" },
-  { label: "Complaint Fee", types: ["complaint_fee"], color: "bg-warning/10 border-warning/20 text-warning" },
-  { label: "Listing Fee", types: ["listing_fee"], color: "bg-muted border-border text-muted-foreground" },
-  { label: "Viewing Fee", types: ["viewing_fee"], color: "bg-info/10 border-info/20 text-info" },
-  { label: "Archive Search", types: ["archive_search_fee"], color: "bg-muted border-border text-muted-foreground" },
+const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string; visibilityKey: string }[] = [
+  { label: "Rent Card Sales", types: ["rent_card", "rent_card_bulk"], color: "bg-primary/10 border-primary/20 text-primary", visibilityKey: "revenue_type_rent_card" },
+  { label: "Registrations", types: ["tenant_registration", "landlord_registration", "tenant_registration_fee", "landlord_registration_fee"], color: "bg-info/10 border-info/20 text-info", visibilityKey: "revenue_type_registrations" },
+  { label: "Quit Notices / Ejection", types: ["termination_fee"], color: "bg-destructive/10 border-destructive/20 text-destructive", visibilityKey: "revenue_type_termination" },
+  { label: "Tenancy Agreement", types: ["agreement_sale", "add_tenant_fee"], color: "bg-success/10 border-success/20 text-success", visibilityKey: "revenue_type_agreement" },
+  { label: "Rent Tax", types: ["rent_tax", "rent_tax_bulk"], color: "bg-accent/10 border-accent/20 text-accent-foreground", visibilityKey: "revenue_type_rent_tax" },
+  { label: "Complaint Fee", types: ["complaint_fee"], color: "bg-warning/10 border-warning/20 text-warning", visibilityKey: "revenue_type_complaint" },
+  { label: "Listing Fee", types: ["listing_fee"], color: "bg-muted border-border text-muted-foreground", visibilityKey: "revenue_type_listing" },
+  { label: "Viewing Fee", types: ["viewing_fee"], color: "bg-info/10 border-info/20 text-info", visibilityKey: "revenue_type_viewing" },
+  { label: "Archive Search", types: ["archive_search_fee"], color: "bg-muted border-border text-muted-foreground", visibilityKey: "revenue_type_archive" },
 ];
 
 const SUB_ADMIN_VISIBLE_RECIPIENTS = ["rent_control", "admin"];
@@ -265,16 +265,26 @@ const EscrowDashboard = () => {
     : receipts;
 
   const allAllocationCards = [
-    { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary", recipient: "rent_control" },
-    { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info", recipient: "admin" },
-    { label: "Platform", amount: stats.platform, color: "bg-success/10 border-success/20 text-success", recipient: "platform" },
-    { label: "GRA", amount: stats.gra, color: "bg-accent/10 border-accent/20 text-accent-foreground", recipient: "gra" },
-    { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning", recipient: "landlord" },
+    { label: "IGF (Rent Control)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary", recipient: "rent_control", visibilityKey: "allocation_igf" },
+    { label: "Admin", amount: stats.admin, color: "bg-info/10 border-info/20 text-info", recipient: "admin", visibilityKey: "allocation_admin" },
+    { label: "Platform", amount: stats.platform, color: "bg-success/10 border-success/20 text-success", recipient: "platform", visibilityKey: "allocation_platform" },
+    { label: "GRA", amount: stats.gra, color: "bg-accent/10 border-accent/20 text-accent-foreground", recipient: "gra", visibilityKey: "allocation_gra" },
+    { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning", recipient: "landlord", visibilityKey: "allocation_landlord" },
   ];
 
-  const allocationCards = isMainAdmin
+  const allocationCards = (isMainAdmin
     ? allAllocationCards
-    : allAllocationCards.filter(c => SUB_ADMIN_VISIBLE_RECIPIENTS.includes(c.recipient));
+    : allAllocationCards.filter(c => SUB_ADMIN_VISIBLE_RECIPIENTS.includes(c.recipient))
+  ).filter(c => isVisible("escrow", c.visibilityKey));
+
+  const visibleAllocationTotal = allocationCards.reduce((sum, c) => sum + c.amount, 0);
+
+  // Filter revenue by type cards based on visibility
+  const visibleRevenueByType = revenueByType.filter(r => {
+    const config = REVENUE_TYPE_CONFIG.find(c => c.label === r.label);
+    return config ? isVisible("escrow", config.visibilityKey) : true;
+  });
+  const visibleRevenueTotal = visibleRevenueByType.reduce((sum, r) => sum + r.total, 0);
 
   // Export helpers
   const exportCSV = () => {
@@ -525,7 +535,7 @@ const EscrowDashboard = () => {
             {isVisible("escrow", "total_revenue") && (
               <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: "Total Revenue", value: stats.totalEscrow, icon: DollarSign, color: "text-success", prefix: "GH₵ " },
+                  { label: "Total Revenue", value: visibleRevenueTotal, icon: DollarSign, color: "text-success", prefix: "GH₵ " },
                   { label: "Completed", value: stats.completed, icon: TrendingUp, color: "text-primary" },
                   { label: "Pending", value: stats.pending, icon: Wallet, color: "text-warning" },
                   { label: "Total Receipts", value: receipts.length, icon: Receipt, color: "text-info" },
@@ -605,14 +615,14 @@ const EscrowDashboard = () => {
                 Revenue by Type
               </h2>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                {revenueByType.filter(r => r.total > 0 || r.count > 0).map(r => (
+                {visibleRevenueByType.filter(r => r.total > 0 || r.count > 0).map(r => (
                   <div key={r.label} className={`border rounded-lg p-4 text-center ${r.color}`}>
                     <div className="text-2xl font-bold">GH₵ {r.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                     <div className="text-xs mt-1">{r.label}</div>
                     <div className="text-xs mt-0.5 opacity-70">{r.count} transactions</div>
                   </div>
                 ))}
-                {revenueByType.every(r => r.total === 0 && r.count === 0) && (
+                {visibleRevenueByType.every(r => r.total === 0 && r.count === 0) && (
                   <div className="col-span-full text-center text-sm text-muted-foreground py-4">No transactions yet</div>
                 )}
               </div>
@@ -633,7 +643,7 @@ const EscrowDashboard = () => {
               </div>
               <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2 border border-border">
                 <span>Total Collected (Paystack)</span>
-                <span className="font-semibold text-foreground">GH₵ {stats.totalEscrow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="font-semibold text-foreground">GH₵ {visibleAllocationTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
             )}
