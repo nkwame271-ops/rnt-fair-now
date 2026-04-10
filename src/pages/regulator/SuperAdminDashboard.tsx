@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Shield, Eye, Save, Tag, Users, Calendar, Loader2, Plus, Trash2, Info, Activity } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Shield, Eye, Save, Tag, Users, Calendar, Loader2, Plus, Trash2, Info, Activity, Lock, Ban, UserPlus, Pencil, CheckCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,9 @@ import { invalidateLabelCache } from "@/hooks/useFeatureLabel";
 import PageTransition from "@/components/PageTransition";
 import LogoLoader from "@/components/LogoLoader";
 import { ActivityLogsTab } from "@/components/ActivityLogsTab";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 // Module → section definitions
 const MODULE_SECTIONS: { module: string; label: string; sections: { key: string; label: string; level: string }[] }[] = [
@@ -113,8 +116,12 @@ interface StaffRow {
   user_id: string;
   admin_type: string;
   office_name: string | null;
+  office_id: string | null;
+  allowed_features: string[] | null;
   full_name?: string;
   email?: string;
+  last_login?: string | null;
+  is_frozen?: boolean;
 }
 
 const SuperAdminDashboard = () => {
