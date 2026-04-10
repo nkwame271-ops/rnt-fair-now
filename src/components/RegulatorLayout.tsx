@@ -17,10 +17,12 @@ import {
   ClipboardList,
   Gavel,
   Send,
+  Crown,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminProfile, getFeatureKeyForRoute } from "@/hooks/useAdminProfile";
+import { useFeatureLabels } from "@/hooks/useFeatureLabel";
 import TourGuide from "@/components/TourGuide";
 import { regulatorTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
@@ -52,6 +54,7 @@ const allNavItems = [
   { to: "/regulator/office-fund-requests", label: "Office Wallet", icon: BarChart3 },
   { to: "/regulator/office-payout-settings", label: "Payout Settings", icon: Settings },
   { to: "/regulator/payment-errors", label: "Payment Errors", icon: AlertTriangle },
+  { to: "/regulator/super-admin", label: "Super Admin", icon: Crown, superAdminOnly: true },
 ];
 
 const RegulatorLayout = () => {
