@@ -241,7 +241,7 @@ const RegulatorAgreements = () => {
                   <div className="text-xs text-muted-foreground">{a.advance_months} months advance</div>
                 </div>
               </div>
-               <div className="flex gap-2 shrink-0">
+               <div className="flex gap-2 shrink-0 flex-wrap">
                  {a.final_agreement_pdf_url && (
                    <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
                      <Button size="sm" variant="default">
@@ -249,8 +249,15 @@ const RegulatorAgreements = () => {
                      </Button>
                    </a>
                  )}
+                 {a.existing_agreement_url && (
+                   <a href={a.existing_agreement_url} target="_blank" rel="noopener noreferrer">
+                     <Button size="sm" variant="secondary">
+                       <Download className="h-3.5 w-3.5 mr-1" /> Uploaded Agreement
+                     </Button>
+                   </a>
+                 )}
                  <Button size="sm" variant="outline" onClick={() => downloadPdf(a)}>
-                   <Download className="h-3.5 w-3.5 mr-1" /> PDF
+                   <Download className="h-3.5 w-3.5 mr-1" /> {a.tenancy_type === "existing_migration" ? "Existing Tenancy Details" : "PDF"}
                  </Button>
                  {profile?.isMainAdmin && (
                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingId(a.id)}>
