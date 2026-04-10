@@ -535,7 +535,7 @@ const EscrowDashboard = () => {
             {isVisible("escrow", "total_revenue") && (
               <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: "Total Revenue", value: stats.totalEscrow, icon: DollarSign, color: "text-success", prefix: "GH₵ " },
+                  { label: "Total Revenue", value: visibleRevenueTotal, icon: DollarSign, color: "text-success", prefix: "GH₵ " },
                   { label: "Completed", value: stats.completed, icon: TrendingUp, color: "text-primary" },
                   { label: "Pending", value: stats.pending, icon: Wallet, color: "text-warning" },
                   { label: "Total Receipts", value: receipts.length, icon: Receipt, color: "text-info" },
@@ -615,14 +615,14 @@ const EscrowDashboard = () => {
                 Revenue by Type
               </h2>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                {revenueByType.filter(r => r.total > 0 || r.count > 0).map(r => (
+                {visibleRevenueByType.filter(r => r.total > 0 || r.count > 0).map(r => (
                   <div key={r.label} className={`border rounded-lg p-4 text-center ${r.color}`}>
                     <div className="text-2xl font-bold">GH₵ {r.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                     <div className="text-xs mt-1">{r.label}</div>
                     <div className="text-xs mt-0.5 opacity-70">{r.count} transactions</div>
                   </div>
                 ))}
-                {revenueByType.every(r => r.total === 0 && r.count === 0) && (
+                {visibleRevenueByType.every(r => r.total === 0 && r.count === 0) && (
                   <div className="col-span-full text-center text-sm text-muted-foreground py-4">No transactions yet</div>
                 )}
               </div>
@@ -643,7 +643,7 @@ const EscrowDashboard = () => {
               </div>
               <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2 border border-border">
                 <span>Total Collected (Paystack)</span>
-                <span className="font-semibold text-foreground">GH₵ {stats.totalEscrow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="font-semibold text-foreground">GH₵ {visibleAllocationTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
             )}
