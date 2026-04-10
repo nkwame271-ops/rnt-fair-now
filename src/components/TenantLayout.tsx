@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatureLabels } from "@/hooks/useFeatureLabel";
 import TourGuide from "@/components/TourGuide";
 import { tenantTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
@@ -51,6 +52,7 @@ const TenantLayout = () => {
   const { signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { flags } = useAllFeatureFlags();
+  const { getLabel } = useFeatureLabels("tenant");
 
   const filteredNav = navItems.filter((item) => {
     if (!item.featureKey) return true;
@@ -90,7 +92,7 @@ const TenantLayout = () => {
               }
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              {getLabel(item.featureKey || item.label, item.label)}
             </NavLink>
           ))}
         </nav>
