@@ -23,14 +23,30 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 
 
 // Module → section definitions
-const MODULE_SECTIONS: { module: string; label: string; sections: { key: string; label: string; level: string }[] }[] = [
+const MODULE_SECTIONS: { module: string; label: string; sections: { key: string; label: string; level: string; group?: string }[] }[] = [
   {
     module: "escrow", label: "Escrow & Revenue", sections: [
       { key: "total_revenue", label: "Total Revenue Card", level: "section" },
       { key: "revenue_by_type", label: "Revenue by Type", level: "section" },
+      // Revenue by Type sub-cards
+      { key: "revenue_type_rent_card", label: "↳ Rent Card Sales", level: "card", group: "Revenue by Type" },
+      { key: "revenue_type_registrations", label: "↳ Registrations", level: "card", group: "Revenue by Type" },
+      { key: "revenue_type_termination", label: "↳ Quit Notices / Ejection", level: "card", group: "Revenue by Type" },
+      { key: "revenue_type_agreement", label: "↳ Tenancy Agreement", level: "card", group: "Revenue by Type" },
+      { key: "revenue_type_rent_tax", label: "↳ Rent Tax", level: "card", group: "Revenue by Type" },
+      { key: "revenue_type_complaint", label: "↳ Complaint Fee", level: "card", group: "Revenue by Type" },
+      { key: "revenue_type_listing", label: "↳ Listing Fee", level: "card", group: "Revenue by Type" },
+      { key: "revenue_type_viewing", label: "↳ Viewing Fee", level: "card", group: "Revenue by Type" },
+      { key: "revenue_type_archive", label: "↳ Archive Search", level: "card", group: "Revenue by Type" },
       { key: "payment_pipeline", label: "Payment Pipeline Checklist", level: "section" },
       { key: "office_breakdown", label: "Office Level Breakdown", level: "section" },
       { key: "revenue_destination", label: "Revenue Breakdown by Destination", level: "section" },
+      // Allocation Ledger sub-cards
+      { key: "allocation_igf", label: "↳ IGF (Rent Control)", level: "card", group: "Allocation Ledger" },
+      { key: "allocation_admin", label: "↳ Admin", level: "card", group: "Allocation Ledger" },
+      { key: "allocation_platform", label: "↳ Platform", level: "card", group: "Allocation Ledger" },
+      { key: "allocation_gra", label: "↳ GRA", level: "card", group: "Allocation Ledger" },
+      { key: "allocation_landlord", label: "↳ Landlord (Held)", level: "card", group: "Allocation Ledger" },
       { key: "auto_release", label: "Auto Release Stats", level: "section" },
       { key: "manual_release", label: "Manual Release Stats", level: "section" },
       { key: "receipts", label: "Receipt Register", level: "section" },

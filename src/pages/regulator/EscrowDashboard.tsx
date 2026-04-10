@@ -41,16 +41,16 @@ interface RevenueByType {
   color: string;
 }
 
-const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string }[] = [
-  { label: "Rent Card Sales", types: ["rent_card", "rent_card_bulk"], color: "bg-primary/10 border-primary/20 text-primary" },
-  { label: "Registrations", types: ["tenant_registration", "landlord_registration", "tenant_registration_fee", "landlord_registration_fee"], color: "bg-info/10 border-info/20 text-info" },
-  { label: "Quit Notices / Ejection", types: ["termination_fee"], color: "bg-destructive/10 border-destructive/20 text-destructive" },
-  { label: "Tenancy Agreement", types: ["agreement_sale", "add_tenant_fee"], color: "bg-success/10 border-success/20 text-success" },
-  { label: "Rent Tax", types: ["rent_tax", "rent_tax_bulk"], color: "bg-accent/10 border-accent/20 text-accent-foreground" },
-  { label: "Complaint Fee", types: ["complaint_fee"], color: "bg-warning/10 border-warning/20 text-warning" },
-  { label: "Listing Fee", types: ["listing_fee"], color: "bg-muted border-border text-muted-foreground" },
-  { label: "Viewing Fee", types: ["viewing_fee"], color: "bg-info/10 border-info/20 text-info" },
-  { label: "Archive Search", types: ["archive_search_fee"], color: "bg-muted border-border text-muted-foreground" },
+const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string; visibilityKey: string }[] = [
+  { label: "Rent Card Sales", types: ["rent_card", "rent_card_bulk"], color: "bg-primary/10 border-primary/20 text-primary", visibilityKey: "revenue_type_rent_card" },
+  { label: "Registrations", types: ["tenant_registration", "landlord_registration", "tenant_registration_fee", "landlord_registration_fee"], color: "bg-info/10 border-info/20 text-info", visibilityKey: "revenue_type_registrations" },
+  { label: "Quit Notices / Ejection", types: ["termination_fee"], color: "bg-destructive/10 border-destructive/20 text-destructive", visibilityKey: "revenue_type_termination" },
+  { label: "Tenancy Agreement", types: ["agreement_sale", "add_tenant_fee"], color: "bg-success/10 border-success/20 text-success", visibilityKey: "revenue_type_agreement" },
+  { label: "Rent Tax", types: ["rent_tax", "rent_tax_bulk"], color: "bg-accent/10 border-accent/20 text-accent-foreground", visibilityKey: "revenue_type_rent_tax" },
+  { label: "Complaint Fee", types: ["complaint_fee"], color: "bg-warning/10 border-warning/20 text-warning", visibilityKey: "revenue_type_complaint" },
+  { label: "Listing Fee", types: ["listing_fee"], color: "bg-muted border-border text-muted-foreground", visibilityKey: "revenue_type_listing" },
+  { label: "Viewing Fee", types: ["viewing_fee"], color: "bg-info/10 border-info/20 text-info", visibilityKey: "revenue_type_viewing" },
+  { label: "Archive Search", types: ["archive_search_fee"], color: "bg-muted border-border text-muted-foreground", visibilityKey: "revenue_type_archive" },
 ];
 
 const SUB_ADMIN_VISIBLE_RECIPIENTS = ["rent_control", "admin"];
