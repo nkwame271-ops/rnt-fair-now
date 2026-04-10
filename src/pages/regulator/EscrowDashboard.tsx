@@ -790,6 +790,7 @@ const EscrowDashboard = () => {
                 </div>
               )}
             </div>
+            )}
           </>
         )}
       </div>
