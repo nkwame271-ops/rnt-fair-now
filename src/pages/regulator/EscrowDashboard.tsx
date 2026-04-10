@@ -634,9 +634,31 @@ const EscrowDashboard = () => {
                 <span className="font-semibold text-foreground">GH₵ {stats.totalEscrow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
+            )}
+
+            {/* Payment Processor Charges */}
+            <div className="bg-card rounded-xl p-5 shadow-card border border-border">
+              <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Info className="h-4 w-4 text-primary" />
+                Payment Processor Deductions
+              </h2>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <div className="bg-muted/30 rounded-lg px-4 py-2 border border-border">
+                  <span className="font-bold text-foreground">1.95%</span>
+                  <span className="text-muted-foreground ml-1">processing fee</span>
+                </div>
+                <div className="bg-muted/30 rounded-lg px-4 py-2 border border-border">
+                  <span className="font-bold text-foreground">GH₵ 1.00</span>
+                  <span className="text-muted-foreground ml-1">per transfer</span>
+                </div>
+                <div className="text-xs text-muted-foreground self-center">
+                  Deducted by payment provider before settlement — not internal platform charges.
+                </div>
+              </div>
+            </div>
 
             {/* Office Revenue Table (national view, main admin only) */}
-            {isMainAdmin && effectiveOffice === "all" && officeRevenue.length > 0 && (
+            {isMainAdmin && isVisible("escrow", "office_breakdown") && effectiveOffice === "all" && officeRevenue.length > 0 && (
               <div className="bg-card rounded-xl p-6 shadow-card border border-border">
                 <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                   <Building className="h-5 w-5 text-primary" />
