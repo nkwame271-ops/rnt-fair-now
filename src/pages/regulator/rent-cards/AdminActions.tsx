@@ -23,6 +23,7 @@ interface BatchSummary {
 }
 
 const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
+  const { isVisible } = useModuleVisibility("rent_cards");
   // --- Serial Stock Registry ---
   const [registryBatches, setRegistryBatches] = useState<BatchSummary[]>([]);
   const [registryLoading, setRegistryLoading] = useState(false);
