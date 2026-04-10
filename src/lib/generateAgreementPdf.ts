@@ -46,6 +46,7 @@ export interface AgreementPdfData {
   serialCode?: string;
   version?: number;
   rentCardSerials?: { landlord?: string; tenant?: string };
+  isExistingTenancy?: boolean;
   // Enhanced fields
   gpsAddress?: string;
   ghanaPostGps?: string;
@@ -140,9 +141,9 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   line(y);
   y += 10;
 
-  center("TENANCY AGREEMENT", y, 18, "bold");
+  center(data.isExistingTenancy ? "EXISTING TENANCY DETAILS" : "TENANCY AGREEMENT", y, 18, "bold");
   y += 6;
-  center("(Pursuant to the Rent Act, 1963 — Act 220)", y, 10);
+  center(data.isExistingTenancy ? "(Existing Tenancy — Declared under Rent Act, 1963 — Act 220)" : "(Pursuant to the Rent Act, 1963 — Act 220)", y, 10);
   y += 6;
   if (version > 1) {
     doc.setTextColor(34, 87, 45);
@@ -285,11 +286,17 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
     ["Assessed Recoverable Rent Per Month:", formatGHS(data.monthlyRent)],
     ["Advance Period:", `${data.advanceMonths} month(s)`],
     ["Total Advance:", formatGHS(data.monthlyRent * data.advanceMonths)],
-    [`Govt. Tax (${(taxRate * 100).toFixed(0)}%):`, `${formatGHS(taxAmount)} per month`],
-    [`To Landlord (${((1 - taxRate) * 100).toFixed(0)}%):`, `${formatGHS(toLandlord)} per month`],
+  ];
+  if (!data.isExistingTenancy) {
+    financial.push(
+      [`Govt. Tax (${(taxRate * 100).toFixed(0)}%):`, `${formatGHS(taxAmount)} per month`],
+      [`To Landlord (${((1 - taxRate) * 100).toFixed(0)}%):`, `${formatGHS(toLandlord)} per month`],
+    );
+  }
+  financial.push(
     ["Tenancy Start:", new Date(data.startDate).toLocaleDateString("en-GB")],
     ["Tenancy End:", new Date(data.endDate).toLocaleDateString("en-GB")],
-  ];
+  );
   financial.forEach(([label, value]) => {
     left(label, y, 10, "bold");
     doc.setFont("helvetica", "normal");
@@ -300,20 +307,22 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   line(y);
   y += 10;
 
-  // Terms
-  checkPage(20);
-  left("KEY TERMS & CONDITIONS", y, 13, "bold");
-  y += 10;
+  // Terms (skip for existing tenancies)
+  if (!data.isExistingTenancy) {
+    checkPage(20);
+    left("KEY TERMS & CONDITIONS", y, 13, "bold");
+    y += 10;
 
-  terms.forEach((term, i) => {
-    const numberedTerm = `${i + 1}. ${term}`;
-    const lines = doc.splitTextToSize(numberedTerm, w - 45);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    checkPage(lines.length * 5 + 5);
-    doc.text(lines, 20, y);
-    y += lines.length * 5 + 3;
-  });
+    terms.forEach((term, i) => {
+      const numberedTerm = `${i + 1}. ${term}`;
+      const lines = doc.splitTextToSize(numberedTerm, w - 45);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      checkPage(lines.length * 5 + 5);
+      doc.text(lines, 20, y);
+      y += lines.length * 5 + 3;
+    });
+  }
 
   // Custom fields
   if (data.customFields && data.customFields.length > 0 && data.customFieldValues) {

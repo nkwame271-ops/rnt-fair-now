@@ -49,16 +49,34 @@ const RegulatorProperties = () => {
   const [assessNotes, setAssessNotes] = useState("");
   const [submittingAssessment, setSubmittingAssessment] = useState(false);
 
+  // Track which property IDs have pending existing tenancies
+  const [pendingExistingMap, setPendingExistingMap] = useState<Set<string>>(new Set());
+
   useEffect(() => {
-    const fetch = async () => {
+    const fetchAll = async () => {
       const { data } = await supabase
         .from("properties")
         .select("*, units(id, unit_name, unit_type, monthly_rent, status, has_toilet_bathroom, has_kitchen, water_available, electricity_available, has_borehole, has_polytank, amenities)")
         .order("created_at", { ascending: false });
       setProperties(data || []);
+
+      // Fetch existing_declared tenancies that haven't been accepted
+      const { data: pendingTenancies } = await supabase
+        .from("tenancies")
+        .select("id, unit_id, tenant_accepted")
+        .eq("tenancy_type", "existing_migration")
+        .eq("tenant_accepted", false);
+
+      if (pendingTenancies && pendingTenancies.length > 0) {
+        const unitIds = pendingTenancies.map(t => t.unit_id);
+        const { data: unitRows } = await supabase.from("units").select("id, property_id").in("id", unitIds);
+        const propIds = new Set((unitRows || []).map(u => u.property_id));
+        setPendingExistingMap(propIds);
+      }
+
       setLoading(false);
     };
-    fetch();
+    fetchAll();
   }, []);
 
   const openDetail = async (p: any) => {
@@ -450,9 +468,18 @@ const RegulatorProperties = () => {
                         <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold">{p.units?.length || 0}</span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`text-xs ${statusColors[pStatus] || "text-muted-foreground"}`}>
-                          {statusLabels[pStatus] || pStatus}
-                        </Badge>
+                        <div className="space-y-1">
+                          <Badge variant="outline" className={`text-xs ${statusColors[pStatus] || "text-muted-foreground"}`}>
+                            {statusLabels[pStatus] || pStatus}
+                          </Badge>
+                          {pStatus === "occupied" && pendingExistingMap.has(p.id) && (
+                            <div>
+                              <Badge variant="outline" className="text-[10px] bg-warning/10 text-warning border-warning/30">
+                                Pending Tenancy Agreement Completion
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{assessmentBadge(p.assessment_status || "pending")}</TableCell>
                       <TableCell>
