@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Link, useSearchParams } from "react-router-dom";
 import { Building2, Download, Search, ChevronDown, ChevronUp, Users, Home, DollarSign } from "lucide-react";
 import LogoLoader from "@/components/LogoLoader";
 import { Input } from "@/components/ui/input";
@@ -30,12 +31,24 @@ interface LandlordFull {
     address: string;
     region: string;
     area: string;
+    gps_location?: string | null;
+    ghana_post_gps?: string | null;
+    property_condition?: string | null;
+    room_count?: number | null;
+    bathroom_count?: number | null;
     units?: Array<{
       id: string;
       unit_name: string;
       unit_type: string;
       monthly_rent: number;
       status: string;
+      has_toilet_bathroom?: boolean;
+      has_kitchen?: boolean;
+      water_available?: boolean;
+      electricity_available?: boolean;
+      has_borehole?: boolean;
+      has_polytank?: boolean;
+      amenities?: string[];
     }>;
   }>;
   tenancies?: Array<{
@@ -46,13 +59,17 @@ interface LandlordFull {
     end_date: string;
     registration_code: string;
     _tenantName?: string;
+    _tenantPhone?: string;
     _unitName?: string;
+    _propertyName?: string;
+    _propertyId?: string;
   }>;
 }
 
 const RegulatorLandlords = () => {
   const [landlords, setLandlords] = useState<LandlordFull[]>([]);
-  const [search, setSearch] = useState("");
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("search") || "");
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -69,24 +86,24 @@ const RegulatorLandlords = () => {
 
       const [profilesRes, propertiesRes, tenanciesRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, phone, email, nationality, ghana_card_no, occupation").in("user_id", userIds),
-        supabase.from("properties").select("id, landlord_user_id, property_code, property_name, address, region, area").in("landlord_user_id", userIds),
+        supabase.from("properties").select("id, landlord_user_id, property_code, property_name, address, region, area, gps_location, ghana_post_gps, property_condition, room_count, bathroom_count").in("landlord_user_id", userIds),
         supabase.from("tenancies").select("id, landlord_user_id, tenant_user_id, status, agreed_rent, start_date, end_date, registration_code, unit_id").in("landlord_user_id", userIds).order("start_date", { ascending: false }),
       ]);
 
-      // Get units for properties
+      // Get units for properties with facilities
       const propertyIds = (propertiesRes.data || []).map(p => p.id);
       const { data: units } = propertyIds.length > 0
-        ? await supabase.from("units").select("id, property_id, unit_name, unit_type, monthly_rent, status").in("property_id", propertyIds)
+        ? await supabase.from("units").select("id, property_id, unit_name, unit_type, monthly_rent, status, has_toilet_bathroom, has_kitchen, water_available, electricity_available, has_borehole, has_polytank, amenities").in("property_id", propertyIds)
         : { data: [] };
 
-      // Get tenant names for tenancies
+      // Get tenant names and phones for tenancies
       const tenantUserIds = [...new Set((tenanciesRes.data || []).map(t => t.tenant_user_id))];
       const { data: tenantProfiles } = tenantUserIds.length > 0
-        ? await supabase.from("profiles").select("user_id, full_name").in("user_id", tenantUserIds)
+        ? await supabase.from("profiles").select("user_id, full_name, phone").in("user_id", tenantUserIds)
         : { data: [] };
 
       const profileMap = new Map((profilesRes.data || []).map(p => [p.user_id, p]));
-      const tenantNameMap = new Map((tenantProfiles || []).map(p => [p.user_id, p.full_name]));
+      const tenantMap = new Map((tenantProfiles || []).map(p => [p.user_id, p]));
       const unitMap = new Map((units || []).map(u => [u.id, u]));
 
       // Group units by property
@@ -105,14 +122,24 @@ const RegulatorLandlords = () => {
         propsByLandlord.set(p.landlord_user_id, arr);
       });
 
+      // Build property ID lookup from units
+      const unitPropertyMap = new Map<string, string>();
+      (units || []).forEach(u => { unitPropertyMap.set(u.id, u.property_id); });
+
       // Group tenancies by landlord
       const tenanciesByLandlord = new Map<string, any[]>();
       (tenanciesRes.data || []).forEach(t => {
         const unit = unitMap.get(t.unit_id);
+        const tenantProfile = tenantMap.get(t.tenant_user_id);
+        const propId = unit ? unitPropertyMap.get(unit.id) : null;
+        const prop = propId ? (propertiesRes.data || []).find(p => p.id === propId) : null;
         const enriched = {
           ...t,
-          _tenantName: tenantNameMap.get(t.tenant_user_id) || "Unknown",
+          _tenantName: tenantProfile?.full_name || "Unknown",
+          _tenantPhone: tenantProfile?.phone || "",
           _unitName: unit?.unit_name || "—",
+          _propertyName: prop?.property_name || "—",
+          _propertyId: propId || null,
         };
         const arr = tenanciesByLandlord.get(t.landlord_user_id) || [];
         arr.push(enriched);
@@ -241,7 +268,7 @@ const RegulatorLandlords = () => {
                       </div>
                     </div>
 
-                    {/* Properties */}
+                    {/* Properties — clickable */}
                     <div className="space-y-3">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><Home className="h-4 w-4 text-primary" /> Properties ({l.properties?.length || 0})</h3>
                       {(l.properties?.length || 0) === 0 ? (
@@ -251,7 +278,9 @@ const RegulatorLandlords = () => {
                           {l.properties?.map(p => (
                             <div key={p.id} className="text-sm bg-background rounded-lg p-3 border border-border">
                               <div className="font-mono text-xs text-primary font-semibold">{p.property_code}</div>
-                              <div className="font-medium text-foreground">{p.property_name || "Unnamed"}</div>
+                              <Link to={`/regulator/properties?id=${p.id}`} className="font-medium text-primary hover:underline">
+                                {p.property_name || "Unnamed"}
+                              </Link>
                               <div className="text-xs text-muted-foreground">{p.address} • {p.region}, {p.area}</div>
                               <div className="mt-1.5 flex flex-wrap gap-1">
                                 {p.units?.map(u => (
@@ -266,7 +295,7 @@ const RegulatorLandlords = () => {
                       )}
                     </div>
 
-                    {/* Tenants & income */}
+                    {/* Tenants & income — clickable tenant names */}
                     <div className="space-y-3">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Tenants & Income</h3>
                       <div className="bg-background rounded-lg p-3 border border-border mb-2">
@@ -284,7 +313,13 @@ const RegulatorLandlords = () => {
                                 <span className="font-mono text-xs text-primary">{t.registration_code}</span>
                                 <span className={`text-xs font-semibold ${t.status === "active" ? "text-success" : "text-muted-foreground"}`}>{t.status}</span>
                               </div>
-                              <div className="text-foreground">{t._tenantName} • {t._unitName}</div>
+                              <div className="text-foreground">
+                                <Link to={`/regulator/tenants?search=${encodeURIComponent(t._tenantName || "")}`} className="text-primary hover:underline">{t._tenantName}</Link>
+                                {" • "}
+                                {t._propertyId ? (
+                                  <Link to={`/regulator/properties?id=${t._propertyId}`} className="text-primary hover:underline">{t._unitName}</Link>
+                                ) : t._unitName}
+                              </div>
                               <div className="text-xs text-muted-foreground">GH₵ {t.agreed_rent?.toLocaleString()}/mo • {new Date(t.start_date).toLocaleDateString()} — {new Date(t.end_date).toLocaleDateString()}</div>
                             </div>
                           ))}
