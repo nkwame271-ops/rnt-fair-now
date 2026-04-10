@@ -260,6 +260,8 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   office_wallet: ["/regulator/office-fund-requests"],
   payout_settings: ["/regulator/office-payout-settings"],
   rent_reviews: ["/regulator/rent-reviews"],
+  payment_errors: ["/regulator/payment-errors"],
+  super_admin: ["/regulator/super-admin"],
 };
 
 // Reverse: route → feature key
