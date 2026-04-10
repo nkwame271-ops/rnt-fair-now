@@ -64,6 +64,7 @@ const RegulatorLayout = () => {
   const { profile } = useAdminProfile();
   const { getLabel } = useFeatureLabels("admin");
   const [mobileOpen, setMobileOpen] = useState(false);
+  useActivityTracker();
 
   const handleSignOut = async () => {
     await signOut();
