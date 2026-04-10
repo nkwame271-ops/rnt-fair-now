@@ -147,27 +147,40 @@ const Marketplace = () => {
   // Handle viewing payment callback
   useEffect(() => {
     const status = searchParams.get("status");
-    if (status === "viewing_paid" || searchParams.has("trxref") || searchParams.has("reference")) {
-      toast.success("Viewing fee paid successfully! Your request has been sent to the landlord.");
+    const ref = searchParams.get("reference") || searchParams.get("trxref") || sessionStorage.getItem("pendingPaymentReference");
+
+    if (ref) {
+      sessionStorage.removeItem("pendingPaymentReference");
+      supabase.functions.invoke("verify-payment", { body: { reference: ref } })
+        .then(({ data }) => {
+          if (data?.verified) toast.success("Viewing fee paid successfully! Your request has been sent to the landlord.");
+          else toast.info("Payment is being processed.");
+        })
+        .catch(() => toast.info("Payment is being processed."));
       setSearchParams({}, { replace: true });
       // Re-fetch viewing requests after payment
       if (user) {
-        supabase.from("viewing_requests").select("unit_id, status").eq("tenant_user_id", user.id).then(({ data: vr }) => {
-          if (vr) {
-            const confirmed = new Set<string>();
-            const byUnit: Record<string, string> = {};
-            vr.forEach(v => {
-              if (v.status === "declined" || v.status === "cancelled") return;
-              if (v.status === "accepted" || v.status === "confirmed") confirmed.add(v.unit_id);
-              if (!byUnit[v.unit_id] || v.status === "accepted" || v.status === "confirmed") {
-                byUnit[v.unit_id] = v.status;
-              }
-            });
-            setConfirmedViewings(confirmed);
-            setViewingRequestsByUnit(byUnit);
-          }
-        });
+        setTimeout(() => {
+          supabase.from("viewing_requests").select("unit_id, status").eq("tenant_user_id", user.id).then(({ data: vr }) => {
+            if (vr) {
+              const confirmed = new Set<string>();
+              const byUnit: Record<string, string> = {};
+              vr.forEach(v => {
+                if (v.status === "declined" || v.status === "cancelled") return;
+                if (v.status === "accepted" || v.status === "confirmed") confirmed.add(v.unit_id);
+                if (!byUnit[v.unit_id] || v.status === "accepted" || v.status === "confirmed") {
+                  byUnit[v.unit_id] = v.status;
+                }
+              });
+              setConfirmedViewings(confirmed);
+              setViewingRequestsByUnit(byUnit);
+            }
+          });
+        }, 2000);
       }
+    } else if (status === "viewing_paid") {
+      toast.success("Viewing fee paid successfully!");
+      setSearchParams({}, { replace: true });
     } else if (status === "cancelled" || status === "failed") {
       toast.error("Viewing payment was not completed. Please try again.");
       setSearchParams({}, { replace: true });
@@ -285,6 +298,7 @@ const Marketplace = () => {
       if (payData?.error) throw new Error(payData.error);
 
       if (payData?.authorization_url) {
+        if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
         window.location.href = payData.authorization_url;
       } else if (payData?.skipped || (payData && !payData.error)) {
         // Fee waived — update viewing request to pending directly

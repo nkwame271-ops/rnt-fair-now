@@ -35,6 +35,21 @@ const RequestRenewal = () => {
 
   useEffect(() => {
     if (!user) return;
+
+    // Verify payment on return from Paystack
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("reference") || params.get("trxref") || sessionStorage.getItem("pendingPaymentReference");
+    if (ref) {
+      sessionStorage.removeItem("pendingPaymentReference");
+      window.history.replaceState({}, "", window.location.pathname);
+      supabase.functions.invoke("verify-payment", { body: { reference: ref } })
+        .then(({ data }) => {
+          if (data?.verified) toast.success("Renewal payment verified!");
+          else toast.info("Payment is being processed.");
+        })
+        .catch(() => toast.info("Payment is being processed."));
+    }
+
     const fetchTenancy = async () => {
       const { data, error } = await supabase
         .from("tenancies")
@@ -157,6 +172,7 @@ const RequestRenewal = () => {
       if (payErr) throw new Error(payErr.message);
       if (data?.error) throw new Error(data.error);
       if (data?.authorization_url) {
+        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
         window.location.href = data.authorization_url;
       }
     } catch (err: any) {

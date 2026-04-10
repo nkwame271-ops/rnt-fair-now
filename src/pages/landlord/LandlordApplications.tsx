@@ -126,6 +126,7 @@ const LandlordApplications = () => {
         if (data?.status === "skipped") {
           // Fee is 0 or disabled, proceed directly
         } else if (data?.authorization_url) {
+          if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
           window.location.href = data.authorization_url;
           return;
         }

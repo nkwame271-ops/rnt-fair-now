@@ -40,6 +40,23 @@ const TenantTerminationRequest = () => {
 
   useEffect(() => {
     if (!user) return;
+
+    // Verify payment on return from Paystack
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("reference") || params.get("trxref") || sessionStorage.getItem("pendingPaymentReference");
+    if (ref) {
+      sessionStorage.removeItem("pendingPaymentReference");
+      window.history.replaceState({}, "", window.location.pathname);
+      supabase.functions.invoke("verify-payment", { body: { reference: ref } })
+        .then(({ data }) => {
+          if (data?.verified) {
+            toast.success("Termination fee paid successfully!");
+            setFeePaid(true);
+          } else toast.info("Payment is being processed.");
+        })
+        .catch(() => toast.info("Payment is being processed."));
+    }
+
     const load = async () => {
       const [{ data: t }, { data: apps }] = await Promise.all([
         supabase.from("tenancies").select("id, registration_code, agreed_rent, start_date, end_date, status, unit_id").eq("tenant_user_id", user.id).in("status", ["active", "renewal_window"]),
@@ -80,6 +97,7 @@ const TenantTerminationRequest = () => {
         return;
       }
       if (data?.authorization_url) {
+        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
         window.location.href = data.authorization_url;
       }
     } catch (err: any) {
