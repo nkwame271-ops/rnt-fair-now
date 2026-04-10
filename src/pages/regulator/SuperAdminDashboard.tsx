@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Shield, Eye, Save, Tag, Users, Calendar, Loader2, Plus, Trash2, Info, Activity } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Shield, Eye, Save, Tag, Users, Calendar, Loader2, Plus, Trash2, Info, Activity, Lock, Ban, UserPlus, Pencil, CheckCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,9 @@ import { invalidateLabelCache } from "@/hooks/useFeatureLabel";
 import PageTransition from "@/components/PageTransition";
 import LogoLoader from "@/components/LogoLoader";
 import { ActivityLogsTab } from "@/components/ActivityLogsTab";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+
 
 // Module → section definitions
 const MODULE_SECTIONS: { module: string; label: string; sections: { key: string; label: string; level: string }[] }[] = [
@@ -113,8 +116,12 @@ interface StaffRow {
   user_id: string;
   admin_type: string;
   office_name: string | null;
+  office_id: string | null;
+  allowed_features: string[] | null;
   full_name?: string;
   email?: string;
+  last_login?: string | null;
+  is_frozen?: boolean;
 }
 
 const SuperAdminDashboard = () => {
@@ -131,20 +138,59 @@ const SuperAdminDashboard = () => {
   const [labelEdits, setLabelEdits] = useState<Record<string, string>>({});
   const [labelSaving, setLabelSaving] = useState<string | null>(null);
 
-  // Staff
+  // Staff management
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [staffLoading, setStaffLoading] = useState(true);
+  const [confirmAction, setConfirmAction] = useState<{ open: boolean; title: string; desc: string; label: string; onConfirm: (pw: string, reason: string) => Promise<void> }>({ open: false, title: "", desc: "", label: "", onConfirm: async () => {} });
+  const [resetPwDialog, setResetPwDialog] = useState<{ open: boolean; userId: string; name: string }>({ open: false, userId: "", name: "" });
+  const [newPassword, setNewPassword] = useState("");
+  const [createStaffDialog, setCreateStaffDialog] = useState(false);
+  const [newStaff, setNewStaff] = useState({ email: "", full_name: "", password: "", phone: "", admin_type: "sub_admin", office_id: "", office_name: "" });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [editFeaturesDialog, setEditFeaturesDialog] = useState<{ open: boolean; staff: StaffRow | null }>({ open: false, staff: null });
+  const [editFeatures, setEditFeatures] = useState<string[]>([]);
+  const [editOffice, setEditOffice] = useState({ office_id: "", office_name: "" });
+  const [editSaving, setEditSaving] = useState(false);
+  const [offices, setOffices] = useState<{ id: string; name: string }[]>([]);
 
   // Platform config
   const [operationalDate, setOperationalDate] = useState("2025-04-07");
   const [configSaving, setConfigSaving] = useState(false);
 
+  const fetchStaff = useCallback(async () => {
+    setStaffLoading(true);
+    const [{ data: staffData }, { data: officeData }] = await Promise.all([
+      supabase.from("admin_staff").select("user_id, admin_type, office_name, office_id, allowed_features"),
+      supabase.from("offices").select("id, name"),
+    ]);
+    setOffices((officeData || []).map((o: any) => ({ id: o.id, name: o.name })));
+
+    if (staffData && staffData.length > 0) {
+      const userIds = staffData.map((s: any) => s.user_id);
+      const [{ data: profiles }, { data: loginLogs }] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds),
+        supabase.from("admin_activity_log").select("user_id, created_at").eq("event_type", "login").in("user_id", userIds).order("created_at", { ascending: false }),
+      ]);
+      const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, { name: p.full_name, email: p.email }]));
+      // Get most recent login per user
+      const loginMap = new Map<string, string>();
+      (loginLogs || []).forEach((l: any) => { if (!loginMap.has(l.user_id)) loginMap.set(l.user_id, l.created_at); });
+
+      setStaff(staffData.map((s: any) => ({
+        ...s,
+        full_name: nameMap.get(s.user_id)?.name || "Unknown",
+        email: nameMap.get(s.user_id)?.email || "",
+        last_login: loginMap.get(s.user_id) || null,
+      })));
+    }
+    setStaffLoading(false);
+  }, []);
+
   useEffect(() => {
     const fetchAll = async () => {
-      const [{ data: vis }, { data: lbls }, { data: staffData }, { data: config }] = await Promise.all([
+      const [{ data: vis }, { data: lbls }, { data: config }] = await Promise.all([
         supabase.from("module_visibility_config").select("*"),
         supabase.from("feature_label_overrides").select("*"),
-        supabase.from("admin_staff").select("user_id, admin_type, office_name"),
         supabase.from("platform_config").select("*").eq("config_key", "operational_start_date").maybeSingle(),
       ]);
 
@@ -167,26 +213,15 @@ const SuperAdminDashboard = () => {
         custom_label: l.custom_label,
       })));
 
-      // Fetch staff profiles
-      if (staffData && staffData.length > 0) {
-        const userIds = staffData.map((s: any) => s.user_id);
-        const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds);
-        const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, { name: p.full_name, email: p.email }]));
-        setStaff(staffData.map((s: any) => ({
-          ...s,
-          full_name: nameMap.get(s.user_id)?.name || "Unknown",
-          email: nameMap.get(s.user_id)?.email || "",
-        })));
-      }
-      setStaffLoading(false);
-
       if (config) {
         const val = (config as any).config_value;
         setOperationalDate(typeof val === "string" ? val.replace(/"/g, "") : "2025-04-07");
       }
+
+      await fetchStaff();
     };
     fetchAll();
-  }, []);
+  }, [fetchStaff]);
 
   const getVisibility = (moduleKey: string, sectionKey: string): string => {
     const rule = visRules.find(r => r.module_key === moduleKey && r.section_key === sectionKey);
@@ -304,6 +339,116 @@ const SuperAdminDashboard = () => {
     else {
       toast.success("Demoted to Main Admin");
       setStaff(prev => prev.map(s => s.user_id === userId ? { ...s, admin_type: "main_admin" } : s));
+    }
+  };
+
+  const handleAdminAction = async (action: string, targetId: string, password: string, reason: string, extra?: any) => {
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action, target_id: targetId, password, reason, extra },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    return data;
+  };
+
+  const handleFreezeStaff = (s: StaffRow) => {
+    setConfirmAction({
+      open: true,
+      title: `Freeze ${s.full_name}'s Account`,
+      desc: "This will prevent the user from logging in. You can unfreeze later.",
+      label: "Freeze Account",
+      onConfirm: async (pw, reason) => {
+        await handleAdminAction("freeze_staff", s.user_id, pw, reason);
+        toast.success("Account frozen");
+        setStaff(prev => prev.map(x => x.user_id === s.user_id ? { ...x, is_frozen: true } : x));
+      },
+    });
+  };
+
+  const handleUnfreezeStaff = (s: StaffRow) => {
+    setConfirmAction({
+      open: true,
+      title: `Unfreeze ${s.full_name}'s Account`,
+      desc: "This will allow the user to log in again.",
+      label: "Unfreeze Account",
+      onConfirm: async (pw, reason) => {
+        await handleAdminAction("unfreeze_staff", s.user_id, pw, reason);
+        toast.success("Account unfrozen");
+        setStaff(prev => prev.map(x => x.user_id === s.user_id ? { ...x, is_frozen: false } : x));
+      },
+    });
+  };
+
+  const handleDeleteStaff = (s: StaffRow) => {
+    setConfirmAction({
+      open: true,
+      title: `Delete ${s.full_name}'s Account`,
+      desc: "This will permanently remove this staff member. This action cannot be undone.",
+      label: "Delete Account",
+      onConfirm: async (pw, reason) => {
+        await handleAdminAction("delete_account", s.user_id, pw, reason, { account_type: "admin" });
+        toast.success("Account deleted");
+        setStaff(prev => prev.filter(x => x.user_id !== s.user_id));
+      },
+    });
+  };
+
+  const handleCreateStaff = async () => {
+    if (!newStaff.email || !newStaff.full_name || !newStaff.password || !newStaff.phone) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    setCreateLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("invite-staff", {
+        body: {
+          email: newStaff.email,
+          full_name: newStaff.full_name,
+          password: newStaff.password,
+          phone: newStaff.phone,
+          admin_type: newStaff.admin_type,
+          office_id: newStaff.office_id || null,
+          office_name: newStaff.office_name || null,
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      toast.success("Staff member created successfully");
+      setCreateStaffDialog(false);
+      setNewStaff({ email: "", full_name: "", password: "", phone: "", admin_type: "sub_admin", office_id: "", office_name: "" });
+      await fetchStaff();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create staff");
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const handleSaveStaffEdit = async () => {
+    if (!editFeaturesDialog.staff) return;
+    setEditSaving(true);
+    try {
+      const { error } = await supabase
+        .from("admin_staff")
+        .update({
+          allowed_features: editFeatures.length > 0 ? editFeatures : null,
+          office_id: editOffice.office_id || null,
+          office_name: editOffice.office_name || null,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq("user_id", editFeaturesDialog.staff.user_id);
+      if (error) throw error;
+      toast.success("Staff updated");
+      setStaff(prev => prev.map(s =>
+        s.user_id === editFeaturesDialog.staff!.user_id
+          ? { ...s, allowed_features: editFeatures.length > 0 ? editFeatures : null, office_id: editOffice.office_id || null, office_name: editOffice.office_name || null }
+          : s
+      ));
+      setEditFeaturesDialog({ open: false, staff: null });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update");
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -502,55 +647,90 @@ const SuperAdminDashboard = () => {
           {/* TAB 3: Staff Management */}
           <TabsContent value="staff">
             <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-foreground">All Staff & Admins</h3>
+                <Button size="sm" onClick={() => setCreateStaffDialog(true)}>
+                  <UserPlus className="h-4 w-4 mr-1" /> Create New Staff
+                </Button>
+              </div>
+
               {staffLoading ? (
                 <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
               ) : (
-                <div className="bg-card rounded-xl border border-border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/50">
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Name</th>
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Role</th>
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Office</th>
-                        <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {staff.map(s => (
-                        <tr key={s.user_id} className="border-b border-border/50 hover:bg-muted/30">
-                          <td className="py-3 px-4">
-                            <div className="font-medium text-foreground">{s.full_name}</div>
-                            <div className="text-xs text-muted-foreground">{s.email}</div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge variant={s.admin_type === "super_admin" ? "destructive" : s.admin_type === "main_admin" ? "default" : "secondary"}>
-                              {s.admin_type === "super_admin" ? "SUPER ADMIN" : s.admin_type === "main_admin" ? "ADMIN" : "STAFF"}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground">{s.office_name || "—"}</td>
-                          <td className="py-3 px-4 text-right">
-                            {s.user_id !== user?.id && (
-                              <>
-                                {s.admin_type === "main_admin" && (
-                                  <Button size="sm" variant="outline" className="text-xs" onClick={() => handlePromoteToSuperAdmin(s.user_id)}>
-                                    Promote to Super Admin
-                                  </Button>
-                                )}
-                                {s.admin_type === "super_admin" && (
-                                  <Button size="sm" variant="outline" className="text-xs text-destructive" onClick={() => handleDemoteFromSuperAdmin(s.user_id)}>
-                                    Demote to Admin
-                                  </Button>
-                                )}
-                              </>
+                <div className="space-y-3">
+                  {staff.map(s => {
+                    const isYou = s.user_id === user?.id;
+                    return (
+                      <div key={s.user_id} className={`bg-card rounded-xl border p-4 space-y-3 ${s.is_frozen ? "border-destructive/50 bg-destructive/5" : "border-border"}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-foreground">{s.full_name}</span>
+                              {isYou && <Badge variant="outline" className="text-[10px]">You</Badge>}
+                              {s.is_frozen && <Badge variant="destructive" className="text-[10px]">FROZEN</Badge>}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">{s.email}</div>
+                          </div>
+                          <Badge variant={s.admin_type === "super_admin" ? "destructive" : s.admin_type === "main_admin" ? "default" : "secondary"}>
+                            {s.admin_type === "super_admin" ? "SUPER ADMIN" : s.admin_type === "main_admin" ? "ADMIN" : "STAFF"}
+                          </Badge>
+                        </div>
+
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span>Office: <strong className="text-foreground">{s.office_name || "Headquarters"}</strong></span>
+                          <span>Last Login: <strong className="text-foreground">{s.last_login ? new Date(s.last_login).toLocaleString() : "Never"}</strong></span>
+                        </div>
+
+                        {s.allowed_features && s.allowed_features.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {s.allowed_features.slice(0, 5).map(f => (
+                              <Badge key={f} variant="outline" className="text-[10px]">{f}</Badge>
+                            ))}
+                            {s.allowed_features.length > 5 && (
+                              <Badge variant="outline" className="text-[10px]">+{s.allowed_features.length - 5} more</Badge>
                             )}
-                            {s.user_id === user?.id && (
-                              <span className="text-xs text-muted-foreground italic">You</span>
+                          </div>
+                        )}
+
+                        {!isYou && (
+                          <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+                              setEditFeaturesDialog({ open: true, staff: s });
+                              setEditFeatures(s.allowed_features || []);
+                              setEditOffice({ office_id: s.office_id || "", office_name: s.office_name || "" });
+                            }}>
+                              <Pencil className="h-3 w-3 mr-1" /> Edit
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setResetPwDialog({ open: true, userId: s.user_id, name: s.full_name || "" })}>
+                              <Lock className="h-3 w-3 mr-1" /> Reset Password
+                            </Button>
+                            {s.admin_type === "main_admin" && (
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handlePromoteToSuperAdmin(s.user_id)}>
+                                Promote to Super Admin
+                              </Button>
                             )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            {s.admin_type === "super_admin" && (
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDemoteFromSuperAdmin(s.user_id)}>
+                                Demote to Admin
+                              </Button>
+                            )}
+                            {s.is_frozen ? (
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-primary" onClick={() => handleUnfreezeStaff(s)}>
+                                <CheckCircle className="h-3 w-3 mr-1" /> Unfreeze
+                              </Button>
+                            ) : (
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-destructive/70" onClick={() => handleFreezeStaff(s)}>
+                                <Ban className="h-3 w-3 mr-1" /> Freeze
+                              </Button>
+                            )}
+                            <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => handleDeleteStaff(s)}>
+                              <Trash2 className="h-3 w-3 mr-1" /> Delete
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -614,6 +794,158 @@ const SuperAdminDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Admin Password Confirm Dialog */}
+      <AdminPasswordConfirm
+        open={confirmAction.open}
+        onOpenChange={(v) => { if (!v) setConfirmAction(prev => ({ ...prev, open: false })); }}
+        title={confirmAction.title}
+        description={confirmAction.desc}
+        actionLabel={confirmAction.label}
+        onConfirm={confirmAction.onConfirm}
+      />
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPwDialog.open} onOpenChange={(v) => { if (!v) { setResetPwDialog({ open: false, userId: "", name: "" }); setNewPassword(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-primary" /> Reset Password — {resetPwDialog.name}
+            </DialogTitle>
+            <DialogDescription>Set a new password for this staff member.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-sm">New Password</Label>
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min 8 characters" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setResetPwDialog({ open: false, userId: "", name: "" }); setNewPassword(""); }}>Cancel</Button>
+            <Button disabled={!newPassword || newPassword.length < 8} onClick={() => {
+              setResetPwDialog(prev => ({ ...prev, open: false }));
+              setConfirmAction({
+                open: true,
+                title: `Confirm Password Reset — ${resetPwDialog.name}`,
+                desc: "Enter your admin password to confirm.",
+                label: "Reset Password",
+                onConfirm: async (pw, reason) => {
+                  await handleAdminAction("reset_staff_password", resetPwDialog.userId, pw, reason, { new_password: newPassword });
+                  toast.success("Password reset successfully");
+                  setNewPassword("");
+                },
+              });
+            }}>
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Staff Dialog */}
+      <Dialog open={createStaffDialog} onOpenChange={setCreateStaffDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-primary" /> Create New Staff Member
+            </DialogTitle>
+            <DialogDescription>This will create a new admin account and send login credentials.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Full Name *</Label>
+                <Input value={newStaff.full_name} onChange={(e) => setNewStaff(prev => ({ ...prev, full_name: e.target.value }))} placeholder="John Doe" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Phone *</Label>
+                <Input value={newStaff.phone} onChange={(e) => setNewStaff(prev => ({ ...prev, phone: e.target.value }))} placeholder="0241234567" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Email *</Label>
+              <Input type="email" value={newStaff.email} onChange={(e) => setNewStaff(prev => ({ ...prev, email: e.target.value }))} placeholder="staff@rcd.gov.gh" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Password *</Label>
+              <Input type="password" value={newStaff.password} onChange={(e) => setNewStaff(prev => ({ ...prev, password: e.target.value }))} placeholder="Min 8 characters" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Role</Label>
+                <Select value={newStaff.admin_type} onValueChange={(v) => setNewStaff(prev => ({ ...prev, admin_type: v }))}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sub_admin">Staff</SelectItem>
+                    <SelectItem value="main_admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Office</Label>
+                <Select value={newStaff.office_id} onValueChange={(v) => {
+                  const office = offices.find(o => o.id === v);
+                  setNewStaff(prev => ({ ...prev, office_id: v, office_name: office?.name || "" }));
+                }}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Select office" /></SelectTrigger>
+                  <SelectContent>
+                    {offices.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateStaffDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreateStaff} disabled={createLoading || !newStaff.email || !newStaff.full_name || !newStaff.password || !newStaff.phone}>
+              {createLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserPlus className="h-4 w-4 mr-1" />}
+              Create Staff
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Staff Dialog */}
+      <Dialog open={editFeaturesDialog.open} onOpenChange={(v) => { if (!v) setEditFeaturesDialog({ open: false, staff: null }); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-primary" /> Edit — {editFeaturesDialog.staff?.full_name}
+            </DialogTitle>
+            <DialogDescription>Update office assignment and feature permissions.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Office</Label>
+              <Select value={editOffice.office_id} onValueChange={(v) => {
+                const office = offices.find(o => o.id === v);
+                setEditOffice({ office_id: v, office_name: office?.name || "" });
+              }}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select office" /></SelectTrigger>
+                <SelectContent>
+                  {offices.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Allowed Features (comma-separated)</Label>
+              <Input
+                value={editFeatures.join(", ")}
+                onChange={(e) => setEditFeatures(e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                placeholder="e.g. complaints, agreements, rent_cards"
+              />
+              <p className="text-[10px] text-muted-foreground">Leave empty to grant all features (default for admins).</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditFeaturesDialog({ open: false, staff: null })}>Cancel</Button>
+            <Button onClick={handleSaveStaffEdit} disabled={editSaving}>
+              {editSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageTransition>
   );
 };

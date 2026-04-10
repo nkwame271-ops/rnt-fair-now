@@ -1021,6 +1021,66 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "reset_staff_password": {
+        targetType = "admin_staff";
+        const newPassword = extra?.new_password;
+        if (!newPassword || newPassword.length < 8) {
+          throw new Error("New password must be at least 8 characters");
+        }
+        // Verify target is a staff member
+        const { data: targetStaff } = await adminClient
+          .from("admin_staff")
+          .select("user_id, admin_type")
+          .eq("user_id", target_id)
+          .single();
+        if (!targetStaff) throw new Error("Staff member not found");
+        if (target_id === user.id) throw new Error("Cannot reset your own password this way");
+
+        const { error: resetErr } = await adminClient.auth.admin.updateUserById(target_id, { password: newPassword });
+        if (resetErr) throw new Error(`Password reset failed: ${resetErr.message}`);
+
+        oldState = { user_id: target_id };
+        newState = { password_reset: true };
+        break;
+      }
+
+      case "freeze_staff": {
+        targetType = "admin_staff";
+        const { data: freezeStaff } = await adminClient
+          .from("admin_staff")
+          .select("user_id, admin_type")
+          .eq("user_id", target_id)
+          .single();
+        if (!freezeStaff) throw new Error("Staff member not found");
+        if (target_id === user.id) throw new Error("Cannot freeze your own account");
+
+        oldState = { admin_type: (freezeStaff as any).admin_type };
+
+        // Ban user in auth (prevents login)
+        const { error: banErr } = await adminClient.auth.admin.updateUserById(target_id, { ban_duration: "876000h" });
+        if (banErr) throw new Error(`Failed to freeze: ${banErr.message}`);
+
+        newState = { status: "frozen", banned: true };
+        break;
+      }
+
+      case "unfreeze_staff": {
+        targetType = "admin_staff";
+        const { data: unfreezeStaff } = await adminClient
+          .from("admin_staff")
+          .select("user_id, admin_type")
+          .eq("user_id", target_id)
+          .single();
+        if (!unfreezeStaff) throw new Error("Staff member not found");
+
+        const { error: unbanErr } = await adminClient.auth.admin.updateUserById(target_id, { ban_duration: "none" });
+        if (unbanErr) throw new Error(`Failed to unfreeze: ${unbanErr.message}`);
+
+        oldState = { status: "frozen" };
+        newState = { status: "active", unbanned: true };
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
