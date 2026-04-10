@@ -307,20 +307,22 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   line(y);
   y += 10;
 
-  // Terms
-  checkPage(20);
-  left("KEY TERMS & CONDITIONS", y, 13, "bold");
-  y += 10;
+  // Terms (skip for existing tenancies)
+  if (!data.isExistingTenancy) {
+    checkPage(20);
+    left("KEY TERMS & CONDITIONS", y, 13, "bold");
+    y += 10;
 
-  terms.forEach((term, i) => {
-    const numberedTerm = `${i + 1}. ${term}`;
-    const lines = doc.splitTextToSize(numberedTerm, w - 45);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    checkPage(lines.length * 5 + 5);
-    doc.text(lines, 20, y);
-    y += lines.length * 5 + 3;
-  });
+    terms.forEach((term, i) => {
+      const numberedTerm = `${i + 1}. ${term}`;
+      const lines = doc.splitTextToSize(numberedTerm, w - 45);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      checkPage(lines.length * 5 + 5);
+      doc.text(lines, 20, y);
+      y += lines.length * 5 + 3;
+    });
+  }
 
   // Custom fields
   if (data.customFields && data.customFields.length > 0 && data.customFieldValues) {
