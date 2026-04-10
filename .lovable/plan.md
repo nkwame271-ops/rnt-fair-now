@@ -1,48 +1,40 @@
 
 
-# Fix Super Admin to Have All Admin Capabilities
+# Comprehensive Super Admin Staff Management Panel
 
-## Problem
-The `super_admin` role is currently locked out of most admin features because:
-1. The database function `is_main_admin()` only checks for `admin_type = 'main_admin'` — it does not include `super_admin`, so RLS policies block super admins from inserting/updating admin_staff, managing fund requests, reconciliation snapshots, etc.
-2. Four edge functions explicitly check `admin_type !== "main_admin"` and reject super admins:
-   - `invite-staff` — can't invite staff
-   - `admin-action` — can't perform admin actions (deactivate accounts, delete staff, etc.)
-   - `process-office-payout` — can't process payouts
-   - `finalize-office-attribution` — can't finalize office attribution
-3. Notification queries in `paystack-webhook` only notify `main_admin` users, missing super admins
+## What Changes
 
-## Changes
+Enhance the **Staff & Admins** tab in the Super Admin Dashboard to be a full staff control center, giving the Super Admin complete oversight and management of all admin/staff accounts.
 
-### 1. Database migration — Update `is_main_admin()` function
-Update the function to include `super_admin`:
-```sql
-CREATE OR REPLACE FUNCTION public.is_main_admin(_user_id uuid)
-RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.admin_staff
-    WHERE user_id = _user_id
-    AND admin_type IN ('main_admin', 'super_admin')
-  )
-$$;
-```
-This single change fixes ALL RLS policies that use `is_main_admin()` — admin_staff insert/update, fund requests, reconciliation snapshots, etc.
+### New Capabilities in the Staff Tab
 
-### 2. Edge function fixes — 4 functions
-Update the admin_type check in each function to accept both `main_admin` and `super_admin`:
+1. **Deactivate / Freeze staff accounts** — calls existing `admin-action` with `deactivate_account` (account_type: "admin" pattern, but we need to add a `freeze_staff` action or use the existing `delete_account` flow)
+2. **Delete staff accounts** — calls `admin-action` with `delete_account` + `account_type: "admin"` (already supported)
+3. **Reset passwords** — calls `admin-action` or a new lightweight edge function to reset a staff member's password via `adminClient.auth.admin.updateUserById`
+4. **Edit staff features/office** — update `allowed_features`, `office_id`, `office_name` on `admin_staff` table (Super Admin has RLS update access via `is_main_admin`)
+5. **Inline staff creation** — embed the invite staff form directly in the Super Admin Dashboard (reuse `invite-staff` edge function)
+6. **View last login info** — query `admin_activity_log` for each staff member's most recent login event
+7. **Password confirmation dialog** — sensitive actions (delete, freeze) require admin password re-entry (reuse existing `AdminPasswordConfirm` component)
 
-- **`invite-staff/index.ts`** — line 65: change `!== "main_admin"` to `!== "main_admin" && admin_type !== "super_admin"`
-- **`admin-action/index.ts`** — line 98: same pattern
-- **`process-office-payout/index.ts`** — line 44: same pattern
-- **`finalize-office-attribution/index.ts`** — similar check
-- **`paystack-webhook/index.ts`** — notification queries: add `OR admin_type = 'super_admin'` filter so super admins also receive critical payment alerts
+### Technical Changes
 
-### 3. Promote user account
-Run a migration to set the main RCD administrator account to `super_admin` type so you can access and test everything.
+#### 1. New edge function action: `reset_staff_password` in `admin-action/index.ts`
+Add a new case that accepts `target_id` (user_id) and `extra.new_password`, calls `adminClient.auth.admin.updateUserById(target_id, { password })`. Only main_admin/super_admin can invoke.
 
-## Result
-Super Admin will have every capability that Main Admin has, plus the exclusive Super Admin Dashboard controls (visibility, renaming, activity logs, ledger).
+#### 2. Expand `SuperAdminDashboard.tsx` Staff tab
+Replace the basic table with a comprehensive management UI:
+- Each staff row gets action buttons: Edit Features, Reset Password, Freeze, Delete
+- A "Create New Staff" button that opens an inline form (email, name, password, role, office, features)
+- Show last login timestamp per staff member
+- Color-coded status indicators
+- Password confirmation modal for destructive actions
+
+#### 3. Files modified
+- `supabase/functions/admin-action/index.ts` — add `reset_staff_password` case
+- `src/pages/regulator/SuperAdminDashboard.tsx` — rebuild Staff tab with full CRUD, last login display, action buttons, inline create form
+
+### Security
+- All destructive actions require password re-authentication (already enforced in `admin-action`)
+- Only `main_admin` and `super_admin` can access these functions (already enforced)
+- Super Admin cannot delete their own account (already enforced in backend)
 
