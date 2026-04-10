@@ -342,6 +342,135 @@ const SuperAdminDashboard = () => {
     }
   };
 
+  const handleAdminAction = async (action: string, targetId: string, password: string, reason: string, extra?: any) => {
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: { action, target_id: targetId, password, reason, extra },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    return data;
+  };
+
+  const handleFreezeStaff = (s: StaffRow) => {
+    setConfirmAction({
+      open: true,
+      title: `Freeze ${s.full_name}'s Account`,
+      desc: "This will prevent the user from logging in. You can unfreeze later.",
+      label: "Freeze Account",
+      onConfirm: async (pw, reason) => {
+        await handleAdminAction("freeze_staff", s.user_id, pw, reason);
+        toast.success("Account frozen");
+        setStaff(prev => prev.map(x => x.user_id === s.user_id ? { ...x, is_frozen: true } : x));
+      },
+    });
+  };
+
+  const handleUnfreezeStaff = (s: StaffRow) => {
+    setConfirmAction({
+      open: true,
+      title: `Unfreeze ${s.full_name}'s Account`,
+      desc: "This will allow the user to log in again.",
+      label: "Unfreeze Account",
+      onConfirm: async (pw, reason) => {
+        await handleAdminAction("unfreeze_staff", s.user_id, pw, reason);
+        toast.success("Account unfrozen");
+        setStaff(prev => prev.map(x => x.user_id === s.user_id ? { ...x, is_frozen: false } : x));
+      },
+    });
+  };
+
+  const handleDeleteStaff = (s: StaffRow) => {
+    setConfirmAction({
+      open: true,
+      title: `Delete ${s.full_name}'s Account`,
+      desc: "This will permanently remove this staff member. This action cannot be undone.",
+      label: "Delete Account",
+      onConfirm: async (pw, reason) => {
+        await handleAdminAction("delete_account", s.user_id, pw, reason, { account_type: "admin" });
+        toast.success("Account deleted");
+        setStaff(prev => prev.filter(x => x.user_id !== s.user_id));
+      },
+    });
+  };
+
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    setConfirmAction({
+      open: true,
+      title: `Reset Password for ${resetPwDialog.name}`,
+      desc: "Enter your admin password to confirm this action.",
+      label: "Reset Password",
+      onConfirm: async (pw, reason) => {
+        await handleAdminAction("reset_staff_password", resetPwDialog.userId, pw, reason, { new_password: newPassword });
+        toast.success("Password reset successfully");
+        setResetPwDialog({ open: false, userId: "", name: "" });
+        setNewPassword("");
+      },
+    });
+  };
+
+  const handleCreateStaff = async () => {
+    if (!newStaff.email || !newStaff.full_name || !newStaff.password || !newStaff.phone) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    setCreateLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("invite-staff", {
+        body: {
+          email: newStaff.email,
+          full_name: newStaff.full_name,
+          password: newStaff.password,
+          phone: newStaff.phone,
+          admin_type: newStaff.admin_type,
+          office_id: newStaff.office_id || null,
+          office_name: newStaff.office_name || null,
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      toast.success("Staff member created successfully");
+      setCreateStaffDialog(false);
+      setNewStaff({ email: "", full_name: "", password: "", phone: "", admin_type: "sub_admin", office_id: "", office_name: "" });
+      await fetchStaff();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create staff");
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const handleSaveStaffEdit = async () => {
+    if (!editFeaturesDialog.staff) return;
+    setEditSaving(true);
+    try {
+      const { error } = await supabase
+        .from("admin_staff")
+        .update({
+          allowed_features: editFeatures.length > 0 ? editFeatures : null,
+          office_id: editOffice.office_id || null,
+          office_name: editOffice.office_name || null,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq("user_id", editFeaturesDialog.staff.user_id);
+      if (error) throw error;
+      toast.success("Staff updated");
+      setStaff(prev => prev.map(s =>
+        s.user_id === editFeaturesDialog.staff!.user_id
+          ? { ...s, allowed_features: editFeatures.length > 0 ? editFeatures : null, office_id: editOffice.office_id || null, office_name: editOffice.office_name || null }
+          : s
+      ));
+      setEditFeaturesDialog({ open: false, staff: null });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const handleSaveOperationalDate = async () => {
     setConfigSaving(true);
     const { error } = await supabase
