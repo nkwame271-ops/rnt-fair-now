@@ -615,8 +615,10 @@ const EscrowDashboard = () => {
                 )}
               </div>
             </div>
+            )}
 
             {/* Allocation Summary */}
+            {isVisible("escrow", "revenue_destination") && (
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4">Allocation Summary (Internal Ledger)</h2>
               <div className={`grid grid-cols-2 ${isMainAdmin ? "lg:grid-cols-5" : "lg:grid-cols-2"} gap-4`}>
