@@ -542,8 +542,8 @@ const EscrowDashboard = () => {
               ))}
             </StaggeredGrid>
 
-            {/* Payment Pipeline Status (Main Admin only) */}
-            {isMainAdmin && (
+            {/* Payment Pipeline Status (Main Admin only + visibility check) */}
+            {isMainAdmin && isVisible("escrow", "payment_pipeline") && (
               <div className="bg-card rounded-xl p-6 shadow-card border border-border">
                 <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-primary" />
