@@ -1,26 +1,46 @@
 
 
-# Improve Module Visibility — Show Admin Picker for "Selected Admins" and Super Admin Emails
+# Granular Card-Level Muting for Revenue by Type & Allocation Ledger
 
-## Problem
-When you set a section's visibility to "Selected Admins", there is no way to choose which admins get access — the dropdown just saves the value with no admin picker. Similarly, when "Super Admin Only" is selected, there is no indication of who the super admins are. On mobile (430px), the fixed-width select trigger may also overflow.
+## What Changes
 
-## Changes
+### 1. Add sub-card entries to `MODULE_SECTIONS` in SuperAdminDashboard
 
-### `src/pages/regulator/SuperAdminDashboard.tsx`
+Add individual mutable entries for each Revenue by Type card and each Allocation card:
 
-1. **"Selected Admins" — show admin multi-select picker**
-   After the visibility Select, when the value is `selected_admins`, render a collapsible section below with checkboxes listing every admin/staff by email and name. Checking/unchecking updates the `allowed_admin_ids` array on the `module_visibility_config` row. This uses the `staff` state already loaded.
+**Revenue by Type sub-cards** (module: `escrow`):
+- `revenue_type_rent_card` — Rent Card Sales
+- `revenue_type_registrations` — Registrations
+- `revenue_type_termination` — Quit Notices / Ejection
+- `revenue_type_agreement` — Tenancy Agreement
+- `revenue_type_rent_tax` — Rent Tax
+- `revenue_type_complaint` — Complaint Fee
+- `revenue_type_listing` — Listing Fee
+- `revenue_type_viewing` — Viewing Fee
+- `revenue_type_archive` — Archive Search
 
-2. **"Super Admin Only" — show super admin emails**
-   When visibility is `super_admin_only`, show a small info line below listing the email(s) of all super admins on the platform (filtered from the `staff` array where `admin_type === "super_admin"`).
+**Allocation Ledger sub-cards** (module: `escrow`):
+- `allocation_igf` — IGF (Rent Control)
+- `allocation_admin` — Admin
+- `allocation_platform` — Platform
+- `allocation_gra` — GRA
+- `allocation_landlord` — Landlord (Held)
 
-3. **Mobile layout fix**
-   Change the visibility row from `flex items-center justify-between` to a stacked layout on small screens. Change `w-[180px]` to `w-full sm:w-[180px]` so the select fits on mobile. Stack the label and select vertically on small screens using `flex-col sm:flex-row`.
+These appear nested under the existing "Revenue by Type" and "Revenue Breakdown by Destination" sections in the Super Admin visibility tab.
 
-### Database
-No schema changes needed — `module_visibility_config` already has the `allowed_admin_ids` column (uuid array).
+### 2. Update EscrowDashboard to filter cards by visibility and adjust totals
 
-## Result
-When you pick "Selected Admins", a list of all admins appears with checkboxes so you can choose exactly who sees that section. When you pick "Super Admin Only", you see the super admin email(s). The layout works cleanly on mobile.
+**Revenue by Type section**: Filter `revenueByType` through `isVisible("escrow", "revenue_type_*")` for each card. Compute a `visibleRevenue` total that sums only the visible type cards. Display this adjusted total in the "Total Revenue" summary card instead of `stats.totalEscrow` — so muted revenue types disappear from both the cards and the total.
+
+**Allocation Summary section**: Filter `allocationCards` through `isVisible("escrow", "allocation_*")` for each card. Compute a `visibleAllocation` total and show that as the "Total Collected" footer value — so muted allocation entries (e.g., Platform, GRA) disappear from both the individual cards and the bottom-line total.
+
+### 3. Files modified
+- `src/pages/regulator/SuperAdminDashboard.tsx` — add ~14 new sub-section entries to `MODULE_SECTIONS`
+- `src/pages/regulator/EscrowDashboard.tsx` — filter revenue type cards and allocation cards by `isVisible`, recalculate totals based on visible cards only
+
+## How It Works
+
+When Super Admin mutes `revenue_type_complaint` → other admins no longer see the Complaint Fee card AND the Total Revenue number drops by the complaint fee amount. The money still flows through the platform, it's just hidden from their view. Super Admin always sees everything.
+
+Same for allocation: muting `allocation_platform` hides the Platform card and reduces the displayed "Total Collected" to match only what the admin is allowed to see.
 
