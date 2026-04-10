@@ -157,12 +157,40 @@ const SuperAdminDashboard = () => {
   const [operationalDate, setOperationalDate] = useState("2025-04-07");
   const [configSaving, setConfigSaving] = useState(false);
 
+  const fetchStaff = useCallback(async () => {
+    setStaffLoading(true);
+    const [{ data: staffData }, { data: officeData }] = await Promise.all([
+      supabase.from("admin_staff").select("user_id, admin_type, office_name, office_id, allowed_features"),
+      supabase.from("offices").select("id, name"),
+    ]);
+    setOffices((officeData || []).map((o: any) => ({ id: o.id, name: o.name })));
+
+    if (staffData && staffData.length > 0) {
+      const userIds = staffData.map((s: any) => s.user_id);
+      const [{ data: profiles }, { data: loginLogs }] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds),
+        supabase.from("admin_activity_log").select("user_id, created_at").eq("event_type", "login").in("user_id", userIds).order("created_at", { ascending: false }),
+      ]);
+      const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, { name: p.full_name, email: p.email }]));
+      // Get most recent login per user
+      const loginMap = new Map<string, string>();
+      (loginLogs || []).forEach((l: any) => { if (!loginMap.has(l.user_id)) loginMap.set(l.user_id, l.created_at); });
+
+      setStaff(staffData.map((s: any) => ({
+        ...s,
+        full_name: nameMap.get(s.user_id)?.name || "Unknown",
+        email: nameMap.get(s.user_id)?.email || "",
+        last_login: loginMap.get(s.user_id) || null,
+      })));
+    }
+    setStaffLoading(false);
+  }, []);
+
   useEffect(() => {
     const fetchAll = async () => {
-      const [{ data: vis }, { data: lbls }, { data: staffData }, { data: config }] = await Promise.all([
+      const [{ data: vis }, { data: lbls }, { data: config }] = await Promise.all([
         supabase.from("module_visibility_config").select("*"),
         supabase.from("feature_label_overrides").select("*"),
-        supabase.from("admin_staff").select("user_id, admin_type, office_name"),
         supabase.from("platform_config").select("*").eq("config_key", "operational_start_date").maybeSingle(),
       ]);
 
@@ -185,26 +213,15 @@ const SuperAdminDashboard = () => {
         custom_label: l.custom_label,
       })));
 
-      // Fetch staff profiles
-      if (staffData && staffData.length > 0) {
-        const userIds = staffData.map((s: any) => s.user_id);
-        const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds);
-        const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, { name: p.full_name, email: p.email }]));
-        setStaff(staffData.map((s: any) => ({
-          ...s,
-          full_name: nameMap.get(s.user_id)?.name || "Unknown",
-          email: nameMap.get(s.user_id)?.email || "",
-        })));
-      }
-      setStaffLoading(false);
-
       if (config) {
         const val = (config as any).config_value;
         setOperationalDate(typeof val === "string" ? val.replace(/"/g, "") : "2025-04-07");
       }
+
+      await fetchStaff();
     };
     fetchAll();
-  }, []);
+  }, [fetchStaff]);
 
   const getVisibility = (moduleKey: string, sectionKey: string): string => {
     const rule = visRules.find(r => r.module_key === moduleKey && r.section_key === sectionKey);
