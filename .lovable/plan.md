@@ -1,71 +1,71 @@
 
 
-# Fix: Missing Payment Verification in "Declare Existing Tenancy" Flow
+# Plan: Landlord/Tenant Admin Portal Enhancements
 
-## Root Cause
+## Summary of Changes
 
-The `DeclareExistingTenancy.tsx` page redirects the user to Paystack for payment but **never calls `verify-payment`** when the user returns. Every other payment flow in the system (rent cards, complaints, property listing, rent tax) calls `verify-payment` on callback — this is the only one that doesn't. Combined with the Paystack webhook not firing (DNS/network issues visible in other logs), this means money is collected but the transaction stays `pending` forever — no receipt, no splits, no ledger entry.
+### 1. Profile PDF Enhancement (`src/lib/generateProfilePdf.ts`)
+The current Profile PDF (downloaded from Landlord/Tenant admin pages) only shows basic property info (name, code, address) and tenancy rent as "agreed_rent". It lacks GPS, amenities, property condition, accommodation type, and facilities.
 
-**Evidence**: All `agreement_sale` escrow transactions have `paystack_transaction_id: null` and `status: pending`, even the one from today where payment was confirmed on Paystack's side.
+**Changes:**
+- Update `ProfileData` interface to include enriched property data (GPS, amenities, condition, bedroom/bathroom counts, facilities) and tenancy property details
+- Add new PDF sections: "Property Location" (with GPS/GhanaPost), "Type of Accommodation" (bedrooms/bathrooms), "Available Amenities", "Condition of Property", "Facilities"
+- Replace "Rent:" label with "Assessed Recoverable Rent Per Month:"
+- Include tenant contact details in tenancy entries
 
-## Fix
+### 2. Landlord Admin Page — Enrich data + clickable links (`src/pages/regulator/RegulatorLandlords.tsx`)
+**Current gaps:** Property names, tenant names are plain text. PDF doesn't include enriched property data.
 
-### 1. Add `verify-payment` call to `DeclareExistingTenancy.tsx` (lines 245-258)
+**Changes:**
+- Fetch additional property fields: `gps_location`, `ghana_post_gps`, `property_condition`, `room_count`, `bathroom_count`
+- Fetch unit facilities: `has_toilet_bathroom`, `has_kitchen`, `water_available`, `electricity_available`, `has_borehole`, `has_polytank`, `amenities`
+- Make property names clickable → link to `/regulator/properties?id={propertyId}`
+- Make tenant names clickable → link to `/regulator/tenants?search={tenantName}`
+- Pass enriched data to `generateProfilePdf`
 
-In `autoSubmitAfterPayment`, before creating the tenancy record, call `verify-payment` with the stored reference. This ensures the `finalizePayment` pipeline runs (marking escrow completed, creating splits, receipts, and payouts).
+### 3. Tenant Admin Page — Enrich data + clickable links (`src/pages/regulator/RegulatorTenants.tsx`)
+**Current gaps:** Landlord names and property names in tenancy cards are plain text.
 
-```typescript
-const autoSubmitAfterPayment = async (savedData: any, propsData: any[]) => {
-  if (!user) return;
-  setSubmitting(true);
-  try {
-    // --- NEW: Verify payment first ---
-    const ref = new URLSearchParams(window.location.search).get("reference")
-      || sessionStorage.getItem("pendingPaymentReference");
-    if (ref) {
-      const { data: vData } = await supabase.functions.invoke("verify-payment", {
-        body: { reference: ref },
-      });
-      if (vData?.verified) {
-        toast.success("Payment confirmed!");
-      } else {
-        toast.warning("Payment verification pending — tenancy will still be created.");
-      }
-      sessionStorage.removeItem("pendingPaymentReference");
-    }
-    // --- END NEW ---
+**Changes:**
+- Make landlord names clickable → link to `/regulator/landlords?search={landlordName}`
+- Make property names clickable → link to `/regulator/properties?id={propertyId}`
+- Fetch property enrichment data (GPS, condition, amenities, facilities) for PDF
+- Pass enriched data to `generateProfilePdf`
 
-    const prop = propsData.find(...);
-    // ... existing logic
-  }
-};
-```
+### 4. Property Status: "Occupied, Pending Tenancy Agreement Completion" (`src/pages/regulator/RegulatorProperties.tsx`)
+**Current state:** Properties with `existing_declared` tenancies show as "Occupied" with no distinction.
 
-### 2. Store reference before redirect (around line 454)
+**Changes:**
+- Cross-reference tenancies with `existing_declared` status for each property's units
+- Show a sub-badge: "Pending Tenancy Agreement Completion" for properties whose units have `existing_declared` tenancies where `tenant_accepted = false`
+- Update to plain "Occupied" when tenant accepts the agreement (this is already handled by tenancy status transitions)
 
-After calling `paystack-checkout`, store the reference so it's available on return:
+### 5. Existing Tenancy Agreement Download Changes (`src/pages/regulator/RegulatorAgreements.tsx` + `src/lib/generateAgreementPdf.ts`)
+**Changes to RegulatorAgreements.tsx:**
+- For `tenancy_type === 'existing_migration'`, change download button label to "Existing Tenancy Details"
+- Show a download button for `existing_agreement_url` if present (custom uploaded agreement file)
+- Fetch `tenancy_type` and `existing_agreement_url` in the query (already fetching `*`)
 
-```typescript
-if (data?.authorization_url) {
-  if (data?.reference) {
-    sessionStorage.setItem("pendingPaymentReference", data.reference);
-  }
-  window.location.href = data.authorization_url;
-}
-```
+**Changes to generateAgreementPdf.ts:**
+- Accept a new `isExistingTenancy` flag in `AgreementPdfData`
+- When `isExistingTenancy`:
+  - Change title from "TENANCY AGREEMENT" to "EXISTING TENANCY DETAILS"
+  - Remove "Govt. Tax" and "To Landlord" rows from Financial Terms
+  - Remove "KEY TERMS & CONDITIONS" section entirely
 
-### 3. Also check URL `?reference=` param in the restore effect (line 104-131)
+### 6. Existing Agreement File Visibility in Admin
+- In `RegulatorAgreements.tsx`, add a button to download the landlord-uploaded custom agreement file when `existing_agreement_url` is present
 
-Paystack appends `?reference=XXX` to the callback URL. Extract it and pass to verify-payment as well.
+---
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/landlord/DeclareExistingTenancy.tsx` | Add `verify-payment` call on return from Paystack + store reference before redirect |
-
-## Impact
-
-- All future `agreement_sale` payments will be properly verified, receipted, and recorded
-- The existing pending transactions can be retroactively fixed by calling `verify-payment` with their references (manual or via admin action)
+| `src/lib/generateProfilePdf.ts` | Add property enrichment sections (GPS, amenities, condition, facilities), rename rent label |
+| `src/lib/generateAgreementPdf.ts` | Add `isExistingTenancy` flag; conditionally skip tax/terms sections; change title |
+| `src/pages/regulator/RegulatorLandlords.tsx` | Fetch enriched property/unit data, clickable links, pass enriched data to PDF |
+| `src/pages/regulator/RegulatorTenants.tsx` | Clickable landlord/property names, fetch enriched property data for PDF |
+| `src/pages/regulator/RegulatorAgreements.tsx` | Show "Existing Tenancy Details" label, show uploaded agreement download, pass `isExistingTenancy` to PDF |
+| `src/pages/regulator/RegulatorProperties.tsx` | Show "Pending Tenancy Agreement Completion" sub-badge for existing_declared tenancies |
 
