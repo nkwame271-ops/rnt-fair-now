@@ -28,6 +28,7 @@ import { regulatorTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
 import CommandSearch from "@/components/CommandSearch";
+import { useActivityTracker } from "@/hooks/useActivityTracker";
 
 const allNavItems = [
   { to: "/regulator/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -63,6 +64,7 @@ const RegulatorLayout = () => {
   const { profile } = useAdminProfile();
   const { getLabel } = useFeatureLabels("admin");
   const [mobileOpen, setMobileOpen] = useState(false);
+  useActivityTracker();
 
   const handleSignOut = async () => {
     await signOut();
