@@ -99,7 +99,7 @@ const RegulatorTenants = () => {
         : { data: [] };
 
       const profileMap = new Map((profilesRes.data || []).map(p => [p.user_id, p]));
-      const landlordNameMap = new Map(((landlordProfiles as any).data || []).map((p: any) => [p.user_id, p.full_name]));
+      const landlordProfileMap = new Map(((landlordProfiles as any).data || []).map((p: any) => [p.user_id, p]));
       const unitMap = new Map((unitsRes.data || []).map(u => [u.id, u]));
       const propMap = new Map((properties || []).map(p => [p.id, p]));
 
@@ -108,13 +108,16 @@ const RegulatorTenants = () => {
       (tenanciesRes.data || []).forEach(t => {
         const unit = unitMap.get(t.unit_id);
         const prop = unit ? propMap.get(unit.property_id) : null;
+        const landlordProfile = landlordProfileMap.get(t.landlord_user_id);
         const enriched = {
           ...t,
-          _landlordName: landlordNameMap.get(t.landlord_user_id) || "Unknown",
+          _landlordName: landlordProfile?.full_name || "Unknown",
+          _landlordPhone: landlordProfile?.phone || "",
           _propertyName: prop?.property_name || "—",
           _propertyAddress: prop?.address || "—",
           _unitName: unit?.unit_name || "—",
           _region: prop?.region || "—",
+          _propertyId: prop?.id || null,
         };
         const arr = tenancyMap.get(t.tenant_user_id) || [];
         arr.push(enriched);
