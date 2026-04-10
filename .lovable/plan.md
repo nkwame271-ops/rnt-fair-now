@@ -1,83 +1,143 @@
 
 
-# Fix: Payment Verification Gap Across All Payment Flows
+# Super Admin Dashboard & Platform Control System
 
-## Root Cause
+This is a large multi-part request. I recommend implementing it in phases to keep each change testable and stable.
 
-The Paystack webhook is not reliably firing (zero logs in production). The system's only fallback is the client-side `verify-payment` call when users return from Paystack. However, **most payment pages do NOT**:
-1. Store the Paystack `reference` in `sessionStorage` before redirecting
-2. Call `verify-payment` on return from Paystack
+---
 
-This means money is collected but the system stays in `pending` state — no receipt, no rent cards, no ledger entry.
+## Phase 1: Database Schema — Super Admin Role & Module Visibility Config
 
-**Evidence**: 20+ `escrow_transactions` stuck as `pending` with `paystack_transaction_id: null`, spanning rent cards, agreement sales, complaint fees, and more.
+### New table: `module_visibility_config`
+Stores per-section/card/button visibility rules that Super Admin controls.
 
-## Affected Pages (12 payment flows)
-
-| Page | Payment Type | Stores ref? | Verifies on return? |
-|------|-------------|-------------|---------------------|
-| `ManageRentCards.tsx` | rent_card_bulk | NO | YES (URL only) |
-| `RequestRenewal.tsx` | renewal_payment | NO | NO |
-| `TerminationRequest.tsx` | termination_fee | NO | NO |
-| `FileComplaint.tsx` | complaint_fee | NO | NO (MyCases covers it) |
-| `AddTenant.tsx` | add_tenant_fee | NO | NO |
-| `Marketplace.tsx` | viewing_fee | NO | NO |
-| `MyProperties.tsx` | listing_fee | NO | YES (URL only) |
-| `LandlordDashboard.tsx` | landlord_registration | NO | NO (ProtectedRoute covers) |
-| `TenantDashboard.tsx` | tenant_registration | NO | NO (ProtectedRoute covers) |
-| `RegisterLandlord.tsx` | landlord_registration | NO | NO (ProtectedRoute covers) |
-| `RegisterTenant.tsx` | tenant_registration | NO | NO (ProtectedRoute covers) |
-| `LandlordApplications.tsx` | archive_search_fee | NO | NO |
-
-Pages already fixed: `DeclareExistingTenancy.tsx`, `Payments.tsx` (rent payments).
-
-## Fix Strategy
-
-For every page that calls `paystack-checkout` and redirects:
-
-**Step 1**: Store reference in `sessionStorage` before redirect:
-```typescript
-if (data?.authorization_url) {
-  if (data?.reference) {
-    sessionStorage.setItem("pendingPaymentReference", data.reference);
-  }
-  window.location.href = data.authorization_url;
-}
+```
+id, module_key (e.g. "escrow"), section_key (e.g. "payment_pipeline"),
+visibility ("all" | "super_admin_only" | "selected_admins"),
+allowed_admin_ids (uuid[]), label_override (text, nullable),
+level ("feature" | "section" | "button"), updated_by, updated_at
 ```
 
-**Step 2**: On page mount, check for return reference and call verify-payment:
-```typescript
-useEffect(() => {
-  const ref = params.get("reference") || params.get("trxref")
-    || sessionStorage.getItem("pendingPaymentReference");
-  if (ref) {
-    supabase.functions.invoke("verify-payment", { body: { reference: ref } })
-      .then(({ data }) => { /* handle result */ });
-    sessionStorage.removeItem("pendingPaymentReference");
-  }
-}, [user]);
+### New table: `feature_label_overrides`
+Stores display-name overrides per feature key across all portals.
+
+```
+id, feature_key, portal ("admin" | "landlord" | "tenant"),
+original_label, custom_label, updated_by, updated_at
 ```
 
-For pages where the return is handled by a different page (e.g., FileComplaint → MyCases, registration → ProtectedRoute), we still store the reference so the handler page can pick it up.
+### Migration: Upgrade `admin_staff.admin_type`
+Add `'super_admin'` as a valid value. The current `main_admin` accounts remain as-is; the single Super Admin account will be set to `super_admin` type.
 
-## Files to Modify (10 files)
+### Migration: Add `operational_start_date` to a config table
+Used for item 5 (ledger baseline) — a date after which data is considered operational.
 
+---
+
+## Phase 2: Super Admin Dashboard Page
+
+### New file: `src/pages/regulator/SuperAdminDashboard.tsx`
+
+A dedicated page at `/regulator/super-admin` with tabs:
+
+1. **Module Visibility Control** — Tree view of all modules → sections → buttons. Each node has a toggle (All Admins / Super Admin Only / Selected Admins). This renders the `module_visibility_config` table.
+
+2. **Feature Renaming** — List all features across portals with editable label fields. Saves to `feature_label_overrides`.
+
+3. **Staff & Admin Management** — Enhanced version of current InviteStaff, showing all admins with their permissions, plus the ability to promote/demote.
+
+4. **Ledger & Data Controls** — Set the operational start date for reports. All escrow/revenue queries will filter `created_at >= operational_start_date`.
+
+### Routing
+Add route in `App.tsx` and nav item in `RegulatorLayout.tsx` (visible only to `super_admin`).
+
+---
+
+## Phase 3: Module Visibility Enforcement
+
+### New hook: `useModuleVisibility(moduleKey, sectionKey?)`
+Returns `{ visible: boolean, loading: boolean }` by checking `module_visibility_config` against the current admin's profile.
+
+### Apply to `EscrowDashboard.tsx`
+Wrap each section (Total Revenue card, Revenue by Type cards, Payment Pipeline, Office Breakdown, Auto/Manual Release, Receipts) in visibility checks using section keys like:
+- `escrow.total_revenue`
+- `escrow.revenue_by_type`
+- `escrow.payment_pipeline`
+- `escrow.office_breakdown`
+- `escrow.auto_release`
+- `escrow.manual_release`
+- `escrow.receipts`
+
+### Apply to Rent Cards pages
+Wrap advanced actions (inventory adjustment, stock correction, batch revoke, serial reset, quota reset) with visibility checks.
+
+---
+
+## Phase 4: Feature Renaming System
+
+### New hook: `useFeatureLabel(featureKey, portal, defaultLabel)`
+Returns the custom label if one exists, otherwise the default.
+
+### Apply to `RegulatorLayout.tsx`
+Replace hardcoded nav labels with `useFeatureLabel()` calls.
+
+### Apply to `LandlordLayout.tsx` and `TenantLayout.tsx`
+Same pattern for landlord/tenant portal nav items.
+
+---
+
+## Phase 5: Ledger Cleanup (Item 5)
+
+Rather than deleting data, add an `operational_start_date` config (default: `2025-04-07`). All dashboard queries in `EscrowDashboard.tsx`, `RegulatorDashboard.tsx`, reconciliation pages, and PDF exports will add a `>=` filter on this date. Super Admin can adjust this date from their dashboard.
+
+This preserves historical data while giving clean operational baselines.
+
+---
+
+## Phase 6: Payment Processor Charges Display (Item 6)
+
+### Changes to `EscrowDashboard.tsx`
+- Add a "Payment Processor Deductions" info card showing: **1.95% processing fee** and **GHS 1 per transfer**.
+- In the Allocation Summary, add a row for estimated processor charges.
+- In PDF/CSV exports, include a "Payment Processor Charges" section with these figures.
+
+### Changes to `PaymentReceipt.tsx`
+Add a footnote: "Note: Payment processor charges (1.95% + GHS 1/transfer) are deducted by the payment provider before settlement."
+
+---
+
+## Files to Create
+| File | Purpose |
+|------|---------|
+| `src/pages/regulator/SuperAdminDashboard.tsx` | Main Super Admin control panel |
+| `src/hooks/useModuleVisibility.ts` | Section-level visibility hook |
+| `src/hooks/useFeatureLabel.ts` | Feature renaming hook |
+
+## Files to Modify
 | File | Change |
 |------|--------|
-| `src/pages/landlord/ManageRentCards.tsx` | Add sessionStorage store before redirect; add sessionStorage fallback to verify logic |
-| `src/pages/tenant/RequestRenewal.tsx` | Add sessionStorage store + verify-payment on return |
-| `src/pages/tenant/TerminationRequest.tsx` | Add sessionStorage store + verify-payment on return |
-| `src/pages/tenant/FileComplaint.tsx` | Add sessionStorage store before redirect |
-| `src/pages/landlord/AddTenant.tsx` | Add sessionStorage store + verify-payment on return |
-| `src/pages/tenant/Marketplace.tsx` | Add sessionStorage store before redirect + verify-payment on return |
-| `src/pages/landlord/MyProperties.tsx` | Add sessionStorage store; add sessionStorage fallback to verify logic |
-| `src/pages/landlord/LandlordDashboard.tsx` | Add sessionStorage store before redirect |
-| `src/pages/tenant/TenantDashboard.tsx` | Add sessionStorage store before redirect |
-| `src/pages/landlord/LandlordApplications.tsx` | Add sessionStorage store before redirect + verify-payment on return |
+| `src/hooks/useAdminProfile.ts` | Add `super_admin` type support, add `isSuperAdmin` flag |
+| `src/components/RegulatorLayout.tsx` | Add Super Admin nav item, apply feature labels |
+| `src/components/LandlordLayout.tsx` | Apply feature label overrides |
+| `src/components/TenantLayout.tsx` | Apply feature label overrides |
+| `src/pages/regulator/EscrowDashboard.tsx` | Add section visibility checks, processor charges display, operational date filter |
+| `src/pages/regulator/RegulatorRentCards.tsx` | Add visibility checks on advanced actions |
+| `src/pages/regulator/EngineRoom.tsx` | Super Admin gate on sensitive sections |
+| `src/components/PaymentReceipt.tsx` | Add processor charges footnote |
+| `src/App.tsx` | Add Super Admin dashboard route |
 
-ProtectedRoute.tsx already calls verify-payment for registration flows and reads URL params, so we just need the pages to store the reference.
+## Database Migrations
+1. Create `module_visibility_config` table with RLS
+2. Create `feature_label_overrides` table with RLS
+3. Create `platform_config` table (for operational_start_date)
+4. Update `admin_staff` to support `super_admin` type
 
-## Impact
+---
 
-Every payment flow will now have a reliable client-side verification fallback, ensuring that even when webhooks fail, payments are always: traceable, receipted, and recorded in the ledger.
+## Important Notes
+
+- **No code logic breaks**: Renaming only affects display labels, not routing or feature keys.
+- **Backward compatible**: Existing `main_admin` accounts keep working. Super Admin is an upgrade.
+- **Data preserved**: Ledger cleanup uses date filtering, not deletion.
+- This is a large feature set. I recommend implementing Phases 1-2 first, then 3-6 incrementally.
 
