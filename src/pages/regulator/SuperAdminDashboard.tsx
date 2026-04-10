@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Shield, Eye, Save, Tag, Users, Calendar, Loader2, Plus, Trash2, Info } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Shield, Eye, Save, Tag, Users, Calendar, Loader2, Plus, Trash2, Info, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -353,6 +353,7 @@ const SuperAdminDashboard = () => {
             <TabsTrigger value="labels"><Tag className="h-3.5 w-3.5 mr-1" /> Feature Renaming</TabsTrigger>
             <TabsTrigger value="staff"><Users className="h-3.5 w-3.5 mr-1" /> Staff & Admins</TabsTrigger>
             <TabsTrigger value="data"><Calendar className="h-3.5 w-3.5 mr-1" /> Ledger & Data</TabsTrigger>
+            <TabsTrigger value="activity"><Activity className="h-3.5 w-3.5 mr-1" /> Activity Logs</TabsTrigger>
           </TabsList>
 
           {/* TAB 1: Module Visibility */}
