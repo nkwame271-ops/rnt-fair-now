@@ -3,12 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface AdminProfile {
-  adminType: "main_admin" | "sub_admin";
+  adminType: "main_admin" | "sub_admin" | "super_admin";
   officeId: string | null;
   officeName: string | null;
   allowedFeatures: string[];
   mutedFeatures: string[];
   isMainAdmin: boolean;
+  isSuperAdmin: boolean;
 }
 
 let cachedProfile: AdminProfile | null = null;
@@ -46,12 +47,13 @@ export const useAdminProfile = () => {
       }
 
       const p: AdminProfile = {
-        adminType: (data as any).admin_type as "main_admin" | "sub_admin",
+        adminType: (data as any).admin_type as "main_admin" | "sub_admin" | "super_admin",
         officeId: (data as any).office_id,
         officeName: (data as any).office_name,
         allowedFeatures: (data as any).allowed_features || [],
         mutedFeatures: (data as any).muted_features || [],
-        isMainAdmin: (data as any).admin_type === "main_admin",
+        isMainAdmin: (data as any).admin_type === "main_admin" || (data as any).admin_type === "super_admin",
+        isSuperAdmin: (data as any).admin_type === "super_admin",
       };
 
       cachedProfile = p;
@@ -258,6 +260,8 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   office_wallet: ["/regulator/office-fund-requests"],
   payout_settings: ["/regulator/office-payout-settings"],
   rent_reviews: ["/regulator/rent-reviews"],
+  payment_errors: ["/regulator/payment-errors"],
+  super_admin: ["/regulator/super-admin"],
 };
 
 // Reverse: route → feature key

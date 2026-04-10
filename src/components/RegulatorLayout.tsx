@@ -17,10 +17,12 @@ import {
   ClipboardList,
   Gavel,
   Send,
+  Crown,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminProfile, getFeatureKeyForRoute } from "@/hooks/useAdminProfile";
+import { useFeatureLabels } from "@/hooks/useFeatureLabel";
 import TourGuide from "@/components/TourGuide";
 import { regulatorTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
@@ -52,12 +54,14 @@ const allNavItems = [
   { to: "/regulator/office-fund-requests", label: "Office Wallet", icon: BarChart3 },
   { to: "/regulator/office-payout-settings", label: "Payout Settings", icon: Settings },
   { to: "/regulator/payment-errors", label: "Payment Errors", icon: AlertTriangle },
+  { to: "/regulator/super-admin", label: "Super Admin", icon: Crown, superAdminOnly: true },
 ];
 
 const RegulatorLayout = () => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { profile } = useAdminProfile();
+  const { getLabel } = useFeatureLabels("admin");
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleSignOut = async () => {
@@ -67,6 +71,9 @@ const RegulatorLayout = () => {
 
   // Filter nav items based on admin profile
   const navItems = allNavItems.filter(item => {
+    // Super Admin Only items
+    if ((item as any).superAdminOnly && !profile?.isSuperAdmin) return false;
+
     // Main admin or no profile record (legacy/fallback) — show all
     if (!profile) return true;
     if (profile.allowedFeatures.length === 0) return true; // unrestricted admin
@@ -89,8 +96,8 @@ const RegulatorLayout = () => {
         <div className="p-5 flex items-center gap-2 border-b border-sidebar-border">
           <Shield className="h-6 w-6 text-sidebar-primary" />
           <span className="font-bold text-lg">Rent Control</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive text-destructive-foreground font-semibold ml-auto">
-            {profile?.isMainAdmin ? "ADMIN" : profile ? "STAFF" : "ADMIN"}
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ml-auto ${profile?.isSuperAdmin ? "bg-destructive text-destructive-foreground" : "bg-destructive text-destructive-foreground"}`}>
+            {profile?.isSuperAdmin ? "SUPER ADMIN" : profile?.isMainAdmin ? "ADMIN" : profile ? "STAFF" : "ADMIN"}
           </span>
         </div>
         {profile && !profile.isMainAdmin && profile.officeName && (
@@ -114,7 +121,7 @@ const RegulatorLayout = () => {
               }
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              {getLabel(getFeatureKeyForRoute(item.to) || item.label, item.label)}
             </NavLink>
           ))}
         </nav>

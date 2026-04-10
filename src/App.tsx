@@ -93,6 +93,7 @@ const RegulatorRentReviews = lazy(() => import("./pages/regulator/RegulatorRentR
 const OfficeFundRequests = lazy(() => import("./pages/regulator/OfficeFundRequests"));
 const OfficePayoutSettings = lazy(() => import("./pages/regulator/OfficePayoutSettings"));
 const PaymentErrors = lazy(() => import("./pages/regulator/PaymentErrors"));
+const SuperAdminDashboard = lazy(() => import("./pages/regulator/SuperAdminDashboard"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -201,6 +202,7 @@ const App = () => (
                 <Route path="office-fund-requests" element={<OfficeFundRequests />} />
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
                 <Route path="payment-errors" element={<PaymentErrors />} />
+                <Route path="super-admin" element={<SuperAdminDashboard />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

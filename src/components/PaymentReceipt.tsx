@@ -129,6 +129,10 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
         </div>
       )}
 
+      <div className="text-[10px] text-muted-foreground border-t border-border pt-3 mt-2">
+        Note: Payment processor charges (1.95% + GH₵ 1/transfer) are deducted by the payment provider before settlement.
+      </div>
+
       <div className="flex items-center justify-between">
         <div className="bg-background p-2 rounded-lg border border-border">
           <QRCodeSVG value={qrCodeData || receiptNumber} size={80} />

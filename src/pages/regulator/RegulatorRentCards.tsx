@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CreditCard, ShoppingCart, Package } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
+import { useModuleVisibility } from "@/hooks/useModuleVisibility";
 import LogoLoader from "@/components/LogoLoader";
 import PageTransition from "@/components/PageTransition";
 import SerialBatchUpload from "./rent-cards/SerialBatchUpload";
@@ -22,6 +23,7 @@ const RegulatorRentCards = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
   const [refreshKey, setRefreshKey] = useState(0);
   const triggerRefresh = () => setRefreshKey(k => k + 1);
+  const { isVisible } = useModuleVisibility("rent_cards");
 
   const isMain = !profile || profile.isMainAdmin;
 
@@ -55,7 +57,7 @@ const RegulatorRentCards = () => {
                 <ShoppingCart className="h-3.5 w-3.5" /> Sales
               </TabsTrigger>
             )}
-            {isMain && <TabsTrigger value="admin_actions">Admin Actions</TabsTrigger>}
+            {isMain && isVisible("rent_cards", "admin_actions_tab") && <TabsTrigger value="admin_actions">Admin Actions</TabsTrigger>}
           </TabsList>
 
           {/* PROCUREMENT WORKSPACE */}
@@ -145,7 +147,7 @@ const RegulatorRentCards = () => {
           )}
 
           {/* ADMIN ACTIONS */}
-          {isMain && (
+          {isMain && isVisible("rent_cards", "admin_actions_tab") && (
             <TabsContent value="admin_actions">
               <AdminActions refreshKey={refreshKey} onStockChanged={triggerRefresh} />
             </TabsContent>

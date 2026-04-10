@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag, Zap, Hand, CheckCircle, XCircle, Clock, AlertTriangle, Download, Calendar as CalendarIcon, Filter } from "lucide-react";
+import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag, Zap, Hand, CheckCircle, XCircle, Clock, AlertTriangle, Download, Calendar as CalendarIcon, Filter, Info } from "lucide-react";
+import { useModuleVisibility } from "@/hooks/useModuleVisibility";
 import { supabase } from "@/integrations/supabase/client";
 import PageTransition from "@/components/PageTransition";
 import AnimatedCounter from "@/components/AnimatedCounter";
@@ -90,6 +91,7 @@ const EscrowDashboard = () => {
     : selectedOffice;
 
   const isMainAdmin = profile?.isMainAdmin ?? false;
+  const { isVisible } = useModuleVisibility("escrow");
 
   const dateRange = useMemo(() => {
     if (datePreset === "custom") {
@@ -540,8 +542,8 @@ const EscrowDashboard = () => {
               ))}
             </StaggeredGrid>
 
-            {/* Payment Pipeline Status (Main Admin only) */}
-            {isMainAdmin && (
+            {/* Payment Pipeline Status (Main Admin only + visibility check) */}
+            {isMainAdmin && isVisible("escrow", "payment_pipeline") && (
               <div className="bg-card rounded-xl p-6 shadow-card border border-border">
                 <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-primary" />
@@ -566,7 +568,9 @@ const EscrowDashboard = () => {
             )}
 
             {/* Release Mode Stats */}
+            {(isVisible("escrow", "auto_release") || isVisible("escrow", "manual_release")) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {isVisible("escrow", "auto_release") && (
               <div className="bg-card rounded-xl p-5 shadow-card border border-border flex items-start gap-3">
                 <Zap className="h-5 w-5 text-success mt-0.5" />
                 <div>
@@ -576,6 +580,8 @@ const EscrowDashboard = () => {
                   <div className="text-xs text-muted-foreground">Auto-Released Funds</div>
                 </div>
               </div>
+              )}
+              {isVisible("escrow", "manual_release") && (
               <div className="bg-card rounded-xl p-5 shadow-card border border-border flex items-start gap-3">
                 <Hand className="h-5 w-5 text-info mt-0.5" />
                 <div>
@@ -585,9 +591,12 @@ const EscrowDashboard = () => {
                   <div className="text-xs text-muted-foreground">Manually Released Funds</div>
                 </div>
               </div>
+              )}
             </div>
+            )}
 
             {/* Revenue by Type */}
+            {isVisible("escrow", "revenue_by_type") && (
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                 <Tag className="h-5 w-5 text-primary" />
@@ -606,8 +615,10 @@ const EscrowDashboard = () => {
                 )}
               </div>
             </div>
+            )}
 
             {/* Allocation Summary */}
+            {isVisible("escrow", "revenue_destination") && (
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4">Allocation Summary (Internal Ledger)</h2>
               <div className={`grid grid-cols-2 ${isMainAdmin ? "lg:grid-cols-5" : "lg:grid-cols-2"} gap-4`}>
@@ -623,9 +634,31 @@ const EscrowDashboard = () => {
                 <span className="font-semibold text-foreground">GH₵ {stats.totalEscrow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
+            )}
+
+            {/* Payment Processor Charges */}
+            <div className="bg-card rounded-xl p-5 shadow-card border border-border">
+              <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Info className="h-4 w-4 text-primary" />
+                Payment Processor Deductions
+              </h2>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <div className="bg-muted/30 rounded-lg px-4 py-2 border border-border">
+                  <span className="font-bold text-foreground">1.95%</span>
+                  <span className="text-muted-foreground ml-1">processing fee</span>
+                </div>
+                <div className="bg-muted/30 rounded-lg px-4 py-2 border border-border">
+                  <span className="font-bold text-foreground">GH₵ 1.00</span>
+                  <span className="text-muted-foreground ml-1">per transfer</span>
+                </div>
+                <div className="text-xs text-muted-foreground self-center">
+                  Deducted by payment provider before settlement — not internal platform charges.
+                </div>
+              </div>
+            </div>
 
             {/* Office Revenue Table (national view, main admin only) */}
-            {isMainAdmin && effectiveOffice === "all" && officeRevenue.length > 0 && (
+            {isMainAdmin && isVisible("escrow", "office_breakdown") && effectiveOffice === "all" && officeRevenue.length > 0 && (
               <div className="bg-card rounded-xl p-6 shadow-card border border-border">
                 <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                   <Building className="h-5 w-5 text-primary" />
@@ -723,6 +756,7 @@ const EscrowDashboard = () => {
             )}
 
             {/* Receipt Register */}
+            {isVisible("escrow", "receipts") && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Receipt Register</h2>
@@ -756,6 +790,7 @@ const EscrowDashboard = () => {
                 </div>
               )}
             </div>
+            )}
           </>
         )}
       </div>
