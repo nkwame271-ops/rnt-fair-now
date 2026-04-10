@@ -186,127 +186,134 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
     <div className="space-y-6">
       {/* Serial Stock Registry */}
       {isVisible("rent_cards", "stock_correction") && (
-      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
-          <Database className="h-5 w-5 text-primary" /> Serial Stock Registry
-        </h2>
-        <p className="text-sm text-muted-foreground">All uploaded and generated batches. Revoke or void unused serials directly.</p>
-        {registryLoading ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Loading batches...</p>
-        ) : registryBatches.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">No batches found.</p>
-        ) : (
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {registryBatches.map((b) => (
-              <div key={b.batch_label} className="border border-border rounded-lg p-4 flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <p className="font-mono font-bold text-sm text-card-foreground">{b.batch_label}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Total: {b.total} • Available: {b.available} • Assigned: {b.assigned} • Revoked: {b.revoked}
-                  </p>
+        <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+            <Database className="h-5 w-5 text-primary" /> Serial Stock Registry
+          </h2>
+          <p className="text-sm text-muted-foreground">All uploaded and generated batches. Revoke or void unused serials directly.</p>
+          {registryLoading ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Loading batches...</p>
+          ) : registryBatches.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">No batches found.</p>
+          ) : (
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {registryBatches.map((b) => (
+                <div key={b.batch_label} className="border border-border rounded-lg p-4 flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <p className="font-mono font-bold text-sm text-card-foreground">{b.batch_label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Total: {b.total} • Available: {b.available} • Assigned: {b.assigned} • Revoked: {b.revoked}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {b.available > 0 && (
+                      <>
+                        <Button variant="destructive" size="sm" onClick={() => setRevokeTarget(b.batch_label)}>
+                          Revoke {b.available}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setVoidTarget(b.batch_label)}>
+                          <Ban className="h-3 w-3 mr-1" /> Void
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  {b.available > 0 && (
-                    <>
-                      <Button variant="destructive" size="sm" onClick={() => setRevokeTarget(b.batch_label)}>
-                        Revoke {b.available}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => setVoidTarget(b.batch_label)}>
-                        <Ban className="h-3 w-3 mr-1" /> Void
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Revoke Serial Batch */}
       {isVisible("rent_cards", "batch_revoke") && (
-      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
-          <Trash2 className="h-5 w-5 text-destructive" /> Revoke Serial Batch
-        </h2>
-        <p className="text-sm text-muted-foreground">Search by batch label to revoke unused serials from office stock.</p>
-        <div className="flex gap-3">
-          <Input placeholder="Search batch label..." value={batchSearch} onChange={(e) => setBatchSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleBatchSearch()} className="flex-1" />
-          <Button onClick={handleBatchSearch} disabled={batchSearching} variant="outline">
-            {batchSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          </Button>
-        </div>
-        {batchResults.map((b) => (
-          <div key={b.batch_label} className="border border-border rounded-lg p-4 flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <p className="font-mono font-bold text-sm text-card-foreground">{b.batch_label}</p>
-              <p className="text-xs text-muted-foreground">Available: {b.available} • Assigned: {b.assigned} • Revoked: {b.revoked}</p>
-            </div>
-            {b.available > 0 && (
-              <Button variant="destructive" size="sm" onClick={() => setRevokeTarget(b.batch_label)}>
-                Revoke {b.available} Unused
-              </Button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Unassign Serial */}
-      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
-          <RotateCcw className="h-5 w-5 text-primary" /> Unassign Serial
-        </h2>
-        <p className="text-sm text-muted-foreground">Search by exact serial number. Only serials not linked to active tenancies can be unassigned.</p>
-        <div className="flex gap-3">
-          <Input placeholder="Enter serial number..." value={serialSearch} onChange={(e) => setSerialSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSerialSearch()} className="flex-1" />
-          <Button onClick={handleSerialSearch} disabled={serialSearching} variant="outline">
-            {serialSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          </Button>
-        </div>
-        {serialResult && (
-          <div className="border border-border rounded-lg p-4 space-y-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <p className="font-mono font-bold text-sm text-card-foreground">{serialResult.serial_number}</p>
-                <p className="text-xs text-muted-foreground">Office: {serialResult.office_name} • Status: {serialResult.status}</p>
-              </div>
-              <Badge className={serialResult.status === "assigned" ? "bg-primary/10 text-primary" : serialResult.status === "available" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}>
-                {serialResult.status}
-              </Badge>
-            </div>
-            {serialResult.status === "assigned" && (
-              <Button variant="destructive" size="sm" onClick={() => setUnassignTarget(serialResult.serial_number)}>
-                Unassign Serial
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Void Upload */}
-      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
-          <Ban className="h-5 w-5 text-warning" /> Void Upload
-        </h2>
-        <p className="text-sm text-muted-foreground">Search by batch label to void all unused serials from an incorrect upload.</p>
-        <div className="flex gap-3">
-          <Input placeholder="Search batch label..." value={voidBatchSearch} onChange={(e) => setVoidBatchSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleVoidSearch()} className="flex-1" />
-          <Button onClick={handleVoidSearch} disabled={voidSearching} variant="outline">
-            {voidSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          </Button>
-        </div>
-        {voidBatchResults.map((b) => (
-          <div key={b.batch_label} className="border border-border rounded-lg p-4 flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <p className="font-mono font-bold text-sm text-card-foreground">{b.batch_label}</p>
-              <p className="text-xs text-muted-foreground">{b.available} unused serials can be voided</p>
-            </div>
-            <Button variant="destructive" size="sm" onClick={() => setVoidTarget(b.batch_label)}>
-              Void {b.available} Serials
+        <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+            <Trash2 className="h-5 w-5 text-destructive" /> Revoke Serial Batch
+          </h2>
+          <p className="text-sm text-muted-foreground">Search by batch label to revoke unused serials from office stock.</p>
+          <div className="flex gap-3">
+            <Input placeholder="Search batch label..." value={batchSearch} onChange={(e) => setBatchSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleBatchSearch()} className="flex-1" />
+            <Button onClick={handleBatchSearch} disabled={batchSearching} variant="outline">
+              {batchSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             </Button>
           </div>
-        ))}
-      </div>
+          {batchResults.map((b) => (
+            <div key={b.batch_label} className="border border-border rounded-lg p-4 flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <p className="font-mono font-bold text-sm text-card-foreground">{b.batch_label}</p>
+                <p className="text-xs text-muted-foreground">Available: {b.available} • Assigned: {b.assigned} • Revoked: {b.revoked}</p>
+              </div>
+              {b.available > 0 && (
+                <Button variant="destructive" size="sm" onClick={() => setRevokeTarget(b.batch_label)}>
+                  Revoke {b.available} Unused
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Unassign Serial */}
+      {isVisible("rent_cards", "serial_reset") && (
+        <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+            <RotateCcw className="h-5 w-5 text-primary" /> Unassign Serial
+          </h2>
+          <p className="text-sm text-muted-foreground">Search by exact serial number. Only serials not linked to active tenancies can be unassigned.</p>
+          <div className="flex gap-3">
+            <Input placeholder="Enter serial number..." value={serialSearch} onChange={(e) => setSerialSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSerialSearch()} className="flex-1" />
+            <Button onClick={handleSerialSearch} disabled={serialSearching} variant="outline">
+              {serialSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
+          </div>
+          {serialResult && (
+            <div className="border border-border rounded-lg p-4 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <p className="font-mono font-bold text-sm text-card-foreground">{serialResult.serial_number}</p>
+                  <p className="text-xs text-muted-foreground">Office: {serialResult.office_name} • Status: {serialResult.status}</p>
+                </div>
+                <Badge className={serialResult.status === "assigned" ? "bg-primary/10 text-primary" : serialResult.status === "available" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}>
+                  {serialResult.status}
+                </Badge>
+              </div>
+              {serialResult.status === "assigned" && (
+                <Button variant="destructive" size="sm" onClick={() => setUnassignTarget(serialResult.serial_number)}>
+                  Unassign Serial
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Void Upload */}
+      {isVisible("rent_cards", "stock_cleanup") && (
+        <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+            <Ban className="h-5 w-5 text-warning" /> Void Upload
+          </h2>
+          <p className="text-sm text-muted-foreground">Search by batch label to void all unused serials from an incorrect upload.</p>
+          <div className="flex gap-3">
+            <Input placeholder="Search batch label..." value={voidBatchSearch} onChange={(e) => setVoidBatchSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleVoidSearch()} className="flex-1" />
+            <Button onClick={handleVoidSearch} disabled={voidSearching} variant="outline">
+              {voidSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
+          </div>
+          {voidBatchResults.map((b) => (
+            <div key={b.batch_label} className="border border-border rounded-lg p-4 flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <p className="font-mono font-bold text-sm text-card-foreground">{b.batch_label}</p>
+                <p className="text-xs text-muted-foreground">{b.available} unused serials can be voided</p>
+              </div>
+              <Button variant="destructive" size="sm" onClick={() => setVoidTarget(b.batch_label)}>
+                Void {b.available} Serials
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
 
       {/* Audit Log */}
       <div className="bg-card rounded-xl border border-border p-6 space-y-4">
