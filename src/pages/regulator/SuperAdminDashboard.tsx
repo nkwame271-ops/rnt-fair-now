@@ -18,7 +18,7 @@ import LogoLoader from "@/components/LogoLoader";
 import { ActivityLogsTab } from "@/components/ActivityLogsTab";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+
 
 // Module → section definitions
 const MODULE_SECTIONS: { module: string; label: string; sections: { key: string; label: string; level: string }[] }[] = [
