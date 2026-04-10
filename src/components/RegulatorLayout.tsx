@@ -28,6 +28,7 @@ import { regulatorTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
 import CommandSearch from "@/components/CommandSearch";
+import { useActivityTracker } from "@/hooks/useActivityTracker";
 
 const allNavItems = [
   { to: "/regulator/dashboard", label: "Overview", icon: LayoutDashboard },
