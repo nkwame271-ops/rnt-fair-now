@@ -1,40 +1,39 @@
 
 
-# Comprehensive Super Admin Staff Management Panel
+# Enhance Super Admin Dashboard — Staff Ordering, Granular Feature Control, Regulators Tab
 
-## What Changes
+## What's Already Done (skip these)
+- Feature Renaming across portals (Tab 2)
+- Module-Level Visibility Control for Escrow, Rent Cards, Engine Room, Analytics (Tab 1)
+- Procurement/Rent Card button-level controls (inventory adjustment, stock correction, etc.)
+- Staff CRUD: create, freeze, delete, reset password (Tab 3)
+- Ledger baseline / operational start date (Tab 4)
+- Payment processor charges display (1.95% + GHS 1) (Tab 4)
+- Activity Logs (Tab 5)
+- Sidebar shows "SUPER ADMIN" badge
 
-Enhance the **Staff & Admins** tab in the Super Admin Dashboard to be a full staff control center, giving the Super Admin complete oversight and management of all admin/staff accounts.
+## What Needs to Change
 
-### New Capabilities in the Staff Tab
+### 1. Super Admin account pinned to top of staff list
+In the Staff tab, sort staff so `super_admin` accounts always appear first, then `main_admin`, then `sub_admin`.
 
-1. **Deactivate / Freeze staff accounts** — calls existing `admin-action` with `deactivate_account` (account_type: "admin" pattern, but we need to add a `freeze_staff` action or use the existing `delete_account` flow)
-2. **Delete staff accounts** — calls `admin-action` with `delete_account` + `account_type: "admin"` (already supported)
-3. **Reset passwords** — calls `admin-action` or a new lightweight edge function to reset a staff member's password via `adminClient.auth.admin.updateUserById`
-4. **Edit staff features/office** — update `allowed_features`, `office_id`, `office_name` on `admin_staff` table (Super Admin has RLS update access via `is_main_admin`)
-5. **Inline staff creation** — embed the invite staff form directly in the Super Admin Dashboard (reuse `invite-staff` edge function)
-6. **View last login info** — query `admin_activity_log` for each staff member's most recent login event
-7. **Password confirmation dialog** — sensitive actions (delete, freeze) require admin password re-entry (reuse existing `AdminPasswordConfirm` component)
+### 2. New "Regulators" tab
+Add a dedicated tab showing only `main_admin` and `super_admin` accounts. When you click on a regulator's card, it expands inline to show:
+- Full list of all platform features with checkboxes to enable/disable each one
+- Muted features with toggle switches
+- Office assignment
+- Last login and activity summary
 
-### Technical Changes
+### 3. Replace comma-separated feature editing with a proper checklist UI
+The current "Edit Staff" dialog uses a text input for comma-separated feature keys. Replace this with:
+- A scrollable checklist of all available features (using the `FEATURE_ROUTE_MAP` keys)
+- Each feature has a checkbox (allowed) and a mute toggle
+- Grouped by category for clarity
 
-#### 1. New edge function action: `reset_staff_password` in `admin-action/index.ts`
-Add a new case that accepts `target_id` (user_id) and `extra.new_password`, calls `adminClient.auth.admin.updateUserById(target_id, { password })`. Only main_admin/super_admin can invoke.
+### 4. Sidebar: more prominent Super Admin indicator
+Make the Super Admin badge visually distinct — use a gold/amber color instead of the same destructive red used for other badges.
 
-#### 2. Expand `SuperAdminDashboard.tsx` Staff tab
-Replace the basic table with a comprehensive management UI:
-- Each staff row gets action buttons: Edit Features, Reset Password, Freeze, Delete
-- A "Create New Staff" button that opens an inline form (email, name, password, role, office, features)
-- Show last login timestamp per staff member
-- Color-coded status indicators
-- Password confirmation modal for destructive actions
-
-#### 3. Files modified
-- `supabase/functions/admin-action/index.ts` — add `reset_staff_password` case
-- `src/pages/regulator/SuperAdminDashboard.tsx` — rebuild Staff tab with full CRUD, last login display, action buttons, inline create form
-
-### Security
-- All destructive actions require password re-authentication (already enforced in `admin-action`)
-- Only `main_admin` and `super_admin` can access these functions (already enforced)
-- Super Admin cannot delete their own account (already enforced in backend)
+## Files Modified
+- `src/pages/regulator/SuperAdminDashboard.tsx` — sort staff list, add Regulators tab, replace feature edit dialog with checklist UI
+- `src/components/RegulatorLayout.tsx` — update Super Admin badge styling
 
