@@ -46,6 +46,21 @@ const LandlordApplications = () => {
 
   useEffect(() => {
     if (!user) return;
+
+    // Verify payment on return from Paystack
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("reference") || params.get("trxref") || sessionStorage.getItem("pendingPaymentReference");
+    if (ref) {
+      sessionStorage.removeItem("pendingPaymentReference");
+      window.history.replaceState({}, "", window.location.pathname);
+      supabase.functions.invoke("verify-payment", { body: { reference: ref } })
+        .then(({ data }) => {
+          if (data?.verified) toast.success("Archive search fee paid!");
+          else toast.info("Payment is being processed.");
+        })
+        .catch(() => toast.info("Payment is being processed."));
+    }
+
     fetchApplications();
   }, [user]);
 
