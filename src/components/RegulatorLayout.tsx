@@ -121,7 +121,7 @@ const RegulatorLayout = () => {
               }
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              {getLabel(getFeatureKeyForRoute(item.to) || item.label, item.label)}
             </NavLink>
           ))}
         </nav>
