@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Link, useSearchParams } from "react-router-dom";
 import { Users, Download, Search, ChevronDown, ChevronUp, Home, FileText, Calendar, User } from "lucide-react";
 import LogoLoader from "@/components/LogoLoader";
 import { Input } from "@/components/ui/input";
@@ -42,10 +43,12 @@ interface TenantFull {
     advance_months: number;
     landlord_user_id: string;
     _landlordName?: string;
+    _landlordPhone?: string;
     _propertyName?: string;
     _propertyAddress?: string;
     _unitName?: string;
     _region?: string;
+    _propertyId?: string;
   }>;
   complaints?: Array<{
     complaint_code: string;
@@ -57,7 +60,8 @@ interface TenantFull {
 
 const RegulatorTenants = () => {
   const [tenants, setTenants] = useState<TenantFull[]>([]);
-  const [search, setSearch] = useState("");
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -85,7 +89,7 @@ const RegulatorTenants = () => {
       const unitIds = [...new Set((tenanciesRes.data || []).map(t => t.unit_id))];
 
       const [landlordProfiles, unitsRes] = await Promise.all([
-        landlordIds.length > 0 ? supabase.from("profiles").select("user_id, full_name").in("user_id", landlordIds) : { data: [] },
+        landlordIds.length > 0 ? supabase.from("profiles").select("user_id, full_name, phone").in("user_id", landlordIds) : { data: [] },
         unitIds.length > 0 ? supabase.from("units").select("id, unit_name, property_id").in("id", unitIds) : { data: [] },
       ]);
 
