@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Shield, Eye, Save, Tag, Users, Calendar, Loader2, Plus, Trash2, Info, Activity, ChevronDown, ChevronUp } from "lucide-react";
+import { Shield, Eye, Save, Tag, Users, Calendar, Loader2, Plus, Trash2, Info, Activity } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { invalidateVisibilityCache } from "@/hooks/useModuleVisibility";
 import { invalidateLabelCache } from "@/hooks/useFeatureLabel";
 import PageTransition from "@/components/PageTransition";
 import LogoLoader from "@/components/LogoLoader";
+import { ActivityLogsTab } from "@/components/ActivityLogsTab";
 
 // Module → section definitions
 const MODULE_SECTIONS: { module: string; label: string; sections: { key: string; label: string; level: string }[] }[] = [
