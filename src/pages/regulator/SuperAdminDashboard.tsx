@@ -813,6 +813,158 @@ const SuperAdminDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Admin Password Confirm Dialog */}
+      <AdminPasswordConfirm
+        open={confirmAction.open}
+        onOpenChange={(v) => { if (!v) setConfirmAction(prev => ({ ...prev, open: false })); }}
+        title={confirmAction.title}
+        description={confirmAction.desc}
+        actionLabel={confirmAction.label}
+        onConfirm={confirmAction.onConfirm}
+      />
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPwDialog.open} onOpenChange={(v) => { if (!v) { setResetPwDialog({ open: false, userId: "", name: "" }); setNewPassword(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-primary" /> Reset Password — {resetPwDialog.name}
+            </DialogTitle>
+            <DialogDescription>Set a new password for this staff member.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-sm">New Password</Label>
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min 8 characters" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setResetPwDialog({ open: false, userId: "", name: "" }); setNewPassword(""); }}>Cancel</Button>
+            <Button disabled={!newPassword || newPassword.length < 8} onClick={() => {
+              setResetPwDialog(prev => ({ ...prev, open: false }));
+              setConfirmAction({
+                open: true,
+                title: `Confirm Password Reset — ${resetPwDialog.name}`,
+                desc: "Enter your admin password to confirm.",
+                label: "Reset Password",
+                onConfirm: async (pw, reason) => {
+                  await handleAdminAction("reset_staff_password", resetPwDialog.userId, pw, reason, { new_password: newPassword });
+                  toast.success("Password reset successfully");
+                  setNewPassword("");
+                },
+              });
+            }}>
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Staff Dialog */}
+      <Dialog open={createStaffDialog} onOpenChange={setCreateStaffDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-primary" /> Create New Staff Member
+            </DialogTitle>
+            <DialogDescription>This will create a new admin account and send login credentials.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Full Name *</Label>
+                <Input value={newStaff.full_name} onChange={(e) => setNewStaff(prev => ({ ...prev, full_name: e.target.value }))} placeholder="John Doe" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Phone *</Label>
+                <Input value={newStaff.phone} onChange={(e) => setNewStaff(prev => ({ ...prev, phone: e.target.value }))} placeholder="0241234567" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Email *</Label>
+              <Input type="email" value={newStaff.email} onChange={(e) => setNewStaff(prev => ({ ...prev, email: e.target.value }))} placeholder="staff@rcd.gov.gh" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Password *</Label>
+              <Input type="password" value={newStaff.password} onChange={(e) => setNewStaff(prev => ({ ...prev, password: e.target.value }))} placeholder="Min 8 characters" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Role</Label>
+                <Select value={newStaff.admin_type} onValueChange={(v) => setNewStaff(prev => ({ ...prev, admin_type: v }))}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sub_admin">Staff</SelectItem>
+                    <SelectItem value="main_admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Office</Label>
+                <Select value={newStaff.office_id} onValueChange={(v) => {
+                  const office = offices.find(o => o.id === v);
+                  setNewStaff(prev => ({ ...prev, office_id: v, office_name: office?.name || "" }));
+                }}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Select office" /></SelectTrigger>
+                  <SelectContent>
+                    {offices.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateStaffDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreateStaff} disabled={createLoading || !newStaff.email || !newStaff.full_name || !newStaff.password || !newStaff.phone}>
+              {createLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserPlus className="h-4 w-4 mr-1" />}
+              Create Staff
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Staff Dialog */}
+      <Dialog open={editFeaturesDialog.open} onOpenChange={(v) => { if (!v) setEditFeaturesDialog({ open: false, staff: null }); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-primary" /> Edit — {editFeaturesDialog.staff?.full_name}
+            </DialogTitle>
+            <DialogDescription>Update office assignment and feature permissions.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Office</Label>
+              <Select value={editOffice.office_id} onValueChange={(v) => {
+                const office = offices.find(o => o.id === v);
+                setEditOffice({ office_id: v, office_name: office?.name || "" });
+              }}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select office" /></SelectTrigger>
+                <SelectContent>
+                  {offices.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Allowed Features (comma-separated)</Label>
+              <Input
+                value={editFeatures.join(", ")}
+                onChange={(e) => setEditFeatures(e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                placeholder="e.g. complaints, agreements, rent_cards"
+              />
+              <p className="text-[10px] text-muted-foreground">Leave empty to grant all features (default for admins).</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditFeaturesDialog({ open: false, staff: null })}>Cancel</Button>
+            <Button onClick={handleSaveStaffEdit} disabled={editSaving}>
+              {editSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageTransition>
   );
 };
