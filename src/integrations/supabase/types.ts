@@ -578,6 +578,36 @@ export type Database = {
         }
         Relationships: []
       }
+      feature_label_overrides: {
+        Row: {
+          custom_label: string
+          feature_key: string
+          id: string
+          original_label: string
+          portal: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          custom_label: string
+          feature_key: string
+          id?: string
+          original_label: string
+          portal?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          custom_label?: string
+          feature_key?: string
+          id?: string
+          original_label?: string
+          portal?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       generation_batches: {
         Row: {
           batch_label: string
@@ -969,6 +999,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      module_visibility_config: {
+        Row: {
+          allowed_admin_ids: string[] | null
+          id: string
+          label_override: string | null
+          level: string
+          module_key: string
+          section_key: string
+          updated_at: string
+          updated_by: string | null
+          visibility: string
+        }
+        Insert: {
+          allowed_admin_ids?: string[] | null
+          id?: string
+          label_override?: string | null
+          level?: string
+          module_key: string
+          section_key: string
+          updated_at?: string
+          updated_by?: string | null
+          visibility?: string
+        }
+        Update: {
+          allowed_admin_ids?: string[] | null
+          id?: string
+          label_override?: string | null
+          level?: string
+          module_key?: string
+          section_key?: string
+          updated_at?: string
+          updated_by?: string | null
+          visibility?: string
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -1438,6 +1504,33 @@ export type Database = {
           phone?: string
           sms_sent?: boolean
           tenancy_id?: string | null
+        }
+        Relationships: []
+      }
+      platform_config: {
+        Row: {
+          config_key: string
+          config_value: Json
+          description: string | null
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          config_key: string
+          config_value?: Json
+          description?: string | null
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          config_key?: string
+          config_value?: Json
+          description?: string | null
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -3271,6 +3364,7 @@ export type Database = {
         Returns: Json
       }
       is_main_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       recalculate_compliance_score: {
         Args: { p_landlord_user_id: string }
         Returns: undefined
