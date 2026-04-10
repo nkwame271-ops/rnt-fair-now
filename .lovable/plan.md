@@ -1,31 +1,71 @@
 
 
-# Fix: Restore `www.rentcontrolghana.com` as the canonical domain
+# Fix: Missing Payment Verification in "Declare Existing Tenancy" Flow
 
-## What happened
-During the QR verification fix, I incorrectly replaced your custom domain (`www.rentcontrolghana.com`) with the default Lovable domain (`rentghanapilot.lovable.app`) in 3 files. Your custom domain is the correct one and should be used everywhere.
+## Root Cause
 
-## Changes (3 files)
+The `DeclareExistingTenancy.tsx` page redirects the user to Paystack for payment but **never calls `verify-payment`** when the user returns. Every other payment flow in the system (rent cards, complaints, property listing, rent tax) calls `verify-payment` on callback — this is the only one that doesn't. Combined with the Paystack webhook not firing (DNS/network issues visible in other logs), this means money is collected but the transaction stays `pending` forever — no receipt, no splits, no ledger entry.
 
-### 1. `src/lib/generateTenancyCardPdf.ts` (line 81)
-Change URL back to:
-```
-Verify: www.rentcontrolghana.com/verify-tenancy/{tenancyId}
-```
+**Evidence**: All `agreement_sale` escrow transactions have `paystack_transaction_id: null` and `status: pending`, even the one from today where payment was confirmed on Paystack's side.
 
-### 2. `src/lib/generateAgreementPdf.ts` (lines 119-121)
-Change QR URL back to:
+## Fix
+
+### 1. Add `verify-payment` call to `DeclareExistingTenancy.tsx` (lines 245-258)
+
+In `autoSubmitAfterPayment`, before creating the tenancy record, call `verify-payment` with the stored reference. This ensures the `finalizePayment` pipeline runs (marking escrow completed, creating splits, receipts, and payouts).
+
 ```typescript
-const verifyUrl = data.tenancyId
-  ? `https://www.rentcontrolghana.com/verify-tenancy/${data.tenancyId}`
-  : `https://www.rentcontrolghana.com/verify-tenancy/${data.registrationCode}`;
+const autoSubmitAfterPayment = async (savedData: any, propsData: any[]) => {
+  if (!user) return;
+  setSubmitting(true);
+  try {
+    // --- NEW: Verify payment first ---
+    const ref = new URLSearchParams(window.location.search).get("reference")
+      || sessionStorage.getItem("pendingPaymentReference");
+    if (ref) {
+      const { data: vData } = await supabase.functions.invoke("verify-payment", {
+        body: { reference: ref },
+      });
+      if (vData?.verified) {
+        toast.success("Payment confirmed!");
+      } else {
+        toast.warning("Payment verification pending — tenancy will still be created.");
+      }
+      sessionStorage.removeItem("pendingPaymentReference");
+    }
+    // --- END NEW ---
+
+    const prop = propsData.find(...);
+    // ... existing logic
+  }
+};
 ```
 
-### 3. `src/pages/landlord/DeclareExistingTenancy.tsx` (line 373)
-Change SMS link back to:
-```
-...register at https://www.rentcontrolghana.com to view...
+### 2. Store reference before redirect (around line 454)
+
+After calling `paystack-checkout`, store the reference so it's available on return:
+
+```typescript
+if (data?.authorization_url) {
+  if (data?.reference) {
+    sessionStorage.setItem("pendingPaymentReference", data.reference);
+  }
+  window.location.href = data.authorization_url;
+}
 ```
 
-No other files are affected — the rest of the codebase already uses `www.rentcontrolghana.com` correctly.
+### 3. Also check URL `?reference=` param in the restore effect (line 104-131)
+
+Paystack appends `?reference=XXX` to the callback URL. Extract it and pass to verify-payment as well.
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/pages/landlord/DeclareExistingTenancy.tsx` | Add `verify-payment` call on return from Paystack + store reference before redirect |
+
+## Impact
+
+- All future `agreement_sale` payments will be properly verified, receipted, and recorded
+- The existing pending transactions can be retroactively fixed by calling `verify-payment` with their references (manual or via admin action)
 
