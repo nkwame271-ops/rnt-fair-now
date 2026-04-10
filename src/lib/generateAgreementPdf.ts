@@ -141,9 +141,9 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   line(y);
   y += 10;
 
-  center("TENANCY AGREEMENT", y, 18, "bold");
+  center(data.isExistingTenancy ? "EXISTING TENANCY DETAILS" : "TENANCY AGREEMENT", y, 18, "bold");
   y += 6;
-  center("(Pursuant to the Rent Act, 1963 — Act 220)", y, 10);
+  center(data.isExistingTenancy ? "(Existing Tenancy — Declared under Rent Act, 1963 — Act 220)" : "(Pursuant to the Rent Act, 1963 — Act 220)", y, 10);
   y += 6;
   if (version > 1) {
     doc.setTextColor(34, 87, 45);
@@ -286,11 +286,17 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
     ["Assessed Recoverable Rent Per Month:", formatGHS(data.monthlyRent)],
     ["Advance Period:", `${data.advanceMonths} month(s)`],
     ["Total Advance:", formatGHS(data.monthlyRent * data.advanceMonths)],
-    [`Govt. Tax (${(taxRate * 100).toFixed(0)}%):`, `${formatGHS(taxAmount)} per month`],
-    [`To Landlord (${((1 - taxRate) * 100).toFixed(0)}%):`, `${formatGHS(toLandlord)} per month`],
+  ];
+  if (!data.isExistingTenancy) {
+    financial.push(
+      [`Govt. Tax (${(taxRate * 100).toFixed(0)}%):`, `${formatGHS(taxAmount)} per month`],
+      [`To Landlord (${((1 - taxRate) * 100).toFixed(0)}%):`, `${formatGHS(toLandlord)} per month`],
+    );
+  }
+  financial.push(
     ["Tenancy Start:", new Date(data.startDate).toLocaleDateString("en-GB")],
     ["Tenancy End:", new Date(data.endDate).toLocaleDateString("en-GB")],
-  ];
+  );
   financial.forEach(([label, value]) => {
     left(label, y, 10, "bold");
     doc.setFont("helvetica", "normal");
