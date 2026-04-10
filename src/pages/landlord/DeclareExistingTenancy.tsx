@@ -246,6 +246,26 @@ const DeclareExistingTenancy = () => {
     if (!user) return;
     setSubmitting(true);
     try {
+      // Verify payment with backend to ensure receipt, splits, and ledger entries are created
+      const ref = new URLSearchParams(window.location.search).get("reference")
+        || new URLSearchParams(window.location.search).get("trxref")
+        || sessionStorage.getItem("pendingPaymentReference");
+      if (ref) {
+        try {
+          const { data: vData } = await supabase.functions.invoke("verify-payment", {
+            body: { reference: ref },
+          });
+          if (vData?.verified) {
+            toast.success("Payment confirmed!");
+          } else {
+            toast.warning("Payment verification pending — tenancy will still be created.");
+          }
+        } catch (verifyErr) {
+          console.error("Payment verification error:", verifyErr);
+        }
+        sessionStorage.removeItem("pendingPaymentReference");
+      }
+
       const prop = propsData.find((p: any) => p.id === savedData.selectedPropertyId);
       const unitData = prop?.units?.find((u: any) => u.id === savedData.selectedUnitId);
       if (!prop || !unitData) throw new Error("Property or unit not found");
@@ -468,6 +488,9 @@ const DeclareExistingTenancy = () => {
           return;
         }
         if (data?.authorization_url) {
+          if (data?.reference) {
+            sessionStorage.setItem("pendingPaymentReference", data.reference);
+          }
           window.location.href = data.authorization_url;
           return;
         }
