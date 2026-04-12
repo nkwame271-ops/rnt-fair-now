@@ -57,11 +57,12 @@ const AddTenant = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const [propsRes, profileRes, configRes, rentCardsRes] = await Promise.all([
+      const [propsRes, profileRes, configRes, rentCardsRes, bandsRes] = await Promise.all([
         supabase.from("properties").select("id, property_name, address, region, property_category, units(id, unit_name, unit_type, monthly_rent, status)").eq("landlord_user_id", user.id).eq("assessment_status", "approved").in("property_status", ["approved", "live", "occupied"]),
         supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
         supabase.from("agreement_template_config").select("*").limit(1).single(),
         supabase.from("rent_cards").select("id, serial_number").eq("landlord_user_id", user.id).eq("status", "valid"),
+        supabase.from("rent_bands").select("min_rent, max_rent, fee_amount").order("min_rent"),
       ]);
       setProperties((propsRes.data || []) as PropertyWithUnits[]);
       setLandlordName(profileRes.data?.full_name || "");
@@ -71,6 +72,7 @@ const AddTenant = () => {
         setCustomFields(cf);
       }
       setAvailableRentCards((rentCardsRes.data || []) as { id: string; serial_number: string }[]);
+      setRentBands((bandsRes.data || []) as { min_rent: number; max_rent: number | null; fee_amount: number }[]);
       setLoading(false);
     };
     fetchData();
