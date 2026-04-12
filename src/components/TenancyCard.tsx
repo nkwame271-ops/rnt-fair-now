@@ -25,6 +25,8 @@ export interface TenancyCardData {
   rentCardSerial2?: string;
   rentCardRole?: string;
   rentCardRole2?: string;
+  taxComplianceStatus?: string;
+  tenancyType?: string;
 }
 
 const statusColor = (status: string) => {
@@ -82,6 +84,9 @@ const TenancyCard = ({ data }: { data: TenancyCardData }) => {
           <div><p className="text-muted-foreground text-xs">Max Lawful Advance</p><p className="font-semibold">{formatGHS(data.maxLawfulAdvance)}</p></div>
           <div><p className="text-muted-foreground text-xs">Advance</p><p className="font-semibold">{data.advancePaid} month(s)</p></div>
           <div><p className="text-muted-foreground text-xs">Compliance</p><p className={`font-semibold ${data.complianceStatus === "compliant" ? "text-success" : "text-destructive"}`}>{data.complianceStatus}</p></div>
+          {data.tenancyType === "existing_migration" && (
+            <div><p className="text-muted-foreground text-xs">Tax Compliance</p><p className={`font-semibold ${data.taxComplianceStatus === "verified" ? "text-success" : "text-warning"}`}>{data.taxComplianceStatus === "verified" ? "Verified" : "Pending"}</p></div>
+          )}
           <div><p className="text-muted-foreground text-xs">Start Date</p><p className="font-semibold">{format(new Date(data.startDate), "dd/MM/yyyy")}</p></div>
           <div><p className="text-muted-foreground text-xs">Expiry Date</p><p className="font-semibold">{format(new Date(data.expiryDate), "dd/MM/yyyy")}</p></div>
           {data.rentCardSerial && (

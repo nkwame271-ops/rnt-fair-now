@@ -31,6 +31,8 @@ interface TenancyView {
   propertyName: string;
   customFieldValues: Record<string, string>;
   final_agreement_pdf_url: string | null;
+  tenancy_type: string | null;
+  tax_compliance_status: string;
   payments: {
     id: string;
     month_label: string;
@@ -88,6 +90,8 @@ const Agreements = () => {
           customFieldValues: (t as any).custom_field_values || {},
           final_agreement_pdf_url: t.final_agreement_pdf_url || null,
           payments: (payments || []) as any[],
+          tenancy_type: (t as any).tenancy_type || null,
+          tax_compliance_status: (t as any).tax_compliance_status || "pending",
         });
       }
       setTenancies(results);
@@ -187,12 +191,19 @@ const Agreements = () => {
                         </Button>
                       </a>
                     )}
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                       t.status === "active" ? "bg-success/10 text-success" 
                         : "bg-warning/10 text-warning"
                     }`}>
-                      {t.status === "active" ? "Active" : t.tenant_accepted ? "Accepted" : "Pending Acceptance"}
+                      {t.status === "active" ? "Active" : t.tenant_accepted ? "Accepted" : t.status === "existing_declared" ? "Existing — Declared" : "Pending Acceptance"}
                     </span>
+                    {(t as any).tenancy_type === "existing_migration" && (
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        (t as any).tax_compliance_status === "verified" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                      }`}>
+                        Tax: {(t as any).tax_compliance_status === "verified" ? "Verified" : "Pending"}
+                      </span>
+                    )}
                   </div>
                 </div>
 
