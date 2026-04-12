@@ -10,7 +10,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-type Step = "select-unit" | "find-tenant" | "details" | "review" | "done";
+type Step = "select-unit" | "find-tenant" | "details" | "agreement-choice" | "review" | "done";
 
 interface PropertyWithUnits {
   id: string;
