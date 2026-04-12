@@ -182,26 +182,33 @@ const DeclareExistingTenancy = () => {
     fetchFee();
   }, []);
 
-  // Lookup rent band fee when rent changes
+  // Lookup existing tenancy rent band when rent changes
   useEffect(() => {
     const monthlyRent = parseFloat(rent) || 0;
-    if (monthlyRent <= 0) { setRentBandFee(null); return; }
+    if (monthlyRent <= 0) { setExistingBand(null); return; }
     const lookupBand = async () => {
       const { data: bands } = await supabase
         .from("rent_bands")
-        .select("min_rent, max_rent, fee_amount")
+        .select("id, min_rent, max_rent, fee_amount, register_fee, filing_fee, agreement_fee")
+        .eq("band_type", "existing_tenancy")
         .order("min_rent");
       if (bands) {
-        for (const band of bands) {
+        for (const band of bands as any[]) {
           const min = Number(band.min_rent);
           const max = band.max_rent !== null ? Number(band.max_rent) : Infinity;
           if (monthlyRent >= min && monthlyRent <= max) {
-            setRentBandFee(Number(band.fee_amount));
+            setExistingBand({
+              id: band.id,
+              fee_amount: Number(band.fee_amount),
+              register_fee: Number(band.register_fee ?? 0),
+              filing_fee: Number(band.filing_fee ?? 0),
+              agreement_fee: Number(band.agreement_fee ?? 0),
+            });
             return;
           }
         }
       }
-      setRentBandFee(null);
+      setExistingBand(null);
     };
     lookupBand();
   }, [rent]);
