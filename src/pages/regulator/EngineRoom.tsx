@@ -807,14 +807,14 @@ const EngineRoom = () => {
         </div>
       )}
 
-      {/* Rent Bands Configuration */}
+      {/* Add Tenant Rent Bands */}
       {isMainAdmin && isVisible("engine_room", "rent_bands") && (
         <div>
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
-            <DollarSign className="h-5 w-5 text-primary" /> Rent Bands
+            <DollarSign className="h-5 w-5 text-primary" /> Add Tenant Rent Bands
           </h2>
           <p className="text-sm text-muted-foreground mb-3">
-            Configure rent ranges and their corresponding tenancy registration fees. The system applies the correct fee based on the declared monthly rent.
+            Configure rent ranges and registration fees for the <strong>Add Tenant</strong> flow. Split allocations apply to <code>add_tenant_fee</code>.
           </p>
 
           {rentBandsLoading ? (
@@ -823,12 +823,12 @@ const EngineRoom = () => {
             <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
               <div className="p-4 border-b border-border flex items-center justify-between">
                 <p className="font-semibold text-card-foreground">Rent Range → Fee</p>
-                <Button size="sm" variant="outline" onClick={handleAddBand}>
+                <Button size="sm" variant="outline" onClick={() => handleAddBand("add_tenant")}>
                   <Plus className="h-3 w-3 mr-1" /> Add Band
                 </Button>
               </div>
               <div className="divide-y divide-border">
-                {rentBands.map(band => {
+                {rentBands.filter(b => b.band_type === "add_tenant").map(band => {
                   const edits = editingBands[band.id] || {};
                   const hasEdits = Object.keys(edits).length > 0;
                   return (
@@ -865,7 +865,6 @@ const EngineRoom = () => {
                           </Button>
                         </div>
                       </div>
-                      {/* Per-band allocation editor */}
                       {expandedBand === band.id && (() => {
                         const bandAllocs = bandAllocations.filter(a => a.rent_band_id === band.id);
                         const allocsByType = bandAllocs.reduce((acc, a) => {
@@ -873,7 +872,7 @@ const EngineRoom = () => {
                           acc[a.payment_type].push(a);
                           return acc;
                         }, {} as Record<string, BandAllocation[]>);
-                        const types = Object.keys(allocsByType).length > 0 ? Object.keys(allocsByType) : ["agreement_sale", "add_tenant_fee"];
+                        const types = Object.keys(allocsByType).length > 0 ? Object.keys(allocsByType) : ["add_tenant_fee"];
                         return (
                           <div className="bg-muted/30 px-4 py-3 space-y-3">
                             <p className="text-xs font-medium text-muted-foreground">Allocation splits for this band (must sum to GH₵ {band.fee_amount})</p>
@@ -917,8 +916,142 @@ const EngineRoom = () => {
                     </div>
                   );
                 })}
-                {rentBands.length === 0 && (
-                  <div className="p-6 text-center text-muted-foreground text-sm">No rent bands configured.</div>
+                {rentBands.filter(b => b.band_type === "add_tenant").length === 0 && (
+                  <div className="p-6 text-center text-muted-foreground text-sm">No add tenant rent bands configured.</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Existing Tenancy Rent Bands */}
+      {isMainAdmin && isVisible("engine_room", "rent_bands") && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <DollarSign className="h-5 w-5 text-primary" /> Existing Tenancy Rent Bands
+          </h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Configure rent ranges and fees for the <strong>Declare Existing Tenancy</strong> flow. Each band has three independent fees: Register Tenant, Filing, and Agreement Sale — each with its own split allocation.
+          </p>
+
+          {rentBandsLoading ? (
+            <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+              <div className="p-4 border-b border-border flex items-center justify-between">
+                <p className="font-semibold text-card-foreground">Rent Range → Fees (Register / Filing / Agreement)</p>
+                <Button size="sm" variant="outline" onClick={() => handleAddBand("existing_tenancy")}>
+                  <Plus className="h-3 w-3 mr-1" /> Add Band
+                </Button>
+              </div>
+              <div className="divide-y divide-border">
+                {rentBands.filter(b => b.band_type === "existing_tenancy").map(band => {
+                  const edits = editingBands[band.id] || {};
+                  const hasEdits = Object.keys(edits).length > 0;
+                  return (
+                    <div key={band.id} className="border-b border-border last:border-b-0">
+                      <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Min:</span>
+                          <Input type="number" min="0" step="0.01" className="w-24 h-8 text-sm" value={edits.min_rent ?? band.min_rent} onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], min_rent: parseFloat(e.target.value) || 0 } }))} />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Max:</span>
+                          <Input type="number" min="0" step="0.01" className="w-24 h-8 text-sm" placeholder="∞" value={edits.max_rent !== undefined ? (edits.max_rent ?? "") : (band.max_rent ?? "")} onChange={e => { const val = e.target.value === "" ? null : parseFloat(e.target.value); setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], max_rent: val } })); }} />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Label:</span>
+                          <Input className="w-32 h-8 text-sm" value={edits.label !== undefined ? (edits.label ?? "") : (band.label ?? "")} onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], label: e.target.value } }))} />
+                        </div>
+                        <div className="flex items-center gap-1 ml-auto">
+                          <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => setExpandedBand(expandedBand === band.id ? null : band.id)}>
+                            {expandedBand === band.id ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                            Details
+                          </Button>
+                          {hasEdits && (
+                            <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => handleSaveBand(band.id)} disabled={savingBand === band.id}>
+                              {savingBand === band.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive hover:text-destructive" onClick={() => handleDeleteBand(band.id)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      {/* Fee columns for existing tenancy bands */}
+                      <div className="px-4 pb-3 grid grid-cols-3 gap-3">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Register Fee: GH₵</span>
+                          <Input type="number" min="0" step="1" className="w-20 h-7 text-xs" value={edits.register_fee !== undefined ? (edits.register_fee ?? 0) : (band.register_fee ?? 0)} onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], register_fee: parseFloat(e.target.value) || 0 } }))} />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Filing Fee: GH₵</span>
+                          <Input type="number" min="0" step="1" className="w-20 h-7 text-xs" value={edits.filing_fee !== undefined ? (edits.filing_fee ?? 0) : (band.filing_fee ?? 0)} onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], filing_fee: parseFloat(e.target.value) || 0 } }))} />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Agreement Fee: GH₵</span>
+                          <Input type="number" min="0" step="1" className="w-20 h-7 text-xs" value={edits.agreement_fee !== undefined ? (edits.agreement_fee ?? 0) : (band.agreement_fee ?? 0)} onChange={e => setEditingBands(prev => ({ ...prev, [band.id]: { ...prev[band.id], agreement_fee: parseFloat(e.target.value) || 0 } }))} />
+                        </div>
+                      </div>
+                      {/* Per-band allocation editor for existing tenancy */}
+                      {expandedBand === band.id && (() => {
+                        const bandAllocs = bandAllocations.filter(a => a.rent_band_id === band.id);
+                        const allocsByType = bandAllocs.reduce((acc, a) => {
+                          if (!acc[a.payment_type]) acc[a.payment_type] = [];
+                          acc[a.payment_type].push(a);
+                          return acc;
+                        }, {} as Record<string, BandAllocation[]>);
+                        const feeTypes = [
+                          { key: "register_tenant_fee", label: "Register Tenant Fee", target: band.register_fee ?? 0 },
+                          { key: "filing_fee", label: "Filing Fee", target: band.filing_fee ?? 0 },
+                          { key: "agreement_sale", label: "Agreement Sale Fee", target: band.agreement_fee ?? 0 },
+                        ];
+                        return (
+                          <div className="bg-muted/30 px-4 py-3 space-y-3">
+                            <p className="text-xs font-medium text-muted-foreground">Allocation splits for each fee type</p>
+                            {feeTypes.map(ft => {
+                              const allocs = allocsByType[ft.key] || [];
+                              const allocTotal = allocs.reduce((s, a) => s + (editingAllocations[a.id] ?? a.amount), 0);
+                              const mismatch = ft.target > 0 && Math.abs(allocTotal - ft.target) > 0.02;
+                              return (
+                                <div key={ft.key} className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-card-foreground">{ft.label}</span>
+                                    <span className={`text-xs ${mismatch ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                                      Target: GH₵ {ft.target.toFixed(2)} | Allocated: GH₵ {allocTotal.toFixed(2)} {mismatch ? "⚠️ mismatch" : allocs.length > 0 ? "✓" : ""}
+                                    </span>
+                                  </div>
+                                  {allocs.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground italic">No allocations configured — configure in split engine or add band allocations.</p>
+                                  ) : allocs.map(alloc => {
+                                    const isEditing = editingAllocations[alloc.id] !== undefined;
+                                    return (
+                                      <div key={alloc.id} className="flex items-center justify-between gap-2 pl-3">
+                                        <span className="text-xs text-card-foreground">{alloc.description || RECIPIENT_LABELS[alloc.recipient] || alloc.recipient} → {RECIPIENT_LABELS[alloc.recipient] || alloc.recipient}</span>
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-muted-foreground">GH₵</span>
+                                          <Input type="number" min="0" step="0.5" className="w-20 h-7 text-xs" value={isEditing ? editingAllocations[alloc.id] : alloc.amount} onChange={e => setEditingAllocations(prev => ({ ...prev, [alloc.id]: parseFloat(e.target.value) || 0 }))} />
+                                          {isEditing && (
+                                            <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => handleSaveAllocation(alloc.id, editingAllocations[alloc.id])} disabled={savingAllocation === alloc.id}>
+                                              {savingAllocation === alloc.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })}
+                {rentBands.filter(b => b.band_type === "existing_tenancy").length === 0 && (
+                  <div className="p-6 text-center text-muted-foreground text-sm">No existing tenancy rent bands configured.</div>
                 )}
               </div>
             </div>
