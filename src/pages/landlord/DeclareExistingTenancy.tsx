@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Search, CheckCircle2, Upload, Loader2, FileText, AlertCircle, Phone, UserPlus, Mic, Square, Trash2 } from "lucide-react";
+import { generateAgreementPdf } from "@/lib/generateAgreementPdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -344,11 +345,70 @@ const DeclareExistingTenancy = () => {
       landlord_accepted: true,
       tenant_accepted: false,
       compliance_status: "under_review",
+      tax_compliance_status: "pending",
       rent_card_id: formData.selectedRentCardId || null,
       rent_card_id_2: formData.selectedRentCardId2 || null,
     } as any).select().single();
 
     if (error) throw error;
+
+    // Generate agreement PDF when "Buy Agreement" is selected
+    if (formData.agreementChoice === "buy" && tenancyData) {
+      try {
+        // Fetch template config
+        const { data: tplConfig } = await supabase.from("agreement_template_config").select("*").limit(1).single();
+        // Fetch landlord profile for name
+        const { data: landlordProfile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", user.id).single();
+
+        const pdfData = {
+          tenancyId: tenancyData.id,
+          registrationCode,
+          landlordName: landlordProfile?.full_name || "Landlord",
+          tenantName: formData.tenantName,
+          tenantId: formData.matchedTenant?.tenantIdCode || "Pending",
+          propertyName: prop.property_name || prop.address,
+          propertyAddress: prop.address,
+          unitName: unitData.unit_name,
+          unitType: unitData.unit_type,
+          monthlyRent,
+          advanceMonths: advMonths,
+          startDate: formData.existingStartDate,
+          endDate: formData.expiryDate,
+          region: prop.region,
+          ghanaPostGps: prop.ghana_post_gps || undefined,
+          landlordPhone: landlordProfile?.phone || undefined,
+          tenantPhone: formData.tenantPhone || undefined,
+          isExistingTenancy: true,
+          templateConfig: tplConfig ? {
+            max_advance_months: tplConfig.max_advance_months,
+            min_lease_duration: tplConfig.min_lease_duration,
+            max_lease_duration: tplConfig.max_lease_duration,
+            tax_rate: tplConfig.tax_rate,
+            registration_deadline_days: tplConfig.registration_deadline_days,
+            terms: tplConfig.terms,
+          } : undefined,
+          landlordSignature: {
+            name: landlordProfile?.full_name || "Landlord",
+            signedAt: new Date().toISOString(),
+            method: "Digital (Auto)",
+          },
+        };
+
+        const doc = await generateAgreementPdf(pdfData);
+        const pdfBlob = doc.output("blob");
+        const pdfPath = `generated-agreements/${user.id}/${Date.now()}_${registrationCode}.pdf`;
+        const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(pdfPath, pdfBlob, { contentType: "application/pdf" });
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(pdfPath);
+          await supabase.from("tenancies").update({
+            agreement_pdf_url: urlData.publicUrl,
+            landlord_signed_at: new Date().toISOString(),
+          } as any).eq("id", tenancyData.id);
+        }
+      } catch (pdfErr) {
+        console.error("Failed to generate agreement PDF:", pdfErr);
+      }
+    }
 
     // Activate rent cards if selected
     if (formData.selectedRentCardId && tenancyData) {

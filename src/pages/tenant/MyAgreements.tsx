@@ -39,6 +39,10 @@ interface TenancyView {
   landlord_user_id: string;
   landlord_signed_at: string | null;
   tenant_signed_at: string | null;
+  tenancy_type: string | null;
+  tax_compliance_status: string;
+  agreement_pdf_url: string | null;
+  final_agreement_pdf_url: string | null;
 }
 
 const MyAgreements = () => {
@@ -112,6 +116,10 @@ const MyAgreements = () => {
         landlord_user_id: t.landlord_user_id,
         landlord_signed_at: t.landlord_signed_at || null,
         tenant_signed_at: t.tenant_signed_at || null,
+        tenancy_type: (t as any).tenancy_type || null,
+        tax_compliance_status: (t as any).tax_compliance_status || "pending",
+        agreement_pdf_url: (t as any).agreement_pdf_url || null,
+        final_agreement_pdf_url: (t as any).final_agreement_pdf_url || null,
       });
     }
     setTenancies(results);
@@ -210,6 +218,76 @@ const MyAgreements = () => {
     setSigningTenancyId(tenancyId);
   };
 
+  // Accept existing tenancy (no tax payment required)
+  const handleAcceptExistingTenancy = async (tenancyId: string) => {
+    setPayingTax(tenancyId);
+    try {
+      const t = tenancies.find(x => x.id === tenancyId);
+      if (!t) throw new Error("Tenancy not found");
+
+      // Generate signed PDF
+      let finalPdfUrl: string | null = null;
+      try {
+        const { data: tplConfig } = await supabase.from("agreement_template_config").select("*").limit(1).single();
+        const pdfData = {
+          tenancyId: t.id,
+          registrationCode: t.registration_code,
+          landlordName: t.landlordName,
+          tenantName,
+          tenantId: tenantIdCode,
+          propertyName: t.propertyName,
+          propertyAddress: t.propertyAddress,
+          unitName: t.unitName,
+          unitType: t.unitType,
+          monthlyRent: t.agreed_rent,
+          advanceMonths: t.advance_months,
+          startDate: t.start_date,
+          endDate: t.end_date,
+          region: t.region,
+          isExistingTenancy: true,
+          templateConfig: tplConfig ? {
+            max_advance_months: tplConfig.max_advance_months,
+            min_lease_duration: tplConfig.min_lease_duration,
+            max_lease_duration: tplConfig.max_lease_duration,
+            tax_rate: tplConfig.tax_rate,
+            registration_deadline_days: tplConfig.registration_deadline_days,
+            terms: tplConfig.terms,
+          } : undefined,
+          landlordSignature: t.landlord_signed_at ? { name: t.landlordName, signedAt: t.landlord_signed_at, method: "Digital (Auto)" } : undefined,
+          tenantSignature: { name: tenantName, signedAt: new Date().toISOString(), method: "Digital" },
+        };
+        const doc = await generateAgreementPdf(pdfData);
+        const pdfBlob = doc.output("blob");
+        const pdfPath = `signed-agreements/${user!.id}/${Date.now()}_${t.registration_code}_signed.pdf`;
+        const { error: uploadErr } = await supabase.storage.from("application-evidence").upload(pdfPath, pdfBlob, { contentType: "application/pdf" });
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(pdfPath);
+          finalPdfUrl = urlData.publicUrl;
+        }
+      } catch (pdfErr) {
+        console.error("Failed to generate signed PDF:", pdfErr);
+      }
+
+      await supabase.from("tenancies").update({
+        tenant_accepted: true,
+        tenant_signed_at: new Date().toISOString(),
+        ...(finalPdfUrl ? { final_agreement_pdf_url: finalPdfUrl } : {}),
+      } as any).eq("id", tenancyId);
+
+      setTenancies(prev => prev.map(x => x.id === tenancyId ? {
+        ...x,
+        tenant_accepted: true,
+        tenant_signed_at: new Date().toISOString(),
+        final_agreement_pdf_url: finalPdfUrl || x.final_agreement_pdf_url,
+      } : x));
+      toast.success("Existing tenancy confirmed!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to confirm tenancy");
+    } finally {
+      setPayingTax(null);
+    }
+  };
+
   const handleAcceptAndPay = async (tenancyId: string) => {
     setPayingTax(tenancyId);
     try {
@@ -287,7 +365,8 @@ const MyAgreements = () => {
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   const pending = tenancies.filter(t => !t.tenant_accepted && t.status === "pending");
-  const active = tenancies.filter(t => t.tenant_accepted || t.status === "active");
+  const existingPending = tenancies.filter(t => !t.tenant_accepted && t.status === "existing_declared");
+  const active = tenancies.filter(t => (t.tenant_accepted || t.status === "active") && t.status !== "rejected");
   const rejected = tenancies.filter(t => t.status === "rejected");
 
   return (
@@ -346,6 +425,63 @@ const MyAgreements = () => {
         </motion.div>
       ))}
 
+      {/* Existing Tenancy — Pending Confirmation */}
+      {existingPending.map(t => (
+        <motion.div key={t.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-elevated border-2 border-info/40 space-y-4">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-info" />
+            <h2 className="text-lg font-semibold text-card-foreground">Existing Tenancy — Confirm Your Agreement</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Your landlord <strong>{t.landlordName}</strong> has declared an existing tenancy for you. Review the details and confirm.
+          </p>
+          {t.landlord_signed_at && (
+            <div className="flex items-center gap-2 text-xs text-success bg-success/5 border border-success/20 rounded-lg px-3 py-2">
+              <PenLine className="h-3.5 w-3.5" />
+              <span>Landlord signed on {new Date(t.landlord_signed_at).toLocaleDateString("en-GB")}</span>
+            </div>
+          )}
+          {/* Tax compliance badge */}
+          <div className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+            t.tax_compliance_status === "verified" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+          }`}>
+            <Shield className="h-3 w-3" />
+            Tax Compliance: {t.tax_compliance_status === "verified" ? "Verified" : "Pending"}
+          </div>
+          <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            {[
+              ["Property", t.propertyName],
+              ["Address", t.propertyAddress],
+              ["Unit", `${t.unitName} (${t.unitType})`],
+              ["Monthly Rent", `GH₵ ${t.agreed_rent.toLocaleString()}`],
+              ["Advance Paid", `${t.advance_months} month(s)`],
+              ["Period", `${new Date(t.start_date).toLocaleDateString("en-GB")} — ${new Date(t.end_date).toLocaleDateString("en-GB")}`],
+            ].map(([label, value]) => (
+              <div key={label}><span className="text-muted-foreground">{label}</span><div className="font-semibold text-card-foreground">{value}</div></div>
+            ))}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            {(t.agreement_pdf_url || t.final_agreement_pdf_url) && (
+              <a href={t.final_agreement_pdf_url || t.agreement_pdf_url || "#"} target="_blank" rel="noopener noreferrer">
+                <Button variant="outline"><Download className="h-4 w-4 mr-1" /> Download Agreement</Button>
+              </a>
+            )}
+            <Button
+              variant="destructive"
+              onClick={() => handleReject(t.id)}
+              disabled={rejecting === t.id}
+            >
+              <XCircle className="h-4 w-4 mr-1" />
+              {rejecting === t.id ? "Rejecting..." : "Reject"}
+            </Button>
+            <Button onClick={() => handleAcceptExistingTenancy(t.id)} disabled={payingTax === t.id}>
+              <CheckCircle2 className="h-4 w-4 mr-1" />
+              {payingTax === t.id ? "Processing..." : "Confirm Tenancy"}
+            </Button>
+          </div>
+        </motion.div>
+      ))}
+
       {/* Active */}
       {active.length > 0 && (
         <div>
@@ -358,9 +494,18 @@ const MyAgreements = () => {
                     <h3 className="font-bold text-card-foreground text-lg">{t.propertyName}</h3>
                     <p className="text-sm text-muted-foreground">{t.propertyAddress} • {t.unitName} ({t.unitType})</p>
                   </div>
-                  <span className="flex items-center gap-1 text-xs font-semibold text-success bg-success/10 px-2.5 py-1 rounded-full">
-                    <Shield className="h-3 w-3" /> Registered
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-success bg-success/10 px-2.5 py-1 rounded-full">
+                      <Shield className="h-3 w-3" /> Registered
+                    </span>
+                    {t.tenancy_type === "existing_migration" && (
+                      <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        t.tax_compliance_status === "verified" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                      }`}>
+                        Tax: {t.tax_compliance_status === "verified" ? "Verified" : "Pending"}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                   <div><div className="text-muted-foreground">Landlord</div><div className="font-semibold">{t.landlordName}</div></div>
