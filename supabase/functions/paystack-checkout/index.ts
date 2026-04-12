@@ -712,6 +712,65 @@ Deno.serve(async (req) => {
       reference = `archsearch_${userId}_${Date.now()}`;
       callbackPath = "/landlord/applications?status=success";
 
+    } else if (type === "existing_tenancy_bundle") {
+      // Composite fee for Declare Existing Tenancy: register_tenant_fee + filing_fee + optional agreement_sale
+      const { monthlyRent: bodyMonthlyRent, propertyId: bodyPropertyId, agreementChoice: bodyAgreementChoice } = body;
+      if (!bodyMonthlyRent || Number(bodyMonthlyRent) <= 0) throw new Error("Monthly rent is required");
+
+      if (bodyPropertyId) {
+        officeId = await resolveOffice(supabaseAdmin, { propertyId: bodyPropertyId });
+        relatedPropertyId = bodyPropertyId;
+      } else {
+        officeId = await resolveOffice(supabaseAdmin, { userId });
+      }
+      caseType = "tenancy";
+
+      // Look up existing_tenancy band
+      const mr = Number(bodyMonthlyRent);
+      const { data: bands } = await supabaseAdmin
+        .from("rent_bands")
+        .select("id, min_rent, max_rent, register_fee, filing_fee, agreement_fee")
+        .eq("band_type", "existing_tenancy")
+        .order("min_rent", { ascending: true });
+
+      let matchedBand: any = null;
+      if (bands) {
+        for (const band of bands) {
+          const min = Number(band.min_rent);
+          const max = band.max_rent !== null ? Number(band.max_rent) : Infinity;
+          if (mr >= min && mr <= max) { matchedBand = band; break; }
+        }
+      }
+      if (!matchedBand) throw new Error(`No existing tenancy rent band configured for monthly rent of GH₵ ${mr}`);
+
+      const regFee = Number(matchedBand.register_fee ?? 0);
+      const filFee = Number(matchedBand.filing_fee ?? 0);
+      const agrFee = bodyAgreementChoice === "buy" ? Number(matchedBand.agreement_fee ?? 0) : 0;
+      totalAmount = regFee + filFee + agrFee;
+
+      if (totalAmount <= 0) {
+        return new Response(JSON.stringify({ skipped: true, message: "Existing tenancy fees are currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Build split plan from each fee's band allocations
+      const feeComponents = [
+        { type: "register_tenant_fee", amount: regFee },
+        { type: "filing_fee", amount: filFee },
+      ];
+      if (agrFee > 0) feeComponents.push({ type: "agreement_sale", amount: agrFee });
+
+      splitPlan = [];
+      for (const fc of feeComponents) {
+        if (fc.amount <= 0) continue;
+        const alloc = await loadAllocation(supabaseAdmin, fc.type, fc.amount, matchedBand.id);
+        splitPlan.push(...alloc.map(a => ({ ...a, description: `${a.description || a.recipient} (${fc.type})` })));
+      }
+
+      description = `Existing Tenancy Registration (GH₵ ${totalAmount})`;
+      reference = `extbundle_${userId}_${Date.now()}`;
+      callbackPath = body.callbackPath || "/landlord/declare-existing-tenancy?status=fee_paid";
+      metadata = { agreementChoice: bodyAgreementChoice, bandId: matchedBand.id };
+
     } else {
       throw new Error("Invalid payment type");
     }
