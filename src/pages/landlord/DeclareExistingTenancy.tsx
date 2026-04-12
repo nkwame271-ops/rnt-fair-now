@@ -10,7 +10,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-type Step = "select-unit" | "find-tenant" | "details" | "review" | "done";
+type Step = "select-unit" | "find-tenant" | "details" | "agreement-choice" | "review" | "done";
 
 interface PropertyWithUnits {
   id: string;
@@ -58,9 +58,11 @@ const DeclareExistingTenancy = () => {
   const [selectedRentCardId, setSelectedRentCardId] = useState("");
   const [selectedRentCardId2, setSelectedRentCardId2] = useState("");
 
-  // Rent band fee
-  const [rentBandFee, setRentBandFee] = useState<number | null>(null);
+  // Rent band fees for existing tenancy
+  const [existingBand, setExistingBand] = useState<{ register_fee: number; filing_fee: number; agreement_fee: number; fee_amount: number; id: string } | null>(null);
   const [feeEnabled, setFeeEnabled] = useState(true);
+  // Agreement choice: "upload" or "buy"
+  const [agreementChoice, setAgreementChoice] = useState<"upload" | "buy">("upload");
 
   // Audio recording handlers
   const startRecording = async () => {
@@ -180,26 +182,33 @@ const DeclareExistingTenancy = () => {
     fetchFee();
   }, []);
 
-  // Lookup rent band fee when rent changes
+  // Lookup existing tenancy rent band when rent changes
   useEffect(() => {
     const monthlyRent = parseFloat(rent) || 0;
-    if (monthlyRent <= 0) { setRentBandFee(null); return; }
+    if (monthlyRent <= 0) { setExistingBand(null); return; }
     const lookupBand = async () => {
       const { data: bands } = await supabase
         .from("rent_bands")
-        .select("min_rent, max_rent, fee_amount")
+        .select("id, min_rent, max_rent, fee_amount, register_fee, filing_fee, agreement_fee")
+        .eq("band_type", "existing_tenancy")
         .order("min_rent");
       if (bands) {
-        for (const band of bands) {
+        for (const band of bands as any[]) {
           const min = Number(band.min_rent);
           const max = band.max_rent !== null ? Number(band.max_rent) : Infinity;
           if (monthlyRent >= min && monthlyRent <= max) {
-            setRentBandFee(Number(band.fee_amount));
+            setExistingBand({
+              id: band.id,
+              fee_amount: Number(band.fee_amount),
+              register_fee: Number(band.register_fee ?? 0),
+              filing_fee: Number(band.filing_fee ?? 0),
+              agreement_fee: Number(band.agreement_fee ?? 0),
+            });
             return;
           }
         }
       }
-      setRentBandFee(null);
+      setExistingBand(null);
     };
     lookupBand();
   }, [rent]);
@@ -439,6 +448,12 @@ const DeclareExistingTenancy = () => {
     toast.success("Existing tenancy declared successfully!");
   };
 
+  // Computed total fee based on agreement choice
+  const registerFee = existingBand?.register_fee ?? 0;
+  const filingFee = existingBand?.filing_fee ?? 0;
+  const agreementSaleFee = existingBand?.agreement_fee ?? 0;
+  const totalFee = registerFee + filingFee + (agreementChoice === "buy" ? agreementSaleFee : 0);
+
   const handleSubmit = async () => {
     if (!user || !property || !unit) return;
     if (!tenantName.trim() || !tenantPhone.trim()) {
@@ -447,10 +462,9 @@ const DeclareExistingTenancy = () => {
     }
 
     const monthlyRent = parseFloat(rent) || 0;
-    const feeAmount = rentBandFee ?? 0;
 
     // If fee is enabled and > 0, redirect to payment
-    if (feeEnabled && feeAmount > 0) {
+    if (feeEnabled && totalFee > 0) {
       // Save form to sessionStorage
       const formData = {
         selectedPropertyId,
@@ -466,6 +480,7 @@ const DeclareExistingTenancy = () => {
         selectedRentCardId2,
         hasAgreementFile: !!agreementFile,
         hasVoiceFile: !!voiceFile,
+        agreementChoice,
       };
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(formData));
 
@@ -473,9 +488,10 @@ const DeclareExistingTenancy = () => {
       try {
         const { data, error } = await supabase.functions.invoke("paystack-checkout", {
           body: {
-            type: "agreement_sale",
+            type: "existing_tenancy_bundle",
             monthlyRent,
             propertyId: property.id,
+            agreementChoice,
             callbackPath: "/landlord/declare-existing-tenancy?status=fee_paid",
           },
         });
@@ -519,6 +535,7 @@ const DeclareExistingTenancy = () => {
           selectedRentCardId2,
           hasAgreementFile: !!agreementFile,
           hasVoiceFile: !!voiceFile,
+          agreementChoice,
         };
         await createTenancyRecord(formData, property, unit);
       } catch (err: any) {
@@ -546,8 +563,8 @@ const DeclareExistingTenancy = () => {
 
       {/* Progress */}
       <div className="flex items-center gap-2 text-xs font-medium flex-wrap">
-        {["Select Unit", "Tenant Info", "Tenancy Details", "Review"].map((s, i) => {
-          const steps: Step[] = ["select-unit", "find-tenant", "details", "review"];
+        {["Select Unit", "Tenant Info", "Tenancy Details", "Agreement", "Review"].map((s, i) => {
+          const steps: Step[] = ["select-unit", "find-tenant", "details", "agreement-choice", "review"];
           const currentIdx = steps.indexOf(step === "done" ? "review" : step);
           const isActive = i <= currentIdx;
           return (
@@ -705,10 +722,10 @@ const DeclareExistingTenancy = () => {
             <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-1 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Monthly Rent</span><span className="font-semibold">GH₵ {monthlyRent.toLocaleString()}</span></div>
               <div className="flex justify-between text-primary font-semibold"><span>Maximum Lawful Advance (6 months)</span><span>GH₵ {maxLawfulAdvance.toLocaleString()}</span></div>
-              {feeEnabled && rentBandFee !== null && (
-                <div className="flex justify-between pt-2 border-t border-primary/10">
-                  <span className="text-muted-foreground">Registration Fee</span>
-                  <span className="font-semibold text-card-foreground">GH₵ {rentBandFee.toFixed(2)}</span>
+              {feeEnabled && existingBand && (
+                <div className="pt-2 border-t border-primary/10 space-y-1">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Register Tenant Fee</span><span className="font-semibold text-card-foreground">GH₵ {registerFee.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Filing Fee</span><span className="font-semibold text-card-foreground">GH₵ {filingFee.toFixed(2)}</span></div>
                 </div>
               )}
             </div>
@@ -794,12 +811,86 @@ const DeclareExistingTenancy = () => {
 
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("find-tenant")}>Back</Button>
-            <Button disabled={!rent || monthlyRent <= 0 || !existingStartDate || !expiryDate || !selectedRentCardId || !selectedRentCardId2} onClick={() => setStep("review")}>Next: Review</Button>
+            <Button disabled={!rent || monthlyRent <= 0 || !existingStartDate || !expiryDate || !selectedRentCardId || !selectedRentCardId2} onClick={() => setStep("agreement-choice")}>Next: Agreement</Button>
           </div>
         </motion.div>
       )}
 
-      {/* Step 4: Review */}
+      {/* Step 4: Agreement Choice */}
+      {step === "agreement-choice" && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
+          <h2 className="text-lg font-semibold text-card-foreground">Agreement Type</h2>
+          <p className="text-sm text-muted-foreground">
+            Choose how you want to handle the tenancy agreement for this existing tenancy.
+          </p>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => setAgreementChoice("upload")}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                agreementChoice === "upload"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-muted-foreground/30"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Upload className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-card-foreground">Upload Existing Agreement</span>
+              </div>
+              <p className="text-xs text-muted-foreground">I already have an agreement document. I'll upload it myself.</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAgreementChoice("buy")}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                agreementChoice === "buy"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-muted-foreground/30"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-card-foreground">Buy Tenancy Agreement</span>
+              </div>
+              <p className="text-xs text-muted-foreground">The platform generates a standard tenancy agreement for you.</p>
+            </button>
+          </div>
+
+          {/* Fee Basket */}
+          {feeEnabled && existingBand && (
+            <div className="bg-muted/30 border border-border rounded-lg p-4 space-y-2 text-sm">
+              <p className="font-semibold text-card-foreground mb-2">Fee Breakdown</p>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Register Tenant Fee</span>
+                <span className="font-semibold">GH₵ {registerFee.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Filing Existing Tenancy Fee</span>
+                <span className="font-semibold">GH₵ {filingFee.toFixed(2)}</span>
+              </div>
+              {agreementChoice === "buy" && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Agreement Sale Fee</span>
+                  <span className="font-semibold">GH₵ {agreementSaleFee.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-2 border-t border-border font-bold text-card-foreground">
+                <span>Total</span>
+                <span>GH₵ {totalFee.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setStep("details")}>Back</Button>
+            <Button onClick={() => setStep("review")}>Next: Review</Button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Step 5: Review */}
       {step === "review" && property && unit && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
           <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
@@ -821,6 +912,7 @@ const DeclareExistingTenancy = () => {
                 ["Expiry Date", new Date(expiryDate).toLocaleDateString("en-GB")],
                 ["Rent Card (Landlord)", availableRentCards.find(c => c.id === selectedRentCardId)?.serial_number || "—"],
                 ["Rent Card (Tenant)", availableRentCards.find(c => c.id === selectedRentCardId2)?.serial_number || "—"],
+                ["Agreement Type", agreementChoice === "buy" ? "Buy Agreement from Platform" : "Upload Own Agreement"],
                 ["Agreement Upload", agreementFile ? agreementFile.name : "None"],
                 ["Voice Message", audioBlob ? "Recorded" : voiceFile ? voiceFile.name : "None"],
                 ["Status", "Existing Tenancy — Awaiting Verification"],
@@ -832,18 +924,23 @@ const DeclareExistingTenancy = () => {
               ))}
             </div>
 
-            {feeEnabled && rentBandFee !== null && rentBandFee > 0 && (
-              <div className="bg-warning/5 border border-warning/20 rounded-lg p-3 flex items-center gap-2 text-sm">
-                <AlertCircle className="h-4 w-4 text-warning shrink-0" />
-                <span>A registration fee of <strong>GH₵ {rentBandFee.toFixed(2)}</strong> will be charged before submission.</span>
+            {feeEnabled && totalFee > 0 && (
+              <div className="bg-muted/30 border border-border rounded-lg p-4 space-y-2 text-sm">
+                <p className="font-semibold text-card-foreground mb-1">Fees</p>
+                <div className="flex justify-between"><span className="text-muted-foreground">Register Tenant Fee</span><span>GH₵ {registerFee.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Filing Fee</span><span>GH₵ {filingFee.toFixed(2)}</span></div>
+                {agreementChoice === "buy" && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">Agreement Sale Fee</span><span>GH₵ {agreementSaleFee.toFixed(2)}</span></div>
+                )}
+                <div className="flex justify-between pt-2 border-t border-border font-bold"><span>Total</span><span>GH₵ {totalFee.toFixed(2)}</span></div>
               </div>
             )}
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setStep("details")}>Back</Button>
+            <Button variant="outline" onClick={() => setStep("agreement-choice")}>Back</Button>
             <Button onClick={handleSubmit} disabled={submitting}>
               {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
-              {submitting ? "Processing..." : feeEnabled && rentBandFee ? `Pay GH₵ ${rentBandFee.toFixed(2)} & Submit` : "Declare Existing Tenancy"}
+              {submitting ? "Processing..." : feeEnabled && totalFee > 0 ? `Pay GH₵ ${totalFee.toFixed(2)} & Submit` : "Declare Existing Tenancy"}
             </Button>
           </div>
         </motion.div>

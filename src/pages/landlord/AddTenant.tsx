@@ -62,7 +62,7 @@ const AddTenant = () => {
         supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
         supabase.from("agreement_template_config").select("*").limit(1).single(),
         supabase.from("rent_cards").select("id, serial_number").eq("landlord_user_id", user.id).eq("status", "valid"),
-        supabase.from("rent_bands").select("min_rent, max_rent, fee_amount").order("min_rent"),
+        supabase.from("rent_bands").select("min_rent, max_rent, fee_amount").eq("band_type", "add_tenant").order("min_rent"),
       ]);
       setProperties((propsRes.data || []) as PropertyWithUnits[]);
       setLandlordName(profileRes.data?.full_name || "");
