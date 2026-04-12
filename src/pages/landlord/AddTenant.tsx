@@ -27,6 +27,7 @@ const AddTenant = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const feeConfig = useFeeConfig("add_tenant_fee");
+  const [rentBands, setRentBands] = useState<{ min_rent: number; max_rent: number | null; fee_amount: number }[]>([]);
   const [step, setStep] = useState<Step>("select-unit");
   const [properties, setProperties] = useState<PropertyWithUnits[]>([]);
   const [loading, setLoading] = useState(true);
