@@ -448,6 +448,12 @@ const DeclareExistingTenancy = () => {
     toast.success("Existing tenancy declared successfully!");
   };
 
+  // Computed total fee based on agreement choice
+  const registerFee = existingBand?.register_fee ?? 0;
+  const filingFee = existingBand?.filing_fee ?? 0;
+  const agreementSaleFee = existingBand?.agreement_fee ?? 0;
+  const totalFee = registerFee + filingFee + (agreementChoice === "buy" ? agreementSaleFee : 0);
+
   const handleSubmit = async () => {
     if (!user || !property || !unit) return;
     if (!tenantName.trim() || !tenantPhone.trim()) {
@@ -456,10 +462,9 @@ const DeclareExistingTenancy = () => {
     }
 
     const monthlyRent = parseFloat(rent) || 0;
-    const feeAmount = rentBandFee ?? 0;
 
     // If fee is enabled and > 0, redirect to payment
-    if (feeEnabled && feeAmount > 0) {
+    if (feeEnabled && totalFee > 0) {
       // Save form to sessionStorage
       const formData = {
         selectedPropertyId,
@@ -475,6 +480,7 @@ const DeclareExistingTenancy = () => {
         selectedRentCardId2,
         hasAgreementFile: !!agreementFile,
         hasVoiceFile: !!voiceFile,
+        agreementChoice,
       };
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(formData));
 
@@ -482,9 +488,10 @@ const DeclareExistingTenancy = () => {
       try {
         const { data, error } = await supabase.functions.invoke("paystack-checkout", {
           body: {
-            type: "agreement_sale",
+            type: "existing_tenancy_bundle",
             monthlyRent,
             propertyId: property.id,
+            agreementChoice,
             callbackPath: "/landlord/declare-existing-tenancy?status=fee_paid",
           },
         });
@@ -528,6 +535,7 @@ const DeclareExistingTenancy = () => {
           selectedRentCardId2,
           hasAgreementFile: !!agreementFile,
           hasVoiceFile: !!voiceFile,
+          agreementChoice,
         };
         await createTenancyRecord(formData, property, unit);
       } catch (err: any) {
@@ -555,8 +563,8 @@ const DeclareExistingTenancy = () => {
 
       {/* Progress */}
       <div className="flex items-center gap-2 text-xs font-medium flex-wrap">
-        {["Select Unit", "Tenant Info", "Tenancy Details", "Review"].map((s, i) => {
-          const steps: Step[] = ["select-unit", "find-tenant", "details", "review"];
+        {["Select Unit", "Tenant Info", "Tenancy Details", "Agreement", "Review"].map((s, i) => {
+          const steps: Step[] = ["select-unit", "find-tenant", "details", "agreement-choice", "review"];
           const currentIdx = steps.indexOf(step === "done" ? "review" : step);
           const isActive = i <= currentIdx;
           return (
