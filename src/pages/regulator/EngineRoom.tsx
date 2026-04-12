@@ -47,6 +47,10 @@ interface RentBand {
   max_rent: number | null;
   fee_amount: number;
   label: string | null;
+  band_type: string;
+  register_fee: number | null;
+  filing_fee: number | null;
+  agreement_fee: number | null;
 }
 
 interface BandAllocation {
@@ -71,6 +75,8 @@ const PAYMENT_TYPE_LABELS: Record<string, string> = {
   termination_fee: "Termination Fee",
   archive_search_fee: "Archive Search Fee",
   rent_tax: "Tax Revenue",
+  register_tenant_fee: "Register Tenant Fee",
+  filing_fee: "Filing Fee",
 };
 
 const RECIPIENT_LABELS: Record<string, string> = {
@@ -358,12 +364,19 @@ const EngineRoom = () => {
     setSavingBand(null);
   };
 
-  const handleAddBand = async () => {
-    const lastBand = rentBands[rentBands.length - 1];
+  const handleAddBand = async (bandType: string = "add_tenant") => {
+    const bandsOfType = rentBands.filter(b => b.band_type === bandType);
+    const lastBand = bandsOfType[bandsOfType.length - 1];
     const newMin = lastBand ? (lastBand.max_rent ? lastBand.max_rent + 0.01 : 5000.01) : 0;
+    const insertData: any = { min_rent: newMin, max_rent: null, fee_amount: 50, label: `New Band`, band_type: bandType, updated_by: user?.id };
+    if (bandType === "existing_tenancy") {
+      insertData.register_fee = 50;
+      insertData.filing_fee = 0;
+      insertData.agreement_fee = 0;
+    }
     const { data, error } = await supabase
       .from("rent_bands")
-      .insert({ min_rent: newMin, max_rent: null, fee_amount: 50, label: `New Band`, updated_by: user?.id } as any)
+      .insert(insertData)
       .select()
       .single();
     if (error) {
