@@ -811,12 +811,86 @@ const DeclareExistingTenancy = () => {
 
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep("find-tenant")}>Back</Button>
-            <Button disabled={!rent || monthlyRent <= 0 || !existingStartDate || !expiryDate || !selectedRentCardId || !selectedRentCardId2} onClick={() => setStep("review")}>Next: Review</Button>
+            <Button disabled={!rent || monthlyRent <= 0 || !existingStartDate || !expiryDate || !selectedRentCardId || !selectedRentCardId2} onClick={() => setStep("agreement-choice")}>Next: Agreement</Button>
           </div>
         </motion.div>
       )}
 
-      {/* Step 4: Review */}
+      {/* Step 4: Agreement Choice */}
+      {step === "agreement-choice" && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
+          <h2 className="text-lg font-semibold text-card-foreground">Agreement Type</h2>
+          <p className="text-sm text-muted-foreground">
+            Choose how you want to handle the tenancy agreement for this existing tenancy.
+          </p>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => setAgreementChoice("upload")}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                agreementChoice === "upload"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-muted-foreground/30"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Upload className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-card-foreground">Upload Existing Agreement</span>
+              </div>
+              <p className="text-xs text-muted-foreground">I already have an agreement document. I'll upload it myself.</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAgreementChoice("buy")}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                agreementChoice === "buy"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-muted-foreground/30"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-card-foreground">Buy Tenancy Agreement</span>
+              </div>
+              <p className="text-xs text-muted-foreground">The platform generates a standard tenancy agreement for you.</p>
+            </button>
+          </div>
+
+          {/* Fee Basket */}
+          {feeEnabled && existingBand && (
+            <div className="bg-muted/30 border border-border rounded-lg p-4 space-y-2 text-sm">
+              <p className="font-semibold text-card-foreground mb-2">Fee Breakdown</p>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Register Tenant Fee</span>
+                <span className="font-semibold">GH₵ {registerFee.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Filing Existing Tenancy Fee</span>
+                <span className="font-semibold">GH₵ {filingFee.toFixed(2)}</span>
+              </div>
+              {agreementChoice === "buy" && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Agreement Sale Fee</span>
+                  <span className="font-semibold">GH₵ {agreementSaleFee.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-2 border-t border-border font-bold text-card-foreground">
+                <span>Total</span>
+                <span>GH₵ {totalFee.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setStep("details")}>Back</Button>
+            <Button onClick={() => setStep("review")}>Next: Review</Button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Step 5: Review */}
       {step === "review" && property && unit && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
           <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
@@ -838,6 +912,7 @@ const DeclareExistingTenancy = () => {
                 ["Expiry Date", new Date(expiryDate).toLocaleDateString("en-GB")],
                 ["Rent Card (Landlord)", availableRentCards.find(c => c.id === selectedRentCardId)?.serial_number || "—"],
                 ["Rent Card (Tenant)", availableRentCards.find(c => c.id === selectedRentCardId2)?.serial_number || "—"],
+                ["Agreement Type", agreementChoice === "buy" ? "Buy Agreement from Platform" : "Upload Own Agreement"],
                 ["Agreement Upload", agreementFile ? agreementFile.name : "None"],
                 ["Voice Message", audioBlob ? "Recorded" : voiceFile ? voiceFile.name : "None"],
                 ["Status", "Existing Tenancy — Awaiting Verification"],
@@ -849,18 +924,23 @@ const DeclareExistingTenancy = () => {
               ))}
             </div>
 
-            {feeEnabled && rentBandFee !== null && rentBandFee > 0 && (
-              <div className="bg-warning/5 border border-warning/20 rounded-lg p-3 flex items-center gap-2 text-sm">
-                <AlertCircle className="h-4 w-4 text-warning shrink-0" />
-                <span>A registration fee of <strong>GH₵ {rentBandFee.toFixed(2)}</strong> will be charged before submission.</span>
+            {feeEnabled && totalFee > 0 && (
+              <div className="bg-muted/30 border border-border rounded-lg p-4 space-y-2 text-sm">
+                <p className="font-semibold text-card-foreground mb-1">Fees</p>
+                <div className="flex justify-between"><span className="text-muted-foreground">Register Tenant Fee</span><span>GH₵ {registerFee.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Filing Fee</span><span>GH₵ {filingFee.toFixed(2)}</span></div>
+                {agreementChoice === "buy" && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">Agreement Sale Fee</span><span>GH₵ {agreementSaleFee.toFixed(2)}</span></div>
+                )}
+                <div className="flex justify-between pt-2 border-t border-border font-bold"><span>Total</span><span>GH₵ {totalFee.toFixed(2)}</span></div>
               </div>
             )}
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setStep("details")}>Back</Button>
+            <Button variant="outline" onClick={() => setStep("agreement-choice")}>Back</Button>
             <Button onClick={handleSubmit} disabled={submitting}>
               {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
-              {submitting ? "Processing..." : feeEnabled && rentBandFee ? `Pay GH₵ ${rentBandFee.toFixed(2)} & Submit` : "Declare Existing Tenancy"}
+              {submitting ? "Processing..." : feeEnabled && totalFee > 0 ? `Pay GH₵ ${totalFee.toFixed(2)} & Submit` : "Declare Existing Tenancy"}
             </Button>
           </div>
         </motion.div>
