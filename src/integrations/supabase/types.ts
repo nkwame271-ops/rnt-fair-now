@@ -2913,6 +2913,7 @@ export type Database = {
           rent_card_id_2: string | null
           start_date: string
           status: string
+          tax_compliance_status: string
           tenancy_type: string
           tenant_accepted: boolean | null
           tenant_id_code: string
@@ -2954,6 +2955,7 @@ export type Database = {
           rent_card_id_2?: string | null
           start_date: string
           status?: string
+          tax_compliance_status?: string
           tenancy_type?: string
           tenant_accepted?: boolean | null
           tenant_id_code: string
@@ -2995,6 +2997,7 @@ export type Database = {
           rent_card_id_2?: string | null
           start_date?: string
           status?: string
+          tax_compliance_status?: string
           tenancy_type?: string
           tenant_accepted?: boolean | null
           tenant_id_code?: string

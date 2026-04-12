@@ -1,0 +1,1 @@
+ALTER TABLE public.tenancies ADD COLUMN tax_compliance_status TEXT NOT NULL DEFAULT 'pending';
