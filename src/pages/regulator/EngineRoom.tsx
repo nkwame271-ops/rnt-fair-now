@@ -84,6 +84,7 @@ const RECIPIENT_LABELS: Record<string, string> = {
 const BAND_BASED_FEE_KEYS = new Set(["agreement_sale_fee", "add_tenant_fee"]);
 
 const EngineRoom = () => {
+  // Loading guard rendered at end of component after all hooks
   const { user } = useAuth();
   const { flags, loading, refetch } = useAllFeatureFlags();
   const { profile, loading: profileLoading } = useAdminProfile();
@@ -599,6 +600,8 @@ const EngineRoom = () => {
       </div>
     );
   };
+
+  if (loading || profileLoading) return <LogoLoader message="Loading Engine Room..." />;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

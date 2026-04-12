@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { UserPlus, Search, CheckCircle2, FileText, Download, ArrowLeft, Loader2, AlertTriangle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ const AddTenant = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const feeConfig = useFeeConfig("add_tenant_fee");
+  const [rentBands, setRentBands] = useState<{ min_rent: number; max_rent: number | null; fee_amount: number }[]>([]);
   const [step, setStep] = useState<Step>("select-unit");
   const [properties, setProperties] = useState<PropertyWithUnits[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,11 +57,12 @@ const AddTenant = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const [propsRes, profileRes, configRes, rentCardsRes] = await Promise.all([
+      const [propsRes, profileRes, configRes, rentCardsRes, bandsRes] = await Promise.all([
         supabase.from("properties").select("id, property_name, address, region, property_category, units(id, unit_name, unit_type, monthly_rent, status)").eq("landlord_user_id", user.id).eq("assessment_status", "approved").in("property_status", ["approved", "live", "occupied"]),
         supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
         supabase.from("agreement_template_config").select("*").limit(1).single(),
         supabase.from("rent_cards").select("id, serial_number").eq("landlord_user_id", user.id).eq("status", "valid"),
+        supabase.from("rent_bands").select("min_rent, max_rent, fee_amount").order("min_rent"),
       ]);
       setProperties((propsRes.data || []) as PropertyWithUnits[]);
       setLandlordName(profileRes.data?.full_name || "");
@@ -70,6 +72,7 @@ const AddTenant = () => {
         setCustomFields(cf);
       }
       setAvailableRentCards((rentCardsRes.data || []) as { id: string; serial_number: string }[]);
+      setRentBands((bandsRes.data || []) as { min_rent: number; max_rent: number | null; fee_amount: number }[]);
       setLoading(false);
     };
     fetchData();
@@ -221,6 +224,13 @@ const AddTenant = () => {
   const toLandlord = monthlyRent * (1 - taxRate);
   const maxAdvance = templateConfig?.max_advance_months ?? 6;
 
+  // Dynamic fee from rent bands
+  const bandFee = useMemo(() => {
+    if (!feeConfig.enabled || rentBands.length === 0) return feeConfig.amount;
+    const band = rentBands.find(b => monthlyRent >= b.min_rent && (b.max_rent === null || monthlyRent <= b.max_rent));
+    return band ? band.fee_amount : feeConfig.amount;
+  }, [monthlyRent, rentBands, feeConfig.enabled, feeConfig.amount]);
+
   const handleDownloadPdf = async () => {
     if (!property || !unit || !foundTenant) return;
     const doc = await generateAgreementPdf({
@@ -250,6 +260,23 @@ const AddTenant = () => {
     if (!user || !foundTenant || !property || !unit || !selectedRentCardId || !selectedRentCardId2) return;
     setSubmitting(true);
     try {
+      // Payment bypass prevention: verify fee was paid
+      if (feeConfig.enabled && bandFee > 0) {
+        const { data: paidTx } = await supabase
+          .from("escrow_transactions")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("payment_type", "add_tenant_fee")
+          .eq("status", "completed")
+          .order("completed_at", { ascending: false })
+          .limit(1);
+        if (!paidTx || paidTx.length === 0) {
+          toast.error("Payment required. Please pay the tenancy registration fee before submitting.");
+          setSubmitting(false);
+          return;
+        }
+      }
+
       const months = parseInt(advanceMonths);
       const moveIn = startDate;
 
@@ -702,9 +729,9 @@ const AddTenant = () => {
             <Button variant="outline" onClick={handleDownloadPdf}>
               <Download className="h-4 w-4 mr-1" /> Download PDF
             </Button>
-            {feeConfig.enabled && feeConfig.amount > 0 ? (
+            {feeConfig.enabled && bandFee > 0 ? (
               <Button onClick={handlePayFee} disabled={submitting}>
-                <CreditCard className="h-4 w-4 mr-1" /> {submitting ? "Processing..." : `Pay GH₵ ${feeConfig.amount.toFixed(2)} & Submit`}
+                <CreditCard className="h-4 w-4 mr-1" /> {submitting ? "Processing..." : `Pay GH₵ ${bandFee.toFixed(2)} & Submit`}
               </Button>
             ) : (
               <Button onClick={handleSubmit} disabled={submitting}>
