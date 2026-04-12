@@ -1,56 +1,95 @@
 
 
-# Fix 6 Bugs: Engine Room, Escrow Reports, Operational Date, Add Tenant Fee, Payment Bypass, Rent Increase
+# Separate Rent Bands & Declare Existing Tenancy Fee Basket
 
-## Bug Summary
+## Overview
 
-### 1. Engine Room Empty for Super Admin
-**Root cause**: No loading guard. When `useAdminProfile` and `useAllFeatureFlags` are still loading, `isMainAdmin` defaults to `false` and all flag arrays are empty, so nothing renders — just the title.
-**Fix**: Add `if (loading || profileLoading) return <LogoLoader />` at top of the render in `EngineRoom.tsx`.
+Currently there is ONE `rent_bands` table used by both "Add Tenant" and "Declare Existing Tenancy" flows. The request is to separate these into two independent band sets with distinct fee structures, and add a basket-style selection in the Declare Existing Tenancy workflow.
 
-### 2. Escrow Report Shows Muted Cards
-**Root cause**: The CSV and PDF export functions use `revenueByType` (unfiltered) and `allAllocationCards` instead of `visibleRevenueByType` and `allocationCards` (which are already filtered by visibility). Line 309 uses `revenueByType`, line 388 uses `revenueByType`, and lines 298/305 use raw `stats.totalEscrow` instead of `visibleRevenueTotal`.
-**Fix**: Replace all references in `exportCSV()` and `exportPDF()` to use the visibility-filtered arrays and totals.
+## Database Changes
 
-### 3. Operational Start Date Not Filtering Escrow
-**Root cause**: `EscrowDashboard.tsx` never reads the `operational_start_date` from `platform_config`. It queries all escrow transactions without applying a minimum date filter.
-**Fix**: Fetch `operational_start_date` from `platform_config` on mount. When `datePreset === "all"`, use the operational start date as the `from` date instead of null.
+### 1. Add `band_type` column to `rent_bands`
+Add a `band_type TEXT NOT NULL DEFAULT 'add_tenant'` column to distinguish between the two band types:
+- `add_tenant` — used by the Add Tenant flow
+- `existing_tenancy` — used by the Declare Existing Tenancy flow
 
-### 4. Add Tenant Fee Shows Static GH₵ 30
-**Root cause**: `useFeeConfig("add_tenant_fee")` reads from `feature_flags.fee_amount` which is 30. But the actual fee is band-based (determined by rent bands at checkout). The frontend button says "Pay GH₵ 30.00" regardless of rent amount.
-**Fix**: In `AddTenant.tsx`, when the user enters a rent amount, look up the matching rent band's `fee_amount` and display that instead of the static `feeConfig.amount`. Fetch `rent_bands` and compute the correct fee based on `monthlyRent`.
+### 2. Add `band_type` column to `rent_band_allocations`
+No change needed here — allocations already link to specific `rent_band_id`, so the band type is inherited. But we need to support three payment types per band:
+- Current types: `agreement_sale`, `add_tenant_fee`
+- New types needed: `register_tenant_fee`, `filing_fee`, `agreement_sale`
 
-### 5. Payment Bypass on Back Navigation
-**Root cause**: When a landlord clicks "Pay" → redirected to Paystack → clicks browser back → returns to the review step, they can click "Generate & Send to Tenant" directly because the fee button logic only checks `feeConfig.enabled && feeConfig.amount > 0`. There's no server-side verification that the fee was actually paid before creating the tenancy.
-**Fix**: In `handleSubmit()`, before creating the tenancy, verify that a completed `add_tenant_fee` escrow transaction exists for this user (when fee is enabled). If not found, block submission and show an error.
+Update existing data: current `add_tenant_fee` allocations stay as-is for `add_tenant` bands. For `existing_tenancy` bands, allocations will use `register_tenant_fee`, `filing_fee`, and `agreement_sale`.
 
-### 6. Rent Increase: Rent Field Not Auto-Updating
-**Root cause**: In `RegulatorRentReviews.tsx`, when admin approves, it updates `units.monthly_rent` and `tenancies.agreed_rent` correctly. However, the marketplace listing uses `units.monthly_rent` which does get updated. The issue is likely that the property's `approved_rent` is updated but the listing price on `units` table is what shows on marketplace — which IS updated. Let me verify the actual issue: the landlord's rent field should stay read-only and auto-update. Currently the `monthly_rent` field on the unit IS updated on approval (line 68). The marketplace reads from `units.monthly_rent`. So the data flow works. The missing piece is that the landlord sees no feedback — the rent field in their property edit page may still be editable. Also, on rejection, there's no explicit handling to ensure old price stays (it does by default since nothing is updated on rejection).
+### 3. Migrate existing rent bands
+Duplicate current rent bands with `band_type = 'existing_tenancy'` so both band sets start with the same ranges. Admin can then configure them independently.
 
-Actually, the rent increase approval already updates `units.monthly_rent` (line 68) and `properties.approved_rent` (line 75). The marketplace should reflect this. The real issue might be that the `monthly_rent` field in property editing is not read-only when there's an active tenancy — let me check.
+## Engine Room Changes (`EngineRoom.tsx`)
 
-Actually, from the memory: "the 'monthly_rent' field becomes strictly read-only once a tenancy is created." This is already enforced. The user's complaint is that after approval, the field should "simply update with the approved price" — meaning the landlord should see the new approved price reflected immediately without needing to manually edit. Since the admin approval already updates `units.monthly_rent`, this should work. The issue may be that the property listing/marketplace page caches old data. No additional code change needed for the data flow, but we should ensure the marketplace listing component reads fresh data.
+### Rent Bands Section
+Replace the single "Rent Bands" section with two sub-sections:
+- **Add Tenant Rent Band** — `band_type = 'add_tenant'`
+  - Each band shows fee amount and split allocations for `add_tenant_fee` only
+- **Existing Tenancy Rent Band** — `band_type = 'existing_tenancy'`
+  - Each band shows three fee rows with independent split allocations:
+    - Register Tenant Fee (`register_tenant_fee`)
+    - Agreement Sale Fee (`agreement_sale`)
+    - Filing Fee (`filing_fee`)
 
-Let me re-read: "after landlord applies for rent increase application and admin approves, the rent field should stay read only and simply update with the approved price from Admin. This change must update on marketplace as well." The update to `units.monthly_rent` already happens. But the `properties` table may have a separate listing price. Let me check if marketplace reads from units or properties.
+Each fee row within a band has its own split engine (IGF, Admin, Platform allocations) configurable per band.
 
-**Fix**: The approval flow already updates `units.monthly_rent`. We should also update the `listing_price` or equivalent field on the `units` table if separate, and update `properties.asking_rent` if that's what marketplace reads. Since I see `properties.approved_rent` is updated, we need to ensure marketplace reads from the unit's `monthly_rent` which is already updated.
+### Data fetching
+Filter `rent_bands` by `band_type` when loading. Band allocations already link by `rent_band_id`.
 
-## Files to Modify
+## Landlord Portal: Declare Existing Tenancy (`DeclareExistingTenancy.tsx`)
 
-1. **`src/pages/regulator/EngineRoom.tsx`** — Add loading guard
-2. **`src/pages/regulator/EscrowDashboard.tsx`** — Fix CSV/PDF exports to use filtered data; fetch and apply operational_start_date
-3. **`src/pages/landlord/AddTenant.tsx`** — Fetch rent bands and compute dynamic fee; add server-side payment verification before tenancy creation
-4. **`src/pages/regulator/RegulatorRentReviews.tsx`** — Verify marketplace price fields are updated on approval (may also need to update `asking_rent` or listing fields)
+### Step 3 — Agreement Selection
+Add a toggle/selection before the review step:
+- **Option A: "Upload Existing Agreement"** — landlord uploads their own agreement file
+  - Fees: Register Tenant Fee + Filing Fee
+- **Option B: "Buy Tenancy Agreement"** — platform generates the agreement
+  - Fees: Register Tenant Fee + Filing Fee + Agreement Sale Fee
+
+### Fee Display
+Show a basket-style breakdown:
+```
+Register Tenant Fee:     GH₵ 50
+Filing Fee:              GH₵ 20
+Agreement Sale Fee:      GH₵ 30  (only if "Buy Agreement" selected)
+──────────────────────────────────
+Total:                   GH₵ 100
+```
+
+Fees are looked up from `rent_bands WHERE band_type = 'existing_tenancy'` based on the monthly rent. Each fee type has its own amount stored in `rent_band_allocations` grouped by `payment_type`.
+
+### Payment Flow
+The total amount sent to `paystack-checkout` is the sum of the selected fees. The checkout function needs to handle a composite payment with multiple fee types so each gets its own split allocation.
+
+## Paystack Checkout Changes (`paystack-checkout/index.ts`)
+
+### Support composite fee types
+Add support for a new `type: "existing_tenancy_bundle"` that accepts an array of fee components. The function will:
+1. Look up the existing tenancy rent band for the given monthly rent
+2. Sum the applicable fees based on the selected option (upload vs buy)
+3. Create a single escrow transaction with the total
+4. Create split entries for each fee component's allocations
+
+### Fee mapping enforcement
+- `add_tenant` bands → only used when `type = "add_tenant_fee"`
+- `existing_tenancy` bands → only used when `type = "existing_tenancy_bundle"`
+
+## Files Modified
+
+1. **Database migration** — Add `band_type` to `rent_bands`, duplicate existing bands for `existing_tenancy`
+2. **`src/pages/regulator/EngineRoom.tsx`** — Split rent bands UI into two sections with per-fee-type allocation editors
+3. **`src/pages/landlord/DeclareExistingTenancy.tsx`** — Add agreement selection toggle, basket-style fee display, composite payment
+4. **`supabase/functions/paystack-checkout/index.ts`** — Support `existing_tenancy_bundle` composite payment type
+5. **`src/pages/landlord/AddTenant.tsx`** — Filter rent bands by `band_type = 'add_tenant'`
 
 ## Technical Details
 
-**Engine Room fix** — 2-line addition before the return statement.
+**Rent band fee structure for existing tenancy bands**: Instead of a single `fee_amount` on the band, each band's total fee is the sum of its `rent_band_allocations` grouped by payment_type. The `fee_amount` column on `rent_bands` will store the Register Tenant Fee for backward compatibility, while Agreement Sale and Filing fees are derived from their respective allocation totals.
 
-**Escrow Report fix** — In `exportCSV()`: replace `stats.totalEscrow` with `visibleRevenueTotal`, replace `revenueByType` with `visibleRevenueByType`, replace `allocationCards` reference (already correct in CSV but uses raw stats). In `exportPDF()`: same replacements. The summary section should show `visibleRevenueTotal` instead of `stats.totalEscrow`.
+Alternatively (simpler): add `register_fee`, `filing_fee`, and `agreement_fee` columns to `rent_bands` for existing tenancy bands, keeping `fee_amount` for add_tenant bands. This avoids complex allocation lookups for fee display.
 
-**Operational Start Date fix** — Fetch `platform_config` where `config_key = 'operational_start_date'` on mount. Store as state. In `getPresetRange("all")`, return `{ from: operationalStartDate, to: null }` instead of `{ from: null, to: null }`.
-
-**Add Tenant Fee fix** — Fetch `rent_bands` table on mount. When displaying the fee button, compute `bandFee` by finding the rent band where `monthlyRent >= min_rent AND (max_rent IS NULL OR monthlyRent <= max_rent)`. Display `bandFee` instead of `feeConfig.amount`.
-
-**Payment Bypass fix** — In `handleSubmit()`, when fee is enabled, query `escrow_transactions` for a completed `add_tenant_fee` payment by the current user. If none found, show error and block.
+**Recommended approach**: Add three nullable fee columns to `rent_bands`: `register_fee`, `filing_fee`, `agreement_fee`. For `add_tenant` bands, only `fee_amount` is used. For `existing_tenancy` bands, the three new columns define individual fees. Split allocations in `rent_band_allocations` map to each fee type independently.
 
