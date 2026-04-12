@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { UserPlus, Search, CheckCircle2, FileText, Download, ArrowLeft, Loader2, AlertTriangle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -712,9 +712,9 @@ const AddTenant = () => {
             <Button variant="outline" onClick={handleDownloadPdf}>
               <Download className="h-4 w-4 mr-1" /> Download PDF
             </Button>
-            {feeConfig.enabled && feeConfig.amount > 0 ? (
+            {feeConfig.enabled && bandFee > 0 ? (
               <Button onClick={handlePayFee} disabled={submitting}>
-                <CreditCard className="h-4 w-4 mr-1" /> {submitting ? "Processing..." : `Pay GH₵ ${feeConfig.amount.toFixed(2)} & Submit`}
+                <CreditCard className="h-4 w-4 mr-1" /> {submitting ? "Processing..." : `Pay GH₵ ${bandFee.toFixed(2)} & Submit`}
               </Button>
             ) : (
               <Button onClick={handleSubmit} disabled={submitting}>
