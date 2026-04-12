@@ -722,10 +722,10 @@ const DeclareExistingTenancy = () => {
             <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-1 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Monthly Rent</span><span className="font-semibold">GH₵ {monthlyRent.toLocaleString()}</span></div>
               <div className="flex justify-between text-primary font-semibold"><span>Maximum Lawful Advance (6 months)</span><span>GH₵ {maxLawfulAdvance.toLocaleString()}</span></div>
-              {feeEnabled && rentBandFee !== null && (
-                <div className="flex justify-between pt-2 border-t border-primary/10">
-                  <span className="text-muted-foreground">Registration Fee</span>
-                  <span className="font-semibold text-card-foreground">GH₵ {rentBandFee.toFixed(2)}</span>
+              {feeEnabled && existingBand && (
+                <div className="pt-2 border-t border-primary/10 space-y-1">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Register Tenant Fee</span><span className="font-semibold text-card-foreground">GH₵ {registerFee.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Filing Fee</span><span className="font-semibold text-card-foreground">GH₵ {filingFee.toFixed(2)}</span></div>
                 </div>
               )}
             </div>
