@@ -85,6 +85,18 @@ const EscrowDashboard = () => {
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
+  const [operationalStartDate, setOperationalStartDate] = useState<string | undefined>();
+
+  // Fetch operational start date
+  useEffect(() => {
+    supabase.from("platform_config").select("config_value").eq("config_key", "operational_start_date").maybeSingle()
+      .then(({ data }) => {
+        if (data?.config_value) {
+          const val = typeof data.config_value === "string" ? data.config_value : String(data.config_value);
+          setOperationalStartDate(val.replace(/"/g, ""));
+        }
+      });
+  }, []);
 
   const effectiveOffice = profile && !profile.isMainAdmin && profile.officeId
     ? profile.officeId
