@@ -58,9 +58,11 @@ const DeclareExistingTenancy = () => {
   const [selectedRentCardId, setSelectedRentCardId] = useState("");
   const [selectedRentCardId2, setSelectedRentCardId2] = useState("");
 
-  // Rent band fee
-  const [rentBandFee, setRentBandFee] = useState<number | null>(null);
+  // Rent band fees for existing tenancy
+  const [existingBand, setExistingBand] = useState<{ register_fee: number; filing_fee: number; agreement_fee: number; fee_amount: number; id: string } | null>(null);
   const [feeEnabled, setFeeEnabled] = useState(true);
+  // Agreement choice: "upload" or "buy"
+  const [agreementChoice, setAgreementChoice] = useState<"upload" | "buy">("upload");
 
   // Audio recording handlers
   const startRecording = async () => {
