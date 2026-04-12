@@ -266,10 +266,17 @@ const RegulatorAgreements = () => {
                  )}
                </div>
              </div>
-             <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
+             <div className="mt-2 flex gap-4 text-xs text-muted-foreground flex-wrap">
                <span>Tenant accepted: <span className={a.tenant_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.tenant_accepted ? "Yes" : "No"}</span></span>
                <span>Landlord accepted: <span className={a.landlord_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.landlord_accepted ? "Yes" : "No"}</span></span>
                <span>Region: {a._region}</span>
+               {a.tenancy_type === "existing_migration" && (
+                 <span className={`font-semibold px-2 py-0.5 rounded-full ${
+                   a.tax_compliance_status === "verified" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                 }`}>
+                   Tax: {a.tax_compliance_status === "verified" ? "Verified" : "Pending"}
+                 </span>
+               )}
              </div>
            </div>
         ))}
