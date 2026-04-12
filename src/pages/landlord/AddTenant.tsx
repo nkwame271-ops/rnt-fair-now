@@ -224,6 +224,13 @@ const AddTenant = () => {
   const toLandlord = monthlyRent * (1 - taxRate);
   const maxAdvance = templateConfig?.max_advance_months ?? 6;
 
+  // Dynamic fee from rent bands
+  const bandFee = useMemo(() => {
+    if (!feeConfig.enabled || rentBands.length === 0) return feeConfig.amount;
+    const band = rentBands.find(b => monthlyRent >= b.min_rent && (b.max_rent === null || monthlyRent <= b.max_rent));
+    return band ? band.fee_amount : feeConfig.amount;
+  }, [monthlyRent, rentBands, feeConfig.enabled, feeConfig.amount]);
+
   const handleDownloadPdf = async () => {
     if (!property || !unit || !foundTenant) return;
     const doc = await generateAgreementPdf({
