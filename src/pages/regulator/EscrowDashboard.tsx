@@ -57,7 +57,7 @@ const SUB_ADMIN_VISIBLE_RECIPIENTS = ["rent_control", "admin"];
 
 type DatePreset = "all" | "today" | "yesterday" | "last7" | "this_week" | "this_month" | "custom";
 
-function getPresetRange(preset: DatePreset): { from: string | null; to: string | null } {
+function getPresetRange(preset: DatePreset, operationalStartDate?: string): { from: string | null; to: string | null } {
   const now = new Date();
   switch (preset) {
     case "today": return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
@@ -65,7 +65,7 @@ function getPresetRange(preset: DatePreset): { from: string | null; to: string |
     case "last7": return { from: startOfDay(subDays(now, 6)).toISOString(), to: endOfDay(now).toISOString() };
     case "this_week": return { from: startOfWeek(now, { weekStartsOn: 1 }).toISOString(), to: endOfWeek(now, { weekStartsOn: 1 }).toISOString() };
     case "this_month": return { from: startOfMonth(now).toISOString(), to: endOfMonth(now).toISOString() };
-    default: return { from: null, to: null };
+    default: return { from: operationalStartDate ? startOfDay(new Date(operationalStartDate)).toISOString() : null, to: null };
   }
 }
 
@@ -295,7 +295,7 @@ const EscrowDashboard = () => {
       ["Generated", format(new Date(), "dd/MM/yyyy HH:mm")],
       [],
       ["SUMMARY"],
-      ["Total Revenue", `GHS ${stats.totalEscrow.toFixed(2)}`],
+      ["Total Revenue", `GHS ${visibleRevenueTotal.toFixed(2)}`],
       ["Completed Transactions", String(stats.completed)],
       ["Pending Transactions", String(stats.pending)],
       ["Auto-Released", `GHS ${stats.autoReleased.toFixed(2)}`],
@@ -306,7 +306,7 @@ const EscrowDashboard = () => {
       [],
       ["REVENUE BY TYPE"],
       ["Type", "Amount (GHS)", "Transactions"],
-      ...revenueByType.filter(r => r.total > 0 || r.count > 0).map(r => [r.label, r.total.toFixed(2), String(r.count)]),
+      ...visibleRevenueByType.filter(r => r.total > 0 || r.count > 0).map(r => [r.label, r.total.toFixed(2), String(r.count)]),
     ];
 
     if (officeRevenue.length > 0) {
@@ -350,7 +350,7 @@ const EscrowDashboard = () => {
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     const summaryItems = [
-      ["Total Revenue", `GHS ${stats.totalEscrow.toFixed(2)}`],
+      ["Total Revenue", `GHS ${visibleRevenueTotal.toFixed(2)}`],
       ["Completed", String(stats.completed)],
       ["Pending", String(stats.pending)],
       ["Auto-Released", `GHS ${stats.autoReleased.toFixed(2)}`],
@@ -385,7 +385,7 @@ const EscrowDashboard = () => {
     doc.setFont("helvetica", "bold");
     doc.text("Type", lm, y); doc.text("Amount", 100, y); doc.text("Count", 140, y); y += 5;
     doc.setFont("helvetica", "normal");
-    revenueByType.filter(r => r.total > 0).forEach(r => {
+    visibleRevenueByType.filter(r => r.total > 0).forEach(r => {
       doc.text(r.label, lm, y);
       doc.text(`GHS ${r.total.toFixed(2)}`, 100, y);
       doc.text(String(r.count), 140, y);
