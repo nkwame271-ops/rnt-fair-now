@@ -260,6 +260,23 @@ const AddTenant = () => {
     if (!user || !foundTenant || !property || !unit || !selectedRentCardId || !selectedRentCardId2) return;
     setSubmitting(true);
     try {
+      // Payment bypass prevention: verify fee was paid
+      if (feeConfig.enabled && bandFee > 0) {
+        const { data: paidTx } = await supabase
+          .from("escrow_transactions")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("payment_type", "add_tenant_fee")
+          .eq("status", "completed")
+          .order("completed_at", { ascending: false })
+          .limit(1);
+        if (!paidTx || paidTx.length === 0) {
+          toast.error("Payment required. Please pay the tenancy registration fee before submitting.");
+          setSubmitting(false);
+          return;
+        }
+      }
+
       const months = parseInt(advanceMonths);
       const moveIn = startDate;
 
