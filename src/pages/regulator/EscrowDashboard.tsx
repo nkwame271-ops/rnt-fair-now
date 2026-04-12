@@ -112,11 +112,11 @@ const EscrowDashboard = () => {
         to: customTo ? endOfDay(customTo).toISOString() : null,
       };
     }
-    return getPresetRange(datePreset);
-  }, [datePreset, customFrom, customTo]);
+    return getPresetRange(datePreset, operationalStartDate);
+  }, [datePreset, customFrom, customTo, operationalStartDate]);
 
   const dateLabel = useMemo(() => {
-    if (datePreset === "all") return "All Time";
+    if (datePreset === "all") return operationalStartDate ? `Since ${format(new Date(operationalStartDate), "dd/MM/yyyy")}` : "All Time";
     if (datePreset === "custom" && customFrom && customTo) return `${format(customFrom, "dd/MM/yyyy")} – ${format(customTo, "dd/MM/yyyy")}`;
     if (datePreset === "today") return `Today (${format(new Date(), "dd/MM/yyyy")})`;
     if (datePreset === "yesterday") return `Yesterday (${format(subDays(new Date(), 1), "dd/MM/yyyy")})`;
