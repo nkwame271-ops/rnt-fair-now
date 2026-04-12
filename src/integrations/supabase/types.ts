@@ -2114,29 +2114,41 @@ export type Database = {
       }
       rent_bands: {
         Row: {
+          agreement_fee: number | null
+          band_type: string
           fee_amount: number
+          filing_fee: number | null
           id: string
           label: string | null
           max_rent: number | null
           min_rent: number
+          register_fee: number | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          agreement_fee?: number | null
+          band_type?: string
           fee_amount?: number
+          filing_fee?: number | null
           id?: string
           label?: string | null
           max_rent?: number | null
           min_rent?: number
+          register_fee?: number | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          agreement_fee?: number | null
+          band_type?: string
           fee_amount?: number
+          filing_fee?: number | null
           id?: string
           label?: string | null
           max_rent?: number | null
           min_rent?: number
+          register_fee?: number | null
           updated_at?: string
           updated_by?: string | null
         }
