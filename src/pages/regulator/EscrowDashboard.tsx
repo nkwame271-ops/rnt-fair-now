@@ -157,7 +157,8 @@ const EscrowDashboard = () => {
       txQuery = applyDateFilter(txQuery);
       const { data: transactions } = await txQuery;
 
-      const completed = (transactions || []).filter(t => t.status === "completed");
+      // Exclude bundle parent transactions from revenue — only child components count
+      const completed = (transactions || []).filter(t => t.status === "completed" && !BUNDLE_PARENT_TYPES.has(t.payment_type));
       const pending = (transactions || []).filter(t => t.status === "pending");
 
       const typeAgg = REVENUE_TYPE_CONFIG.map(cfg => {
