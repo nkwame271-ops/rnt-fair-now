@@ -609,7 +609,7 @@ Deno.serve(async (req) => {
       const { propertyId } = body;
       if (!propertyId) throw new Error("propertyId is required");
 
-      const { data: prop } = await supabase
+      const { data: prop } = await supabaseAdmin
         .from("properties")
         .select("id, landlord_user_id, listed_on_marketplace")
         .eq("id", propertyId)
