@@ -119,6 +119,8 @@ const EngineRoom = () => {
   const [editingAllocations, setEditingAllocations] = useState<Record<string, number>>({});
   const [savingAllocation, setSavingAllocation] = useState<string | null>(null);
   const [expandedBand, setExpandedBand] = useState<string | null>(null);
+  const [addingAllocation, setAddingAllocation] = useState<string | null>(null); // "bandId_paymentType"
+  const [newAllocRecipient, setNewAllocRecipient] = useState("");
 
   // Account Management state
   const [accountSearch, setAccountSearch] = useState("");
@@ -411,6 +413,37 @@ const EngineRoom = () => {
       setEditingAllocations(prev => { const n = { ...prev }; delete n[allocId]; return n; });
     }
     setSavingAllocation(null);
+  };
+
+  const handleAddAllocation = async (bandId: string, paymentType: string, recipient: string) => {
+    if (!recipient) return;
+    setSavingAllocation("new");
+    const existing = bandAllocations.filter(a => a.rent_band_id === bandId && a.payment_type === paymentType);
+    const desc = `${RECIPIENT_LABELS[recipient] || recipient} — ${PAYMENT_TYPE_LABELS[paymentType] || paymentType}`;
+    const { data, error } = await supabase
+      .from("rent_band_allocations")
+      .insert({ rent_band_id: bandId, payment_type: paymentType, recipient, amount: 0, description: desc, sort_order: existing.length } as any)
+      .select()
+      .single();
+    if (error) {
+      toast.error("Failed to add allocation: " + error.message);
+    } else if (data) {
+      setBandAllocations(prev => [...prev, data as any]);
+      toast.success("Allocation added");
+    }
+    setSavingAllocation(null);
+    setAddingAllocation(null);
+    setNewAllocRecipient("");
+  };
+
+  const handleDeleteAllocation = async (allocId: string) => {
+    const { error } = await supabase.from("rent_band_allocations").delete().eq("id", allocId);
+    if (error) {
+      toast.error("Failed to delete allocation");
+    } else {
+      setBandAllocations(prev => prev.filter(a => a.id !== allocId));
+      toast.success("Allocation removed");
+    }
   };
 
   // Account Management handlers
