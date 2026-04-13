@@ -58,6 +58,83 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       .in("status", ["pending", "processing"]);
   }
 
+  // 2b. For bundle types, create child escrow_transactions per fee component
+  const BUNDLE_TYPES = ["existing_tenancy_bundle", "add_tenant_fee"];
+  if (BUNDLE_TYPES.includes(paymentType) && Array.isArray(meta.fee_components) && meta.fee_components.length > 0) {
+    // Check if child transactions already exist (idempotent) — check for first component
+    const firstChildRef = `${reference}_${meta.fee_components[0].type}`;
+    const { data: existingChildren } = await supabaseAdmin
+      .from("escrow_transactions")
+      .select("id")
+      .eq("reference", firstChildRef)
+      .maybeSingle();
+
+    if (!existingChildren) {
+      for (const component of meta.fee_components) {
+        const childRef = `${reference}_${component.type}`;
+        const childSplitPlan = component.allocations || 
+          (Array.isArray(meta.split_plan) 
+            ? meta.split_plan.filter((s: any) => s.description?.includes(component.type))
+            : [{ recipient: "admin", amount: component.amount, description: component.type }]);
+
+        // Create child escrow_transaction
+        const { data: childTx } = await supabaseAdmin
+          .from("escrow_transactions")
+          .insert({
+            user_id: userId,
+            payment_type: component.type,
+            reference: childRef,
+            total_amount: component.amount,
+            status: "completed",
+            completed_at: new Date().toISOString(),
+            paystack_transaction_id: transactionId,
+            related_property_id: escrow.related_property_id || null,
+            related_tenancy_id: escrow.related_tenancy_id || null,
+            office_id: officeId,
+            case_id: escrow.case_id || null,
+            metadata: { parent_reference: reference, split_plan: childSplitPlan, description: `${component.type.replace(/_/g, " ")} (from bundle)` },
+          })
+          .select("id")
+          .single();
+
+        if (childTx) {
+          // Create splits for child transaction
+          let autoRelease = false;
+          try {
+            const { data: flag } = await supabaseAdmin.from("feature_flags").select("is_enabled").eq("feature_key", "office_payout_mode").single();
+            autoRelease = flag?.is_enabled ?? false;
+          } catch {}
+
+          const DEFERRED_OFFICE_TYPES = ["register_tenant_fee", "filing_fee", "agreement_sale"];
+          const isDeferredOffice = DEFERRED_OFFICE_TYPES.includes(component.type);
+
+          const childSplitRows = childSplitPlan.map((s: SplitItem) => {
+            const isAdmin = s.recipient === "admin";
+            const releaseMode = (isAdmin && autoRelease) ? "auto" : "manual";
+            let disbStatus: string;
+            if (isAdmin && isDeferredOffice) disbStatus = "deferred";
+            else if (s.recipient === "landlord") disbStatus = "held";
+            else if (isAdmin && !autoRelease) disbStatus = "held";
+            else disbStatus = "pending_transfer";
+
+            return {
+              escrow_transaction_id: childTx.id,
+              recipient: s.recipient,
+              amount: s.amount,
+              description: s.description || "",
+              disbursement_status: disbStatus,
+              released_at: null,
+              office_id: isDeferredOffice && isAdmin ? null : officeId,
+              release_mode: releaseMode,
+            };
+          });
+
+          await supabaseAdmin.from("escrow_splits").insert(childSplitRows);
+        }
+      }
+    }
+  }
+
   // 3. Handle payment-type-specific side effects
   await handleSideEffects(supabaseAdmin, { paymentType, userId, meta, escrow, amountPaid, transactionId });
 

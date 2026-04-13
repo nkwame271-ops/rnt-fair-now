@@ -507,7 +507,7 @@ const EngineRoom = () => {
   };
 
 
-  const isMainAdmin = profile?.isMainAdmin ?? (role === "regulator" && !profileLoading);
+  const isMainAdmin = profile?.isMainAdmin ?? (role === "regulator");
   const isSubAdmin = profile && !profile.isMainAdmin;
   const { isVisible } = useModuleVisibility("engine_room");
 
@@ -647,7 +647,7 @@ const EngineRoom = () => {
     );
   };
 
-  if (loading || profileLoading) return <LogoLoader message="Loading Engine Room..." />;
+  if (loading || (profileLoading && role !== "regulator")) return <LogoLoader message="Loading Engine Room..." />;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

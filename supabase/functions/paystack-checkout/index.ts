@@ -648,19 +648,65 @@ Deno.serve(async (req) => {
 
     } else if (type === "add_tenant_fee") {
       // Band-based fee: uses rent bands when monthlyRent is provided
+      // Now splits into individual fee components like existing_tenancy_bundle
       const { monthlyRent: bodyMonthlyRent } = body;
 
       officeId = await resolveOffice(supabaseAdmin, { userId });
       caseType = "tenancy";
 
-      // Stage 1: Determine fee (band-based if monthlyRent provided)
-      const fee = await determineFee(supabaseAdmin, "add_tenant_fee", bodyMonthlyRent ? Number(bodyMonthlyRent) : undefined);
-      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Add tenant fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const mr = bodyMonthlyRent ? Number(bodyMonthlyRent) : undefined;
 
-      // Stage 2: Load allocation for this fee amount
-      totalAmount = fee.amount;
-      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
-      description = `Add Tenant Fee (GH₵ ${fee.amount})`;
+      // Look up add_tenant band for component breakdown
+      let matchedBand: any = null;
+      if (mr && mr > 0) {
+        const { data: bands } = await supabaseAdmin
+          .from("rent_bands")
+          .select("id, min_rent, max_rent, register_fee, filing_fee, agreement_fee, fee_amount")
+          .eq("band_type", "add_tenant")
+          .order("min_rent", { ascending: true });
+
+        if (bands) {
+          for (const band of bands) {
+            const min = Number(band.min_rent);
+            const max = band.max_rent !== null ? Number(band.max_rent) : Infinity;
+            if (mr >= min && mr <= max) { matchedBand = band; break; }
+          }
+        }
+      }
+
+      if (matchedBand) {
+        // Component-based: split into individual fee types
+        const regFee = Number(matchedBand.register_fee ?? 0);
+        const filFee = Number(matchedBand.filing_fee ?? 0);
+        const agrFee = Number(matchedBand.agreement_fee ?? 0);
+        totalAmount = regFee + filFee + agrFee;
+
+        if (totalAmount <= 0) {
+          return new Response(JSON.stringify({ skipped: true, message: "Add tenant fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        const feeComponents: { type: string; amount: number; allocations?: SplitItem[] }[] = [];
+        if (regFee > 0) feeComponents.push({ type: "register_tenant_fee", amount: regFee });
+        if (filFee > 0) feeComponents.push({ type: "filing_fee", amount: filFee });
+        if (agrFee > 0) feeComponents.push({ type: "agreement_sale", amount: agrFee });
+
+        splitPlan = [];
+        for (const fc of feeComponents) {
+          const alloc = await loadAllocation(supabaseAdmin, fc.type, fc.amount, matchedBand.id);
+          fc.allocations = alloc;
+          splitPlan.push(...alloc.map(a => ({ ...a, description: `${a.description || a.recipient} (${fc.type})` })));
+        }
+
+        metadata = { bandId: matchedBand.id, fee_components: feeComponents };
+      } else {
+        // Fallback: use old flat fee approach
+        const fee = await determineFee(supabaseAdmin, "add_tenant_fee", mr);
+        if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Add tenant fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        totalAmount = fee.amount;
+        splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      }
+
+      description = `Add Tenant Fee (GH₵ ${totalAmount})`;
       reference = `addten_${userId}_${Date.now()}`;
       callbackPath = "/landlord/add-tenant?status=fee_paid";
 
@@ -756,23 +802,23 @@ Deno.serve(async (req) => {
       }
 
       // Build split plan from each fee's band allocations
-      const feeComponents = [
-        { type: "register_tenant_fee", amount: regFee },
-        { type: "filing_fee", amount: filFee },
-      ];
+      const feeComponents: { type: string; amount: number; allocations?: SplitItem[] }[] = [];
+      if (regFee > 0) feeComponents.push({ type: "register_tenant_fee", amount: regFee });
+      if (filFee > 0) feeComponents.push({ type: "filing_fee", amount: filFee });
       if (agrFee > 0) feeComponents.push({ type: "agreement_sale", amount: agrFee });
 
       splitPlan = [];
       for (const fc of feeComponents) {
         if (fc.amount <= 0) continue;
         const alloc = await loadAllocation(supabaseAdmin, fc.type, fc.amount, matchedBand.id);
+        fc.allocations = alloc;
         splitPlan.push(...alloc.map(a => ({ ...a, description: `${a.description || a.recipient} (${fc.type})` })));
       }
 
       description = `Existing Tenancy Registration (GH₵ ${totalAmount})`;
       reference = `extbundle_${userId}_${Date.now()}`;
       callbackPath = body.callbackPath || "/landlord/declare-existing-tenancy?status=fee_paid";
-      metadata = { agreementChoice: bodyAgreementChoice, bandId: matchedBand.id };
+      metadata = { agreementChoice: bodyAgreementChoice, bandId: matchedBand.id, fee_components: feeComponents };
 
     } else {
       throw new Error("Invalid payment type");
