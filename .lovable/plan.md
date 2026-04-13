@@ -1,89 +1,40 @@
 
 
-# Fix: Rent Field Always Read-Only & Agreement PDF Consistency
+# Fix: Operational Start Date Not Filtering Escrow for Other Admins
 
-## Issues
+## Root Cause
 
-### 1. Rent field not always read-only
-In `EditProperty.tsx`, the rent `Input` field (line 353-359) is only `readOnly` when the unit has an active tenancy (`occupiedUnitIds.has(unit.id)`). It should be **always read-only** regardless of tenancy status — landlords must use the Rent Increase Application for any changes.
+The `operational_start_date` stored in `platform_config` is `"2025-04-08"` (year 2025), but the user intended `2026-04-08`. Since all escrow transactions are from March 2026 onwards, the 2025 date doesn't filter anything out. The date was likely saved incorrectly or entered with the wrong year.
 
-Additionally, in the `handleSave` function (line 163-166), `monthly_rent` is still sent in the unit update payload, which could allow overwriting the rent. This must be excluded.
+Additionally, the operational start date is only applied when the date preset is "all". If an admin selects "this_month", "last7", or any other preset, there is no floor enforcement — transactions before the operational start date could theoretically appear.
 
-### 2. Rent Increase approval — marketplace update
-In `RegulatorRentReviews.tsx`, when admin approves, it updates `units.monthly_rent`, `tenancies.agreed_rent`, and `properties.approved_rent` (lines 67-86). However, it does **not** update the `asking_rent` on units (used by marketplace). Need to also update `units` with `asking_rent = proposed_rent` so the marketplace listing reflects the new price.
+## Changes
 
-### 3. Landlord Agreements page — missing draft/unsigned agreement download
-The Landlord Agreements page (`Agreements.tsx`) only shows a download button for `final_agreement_pdf_url` (the signed copy). It does NOT show the initial `agreement_pdf_url` (the draft/unsigned version generated when landlord declares existing tenancy with "Buy Agreement"). Need to add a "Draft Agreement" download button visible before tenant confirms.
+### 1. Fix stored date value (Data update)
+Update `platform_config` to set the correct value: `"2026-04-08"`.
 
-### 4. Admin Agreements page — same issue
-`RegulatorAgreements.tsx` needs to also show both `agreement_pdf_url` (draft) and `final_agreement_pdf_url` (signed) for download.
+### 2. Enforce operational start date as a minimum floor for ALL presets (`EscrowDashboard.tsx`)
+In `getPresetRange`, after computing the range for any preset, clamp the `from` value so it is never earlier than the operational start date. This ensures no data before the operational baseline ever appears, regardless of which date filter an admin selects.
 
-## Files to Modify
-
-1. **`src/pages/landlord/EditProperty.tsx`**
-   - Make rent field always `readOnly` with locked styling and hint text
-   - Remove `monthly_rent` from the unit update payload in `handleSave`
-
-2. **`src/pages/regulator/RegulatorRentReviews.tsx`**
-   - On approval, also update `units.asking_rent` to the proposed rent so marketplace reflects the change
-
-3. **`src/pages/landlord/Agreements.tsx`**
-   - Add `agreement_pdf_url` to the TenancyView interface and data fetch
-   - Show "Draft Agreement" download button when `agreement_pdf_url` exists (before final signed copy)
-   - Show "Signed Copy" button when `final_agreement_pdf_url` exists (after tenant confirms)
-
-4. **`src/pages/regulator/RegulatorAgreements.tsx`**
-   - Add download buttons for both draft (`agreement_pdf_url`) and signed (`final_agreement_pdf_url`) versions
-
-## Technical Details
-
-**Rent field always locked** (EditProperty.tsx):
 ```typescript
-// Line 353-363: Make readOnly unconditional
-<Input
-  type="number"
-  value={unit.monthly_rent}
-  readOnly
-  className="bg-muted cursor-not-allowed"
-/>
-<p className="text-[10px] text-muted-foreground">
-  Rent is managed by Rent Control. Use Rent Increase Application to request a change.
-</p>
-```
-
-**Remove monthly_rent from save** (EditProperty.tsx line 163):
-```typescript
-// Remove monthly_rent from the update payload
-const { error: unitErr } = await supabase.from("units").update({
-  unit_name: unit.unit_name,
-  unit_type: unit.unit_type,
-  // monthly_rent removed — read only
-  ...
-}).eq("id", unit.id);
-```
-
-**Marketplace update on approval** (RegulatorRentReviews.tsx):
-```typescript
-if (req.unit_id) {
-  await supabase.from("units").update({
-    monthly_rent: req.proposed_rent,
-    asking_rent: req.proposed_rent,  // NEW: update marketplace price
-  }).eq("id", req.unit_id);
+function getPresetRange(preset, operationalStartDate) {
+  // ...compute range as before...
+  // Then enforce floor:
+  if (operationalStartDate && result.from) {
+    const floor = startOfDay(new Date(operationalStartDate)).toISOString();
+    if (result.from < floor) result.from = floor;
+  }
+  if (operationalStartDate && !result.from) {
+    result.from = startOfDay(new Date(operationalStartDate)).toISOString();
+  }
+  return result;
 }
 ```
 
-**Landlord Agreements — draft download** (Agreements.tsx):
-```typescript
-// Add agreement_pdf_url to TenancyView interface
-agreement_pdf_url: string | null;
+### 3. Also enforce the floor in the `applyDateFilter` helper
+Add a secondary guard: even when `dateRange.from` is null (which shouldn't happen after fix 2), the query always applies `gte("created_at", operationalStartDate)` for non-Super Admin users. This is a defense-in-depth measure.
 
-// In render, before the signed copy button:
-{t.agreement_pdf_url && (
-  <a href={t.agreement_pdf_url} target="_blank">
-    <Button size="sm" variant="outline" className="text-xs">
-      <FileText className="h-3 w-3 mr-1" /> Draft Agreement
-    </Button>
-  </a>
-)}
-```
+## Files to Modify
+- `src/pages/regulator/EscrowDashboard.tsx` — enforce operational start date floor in all presets
+- Database data update — correct the stored `operational_start_date` to `2026-04-08`
 
