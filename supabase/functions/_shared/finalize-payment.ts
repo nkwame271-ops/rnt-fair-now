@@ -69,7 +69,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       .eq("reference", firstChildRef)
       .maybeSingle();
 
-    if (!existingChildren || existingChildren.length === 0) {
+    if (!existingChildren) {
       for (const component of meta.fee_components) {
         const childRef = `${reference}_${component.type}`;
         const childSplitPlan = component.allocations || 
