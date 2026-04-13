@@ -103,6 +103,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Clean up orphaned profile row if exists (prevents unique constraint violation)
+    const { data: orphanProfile } = await adminClient
+      .from("profiles")
+      .select("user_id")
+      .eq("email", email.toLowerCase())
+      .maybeSingle();
+
+    if (orphanProfile) {
+      await adminClient.from("profiles").delete().eq("user_id", orphanProfile.user_id);
+    }
+
     // Create user with admin API (auto-confirmed)
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email,
