@@ -321,7 +321,7 @@ const EscrowDashboard = () => {
       ["REVENUE BY TYPE"],
       ["Type", "Amount (GHS)", "Transactions"],
       ...visibleRevenueByType.filter(r => r.total > 0 || r.count > 0).map(r => [r.label, r.total.toFixed(2), String(r.count)]),
-    ];
+    );
 
     if (officeRevenue.length > 0) {
       rows.push([], ["OFFICE BREAKDOWN"], ["Office", "Total", "IGF", "Admin", "Platform", "GRA", "Landlord", "Wallet Balance"]);
