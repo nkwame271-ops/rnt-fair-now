@@ -163,7 +163,6 @@ const EditProperty = () => {
       const { error: unitErr } = await supabase.from("units").update({
         unit_name: unit.unit_name,
         unit_type: unit.unit_type,
-        monthly_rent: unit.monthly_rent,
         has_toilet_bathroom: unit.has_toilet_bathroom,
         has_kitchen: unit.has_kitchen,
         water_available: unit.water_available,
@@ -345,22 +344,15 @@ const EditProperty = () => {
                 <div className="space-y-1 w-32">
                   <Label className="text-xs flex items-center gap-1">
                     Rent (GH₵)
-                    {occupiedUnitIds.has(unit.id) && <Lock className="h-3 w-3 text-muted-foreground" />}
-                    {propertyStatus === "needs_update" && suggestedPrice && (
-                      <span className="text-orange-600 text-[10px]">Suggested: {suggestedPrice.toLocaleString()}</span>
-                    )}
+                    <Lock className="h-3 w-3 text-muted-foreground" />
                   </Label>
                   <Input
                     type="number"
                     value={unit.monthly_rent}
-                    onChange={(e) => updateUnit(i, { monthly_rent: Number(e.target.value) })}
-                    placeholder="e.g. 1200"
-                    readOnly={occupiedUnitIds.has(unit.id)}
-                    className={`${propertyStatus === "needs_update" ? "border-orange-300 focus:ring-orange-400" : ""} ${occupiedUnitIds.has(unit.id) ? "bg-muted cursor-not-allowed" : ""}`}
+                    readOnly
+                    className="bg-muted cursor-not-allowed"
                   />
-                  {occupiedUnitIds.has(unit.id) && (
-                    <p className="text-[10px] text-muted-foreground">Rent is locked. Use Rent Increase Application to request a change.</p>
-                  )}
+                  <p className="text-[10px] text-muted-foreground">Rent is managed by Rent Control. Use Rent Increase Application to request a change.</p>
                 </div>
               </div>
 

@@ -65,7 +65,7 @@ const RegulatorRentReviews = () => {
       // If approved, update the unit/property approved rent
       if (decision === "approved" && req) {
         if (req.unit_id) {
-          await supabase.from("units").update({ monthly_rent: req.proposed_rent }).eq("id", req.unit_id);
+          await supabase.from("units").update({ monthly_rent: req.proposed_rent, asking_rent: req.proposed_rent } as any).eq("id", req.unit_id);
           // Also update agreed_rent on active tenancy for this unit
           await supabase.from("tenancies").update({ agreed_rent: req.proposed_rent } as any)
             .eq("unit_id", req.unit_id)
