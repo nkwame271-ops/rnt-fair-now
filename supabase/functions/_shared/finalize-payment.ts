@@ -61,12 +61,13 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
   // 2b. For bundle types, create child escrow_transactions per fee component
   const BUNDLE_TYPES = ["existing_tenancy_bundle", "add_tenant_fee"];
   if (BUNDLE_TYPES.includes(paymentType) && Array.isArray(meta.fee_components) && meta.fee_components.length > 0) {
-    // Check if child transactions already exist (idempotent)
+    // Check if child transactions already exist (idempotent) — check for first component
+    const firstChildRef = `${reference}_${meta.fee_components[0].type}`;
     const { data: existingChildren } = await supabaseAdmin
       .from("escrow_transactions")
       .select("id")
-      .eq("reference", `${reference}_child`)
-      .limit(1);
+      .eq("reference", firstChildRef)
+      .maybeSingle();
 
     if (!existingChildren || existingChildren.length === 0) {
       for (const component of meta.fee_components) {
