@@ -64,14 +64,23 @@ type DatePreset = "all" | "today" | "yesterday" | "last7" | "this_week" | "this_
 
 function getPresetRange(preset: DatePreset, operationalStartDate?: string): { from: string | null; to: string | null } {
   const now = new Date();
+  let result: { from: string | null; to: string | null };
   switch (preset) {
-    case "today": return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
-    case "yesterday": { const y = subDays(now, 1); return { from: startOfDay(y).toISOString(), to: endOfDay(y).toISOString() }; }
-    case "last7": return { from: startOfDay(subDays(now, 6)).toISOString(), to: endOfDay(now).toISOString() };
-    case "this_week": return { from: startOfWeek(now, { weekStartsOn: 1 }).toISOString(), to: endOfWeek(now, { weekStartsOn: 1 }).toISOString() };
-    case "this_month": return { from: startOfMonth(now).toISOString(), to: endOfMonth(now).toISOString() };
-    default: return { from: operationalStartDate ? startOfDay(new Date(operationalStartDate)).toISOString() : null, to: null };
+    case "today": result = { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() }; break;
+    case "yesterday": { const y = subDays(now, 1); result = { from: startOfDay(y).toISOString(), to: endOfDay(y).toISOString() }; break; }
+    case "last7": result = { from: startOfDay(subDays(now, 6)).toISOString(), to: endOfDay(now).toISOString() }; break;
+    case "this_week": result = { from: startOfWeek(now, { weekStartsOn: 1 }).toISOString(), to: endOfWeek(now, { weekStartsOn: 1 }).toISOString() }; break;
+    case "this_month": result = { from: startOfMonth(now).toISOString(), to: endOfMonth(now).toISOString() }; break;
+    default: result = { from: operationalStartDate ? startOfDay(new Date(operationalStartDate)).toISOString() : null, to: null }; break;
   }
+  // Enforce operational start date as a minimum floor for ALL presets
+  if (operationalStartDate) {
+    const floor = startOfDay(new Date(operationalStartDate)).toISOString();
+    if (!result.from || result.from < floor) {
+      result.from = floor;
+    }
+  }
+  return result;
 }
 
 const EscrowDashboard = () => {
