@@ -130,7 +130,10 @@ const loadAllocation = async (
     .order("sort_order", { ascending: true });
 
   if (!dbSplits || dbSplits.length === 0) {
-    throw new Error(`No split configuration found for payment type: ${paymentType}. Configure splits in Engine Room.`);
+    // Fallback: assign full amount to admin when no split config exists
+    // This allows bundle fee components (register_tenant_fee, filing_fee) to work
+    // even before explicit splits are configured
+    return [{ recipient: "admin", amount: payableAmount, description: `${paymentType} (default)` }];
   }
 
   // Treat split amounts as proportional shares
@@ -606,7 +609,7 @@ Deno.serve(async (req) => {
       const { propertyId } = body;
       if (!propertyId) throw new Error("propertyId is required");
 
-      const { data: prop } = await supabase
+      const { data: prop } = await supabaseAdmin
         .from("properties")
         .select("id, landlord_user_id, listed_on_marketplace")
         .eq("id", propertyId)

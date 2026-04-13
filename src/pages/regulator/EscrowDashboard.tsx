@@ -147,7 +147,7 @@ const EscrowDashboard = () => {
       };
 
       // Escrow transactions
-      let txQuery = supabase.from("escrow_transactions").select("status, total_amount, office_id, payment_type, created_at");
+      let txQuery = supabase.from("escrow_transactions").select("id, status, total_amount, office_id, payment_type, created_at");
       if (officeFilter) txQuery = txQuery.eq("office_id", officeFilter);
       txQuery = applyDateFilter(txQuery);
       const { data: transactions } = await txQuery;
@@ -167,17 +167,20 @@ const EscrowDashboard = () => {
       });
       setRevenueByType(typeAgg);
 
-      // Splits
-      let splitsQuery = supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode, escrow_transaction_id");
-      if (officeFilter) splitsQuery = splitsQuery.eq("office_id", officeFilter);
-      // For date filtering on splits, we filter by the parent transaction IDs
-      const completedIds = completed.map(t => (t as any).id).filter(Boolean);
-      // We can't easily date-filter splits without a created_at. Instead we use the transaction set.
-      const { data: allSplitsRaw } = await splitsQuery;
-      // If date filter is active, only include splits for transactions in range
-      let splits = allSplitsRaw || [];
-      if (dateRange.from && completedIds.length === 0 && completed.length === 0) {
-        splits = [];
+      // Splits — filter by completed transaction IDs to respect date/operational filters
+      const completedIds = completed.map(t => t.id).filter(Boolean);
+      let splits: any[] = [];
+      if (completedIds.length > 0) {
+        // Supabase .in() has a limit, batch if needed
+        const batchSize = 200;
+        for (let i = 0; i < completedIds.length; i += batchSize) {
+          const batch = completedIds.slice(i, i + batchSize);
+          let q = supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode, escrow_transaction_id")
+            .in("escrow_transaction_id", batch);
+          if (officeFilter) q = q.eq("office_id", officeFilter);
+          const { data } = await q;
+          if (data) splits.push(...data);
+        }
       }
 
       const byRecipient = splits.reduce((acc: Record<string, number>, s: any) => {
