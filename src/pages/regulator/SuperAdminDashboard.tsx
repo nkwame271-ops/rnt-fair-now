@@ -464,12 +464,11 @@ const SuperAdminDashboard = () => {
       const { data, error } = await supabase.functions.invoke("invite-staff", {
         body: {
           email: newStaff.email,
-          full_name: newStaff.full_name,
+          fullName: newStaff.full_name,
           password: newStaff.password,
-          phone: newStaff.phone,
-          admin_type: newStaff.admin_type,
-          office_id: newStaff.office_id || null,
-          office_name: newStaff.office_name || null,
+          adminType: newStaff.admin_type,
+          officeId: newStaff.office_id || null,
+          officeName: newStaff.office_name || null,
         },
       });
       if (error) throw new Error(error.message);
