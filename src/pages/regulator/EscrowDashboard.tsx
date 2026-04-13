@@ -121,10 +121,14 @@ const EscrowDashboard = () => {
 
   const dateRange = useMemo(() => {
     if (datePreset === "custom") {
-      return {
-        from: customFrom ? startOfDay(customFrom).toISOString() : null,
-        to: customTo ? endOfDay(customTo).toISOString() : null,
-      };
+      let from = customFrom ? startOfDay(customFrom).toISOString() : null;
+      const to = customTo ? endOfDay(customTo).toISOString() : null;
+      // Enforce operational start date floor for custom range too
+      if (operationalStartDate) {
+        const floor = startOfDay(new Date(operationalStartDate)).toISOString();
+        if (!from || from < floor) from = floor;
+      }
+      return { from, to };
     }
     return getPresetRange(datePreset, operationalStartDate);
   }, [datePreset, customFrom, customTo, operationalStartDate]);
