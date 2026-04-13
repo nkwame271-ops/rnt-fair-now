@@ -1,92 +1,89 @@
 
 
-# Fix: Engine Room Super Admin, Escrow Revenue Accuracy & Fee Component Splitting
+# Fix: Rent Field Always Read-Only & Agreement PDF Consistency
 
 ## Issues
 
-### 1. Engine Room Empty for Super Admin
-The `isMainAdmin` fallback at line 510 (`profile?.isMainAdmin ?? (role === "regulator" && !profileLoading)`) should work, but `profileLoading` may remain `true` if the admin_staff query finds no record. The `useAdminProfile` hook sets `loading` to `false` when `data` is null (line 46-48 of useAdminProfile), so the fallback should trigger. Need to verify the hook returns `loading: false` when no record exists and ensure the Engine Room loading guard at line 650 waits for both `loading` (feature flags) AND `profileLoading` to finish.
+### 1. Rent field not always read-only
+In `EditProperty.tsx`, the rent `Input` field (line 353-359) is only `readOnly` when the unit has an active tenancy (`occupiedUnitIds.has(unit.id)`). It should be **always read-only** regardless of tenancy status — landlords must use the Rent Increase Application for any changes.
 
-**Fix**: The loading guard at line 650 uses `loading || profileLoading`. If `profileLoading` never resolves for users without an `admin_staff` row, the page stays on the loader. Add a timeout fallback and ensure `useAdminProfile` correctly sets `loading: false` when query returns null. Also add a `isSuperAdmin` check directly from the `role` context so Super Admins without admin_staff records still see content.
+Additionally, in the `handleSave` function (line 163-166), `monthly_rent` is still sent in the unit update payload, which could allow overwriting the rent. This must be excluded.
 
-### 2. Escrow Revenue — Bundle Payments Not Showing
-The `REVENUE_TYPE_CONFIG` at line 44-54 maps specific `payment_type` values to revenue categories. `existing_tenancy_bundle` is NOT mapped to any category, so its revenue (GHS 3 in current data) is invisible in the "Revenue by Type" cards and excluded from "Total Revenue".
+### 2. Rent Increase approval — marketplace update
+In `RegulatorRentReviews.tsx`, when admin approves, it updates `units.monthly_rent`, `tenancies.agreed_rent`, and `properties.approved_rent` (lines 67-86). However, it does **not** update the `asking_rent` on units (used by marketplace). Need to also update `units` with `asking_rent = proposed_rent` so the marketplace listing reflects the new price.
 
-**Fix**: 
-- Add `existing_tenancy_bundle` to the "Tenancy Agreement" types array (short-term fix for display)
-- Add new revenue categories for individual fee components: "Tenant Registration Fee", "Tenancy Filing Fee"
+### 3. Landlord Agreements page — missing draft/unsigned agreement download
+The Landlord Agreements page (`Agreements.tsx`) only shows a download button for `final_agreement_pdf_url` (the signed copy). It does NOT show the initial `agreement_pdf_url` (the draft/unsigned version generated when landlord declares existing tenancy with "Buy Agreement"). Need to add a "Draft Agreement" download button visible before tenant confirms.
 
-### 3. Split Bundle Payments Into Individual Fee Components (Critical)
-Currently, `existing_tenancy_bundle` creates ONE `escrow_transaction` record with `payment_type: "existing_tenancy_bundle"`. For accurate reporting, each fee component should be its OWN `escrow_transaction` record.
-
-**Fix in `finalize-payment.ts`**: When a completed `existing_tenancy_bundle` payment is finalized, instead of creating one set of splits under the bundle transaction, create separate child `escrow_transaction` records for each fee component (`register_tenant_fee`, `filing_fee`, `agreement_sale`) with their individual amounts. The parent bundle transaction is marked completed but its `total_amount` is set to 0 for reporting (or excluded). Each child transaction gets its own splits.
-
-**Alternative (simpler, recommended)**: Keep the single escrow_transaction but update `REVENUE_TYPE_CONFIG` to map bundle types and include individual fee descriptions in splits. For the Escrow Dashboard, parse the split descriptions to attribute revenue to individual fee types rather than the parent payment_type.
-
-**Chosen approach**: Modify the `finalize-payment.ts` to create individual `escrow_transactions` per fee component when finalizing a bundle. The parent bundle record stays as `completed` but child transactions are created with individual `payment_type` values. The Dashboard then naturally picks them up.
-
-### 4. Add Tenant Fee — Same Treatment
-The `add_tenant_fee` is currently a single payment type. The user wants it split into individual components too (Register Tenant Fee, Agreement Fee, Filing Fee). Currently `add_tenant_fee` uses `determineFee` with a single band — it doesn't have the component breakdown that `existing_tenancy_bundle` has.
-
-**Fix**: Update the `add_tenant_fee` checkout flow to use the same component-based approach as `existing_tenancy_bundle` — look up `add_tenant` band and split into individual fee components with separate payment_type values in the split plan metadata. On finalization, create child escrow_transactions.
-
-### 5. Visibility Configuration for New Fee Types
-New fee types (`register_tenant_fee`, `filing_fee`) need to be available in the Super Admin visibility config.
-
-**Fix**: Add entries to `REVENUE_TYPE_CONFIG` with visibility keys so the Super Admin can mute/show them.
+### 4. Admin Agreements page — same issue
+`RegulatorAgreements.tsx` needs to also show both `agreement_pdf_url` (draft) and `final_agreement_pdf_url` (signed) for download.
 
 ## Files to Modify
 
-1. **`src/pages/regulator/EscrowDashboard.tsx`**
-   - Update `REVENUE_TYPE_CONFIG` to add: "Tenant Registration Fee" (types: `register_tenant_fee`), "Tenancy Filing Fee" (types: `filing_fee`), and keep "Tenancy Agreement" for `agreement_sale`
-   - Remove `add_tenant_fee` and `existing_tenancy_bundle` from "Tenancy Agreement" — they become parent types excluded from revenue
-   - Total Revenue now correctly sums individual components
+1. **`src/pages/landlord/EditProperty.tsx`**
+   - Make rent field always `readOnly` with locked styling and hint text
+   - Remove `monthly_rent` from the unit update payload in `handleSave`
 
-2. **`supabase/functions/_shared/finalize-payment.ts`**
-   - After finalizing a bundle payment (`existing_tenancy_bundle`), create child `escrow_transaction` records for each fee component using the split_plan metadata
-   - Each child gets `payment_type` = the component type, `total_amount` = that component's fee, and its own splits
-   - Mark parent as `is_bundle: true` in metadata so dashboard can exclude it from revenue sums
+2. **`src/pages/regulator/RegulatorRentReviews.tsx`**
+   - On approval, also update `units.asking_rent` to the proposed rent so marketplace reflects the change
 
-3. **`supabase/functions/paystack-checkout/index.ts`**
-   - Update `add_tenant_fee` flow to use component-based approach with `add_tenant` bands (register_fee, filing_fee, agreement_fee columns)
-   - Store component breakdown in metadata.fee_components for finalize-payment to use
+3. **`src/pages/landlord/Agreements.tsx`**
+   - Add `agreement_pdf_url` to the TenancyView interface and data fetch
+   - Show "Draft Agreement" download button when `agreement_pdf_url` exists (before final signed copy)
+   - Show "Signed Copy" button when `final_agreement_pdf_url` exists (after tenant confirms)
 
-4. **`src/pages/regulator/EngineRoom.tsx`**
-   - Harden Super Admin fallback: if `profile` is null AND `role === "regulator"`, treat as main admin after both loading states resolve
-   - Add explicit `role` dependency to loading guard
-
-5. **`src/hooks/useAdminProfile.ts`**
-   - Verify and ensure `loading` is set to `false` even when no admin_staff record exists
+4. **`src/pages/regulator/RegulatorAgreements.tsx`**
+   - Add download buttons for both draft (`agreement_pdf_url`) and signed (`final_agreement_pdf_url`) versions
 
 ## Technical Details
 
-**Revenue Type Config update**:
+**Rent field always locked** (EditProperty.tsx):
 ```typescript
-const REVENUE_TYPE_CONFIG = [
-  // ...existing entries...
-  { label: "Tenant Registration Fee", types: ["register_tenant_fee"], color: "...", visibilityKey: "revenue_type_register_tenant" },
-  { label: "Tenancy Filing Fee", types: ["filing_fee"], color: "...", visibilityKey: "revenue_type_filing" },
-  // "Tenancy Agreement" keeps only ["agreement_sale"]
-  // Remove "add_tenant_fee" from here — it becomes a bundle parent
-];
+// Line 353-363: Make readOnly unconditional
+<Input
+  type="number"
+  value={unit.monthly_rent}
+  readOnly
+  className="bg-muted cursor-not-allowed"
+/>
+<p className="text-[10px] text-muted-foreground">
+  Rent is managed by Rent Control. Use Rent Increase Application to request a change.
+</p>
 ```
 
-**Finalize-payment child creation**:
+**Remove monthly_rent from save** (EditProperty.tsx line 163):
 ```typescript
-// After finalizing bundle, create child transactions
-if (paymentType === "existing_tenancy_bundle" || paymentType === "add_tenant_fee") {
-  const feeComponents = meta.fee_components || meta.split_plan_components;
-  if (feeComponents) {
-    for (const component of feeComponents) {
-      // Insert child escrow_transaction with component.type as payment_type
-      // Insert child escrow_splits from the component's allocations
-    }
-  }
+// Remove monthly_rent from the update payload
+const { error: unitErr } = await supabase.from("units").update({
+  unit_name: unit.unit_name,
+  unit_type: unit.unit_type,
+  // monthly_rent removed — read only
+  ...
+}).eq("id", unit.id);
+```
+
+**Marketplace update on approval** (RegulatorRentReviews.tsx):
+```typescript
+if (req.unit_id) {
+  await supabase.from("units").update({
+    monthly_rent: req.proposed_rent,
+    asking_rent: req.proposed_rent,  // NEW: update marketplace price
+  }).eq("id", req.unit_id);
 }
 ```
 
-**Engine Room Super Admin fix**:
+**Landlord Agreements — draft download** (Agreements.tsx):
 ```typescript
-const isMainAdmin = profile?.isMainAdmin ?? (role === "regulator");
-// Remove profileLoading dependency — if role is regulator, they're admin
+// Add agreement_pdf_url to TenancyView interface
+agreement_pdf_url: string | null;
+
+// In render, before the signed copy button:
+{t.agreement_pdf_url && (
+  <a href={t.agreement_pdf_url} target="_blank">
+    <Button size="sm" variant="outline" className="text-xs">
+      <FileText className="h-3 w-3 mr-1" /> Draft Agreement
+    </Button>
+  </a>
+)}
 ```
+
