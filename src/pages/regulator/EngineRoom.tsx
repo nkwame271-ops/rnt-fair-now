@@ -91,7 +91,7 @@ const BAND_BASED_FEE_KEYS = new Set(["agreement_sale_fee", "add_tenant_fee"]);
 
 const EngineRoom = () => {
   // Loading guard rendered at end of component after all hooks
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { flags, loading, refetch } = useAllFeatureFlags();
   const { profile, loading: profileLoading } = useAdminProfile();
   const [toggling, setToggling] = useState<string | null>(null);
@@ -119,6 +119,8 @@ const EngineRoom = () => {
   const [editingAllocations, setEditingAllocations] = useState<Record<string, number>>({});
   const [savingAllocation, setSavingAllocation] = useState<string | null>(null);
   const [expandedBand, setExpandedBand] = useState<string | null>(null);
+  const [addingAllocation, setAddingAllocation] = useState<string | null>(null); // "bandId_paymentType"
+  const [newAllocRecipient, setNewAllocRecipient] = useState("");
 
   // Account Management state
   const [accountSearch, setAccountSearch] = useState("");
@@ -413,6 +415,37 @@ const EngineRoom = () => {
     setSavingAllocation(null);
   };
 
+  const handleAddAllocation = async (bandId: string, paymentType: string, recipient: string) => {
+    if (!recipient) return;
+    setSavingAllocation("new");
+    const existing = bandAllocations.filter(a => a.rent_band_id === bandId && a.payment_type === paymentType);
+    const desc = `${RECIPIENT_LABELS[recipient] || recipient} — ${PAYMENT_TYPE_LABELS[paymentType] || paymentType}`;
+    const { data, error } = await supabase
+      .from("rent_band_allocations")
+      .insert({ rent_band_id: bandId, payment_type: paymentType, recipient, amount: 0, description: desc, sort_order: existing.length } as any)
+      .select()
+      .single();
+    if (error) {
+      toast.error("Failed to add allocation: " + error.message);
+    } else if (data) {
+      setBandAllocations(prev => [...prev, data as any]);
+      toast.success("Allocation added");
+    }
+    setSavingAllocation(null);
+    setAddingAllocation(null);
+    setNewAllocRecipient("");
+  };
+
+  const handleDeleteAllocation = async (allocId: string) => {
+    const { error } = await supabase.from("rent_band_allocations").delete().eq("id", allocId);
+    if (error) {
+      toast.error("Failed to delete allocation");
+    } else {
+      setBandAllocations(prev => prev.filter(a => a.id !== allocId));
+      toast.success("Allocation removed");
+    }
+  };
+
   // Account Management handlers
   const handleAccountSearch = async () => {
     if (!accountSearch.trim()) return;
@@ -474,7 +507,7 @@ const EngineRoom = () => {
   };
 
 
-  const isMainAdmin = profile?.isMainAdmin ?? false;
+  const isMainAdmin = profile?.isMainAdmin ?? (role === "regulator" && !profileLoading);
   const isSubAdmin = profile && !profile.isMainAdmin;
   const { isVisible } = useModuleVisibility("engine_room");
 
@@ -888,7 +921,7 @@ const EngineRoom = () => {
                                       Total: GH₵ {allocTotal.toFixed(2)} {mismatch ? "⚠️ mismatch" : "✓"}
                                     </span>
                                   </div>
-                                  {allocs.length === 0 ? (
+                                   {allocs.length === 0 ? (
                                     <p className="text-xs text-muted-foreground italic">No allocations configured for this type.</p>
                                   ) : allocs.map(alloc => {
                                     const isEditing = editingAllocations[alloc.id] !== undefined;
@@ -903,10 +936,33 @@ const EngineRoom = () => {
                                               {savingAllocation === alloc.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                                             </Button>
                                           )}
+                                          <Button size="sm" variant="ghost" className="h-7 px-1 text-destructive hover:text-destructive" onClick={() => handleDeleteAllocation(alloc.id)}>
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
                                         </div>
                                       </div>
                                     );
                                   })}
+                                  {/* Add Allocation button */}
+                                  {(() => {
+                                    const addKey = `${band.id}_${pt}`;
+                                    return addingAllocation === addKey ? (
+                                      <div className="flex items-center gap-2 pl-3 mt-1">
+                                        <select className="h-7 rounded-md border border-border bg-background px-2 text-xs flex-1" value={newAllocRecipient} onChange={e => setNewAllocRecipient(e.target.value)}>
+                                          <option value="">Select recipient...</option>
+                                          {Object.entries(RECIPIENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                        </select>
+                                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={!newAllocRecipient || savingAllocation === "new"} onClick={() => handleAddAllocation(band.id, pt, newAllocRecipient)}>
+                                          {savingAllocation === "new" ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setAddingAllocation(null); setNewAllocRecipient(""); }}>Cancel</Button>
+                                      </div>
+                                    ) : (
+                                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs mt-1 ml-3" onClick={() => { setAddingAllocation(addKey); setNewAllocRecipient(""); }}>
+                                        <Plus className="h-3 w-3 mr-1" /> Add Allocation
+                                      </Button>
+                                    );
+                                  })()}
                                 </div>
                               );
                             })}
@@ -1023,7 +1079,7 @@ const EngineRoom = () => {
                                     </span>
                                   </div>
                                   {allocs.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground italic">No allocations configured — configure in split engine or add band allocations.</p>
+                                    <p className="text-xs text-muted-foreground italic">No allocations configured — use Add Allocation below.</p>
                                   ) : allocs.map(alloc => {
                                     const isEditing = editingAllocations[alloc.id] !== undefined;
                                     return (
@@ -1037,10 +1093,33 @@ const EngineRoom = () => {
                                               {savingAllocation === alloc.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                                             </Button>
                                           )}
+                                          <Button size="sm" variant="ghost" className="h-7 px-1 text-destructive hover:text-destructive" onClick={() => handleDeleteAllocation(alloc.id)}>
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
                                         </div>
                                       </div>
                                     );
                                   })}
+                                  {/* Add Allocation button */}
+                                  {(() => {
+                                    const addKey = `${band.id}_${ft.key}`;
+                                    return addingAllocation === addKey ? (
+                                      <div className="flex items-center gap-2 pl-3 mt-1">
+                                        <select className="h-7 rounded-md border border-border bg-background px-2 text-xs flex-1" value={newAllocRecipient} onChange={e => setNewAllocRecipient(e.target.value)}>
+                                          <option value="">Select recipient...</option>
+                                          {Object.entries(RECIPIENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                        </select>
+                                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={!newAllocRecipient || savingAllocation === "new"} onClick={() => handleAddAllocation(band.id, ft.key, newAllocRecipient)}>
+                                          {savingAllocation === "new" ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setAddingAllocation(null); setNewAllocRecipient(""); }}>Cancel</Button>
+                                      </div>
+                                    ) : (
+                                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs mt-1 ml-3" onClick={() => { setAddingAllocation(addKey); setNewAllocRecipient(""); }}>
+                                        <Plus className="h-3 w-3 mr-1" /> Add Allocation
+                                      </Button>
+                                    );
+                                  })()}
                                 </div>
                               );
                             })}

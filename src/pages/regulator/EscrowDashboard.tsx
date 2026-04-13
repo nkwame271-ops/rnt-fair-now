@@ -310,8 +310,10 @@ const EscrowDashboard = () => {
       ["Total Revenue", `GHS ${visibleRevenueTotal.toFixed(2)}`],
       ["Completed Transactions", String(stats.completed)],
       ["Pending Transactions", String(stats.pending)],
-      ["Auto-Released", `GHS ${stats.autoReleased.toFixed(2)}`],
-      ["Manually Released", `GHS ${stats.manualReleased.toFixed(2)}`],
+    ];
+    if (isVisible("escrow", "auto_release")) rows.push(["Auto-Released", `GHS ${stats.autoReleased.toFixed(2)}`]);
+    if (isVisible("escrow", "manual_release")) rows.push(["Manually Released", `GHS ${stats.manualReleased.toFixed(2)}`]);
+    rows.push(
       [],
       ["ALLOCATION BREAKDOWN"],
       ...allocationCards.map(c => [c.label, `GHS ${c.amount.toFixed(2)}`]),
@@ -361,13 +363,13 @@ const EscrowDashboard = () => {
     doc.text("Summary", lm, y); y += 6;
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    const summaryItems = [
+    const summaryItems: string[][] = [
       ["Total Revenue", `GHS ${visibleRevenueTotal.toFixed(2)}`],
       ["Completed", String(stats.completed)],
       ["Pending", String(stats.pending)],
-      ["Auto-Released", `GHS ${stats.autoReleased.toFixed(2)}`],
-      ["Manual Released", `GHS ${stats.manualReleased.toFixed(2)}`],
     ];
+    if (isVisible("escrow", "auto_release")) summaryItems.push(["Auto-Released", `GHS ${stats.autoReleased.toFixed(2)}`]);
+    if (isVisible("escrow", "manual_release")) summaryItems.push(["Manual Released", `GHS ${stats.manualReleased.toFixed(2)}`]);
     summaryItems.forEach(([label, val]) => {
       doc.text(label, lm, y);
       doc.text(val, 100, y);
