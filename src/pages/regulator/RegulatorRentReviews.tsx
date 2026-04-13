@@ -81,9 +81,24 @@ const RegulatorRentReviews = () => {
             old_value: { rent: req.current_approved_rent },
             new_value: { rent: req.proposed_rent },
             performed_by: user.id,
-            reason: `Rent increase ${decision}: ${reviewerNotes || "No notes"}`,
+            reason: `Rent increase approved: ${reviewerNotes || "No notes"}`,
           } as any);
         }
+      }
+
+      // Notify landlord of the decision
+      if (req) {
+        const newRentLabel = decision === "approved"
+          ? `GH₵ ${Number(req.proposed_rent).toLocaleString()}/mo`
+          : `GH₵ ${Number(req.current_approved_rent).toLocaleString()}/mo (unchanged)`;
+        await supabase.from("notifications").insert({
+          user_id: req.landlord_user_id,
+          title: `Rent Increase ${decision === "approved" ? "Approved" : "Rejected"}`,
+          body: decision === "approved"
+            ? `Your rent increase request has been approved. New rent: ${newRentLabel}. This is now reflected on your property and marketplace listing.`
+            : `Your rent increase request has been rejected. The current rent remains unchanged. ${reviewerNotes ? `Reason: ${reviewerNotes}` : ""}`,
+          link: "/landlord/my-properties",
+        });
       }
 
       setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: decision, reviewer_notes: reviewerNotes, reviewed_at: new Date().toISOString() } : r));
