@@ -147,7 +147,7 @@ const EscrowDashboard = () => {
       };
 
       // Escrow transactions
-      let txQuery = supabase.from("escrow_transactions").select("status, total_amount, office_id, payment_type, created_at");
+      let txQuery = supabase.from("escrow_transactions").select("id, status, total_amount, office_id, payment_type, created_at");
       if (officeFilter) txQuery = txQuery.eq("office_id", officeFilter);
       txQuery = applyDateFilter(txQuery);
       const { data: transactions } = await txQuery;
