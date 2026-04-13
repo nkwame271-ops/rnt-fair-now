@@ -242,6 +242,13 @@ const RegulatorAgreements = () => {
                 </div>
               </div>
                <div className="flex gap-2 shrink-0 flex-wrap">
+                 {a.agreement_pdf_url && (
+                   <a href={a.agreement_pdf_url} target="_blank" rel="noopener noreferrer">
+                     <Button size="sm" variant="outline">
+                       <Download className="h-3.5 w-3.5 mr-1" /> Draft Agreement
+                     </Button>
+                   </a>
+                 )}
                  {a.final_agreement_pdf_url && (
                    <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
                      <Button size="sm" variant="default">
