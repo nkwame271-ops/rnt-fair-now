@@ -30,6 +30,7 @@ interface TenancyView {
   unitType: string;
   propertyName: string;
   customFieldValues: Record<string, string>;
+  agreement_pdf_url: string | null;
   final_agreement_pdf_url: string | null;
   tenancy_type: string | null;
   tax_compliance_status: string;
@@ -88,6 +89,7 @@ const Agreements = () => {
           unitType: t.unit.unit_type,
           propertyName: prop?.property_name || "Property",
           customFieldValues: (t as any).custom_field_values || {},
+          agreement_pdf_url: (t as any).agreement_pdf_url || null,
           final_agreement_pdf_url: t.final_agreement_pdf_url || null,
           payments: (payments || []) as any[],
           tenancy_type: (t as any).tenancy_type || null,
@@ -184,6 +186,13 @@ const Agreements = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    {t.agreement_pdf_url && !t.final_agreement_pdf_url && (
+                      <a href={t.agreement_pdf_url} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="outline" className="text-xs">
+                          <FileCheck className="h-3 w-3 mr-1" /> Draft Agreement
+                        </Button>
+                      </a>
+                    )}
                     {t.final_agreement_pdf_url && (
                       <a href={t.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
                         <Button size="sm" variant="default" className="text-xs">
