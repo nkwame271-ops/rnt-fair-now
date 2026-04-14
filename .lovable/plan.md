@@ -1,60 +1,89 @@
 
 
-# Fix: Invite Admin & Create Staff Errors
+# Fix: Engine Room Super Admin Access, Escrow Office Attribution, Rent Increase Confirmation
 
-## Root Causes
+## Issues
 
-### 1. "fullName, email, and password required" (Super Admin → Create New Staff)
-The `handleCreateStaff` in `SuperAdminDashboard.tsx` sends body keys using **snake_case** (`full_name`, `phone`), but the edge function `invite-staff/index.ts` destructures **camelCase** (`fullName`). The value arrives as `undefined`, triggering the validation error.
+### 1. Engine Room Empty for Super Admin
+The `RegulatorLayout` nav filter (line 75-88) treats the super_admin like a sub_admin because `profile.allowedFeatures.length > 0`. It runs the sub_admin filtering logic for super_admin users. While the Engine Room IS in the allowed list (so it should still show), there may be edge cases with the `isMainAdmin` check. The fix is to explicitly skip the sub-admin filter for super_admin users, matching the same pattern as the `superAdminOnly` check.
 
-### 2. "Database error creating new user" (Invite Admin page)
-The auth logs show: `duplicate key value violates unique constraint "idx_profiles_email_unique"`. When `createUser` runs, the `handle_new_user` trigger inserts into `profiles`, but if a profile row with that email already exists (from a previous failed attempt or a different user), it causes a constraint violation that aborts the entire transaction.
+### 2. Escrow Office Attribution (Adenta shows 0, HQ shows all)
+Root cause confirmed in the database: `finalize-office-attribution` correctly updates `escrow_splits.office_id` to the assigned office (e.g., `adenta`), but does NOT update `escrow_transactions.office_id` or `payment_receipts.office_id`. The Escrow Dashboard filters transactions and receipts by `escrow_transactions.office_id`, which remains `accra_central` (the default from `resolveOffice`). This means all deferred-type revenue appears under HQ.
 
-The `invite-staff` edge function checks `listUsers()` for existing auth users, but does NOT check the `profiles` table for orphaned email rows.
+**Fix**: Update `finalize-office-attribution` edge function to also update:
+- `escrow_transactions.office_id` → the assigned office
+- `payment_receipts.office_id` → the assigned office (matching by `escrow_transaction_id`)
 
-## Fixes
+### 3. Rent Increase Flow
+This was already fixed in the previous round:
+- Rent field is read-only with lock icon and hint text
+- `monthly_rent` excluded from save payload
+- Approval updates `asking_rent` for marketplace sync
+- No further changes needed
 
-### File 1: `src/pages/regulator/SuperAdminDashboard.tsx`
-- Change the `body` in `handleCreateStaff` to use camelCase keys matching what the edge function expects:
-  - `full_name` → `fullName`
-  - `admin_type` → `adminType`
-  - `office_id` → `officeId`
-  - `office_name` → `officeName`
+## Files to Modify
 
-### File 2: `supabase/functions/invite-staff/index.ts`
-- Before calling `createUser`, check if a `profiles` row with that email already exists. If it does (orphaned from a previous failed attempt), delete the orphaned profile row first.
-- This prevents the unique constraint violation in the `handle_new_user` trigger.
+1. **`src/components/RegulatorLayout.tsx`** (line 75-88)
+   - Add early return for `profile?.isSuperAdmin` — show all nav items (same as main admin)
 
-### File 3: `src/pages/regulator/InviteStaff.tsx`
-- Verify this page also sends camelCase keys (it does — `fullName`, `adminType`, etc. — so no change needed here). The issue is only in `SuperAdminDashboard.tsx`.
+2. **`supabase/functions/finalize-office-attribution/index.ts`**
+   - After updating splits, also update `escrow_transactions.office_id` to the attributed office
+   - Also update `payment_receipts.office_id` for the matching `escrow_transaction_id`
+
+3. **Database fix** — Update existing misattributed records:
+   - For each `escrow_splits` row where `office_id` differs from the parent `escrow_transactions.office_id`, update the transaction and receipt to match
 
 ## Technical Details
 
-**SuperAdminDashboard fix** (line 464-474):
+**RegulatorLayout fix**:
 ```typescript
-const { data, error } = await supabase.functions.invoke("invite-staff", {
-  body: {
-    email: newStaff.email,
-    fullName: newStaff.full_name,    // was: full_name
-    password: newStaff.password,
-    adminType: newStaff.admin_type,  // was: admin_type
-    officeId: newStaff.office_id || null,   // was: office_id
-    officeName: newStaff.office_name || null, // was: office_name
-  },
+const navItems = allNavItems.filter(item => {
+  if ((item as any).superAdminOnly && !profile?.isSuperAdmin) return false;
+  // Super admin sees everything
+  if (profile?.isSuperAdmin) return true;
+  // Main admin or no profile — show all
+  if (!profile || profile.isMainAdmin) return true;
+  if (profile.allowedFeatures.length === 0) return true;
+  // Sub admin filter
+  const featureKey = getFeatureKeyForRoute(item.to);
+  if (!featureKey) return true;
+  return profile.allowedFeatures.includes(featureKey) && !profile.mutedFeatures.includes(featureKey);
 });
 ```
 
-**invite-staff orphan cleanup** (before createUser):
+**finalize-office-attribution fix** — after updating splits:
 ```typescript
-// Clean up orphaned profile row if exists
-const { data: orphanProfile } = await adminClient
-  .from("profiles")
-  .select("user_id")
-  .eq("email", email.toLowerCase())
-  .maybeSingle();
+// Also update the parent escrow_transaction office_id
+await adminClient
+  .from("escrow_transactions")
+  .update({ office_id })
+  .eq("id", escrow_transaction_id);
 
-if (orphanProfile) {
-  await adminClient.from("profiles").delete().eq("user_id", orphanProfile.user_id);
-}
+// Update receipt office_id
+await adminClient
+  .from("payment_receipts")
+  .update({ office_id })
+  .eq("escrow_transaction_id", escrow_transaction_id);
+```
+
+**Data correction** — fix existing misattributed records via migration:
+```sql
+UPDATE escrow_transactions et
+SET office_id = (
+  SELECT es.office_id FROM escrow_splits es
+  WHERE es.escrow_transaction_id = et.id
+    AND es.recipient = 'admin'
+    AND es.office_id IS NOT NULL
+    AND es.office_id != et.office_id
+  LIMIT 1
+)
+WHERE EXISTS (
+  SELECT 1 FROM escrow_splits es
+  WHERE es.escrow_transaction_id = et.id
+    AND es.recipient = 'admin'
+    AND es.office_id IS NOT NULL
+    AND es.office_id != et.office_id
+);
+-- Same pattern for payment_receipts
 ```
 
