@@ -62,6 +62,17 @@ Deno.serve(async (req) => {
       .update({ office_id, disbursement_status: "pending_transfer" })
       .in("id", splitIds);
 
+    // Also update the parent escrow_transaction and receipt office_id
+    await adminClient
+      .from("escrow_transactions")
+      .update({ office_id })
+      .eq("id", escrow_transaction_id);
+
+    await adminClient
+      .from("payment_receipts")
+      .update({ office_id })
+      .eq("escrow_transaction_id", escrow_transaction_id);
+
     // Check office payout mode
     let autoRelease = false;
     try {

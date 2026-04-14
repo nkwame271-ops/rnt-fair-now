@@ -83,6 +83,7 @@ export const GHANA_REGIONS_OFFICES: { region: string; offices: { id: string; nam
       { id: "amasaman", name: "Amasaman" },
       { id: "dodowa", name: "Dodowa" },
       { id: "tema", name: "Tema" },
+      { id: "spintex", name: "Spintex" },
       { id: "sowutuom", name: "Sowutuom" },
       { id: "attah_deka", name: "Attah Deka" },
       { id: "dansoman", name: "Dansoman" },
