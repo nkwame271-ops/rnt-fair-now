@@ -142,7 +142,7 @@ const RegulatorAgreements = () => {
       isExistingTenancy: useExistingFormat,
     };
     const doc = await generateAgreementPdf(data);
-    doc.save(`${isExisting ? "Existing_Tenancy_Details" : "Agreement"}_${a.registration_code}.pdf`);
+    doc.save(`${useExistingFormat ? "Existing_Tenancy_Details" : "Agreement"}_${a.registration_code}.pdf`);
   };
 
   const exportCSV = () => {
