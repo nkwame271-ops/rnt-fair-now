@@ -75,14 +75,15 @@ const RegulatorLayout = () => {
   const navItems = allNavItems.filter(item => {
     // Super Admin Only items
     if ((item as any).superAdminOnly && !profile?.isSuperAdmin) return false;
-
+    // Super admin sees everything
+    if (profile?.isSuperAdmin) return true;
     // Main admin or no profile record (legacy/fallback) — show all
-    if (!profile) return true;
+    if (!profile || profile.isMainAdmin) return true;
     if (profile.allowedFeatures.length === 0) return true; // unrestricted admin
 
     // Sub admin — only show allowed features that aren't muted
     const featureKey = getFeatureKeyForRoute(item.to);
-    if (!featureKey) return true; // unknown routes stay visible
+    if (!featureKey) return true;
     const isAllowed = profile.allowedFeatures.includes(featureKey);
     const isMuted = profile.mutedFeatures.includes(featureKey);
     return isAllowed && !isMuted;
