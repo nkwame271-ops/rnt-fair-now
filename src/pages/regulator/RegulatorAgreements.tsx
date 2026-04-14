@@ -112,6 +112,8 @@ const RegulatorAgreements = () => {
 
   const downloadPdf = async (a: any) => {
     const isExisting = a.tenancy_type === "existing_migration";
+    // If the tenancy has a system-generated agreement_pdf_url, it was a "Buy Agreement" flow — use full template
+    const useExistingFormat = isExisting && !(a as any).agreement_pdf_url;
     const data: AgreementPdfData = {
       tenancyId: a.id,
       registrationCode: a.registration_code,
@@ -137,10 +139,10 @@ const RegulatorAgreements = () => {
       amenities: a._amenities,
       facilities: a._facilities,
       propertyId: a._propertyId,
-      isExistingTenancy: isExisting,
+      isExistingTenancy: useExistingFormat,
     };
     const doc = await generateAgreementPdf(data);
-    doc.save(`${isExisting ? "Existing_Tenancy_Details" : "Agreement"}_${a.registration_code}.pdf`);
+    doc.save(`${useExistingFormat ? "Existing_Tenancy_Details" : "Agreement"}_${a.registration_code}.pdf`);
   };
 
   const exportCSV = () => {

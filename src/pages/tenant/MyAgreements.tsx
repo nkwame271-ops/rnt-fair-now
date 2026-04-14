@@ -244,7 +244,7 @@ const MyAgreements = () => {
           startDate: t.start_date,
           endDate: t.end_date,
           region: t.region,
-          isExistingTenancy: true,
+          isExistingTenancy: !t.agreement_pdf_url,
           templateConfig: tplConfig ? {
             max_advance_months: tplConfig.max_advance_months,
             min_lease_duration: tplConfig.min_lease_duration,

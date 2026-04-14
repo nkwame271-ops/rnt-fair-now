@@ -378,7 +378,7 @@ const DeclareExistingTenancy = () => {
           ghanaPostGps: prop.ghana_post_gps || undefined,
           landlordPhone: landlordProfile?.phone || undefined,
           tenantPhone: formData.tenantPhone || undefined,
-          isExistingTenancy: true,
+          isExistingTenancy: formData.agreementChoice !== "buy",
           templateConfig: tplConfig ? {
             max_advance_months: tplConfig.max_advance_months,
             min_lease_duration: tplConfig.min_lease_duration,
