@@ -115,6 +115,9 @@ Deno.serve(async (req) => {
       await adminClient.from("profiles").delete().eq("user_id", orphanProfile.user_id);
     }
 
+    // Determine role for user_roles table — NUGS gets nugs_admin, others get regulator
+    const userRole = isNugs ? "nugs_admin" : "regulator";
+
     // Create user with admin API (auto-confirmed)
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email,
@@ -123,7 +126,7 @@ Deno.serve(async (req) => {
       user_metadata: {
         full_name: fullName,
         phone: "",
-        role: "regulator",
+        role: userRole,
       },
     });
 
@@ -134,22 +137,30 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create admin_staff record
-    const { error: staffError } = await adminClient
-      .from("admin_staff")
-      .insert({
-        user_id: newUser.user.id,
-        admin_type: resolvedAdminType,
-        office_id: resolvedAdminType === "main_admin" ? null : (officeId || null),
-        office_name: resolvedAdminType === "main_admin" ? null : (officeName || null),
-        allowed_features: allowedFeatures || [],
-        muted_features: [],
-        created_by: callerId,
-      });
+    // NUGS admins do not get an admin_staff record (they're not internal regulator staff)
+    if (!isNugs) {
+      const { error: staffError } = await adminClient
+        .from("admin_staff")
+        .insert({
+          user_id: newUser.user.id,
+          admin_type: resolvedAdminType,
+          office_id: resolvedAdminType === "main_admin" ? null : (officeId || null),
+          office_name: resolvedAdminType === "main_admin" ? null : (officeName || null),
+          allowed_features: allowedFeatures || [],
+          muted_features: [],
+          created_by: callerId,
+        });
 
-    if (staffError) {
-      console.error("Failed to create admin_staff record:", staffError.message);
+      if (staffError) {
+        console.error("Failed to create admin_staff record:", staffError.message);
+      }
     }
+
+    const labelMap: Record<string, string> = {
+      main_admin: "Main Admin",
+      sub_admin: "Sub Admin",
+      nugs_admin: "NUGS Admin",
+    };
 
     return new Response(JSON.stringify({
       success: true,
