@@ -118,7 +118,18 @@ const OfficePayoutSettings = () => {
     if (!selectedOffice) return;
     setSaving(true);
 
-    const payload = {
+    // Detect if account details changed — if so, clear stale recipient_code
+    // so a fresh Paystack recipient is created and used by all future transfers.
+    const accountDetailsChanged = !account || (
+      account.payment_method !== method ||
+      (account.momo_number || "") !== (method === "momo" ? momoNumber : "") ||
+      (account.momo_provider || "") !== (method === "momo" ? momoProvider : "") ||
+      (account.bank_name || "") !== (method === "bank" ? bankName : "") ||
+      (account.account_number || "") !== (method === "bank" ? accountNumber : "") ||
+      (account.account_name || "") !== accountName
+    );
+
+    const payload: any = {
       office_id: selectedOffice,
       payment_method: method,
       momo_number: method === "momo" ? momoNumber : null,
@@ -128,6 +139,9 @@ const OfficePayoutSettings = () => {
       account_name: accountName || null,
       updated_at: new Date().toISOString(),
     };
+
+    // Clear stale recipient code on update so a fresh one is created
+    if (accountDetailsChanged) payload.paystack_recipient_code = null;
 
     let saveSuccess = false;
     if (account?.id) {
@@ -146,7 +160,7 @@ const OfficePayoutSettings = () => {
             action: "create_payout_recipient",
             target_id: `RECIPIENT-${selectedOffice}`,
             reason: "Auto-create Paystack recipient on payout account save",
-            password: "skip", // This action doesn't need re-auth beyond admin check
+            password: "skip",
             extra: { office_id: selectedOffice },
           },
         });
@@ -154,7 +168,7 @@ const OfficePayoutSettings = () => {
           console.warn("Recipient creation failed:", data.error);
           toast.info("Account saved but Paystack recipient could not be created — will retry on first payout");
         } else if (!error) {
-          toast.success("Paystack transfer recipient created");
+          toast.success("Paystack transfer recipient synced");
         }
       } catch (e: any) {
         console.warn("Recipient creation error:", e.message);
@@ -191,7 +205,20 @@ const OfficePayoutSettings = () => {
   const handleSaveSettlement = async (accountType: string) => {
     setSavingSettlement(accountType);
     const data = getSettlementEdit(accountType);
-    const payload = {
+    const existing = settlementAccounts.find(a => a.account_type === accountType);
+
+    // Detect if account details changed — clear stale recipient_code so a fresh
+    // Paystack recipient is created and used for future transfers.
+    const detailsChanged = !existing || (
+      (existing as any).payment_method !== data.payment_method ||
+      ((existing as any).momo_number || "") !== (data.payment_method === "momo" ? data.momo_number : "") ||
+      ((existing as any).momo_provider || "") !== (data.payment_method === "momo" ? data.momo_provider : "") ||
+      ((existing as any).bank_name || "") !== (data.payment_method === "bank" ? data.bank_name : "") ||
+      ((existing as any).account_number || "") !== (data.payment_method === "bank" ? data.account_number : "") ||
+      ((existing as any).account_name || "") !== data.account_name
+    );
+
+    const payload: any = {
       account_type: accountType,
       payment_method: data.payment_method,
       account_name: data.account_name || null,
@@ -200,17 +227,19 @@ const OfficePayoutSettings = () => {
       momo_number: data.payment_method === "momo" ? data.momo_number || null : null,
       momo_provider: data.payment_method === "momo" ? data.momo_provider || null : null,
       paystack_subaccount_code: data.paystack_subaccount_code || null,
-      paystack_recipient_code: data.paystack_recipient_code || null,
+      paystack_recipient_code: detailsChanged ? null : (data.paystack_recipient_code || null),
       updated_at: new Date().toISOString(),
       updated_by: user?.id,
     };
 
+    let saveSuccess = false;
     if (data.id) {
       const { error } = await supabase.from("system_settlement_accounts").update(payload).eq("id", data.id);
       if (error) toast.error("Failed to update"); else {
         toast.success(`${accountType.toUpperCase()} account updated`);
         setSettlementAccounts(prev => prev.map(a => a.account_type === accountType ? { ...a, ...payload } as any : a));
         setSettlementEdits(prev => { const n = { ...prev }; delete n[accountType]; return n; });
+        saveSuccess = true;
       }
     } else {
       const { data: inserted, error } = await supabase.from("system_settlement_accounts").insert(payload).select().single();
@@ -218,6 +247,36 @@ const OfficePayoutSettings = () => {
         toast.success(`${accountType.toUpperCase()} account saved`);
         setSettlementAccounts(prev => [...prev, inserted as any]);
         setSettlementEdits(prev => { const n = { ...prev }; delete n[accountType]; return n; });
+        saveSuccess = true;
+      }
+    }
+
+    // Auto-sync Paystack recipient when bank/momo details are present and changed
+    if (saveSuccess && detailsChanged) {
+      const hasDetails = data.payment_method === "momo"
+        ? !!(data.momo_number && data.momo_provider)
+        : !!(data.account_number && data.bank_name);
+      if (hasDetails) {
+        try {
+          const { data: invokeData } = await supabase.functions.invoke("admin-action", {
+            body: {
+              action: "create_settlement_recipient",
+              target_id: `SETTLEMENT-${accountType}`,
+              reason: "Auto-sync Paystack recipient on settlement account save",
+              password: "skip",
+              extra: { account_type: accountType },
+            },
+          });
+          if (invokeData?.error) {
+            toast.info("Saved, but Paystack recipient sync deferred — will retry on first payout");
+          } else if (invokeData?.success && invokeData?.new_state?.paystack_recipient_code) {
+            const newCode = invokeData.new_state.paystack_recipient_code;
+            setSettlementAccounts(prev => prev.map(a => a.account_type === accountType ? { ...a, paystack_recipient_code: newCode } as any : a));
+            toast.success("Paystack transfer recipient synced");
+          }
+        } catch (e: any) {
+          console.warn("Settlement recipient sync error:", e.message);
+        }
       }
     }
     setSavingSettlement(null);

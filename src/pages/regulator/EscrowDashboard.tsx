@@ -559,7 +559,31 @@ const EscrowDashboard = () => {
         ) : (
           <>
             {/* Export buttons */}
-            <div className="flex gap-2 justify-end">
+            <div className="flex flex-wrap gap-2 justify-end">
+              {isMainAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (!confirm("Recalculate the internal ledger for completed transactions in the current date range? This only repairs MISSING ledger entries — existing payouts are not disturbed.")) return;
+                    const { data, error } = await supabase.functions.invoke("reconcile-internal-ledger", {
+                      body: { from: dateRange.from, to: dateRange.to, limit: 500 },
+                    });
+                    if (error) {
+                      alert("Reconciliation failed: " + error.message);
+                      return;
+                    }
+                    if (data?.error) {
+                      alert("Reconciliation error: " + data.error);
+                      return;
+                    }
+                    alert(`Reconciliation complete.\nScanned: ${data.scanned}\nAlready balanced: ${data.already_balanced}\nRepaired: ${data.repaired}\nLedger rows inserted: ${data.rows_inserted}\nRecovered amount: GH₵ ${(data.total_recovered_amount || 0).toFixed(2)}`);
+                    window.location.reload();
+                  }}
+                >
+                  <AlertTriangle className="h-4 w-4 mr-1" /> Recalculate Ledger
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={exportCSV}>
                 <Download className="h-4 w-4 mr-1" /> Export Excel (CSV)
               </Button>

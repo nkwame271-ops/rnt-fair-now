@@ -51,3 +51,5 @@ project_id = "qjrvwcwmhuxygdanbxsz"
     verify_jwt = false
   [functions.reset-password-otp]
     verify_jwt = false
+  [functions.reconcile-internal-ledger]
+    verify_jwt = false
