@@ -1,89 +1,102 @@
 
 
-# Fix: Engine Room Super Admin Access, Escrow Office Attribution, Rent Increase Confirmation
+# Fix: Admin Charge Must Follow Secondary Split Configuration
 
-## Issues
+## Root Cause
 
-### 1. Engine Room Empty for Super Admin
-The `RegulatorLayout` nav filter (line 75-88) treats the super_admin like a sub_admin because `profile.allowedFeatures.length > 0`. It runs the sub_admin filtering logic for super_admin users. While the Engine Room IS in the allowed list (so it should still show), there may be edge cases with the `isMainAdmin` check. The fix is to explicitly skip the sub-admin filter for super_admin users, matching the same pattern as the `superAdminOnly` check.
+The `secondary_split_configurations` table already has the correct Engine Room config:
+- `admin → office: 0%`
+- `admin → headquarters: 100%`
+- `admin → platform: 0%`
 
-### 2. Escrow Office Attribution (Adenta shows 0, HQ shows all)
-Root cause confirmed in the database: `finalize-office-attribution` correctly updates `escrow_splits.office_id` to the assigned office (e.g., `adenta`), but does NOT update `escrow_transactions.office_id` or `payment_receipts.office_id`. The Escrow Dashboard filters transactions and receipts by `escrow_transactions.office_id`, which remains `accra_central` (the default from `resolveOffice`). This means all deferred-type revenue appears under HQ.
+But **both** `finalize-payment.ts` and `finalize-office-attribution` completely ignore this table. They treat the entire `admin` split amount as a single office payment. The admin charge must be sub-divided according to these secondary percentages.
 
-**Fix**: Update `finalize-office-attribution` edge function to also update:
-- `escrow_transactions.office_id` → the assigned office
-- `payment_receipts.office_id` → the assigned office (matching by `escrow_transaction_id`)
+## Current Data
+For rent cards: GH₵15 → rent_control, GH₵10 → admin. The admin GH₵10 should be split per secondary config (currently 100% HQ, 0% office). Instead, the system sends all GH₵10 to the assigning office.
 
-### 3. Rent Increase Flow
-This was already fixed in the previous round:
-- Rent field is read-only with lock icon and hint text
-- `monthly_rent` excluded from save payload
-- Approval updates `asking_rent` for marketplace sync
-- No further changes needed
+## Changes
 
-## Files to Modify
+### 1. `supabase/functions/_shared/finalize-payment.ts`
+When creating `escrow_splits` for an `admin` recipient, load `secondary_split_configurations` for `parent_recipient = 'admin'`. Instead of creating one split row for the full admin amount, create multiple rows:
+- One for `office` share (recipient: `admin`, sub_recipient marker in description, office_id set)
+- One for `headquarters` share (recipient: `admin`, routed to system settlement account for `admin`)
+- One for `platform` share if configured
 
-1. **`src/components/RegulatorLayout.tsx`** (line 75-88)
-   - Add early return for `profile?.isSuperAdmin` — show all nav items (same as main admin)
+If secondary splits total 0% or don't exist, fall back to current behavior (100% to admin/office).
 
-2. **`supabase/functions/finalize-office-attribution/index.ts`**
-   - After updating splits, also update `escrow_transactions.office_id` to the attributed office
-   - Also update `payment_receipts.office_id` for the matching `escrow_transaction_id`
+The same logic applies in the auto-release fund request section — only the office's share should create a fund request.
 
-3. **Database fix** — Update existing misattributed records:
-   - For each `escrow_splits` row where `office_id` differs from the parent `escrow_transactions.office_id`, update the transaction and receipt to match
+### 2. `supabase/functions/finalize-office-attribution/index.ts`
+Currently takes ALL deferred `admin` splits and attributes them to the assigning office. Must instead:
+1. Load `secondary_split_configurations` for `parent_recipient = 'admin'`
+2. For each deferred admin split, calculate the office percentage
+3. If office% < 100%, split the row: create a new split for HQ's share, reduce the original to office's share
+4. Only attribute the office portion to the assigning office
+5. The HQ portion should be routed to the system `admin` settlement account for payout
+
+### 3. `supabase/functions/paystack-checkout/index.ts`
+No changes needed — this correctly loads from `split_configurations` and passes the split plan in metadata. The sub-splitting happens at finalization time.
 
 ## Technical Details
 
-**RegulatorLayout fix**:
+**Secondary split loading helper** (shared):
 ```typescript
-const navItems = allNavItems.filter(item => {
-  if ((item as any).superAdminOnly && !profile?.isSuperAdmin) return false;
-  // Super admin sees everything
-  if (profile?.isSuperAdmin) return true;
-  // Main admin or no profile — show all
-  if (!profile || profile.isMainAdmin) return true;
-  if (profile.allowedFeatures.length === 0) return true;
-  // Sub admin filter
-  const featureKey = getFeatureKeyForRoute(item.to);
-  if (!featureKey) return true;
-  return profile.allowedFeatures.includes(featureKey) && !profile.mutedFeatures.includes(featureKey);
-});
+async function loadSecondarySplits(supabaseAdmin: any, parentRecipient: string) {
+  const { data } = await supabaseAdmin
+    .from("secondary_split_configurations")
+    .select("sub_recipient, percentage, description")
+    .eq("parent_recipient", parentRecipient);
+  return data || [];
+}
 ```
 
-**finalize-office-attribution fix** — after updating splits:
+**finalize-payment.ts split creation** — when building splitRows for `admin`:
 ```typescript
-// Also update the parent escrow_transaction office_id
-await adminClient
-  .from("escrow_transactions")
-  .update({ office_id })
-  .eq("id", escrow_transaction_id);
+// Instead of one admin row, create sub-rows per secondary config
+const secondarySplits = await loadSecondarySplits(supabaseAdmin, "admin");
+const officeShare = secondarySplits.find(s => s.sub_recipient === "office");
+const hqShare = secondarySplits.find(s => s.sub_recipient === "headquarters");
 
-// Update receipt office_id
-await adminClient
-  .from("payment_receipts")
-  .update({ office_id })
-  .eq("escrow_transaction_id", escrow_transaction_id);
+const officePct = officeShare?.percentage || 0;
+const hqPct = hqShare?.percentage || 100;
+
+// Office portion (deferred for deferred types)
+if (officePct > 0) {
+  rows.push({ recipient: "admin", amount: adminAmount * officePct / 100, 
+    description: "Office share", office_id: isDeferredOffice ? null : officeId,
+    disbursement_status: isDeferredOffice ? "deferred" : ... });
+}
+// HQ portion (never deferred — goes to system admin account)
+if (hqPct > 0) {
+  rows.push({ recipient: "admin_hq", amount: adminAmount * hqPct / 100,
+    description: "HQ share", office_id: null,
+    disbursement_status: "pending_transfer" });
+}
 ```
 
-**Data correction** — fix existing misattributed records via migration:
-```sql
-UPDATE escrow_transactions et
-SET office_id = (
-  SELECT es.office_id FROM escrow_splits es
-  WHERE es.escrow_transaction_id = et.id
-    AND es.recipient = 'admin'
-    AND es.office_id IS NOT NULL
-    AND es.office_id != et.office_id
-  LIMIT 1
-)
-WHERE EXISTS (
-  SELECT 1 FROM escrow_splits es
-  WHERE es.escrow_transaction_id = et.id
-    AND es.recipient = 'admin'
-    AND es.office_id IS NOT NULL
-    AND es.office_id != et.office_id
-);
--- Same pattern for payment_receipts
+**finalize-office-attribution** — only process the office share:
+```typescript
+// Load secondary config
+const secondarySplits = await loadSecondarySplits(adminClient, "admin");
+const officePct = secondarySplits.find(s => s.sub_recipient === "office")?.percentage || 0;
+
+// If office gets 0%, just mark deferred splits as released to HQ
+// If office gets partial %, split the amount accordingly
 ```
+
+**Payout routing for admin_hq** — add `admin_hq` to `RECIPIENT_TO_ACCOUNT_TYPE` mapping:
+```typescript
+const RECIPIENT_TO_ACCOUNT_TYPE = {
+  rent_control: "igf",
+  admin: "admin",      // office payout
+  admin_hq: "admin",   // HQ system settlement
+  platform: "platform",
+  gra: "gra",
+};
+```
+
+## Files to Modify
+1. `supabase/functions/_shared/finalize-payment.ts` — sub-split admin recipient using secondary config
+2. `supabase/functions/finalize-office-attribution/index.ts` — only attribute office percentage, route HQ share separately
+3. Both functions need the secondary split loading helper
 
