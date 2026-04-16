@@ -181,6 +181,7 @@ const RoleSelect = () => {
       if (role === "tenant") navigate("/tenant/dashboard", { replace: true });
       else if (role === "landlord") navigate("/landlord/dashboard", { replace: true });
       else if (role === "regulator") navigate("/regulator/dashboard", { replace: true });
+      else if (role === "nugs_admin") navigate("/nugs/dashboard", { replace: true });
     }
   }, [user, role, loading, navigate]);
 
