@@ -14,11 +14,19 @@
 // Recipient → system settlement account type mapping
 const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
   rent_control: "igf",
+  rent_control_hq: "igf",   // HQ share of rent_control → IGF settlement account
   admin: "admin",
   admin_hq: "admin",   // HQ share routes to the same system admin settlement account
   platform: "platform",
   gra: "gra",
 };
+
+// Recipients that may have a secondary split configuration (office vs. HQ).
+// When a primary split row is for one of these recipients AND the recipient has
+// secondary_split_configurations rows, the amount is sub-divided into:
+//   - office share → recipient stays as-is, tagged with office_id
+//   - HQ share     → recipient becomes "<recipient>_hq", office_id = null
+const SECONDARY_SPLIT_RECIPIENTS = ["admin", "rent_control"];
 
 interface FinalizeOpts {
   supabaseAdmin: any;
