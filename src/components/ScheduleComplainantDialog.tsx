@@ -75,10 +75,16 @@ const ScheduleComplainantDialog = ({
       });
 
       if (complainantPhone) {
+        const slotDetails = validSlots.map(s =>
+          `${new Date(s.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} ${s.time_start}-${s.time_end}`
+        ).join("; ");
+        const codePart = complaintCode ? ` for complaint ${complaintCode}` : "";
+        const officePart = officeName ? ` Visit: ${officeName} Office, Rent Control Department.` : " Visit your nearest Rent Control Office.";
+        const message = `RentGhana: Appointment slots available${codePart}. Options: ${slotDetails}.${officePart} Log in to select your preferred time.`;
         sendNotification("complaint_reminder", {
           phone: complainantPhone,
           user_id: complainantUserId,
-          data: { message: `You have ${validSlots.length} appointment slot(s) available. Log in to select your preferred time.` },
+          data: { message },
         });
       }
 
