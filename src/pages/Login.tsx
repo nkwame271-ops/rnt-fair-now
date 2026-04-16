@@ -32,6 +32,7 @@ const Login = () => {
     if (userRole === "tenant") navigate("/tenant/dashboard");
     else if (userRole === "landlord") navigate("/landlord/dashboard");
     else if (userRole === "regulator") navigate("/regulator/dashboard");
+    else if (userRole === "nugs_admin") navigate("/nugs/dashboard");
     else navigate("/");
 
     toast.success("Welcome back!");
