@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     }
 
     // Actions that don't require password re-authentication
-    const NO_PASSWORD_ACTIONS = ["create_payout_recipient"];
+    const NO_PASSWORD_ACTIONS = ["create_payout_recipient", "create_settlement_recipient"];
     const requiresPassword = !NO_PASSWORD_ACTIONS.includes(action);
 
     if (requiresPassword) {
@@ -905,6 +905,59 @@ Deno.serve(async (req) => {
 
         oldState = { paystack_recipient_code: (payoutAccount as any).paystack_recipient_code || null };
         newState = { paystack_recipient_code: recipientCode };
+        break;
+      }
+
+      case "create_settlement_recipient": {
+        targetType = "system_settlement_account";
+        const { account_type: srAccountType } = extra || {};
+        if (!srAccountType) throw new Error("Missing account_type");
+
+        const { data: settAcc } = await adminClient
+          .from("system_settlement_accounts")
+          .select("*")
+          .eq("account_type", srAccountType)
+          .single();
+
+        if (!settAcc) throw new Error("No settlement account found for type: " + srAccountType);
+
+        const PAYSTACK_SK_S = Deno.env.get("PAYSTACK_SECRET_KEY");
+        if (!PAYSTACK_SK_S) throw new Error("Paystack secret key not configured");
+
+        const sPayload: any = {
+          type: (settAcc as any).payment_method === "momo" ? "mobile_money" : "nuban",
+          name: (settAcc as any).account_name || `${srAccountType} Settlement`,
+          currency: "GHS",
+        };
+
+        if ((settAcc as any).payment_method === "momo") {
+          sPayload.account_number = (settAcc as any).momo_number;
+          const provider = ((settAcc as any).momo_provider || "").toLowerCase();
+          sPayload.bank_code = provider === "mtn" ? "MTN" : provider === "vodafone" ? "VOD" : provider === "airteltigo" ? "ATL" : (settAcc as any).momo_provider;
+        } else {
+          sPayload.account_number = (settAcc as any).account_number;
+          sPayload.bank_code = (settAcc as any).bank_name;
+        }
+
+        const sRes = await fetch("https://api.paystack.co/transferrecipient", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${PAYSTACK_SK_S}`, "Content-Type": "application/json" },
+          body: JSON.stringify(sPayload),
+        });
+        const sData = await sRes.json();
+
+        if (!sData.status || !sData.data?.recipient_code) {
+          throw new Error(`Paystack recipient creation failed: ${sData.message || "Unknown error"}`);
+        }
+
+        const sRecipient = sData.data.recipient_code;
+        await adminClient
+          .from("system_settlement_accounts")
+          .update({ paystack_recipient_code: sRecipient })
+          .eq("account_type", srAccountType);
+
+        oldState = { paystack_recipient_code: (settAcc as any).paystack_recipient_code || null };
+        newState = { paystack_recipient_code: sRecipient };
         break;
       }
 
