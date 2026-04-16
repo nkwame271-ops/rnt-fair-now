@@ -1,41 +1,62 @@
 
 
-## Status Audit — Everything is Already Implemented
+## Audit results — what's actually broken
 
-I've audited the codebase against all four feature streams from the previous turns. **They are all in place.** Here is what exists and where:
+I queried the live ledger. The most recent rent_card_bulk transaction (total GHS 250, primary plan: rent_control 150 + admin 100) produced **5 ledger rows totaling GHS 300** with descriptions like `"Admin … (office share) (office share)"` and `"… (office share) (HQ share)"`. That proves the secondary split is being applied **twice** to the admin bucket.
 
-### 1. Admin Charge Allocation (Engine Room driven) ✅
+### Bug 1 — Double secondary-split on admin (CRITICAL)
+- `finalize-payment.ts` correctly runs `expandAdminSplit` once → emits `admin 50 (office) + admin_hq 50 (HQ)`.
+- `finalize-office-attribution/index.ts` then ALSO sub-splits any `recipient='admin'` rows it finds again (line 93: `splitAmount * officePct/100`), producing another 25/25 pair. Net: ledger over-posts admin by 50%.
+- Office-attribution must only **re-tag** the already-split office-share row with the resolved `office_id` and flip status from `deferred → pending_transfer`. It must NOT re-apply the percentage and must NOT create another HQ row (HQ row already exists from finalize-payment).
 
-**No hardcoded 100%-to-office routing remains.**
+### Bug 2 — `rent_control` posted to assigning office instead of HQ
+- In the ledger, `rent_control 150` carries `office_id='accra_central'`. But `secondary_split_configurations` says `rent_control` is 100% headquarters / 0% office. Non-admin recipients in `finalize-payment.ts` (line 280) blindly inherit `officeId`. We need the same secondary-split treatment for `rent_control` (and any future parent_recipient with secondary config) so the row reflects HQ, not the originating office.
 
-- `supabase/functions/_shared/finalize-payment.ts` → `expandAdminSplit()` reads `secondary_split_configurations` (Engine Room) and splits the admin bucket into `office %` and `headquarters %` strictly per config.
-- `supabase/functions/finalize-office-attribution/index.ts` → uses the same secondary split when attributing deferred rent-card admin to an office.
-- `supabase/functions/reconcile-internal-ledger/index.ts` → applies the same percentages.
-- `supabase/functions/paystack-checkout/index.ts` → all rent-card flows (`rent_card`, `rent_card_bulk`) build `splitPlan` via `loadAllocation()` which reads the Engine Room — never hardcodes office.
-- Office payout uses `office_payout_accounts.paystack_recipient_code` (auto-created/cached via `createPaystackRecipient()`) so payouts always use the latest recipient code.
+### Bug 3 — Reconciliation does not detect/repair these specific corruptions
+- `reconcile-internal-ledger` only **adds missing rows**; it never removes duplicates or corrects mis-attributed `office_id`. After the code fix it must also be able to mark obvious duplicate over-postings (e.g. the doubled `(office share) (office share)` rows) as `voided` so historical totals reconcile to the actual amount paid.
 
-### 2. Complaint scheduling SMS + downloadable profile ✅
+### What IS already correct (no change)
+- `loadAllocation` in `paystack-checkout` reads Engine Room (no hardcoded office routing). ✅
+- `expandAdminSplit` math in `finalize-payment.ts` is correct (uses full primary admin amount). ✅
+- `OfficePayoutSettings.tsx` auto-calls `admin-action create_payout_recipient` / `create_settlement_recipient` after every save and clears stale `paystack_recipient_code` when bank/momo details change. ✅
+- All payout call sites use `paystack_recipient_code` (auto-create-and-cache pattern). ✅
+- Ledger posting happens immediately after verification regardless of payout success — failed transfers are written to `payout_transfers` with `status='failed'` but the `escrow_splits` rows still exist. ✅
 
-- `src/components/ScheduleComplainantDialog.tsx` sends SMS with all slots, complaint code, and office name.
-- `src/components/AppointmentSlotPicker.tsx` sends a confirmation SMS to complainant and notifies the admin who created the schedule when a slot is picked.
-- `src/pages/regulator/RegulatorComplaints.tsx` has `downloadComplainantProfile()` → calls `generateProfilePdf` with profile + KYC + tenancies + complaints + properties.
+## Fix plan
 
-### 3. Student & NUGS dashboards ✅
+### 1. `supabase/functions/finalize-office-attribution/index.ts` — stop double-splitting
+Replace the loop that sub-splits deferred admin rows with a simple **re-tag**:
+- For each row found with `recipient='admin'` AND `disbursement_status='deferred'`: just set `office_id = office_id` and `disbursement_status = 'pending_transfer'`. Do NOT recompute amount. Do NOT insert an HQ row (the HQ row was already created by `finalize-payment.expandAdminSplit`).
+- Keep the office payout (Paystack transfer) logic — it should sum `officeSplitIds` amounts as-is.
+- Remove the entire `hqPct > 0` insertion block and the post-loop HQ payout block.
 
-- **Student registration** (`src/pages/RegisterTenant.tsx`, lines 446-468): toggle on Step 0 ("Account") below the Region field, capturing `school`, `hostel_or_hall`, `room_or_bed_space` into the `tenants` table.
-- **Marketplace filter** (`src/pages/tenant/Marketplace.tsx`, lines 79-118): students see only `property_category = hostel`, others see everything except hostel.
-- **NUGS portal** at `/nugs/*` (`NugsLayout`, `NugsDashboard`, `NugsStudents`, `NugsComplaints`, `NugsInstitutions`) — hidden role, login via `RegulatorLogin` routes them to `/nugs/dashboard`.
-- **NUGS invite flow** in `InviteStaff.tsx` and `invite-staff` edge function.
+### 2. `supabase/functions/_shared/finalize-payment.ts` — apply secondary split to `rent_control` too
+- Generalize `expandAdminSplit` into `expandSecondarySplit(item, parentRecipient, …)` that:
+  - Looks up `secondary_split_configurations` for the row's `recipient` (admin OR rent_control).
+  - If config exists: emit `office`-share row tagged with `officeId` (recipient stays `admin` or `rent_control`) + `headquarters`-share row with `recipient = '<parent>_hq'` (i.e. `admin_hq`, `rent_control_hq`) and `office_id = null`.
+  - Add `rent_control_hq` to `RECIPIENT_TO_ACCOUNT_TYPE` mapping → `"igf"` (same settlement account as `rent_control`).
+- Cache both `adminSecondarySplits` and `rentControlSecondarySplits` once at top of `finalizePayment`.
+- Apply to both the bundle-children loop and the main `splits.length === 0` block.
 
-### Why the user might say "I don't see it"
+### 3. `supabase/functions/reconcile-internal-ledger/index.ts` — detect & quarantine duplicates
+- After computing `expected` rows, compute `actualTotal = sum(existing.amount)` and `expectedTotal = sum(expected.amount)`.
+- If `actualTotal > expectedTotal + 0.5`: identify rows whose description contains `" (office share) (office share)"` or `" (office share) (HQ share)"` (the smoking-gun pattern) and mark them with `disbursement_status='voided'` + append `" [DUPLICATE — reconciler]"` to description. Never delete; never touch rows with an existing successful `payout_transfers` entry (`status='pending'` or `'success'`).
+- Add the void count to the response summary so admins can see how much was quarantined per run.
+- Also fix mis-attributed `office_id` on `rent_control` rows: where `secondary_split_configurations` says office%=0, set those rows' `office_id = null` (skip if a successful payout already exists for that split).
 
-Looking at the current viewport (744 × 665, route `/register/tenant`): the toggle is on Step 0, **after** Full Name → Citizenship → Phone → OTP block → Email → Password → Confirm Password → Region of Stay. On a 665px-tall viewport you have to scroll well past the password fields to reach the "I am a student" card. The toggle is there — it's just below the fold.
+### 4. Generalize `expandSecondarySplit` for future parent recipients
+- Update `RECIPIENT_TO_ACCOUNT_TYPE` to map both `admin_hq → "admin"` and `rent_control_hq → "igf"`.
+- Pre-load secondary splits for every distinct recipient in the primary `splitPlan` in one query (`.in('parent_recipient', recipients)`).
 
-## Recommended Tiny Polish (Optional)
+## Verification after fix
+1. Trigger a fresh `rent_card_bulk` payment; confirm exactly 4 ledger rows: `rent_control` (HQ, office_id=null), `rent_control_hq`-or-equivalent (skipped if 100% HQ → just one rent_control row tagged HQ), `admin (office)`, `admin_hq (HQ)`. Sum = total paid.
+2. Run `reconcile-internal-ledger` with a backfill window covering the past 7 days; verify it voids the `(office share) (office share)` duplicates and reports a non-zero `voided_count`.
+3. Re-query the affected escrow ids; confirm the sum of non-voided splits == `total_amount`.
 
-Promote the student toggle higher in Step 0 so it doesn't get lost under the password section:
+## Files to edit
+- `supabase/functions/_shared/finalize-payment.ts` — generalize secondary expansion, add `rent_control_hq` mapping
+- `supabase/functions/finalize-office-attribution/index.ts` — strip the re-split logic, keep only re-tag + payout
+- `supabase/functions/reconcile-internal-ledger/index.ts` — duplicate detection + office_id correction
 
-**`src/pages/RegisterTenant.tsx`** — Move the "I am a student" card from after the Region field (line 446-468) to **immediately after Full Name** (right under line 346). This puts it above the fold on small viewports. Region/citizenship/phone/etc. follow.
-
-That is the only change required; everything else is already shipped. **Do you want me to apply that re-ordering?**
+No DB schema migration required (existing columns suffice).
 
