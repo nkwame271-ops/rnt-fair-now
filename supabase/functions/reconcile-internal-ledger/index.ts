@@ -323,7 +323,7 @@ Deno.serve(async (req) => {
     }
 
     // Audit log
-    if (!dryRun && summary.repaired > 0) {
+    if (!dryRun && (summary.repaired > 0 || summary.rows_voided > 0 || summary.office_id_corrected > 0)) {
       await admin.from("admin_audit_log").insert({
         admin_user_id: user.id,
         action: "reconcile_internal_ledger",
@@ -331,7 +331,14 @@ Deno.serve(async (req) => {
         target_id: `range_${fromDate || "all"}_${toDate || "all"}`,
         reason: "Manual ledger reconciliation",
         old_state: { from: fromDate, to: toDate, limit },
-        new_state: { repaired: summary.repaired, rows_inserted: summary.rows_inserted, recovered: summary.total_recovered_amount },
+        new_state: {
+          repaired: summary.repaired,
+          rows_inserted: summary.rows_inserted,
+          rows_voided: summary.rows_voided,
+          office_id_corrected: summary.office_id_corrected,
+          recovered: summary.total_recovered_amount,
+          voided_amount: summary.total_voided_amount,
+        },
       });
     }
 
