@@ -23,12 +23,15 @@ interface Props {
   complainantUserId: string;
   complainantName: string;
   complainantPhone?: string;
+  complaintCode?: string;
+  officeName?: string;
   onScheduled: () => void;
 }
 
 const ScheduleComplainantDialog = ({
   open, onOpenChange, complaintId, complaintType,
-  complainantUserId, complainantName, complainantPhone, onScheduled,
+  complainantUserId, complainantName, complainantPhone,
+  complaintCode, officeName, onScheduled,
 }: Props) => {
   const { user } = useAuth();
   const [slots, setSlots] = useState<Slot[]>([{ date: "", time_start: "09:00", time_end: "10:00" }]);
