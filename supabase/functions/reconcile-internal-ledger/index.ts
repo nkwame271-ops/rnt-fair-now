@@ -43,15 +43,25 @@ const DEFERRED_OFFICE_TYPES = new Set([
   "filing_fee",
 ]);
 
-async function loadSecondary(client: any, parent: string): Promise<SecondarySplit[]> {
+// Recipients that may be sub-split office vs HQ via secondary_split_configurations
+const SECONDARY_SPLIT_RECIPIENTS = ["admin", "rent_control"];
+
+async function loadSecondaryAll(client: any): Promise<Record<string, SecondarySplit[]>> {
   try {
     const { data } = await client
       .from("secondary_split_configurations")
-      .select("sub_recipient, percentage")
-      .eq("parent_recipient", parent);
-    return data || [];
+      .select("parent_recipient, sub_recipient, percentage")
+      .in("parent_recipient", SECONDARY_SPLIT_RECIPIENTS);
+    const out: Record<string, SecondarySplit[]> = {};
+    for (const r of data || []) {
+      (out[r.parent_recipient] ||= []).push({
+        sub_recipient: r.sub_recipient,
+        percentage: Number(r.percentage),
+      });
+    }
+    return out;
   } catch {
-    return [];
+    return {};
   }
 }
 
@@ -62,46 +72,54 @@ function buildExpectedRows(
   escrowId: string,
   paymentType: string,
   officeId: string | null,
-  adminSecondary: SecondarySplit[],
+  secondaryByParent: Record<string, SecondarySplit[]>,
 ): any[] {
   const isDeferredOffice = DEFERRED_OFFICE_TYPES.has(paymentType) && !officeId;
-  const officePct = adminSecondary.find(s => s.sub_recipient === "office")?.percentage ?? 0;
-  const hqPct = adminSecondary.find(s => s.sub_recipient === "headquarters")?.percentage ?? 100;
-  const hasSecondary = adminSecondary.length > 0 && (officePct + hqPct) > 0;
-
   const rows: any[] = [];
+
   for (const s of splitPlan) {
-    if (s.recipient === "admin") {
+    if (SECONDARY_SPLIT_RECIPIENTS.includes(s.recipient)) {
+      const sec = secondaryByParent[s.recipient] || [];
+      const officePct = sec.find(x => x.sub_recipient === "office")?.percentage ?? 0;
+      const hqPct = sec.find(x => x.sub_recipient === "headquarters")?.percentage
+        ?? (s.recipient === "admin" ? 100 : 0);
+      const hasSecondary = sec.length > 0 && (officePct + hqPct) > 0;
+
+      const isAdmin = s.recipient === "admin";
+      const officeStatus = isAdmin
+        ? (isDeferredOffice ? "deferred" : "pending_transfer")
+        : "pending_transfer";
+      const officeIdForRow = isAdmin && isDeferredOffice ? null : officeId;
+
       if (!hasSecondary) {
         rows.push({
           escrow_transaction_id: escrowId,
-          recipient: "admin",
+          recipient: s.recipient,
           amount: +Number(s.amount).toFixed(2),
-          description: s.description || "Admin charge",
-          disbursement_status: isDeferredOffice ? "deferred" : "pending_transfer",
-          office_id: isDeferredOffice ? null : officeId,
+          description: s.description || `${s.recipient} charge`,
+          disbursement_status: officeStatus,
+          office_id: officeIdForRow,
           release_mode: "auto",
         });
         continue;
       }
-      // Apply secondary split DIRECTLY to the full primary admin amount
       if (officePct > 0) {
         rows.push({
           escrow_transaction_id: escrowId,
-          recipient: "admin",
+          recipient: s.recipient,
           amount: +(Number(s.amount) * officePct / 100).toFixed(2),
-          description: (s.description || "Admin charge") + " (office share)",
-          disbursement_status: isDeferredOffice ? "deferred" : "pending_transfer",
-          office_id: isDeferredOffice ? null : officeId,
+          description: (s.description || `${s.recipient} charge`) + " (office share)",
+          disbursement_status: officeStatus,
+          office_id: officeIdForRow,
           release_mode: "auto",
         });
       }
       if (hqPct > 0) {
         rows.push({
           escrow_transaction_id: escrowId,
-          recipient: "admin_hq",
+          recipient: `${s.recipient}_hq`,
           amount: +(Number(s.amount) * hqPct / 100).toFixed(2),
-          description: (s.description || "Admin charge") + " (HQ share)",
+          description: (s.description || `${s.recipient} charge`) + " (HQ share)",
           disbursement_status: "pending_transfer",
           office_id: null,
           release_mode: "auto",
@@ -150,7 +168,7 @@ Deno.serve(async (req) => {
     const limit: number = Math.min(Number(body.limit || 200), 500);
     const dryRun: boolean = !!body.dry_run;
 
-    const adminSecondary = await loadSecondary(admin, "admin");
+    const secondaryByParent = await loadSecondaryAll(admin);
 
     // Pull completed transactions in window
     let q = admin.from("escrow_transactions")
@@ -169,8 +187,11 @@ Deno.serve(async (req) => {
       already_balanced: 0,
       repaired: 0,
       rows_inserted: 0,
+      rows_voided: 0,
+      office_id_corrected: 0,
       skipped_no_plan: 0,
       total_recovered_amount: 0,
+      total_voided_amount: 0,
       details: [] as any[],
     };
 
@@ -188,47 +209,121 @@ Deno.serve(async (req) => {
 
       // Load existing splits
       const { data: existing } = await admin.from("escrow_splits")
-        .select("id, recipient, amount, office_id, disbursement_status")
+        .select("id, recipient, amount, office_id, disbursement_status, description")
         .eq("escrow_transaction_id", tx.id);
 
       const expected = buildExpectedRows(
-        splitPlan, tx.id, tx.payment_type, tx.office_id || meta.office_id || null, adminSecondary,
+        splitPlan, tx.id, tx.payment_type, tx.office_id || meta.office_id || null, secondaryByParent,
       );
 
       // Match by recipient signature (recipient + rounded amount). If a row with
       // matching recipient and amount within 0.01 already exists, treat as posted.
+      const existingActive = (existing || []).filter((er: any) => er.disbursement_status !== "voided");
       const isMatched = (e: any) =>
-        (existing || []).some((er: any) =>
+        existingActive.some((er: any) =>
           er.recipient === e.recipient && Math.abs(Number(er.amount) - Number(e.amount)) < 0.01,
         );
 
       const missing = expected.filter(e => !isMatched(e));
 
-      if (missing.length === 0) {
+      // -------- Quarantine duplicates from the legacy double-split bug --------
+      // Pattern: descriptions containing " (office share) (office share)" or
+      // " (office share) (HQ share)" — these were emitted by the buggy
+      // finalize-office-attribution that re-applied the secondary split.
+      const actualTotal = existingActive.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+      const expectedTotal = expected.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+
+      let voidedThisTx = 0;
+      let voidedAmountThisTx = 0;
+      if (actualTotal > expectedTotal + 0.5) {
+        const suspectIds: string[] = [];
+        let suspectAmount = 0;
+        for (const er of existingActive) {
+          const desc: string = String(er.description || "");
+          if (
+            desc.includes(" (office share) (office share)") ||
+            desc.includes(" (office share) (HQ share)")
+          ) {
+            // Skip if a successful/pending payout already exists for this split
+            const { data: payouts } = await admin
+              .from("payout_transfers")
+              .select("id, status")
+              .eq("escrow_split_id", er.id)
+              .in("status", ["pending", "success"])
+              .limit(1);
+            if (payouts && payouts.length > 0) continue;
+            suspectIds.push(er.id);
+            suspectAmount += Number(er.amount || 0);
+          }
+        }
+        if (suspectIds.length > 0 && !dryRun) {
+          for (const id of suspectIds) {
+            const er = existingActive.find((x: any) => x.id === id);
+            await admin
+              .from("escrow_splits")
+              .update({
+                disbursement_status: "voided",
+                description: `${er?.description || ""} [DUPLICATE — reconciler]`,
+              })
+              .eq("id", id);
+          }
+        }
+        voidedThisTx = suspectIds.length;
+        voidedAmountThisTx = suspectAmount;
+        summary.rows_voided += voidedThisTx;
+        summary.total_voided_amount += voidedAmountThisTx;
+      }
+
+      // -------- Correct mis-attributed office_id on rent_control rows --------
+      // If secondary config says rent_control office%=0, those rows must have
+      // office_id=null. Skip when a successful/pending payout already exists.
+      const rcSec = secondaryByParent["rent_control"] || [];
+      const rcOfficePct = rcSec.find(x => x.sub_recipient === "office")?.percentage ?? 0;
+      if (rcOfficePct === 0) {
+        for (const er of existingActive) {
+          if (er.recipient === "rent_control" && er.office_id) {
+            const { data: payouts } = await admin
+              .from("payout_transfers")
+              .select("id, status")
+              .eq("escrow_split_id", er.id)
+              .in("status", ["pending", "success"])
+              .limit(1);
+            if (payouts && payouts.length > 0) continue;
+            if (!dryRun) {
+              await admin.from("escrow_splits").update({ office_id: null }).eq("id", er.id);
+            }
+            summary.office_id_corrected++;
+          }
+        }
+      }
+
+      if (missing.length === 0 && voidedThisTx === 0) {
         summary.already_balanced++;
         continue;
       }
 
       const recovered = missing.reduce((s, r) => s + Number(r.amount), 0);
       summary.total_recovered_amount += recovered;
-      summary.repaired++;
+      if (missing.length > 0 || voidedThisTx > 0) summary.repaired++;
       summary.details.push({
         escrow_id: tx.id,
         reference: tx.reference,
         payment_type: tx.payment_type,
         missing_count: missing.length,
+        voided_count: voidedThisTx,
+        voided_amount: +voidedAmountThisTx.toFixed(2),
         recovered_amount: +recovered.toFixed(2),
         missing: missing.map(m => ({ recipient: m.recipient, amount: m.amount })),
       });
 
-      if (!dryRun) {
+      if (!dryRun && missing.length > 0) {
         const { data: inserted } = await admin.from("escrow_splits").insert(missing).select("id");
         summary.rows_inserted += (inserted || []).length;
       }
     }
 
     // Audit log
-    if (!dryRun && summary.repaired > 0) {
+    if (!dryRun && (summary.repaired > 0 || summary.rows_voided > 0 || summary.office_id_corrected > 0)) {
       await admin.from("admin_audit_log").insert({
         admin_user_id: user.id,
         action: "reconcile_internal_ledger",
@@ -236,7 +331,14 @@ Deno.serve(async (req) => {
         target_id: `range_${fromDate || "all"}_${toDate || "all"}`,
         reason: "Manual ledger reconciliation",
         old_state: { from: fromDate, to: toDate, limit },
-        new_state: { repaired: summary.repaired, rows_inserted: summary.rows_inserted, recovered: summary.total_recovered_amount },
+        new_state: {
+          repaired: summary.repaired,
+          rows_inserted: summary.rows_inserted,
+          rows_voided: summary.rows_voided,
+          office_id_corrected: summary.office_id_corrected,
+          recovered: summary.total_recovered_amount,
+          voided_amount: summary.total_voided_amount,
+        },
       });
     }
 
