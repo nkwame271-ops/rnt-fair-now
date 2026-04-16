@@ -36,6 +36,12 @@ const RegisterTenant = () => {
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [generatedId, setGeneratedId] = useState("");
+
+  // Student fields
+  const [isStudent, setIsStudent] = useState(false);
+  const [school, setSchool] = useState("");
+  const [hostelOrHall, setHostelOrHall] = useState("");
+  const [roomOrBedSpace, setRoomOrBedSpace] = useState("");
   const [payingRegistration, setPayingRegistration] = useState(false);
 
   // Citizenship
@@ -209,11 +215,15 @@ const RegisterTenant = () => {
         user_id: userId,
         tenant_id: tenantId,
         registration_fee_paid: !regFeeEnabled,
+        is_student: isStudent,
+        school: isStudent ? (school.trim() || null) : null,
+        hostel_or_hall: isStudent ? (hostelOrHall.trim() || null) : null,
+        room_or_bed_space: isStudent ? (roomOrBedSpace.trim() || null) : null,
         ...(!regFeeEnabled ? {
           registration_date: now.toISOString(),
           expiry_date: expiryDate.toISOString(),
         } : {}),
-      });
+      } as any);
 
       if (tenantError) {
         await supabase.auth.signOut();
