@@ -26,12 +26,12 @@ const RegulatorLogin = () => {
       return;
     }
 
-    // Check if user has regulator role
+    // Allow either regulator or nugs_admin role through this staff login
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", data.user.id)
-      .eq("role", "regulator")
+      .in("role", ["regulator", "nugs_admin"])
       .maybeSingle();
 
     if (!roleData) {
@@ -41,8 +41,13 @@ const RegulatorLogin = () => {
       return;
     }
 
-    toast.success("Welcome, Regulator!");
-    navigate("/regulator/dashboard");
+    if (roleData.role === "nugs_admin") {
+      toast.success("Welcome, NUGS Admin!");
+      navigate("/nugs/dashboard");
+    } else {
+      toast.success("Welcome, Regulator!");
+      navigate("/regulator/dashboard");
+    }
     setLoading(false);
   };
 
