@@ -38,6 +38,127 @@ const RegulatorComplaints = () => {
   const [schedulingComplaint, setSchedulingComplaint] = useState<SchedulingTarget | null>(null);
   const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
   const [deletingId, setDeletingId] = useState<{ id: string; type: "tenant" | "landlord" } | null>(null);
+  const [officeMap, setOfficeMap] = useState<Record<string, string>>({});
+  const [downloadingProfile, setDownloadingProfile] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("offices").select("id, name");
+      if (data) {
+        const m: Record<string, string> = {};
+        data.forEach((o: any) => { m[o.id] = o.name; });
+        setOfficeMap(m);
+      }
+    })();
+  }, []);
+
+  const downloadComplainantProfile = async (
+    role: "tenant" | "landlord",
+    userId: string,
+    name: string,
+  ) => {
+    setDownloadingProfile(userId);
+    try {
+      const { data: prof } = await supabase
+        .from("profiles").select("*").eq("user_id", userId).maybeSingle();
+
+      const roleTable = role === "tenant" ? "tenants" : "landlords";
+      const roleIdCol = role === "tenant" ? "tenant_id" : "landlord_id";
+      const { data: roleRow } = await (supabase
+        .from(roleTable).select("*") as any).eq("user_id", userId).maybeSingle();
+
+      const { data: kyc } = await supabase
+        .from("kyc_verifications")
+        .select("status, ghana_card_number, ai_match_score, ai_match_result, reviewer_notes")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const tenancyFilter = role === "tenant" ? "tenant_user_id" : "landlord_user_id";
+      const { data: tenancies } = await (supabase
+        .from("tenancies")
+        .select("registration_code, status, agreed_rent, start_date, end_date, tenant_user_id, landlord_user_id, unit_id") as any)
+        .eq(tenancyFilter, userId);
+
+      const enrichedTenancies: any[] = [];
+      for (const t of tenancies || []) {
+        const { data: unit } = t.unit_id
+          ? await supabase.from("units").select("unit_name, property_id").eq("id", t.unit_id).maybeSingle()
+          : { data: null };
+        const { data: prop } = unit?.property_id
+          ? await supabase.from("properties").select("property_name, region").eq("id", unit.property_id).maybeSingle()
+          : { data: null };
+        const { data: lProf } = await supabase.from("profiles").select("full_name, phone").eq("user_id", t.landlord_user_id).maybeSingle();
+        const { data: tProf } = await supabase.from("profiles").select("full_name, phone").eq("user_id", t.tenant_user_id).maybeSingle();
+        enrichedTenancies.push({
+          ...t,
+          _propertyName: prop?.property_name,
+          _unitName: unit?.unit_name,
+          _region: prop?.region,
+          _landlordName: lProf?.full_name,
+          _landlordPhone: lProf?.phone,
+          _tenantName: tProf?.full_name,
+          _tenantPhone: tProf?.phone,
+        });
+      }
+
+      const cTable = role === "tenant" ? "complaints" : "landlord_complaints";
+      const cFilter = role === "tenant" ? "tenant_user_id" : "landlord_user_id";
+      const { data: comps } = await (supabase
+        .from(cTable)
+        .select("complaint_code, complaint_type, status, created_at") as any)
+        .eq(cFilter, userId);
+
+      let properties: any[] = [];
+      if (role === "landlord") {
+        const { data: props } = await supabase
+          .from("properties")
+          .select("id, property_code, property_name, address, region, gps_location, ghana_post_gps, property_condition, room_count, bathroom_count")
+          .eq("landlord_user_id", userId);
+        for (const p of props || []) {
+          const { data: units } = await supabase
+            .from("units")
+            .select("unit_name, monthly_rent, status, unit_type, has_toilet_bathroom, has_kitchen, water_available, electricity_available, has_borehole, has_polytank, amenities")
+            .eq("property_id", p.id);
+          properties.push({ ...p, units: units || [] });
+        }
+      }
+
+      generateProfilePdf({
+        role,
+        roleId: roleRow?.[roleIdCol] || "—",
+        status: roleRow?.status || "—",
+        registrationDate: roleRow?.registration_date || null,
+        expiryDate: roleRow?.expiry_date || null,
+        registrationFeePaid: !!roleRow?.registration_fee_paid,
+        profile: prof ? {
+          full_name: prof.full_name,
+          phone: prof.phone,
+          email: prof.email,
+          nationality: prof.nationality,
+          is_citizen: prof.is_citizen,
+          ghana_card_no: prof.ghana_card_no,
+          residence_permit_no: prof.residence_permit_no,
+          occupation: prof.occupation,
+          work_address: prof.work_address,
+          emergency_contact_name: prof.emergency_contact_name,
+          emergency_contact_phone: prof.emergency_contact_phone,
+          delivery_address: prof.delivery_address,
+          delivery_region: prof.delivery_region,
+        } : undefined,
+        kyc: kyc || null,
+        tenancies: enrichedTenancies,
+        complaints: comps || [],
+        properties: role === "landlord" ? properties : undefined,
+      });
+      toast.success(`${name}'s profile downloaded`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate profile PDF");
+    } finally {
+      setDownloadingProfile(null);
+    }
+  };
 
   const handleDeleteComplaint = async (password: string, reason: string) => {
     if (!deletingId) return;
