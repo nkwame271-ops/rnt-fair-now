@@ -64,7 +64,7 @@ const RegisterProperty = () => {
   const [gpsConfirmed, setGpsConfirmed] = useState(false);
   const [ghanaPostGps, setGhanaPostGps] = useState("");
   const [propertyCondition, setPropertyCondition] = useState("");
-  const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial">("residential");
+  const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial" | "hostel">("residential");
   const [images, setImages] = useState<File[]>([]);
   const [ownershipType, setOwnershipType] = useState("owner");
   const [propertyStructure, setPropertyStructure] = useState<"single_unit" | "multi_unit">("single_unit");
@@ -437,14 +437,15 @@ const RegisterProperty = () => {
               {/* Property Category */}
               <div className="space-y-2">
                 <Label>Property Category *</Label>
-                <Select value={propertyCategory} onValueChange={(v) => setPropertyCategory(v as "residential" | "commercial")}>
+                <Select value={propertyCategory} onValueChange={(v) => setPropertyCategory(v as "residential" | "commercial" | "hostel")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="residential">Residential Property</SelectItem>
                     <SelectItem value="commercial">Commercial Property</SelectItem>
+                    <SelectItem value="hostel">Hostel (for Students)</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">This determines the applicable government tax rate</p>
+                <p className="text-xs text-muted-foreground">Hostels are shown only to student tenants. Determines applicable tax rate.</p>
               </div>
 
               {/* Property condition */}

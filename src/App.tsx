@@ -13,6 +13,7 @@ import LogoLoader from "@/components/LogoLoader";
 import TenantLayout from "./components/TenantLayout";
 import LandlordLayout from "./components/LandlordLayout";
 import RegulatorLayout from "./components/RegulatorLayout";
+import NugsLayout from "./components/NugsLayout";
 
 // Lazy-loaded pages
 const RoleSelect = lazy(() => import("./pages/RoleSelect"));
@@ -94,6 +95,12 @@ const OfficeFundRequests = lazy(() => import("./pages/regulator/OfficeFundReques
 const OfficePayoutSettings = lazy(() => import("./pages/regulator/OfficePayoutSettings"));
 const PaymentErrors = lazy(() => import("./pages/regulator/PaymentErrors"));
 const SuperAdminDashboard = lazy(() => import("./pages/regulator/SuperAdminDashboard"));
+
+// NUGS pages (hidden monitoring portal)
+const NugsDashboard = lazy(() => import("./pages/nugs/NugsDashboard"));
+const NugsStudents = lazy(() => import("./pages/nugs/NugsStudents"));
+const NugsComplaints = lazy(() => import("./pages/nugs/NugsComplaints"));
+const NugsInstitutions = lazy(() => import("./pages/nugs/NugsInstitutions"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -203,6 +210,15 @@ const App = () => (
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
                 <Route path="payment-errors" element={<PaymentErrors />} />
                 <Route path="super-admin" element={<SuperAdminDashboard />} />
+              </Route>
+
+              {/* NUGS Admin Routes — hidden monitoring portal */}
+              <Route path="/nugs" element={<ProtectedRoute requiredRole="nugs_admin"><NugsLayout /></ProtectedRoute>}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<NugsDashboard />} />
+                <Route path="students" element={<NugsStudents />} />
+                <Route path="complaints" element={<NugsComplaints />} />
+                <Route path="institutions" element={<NugsInstitutions />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
