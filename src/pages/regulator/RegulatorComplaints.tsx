@@ -619,6 +619,8 @@ const RegulatorComplaints = () => {
           complainantUserId={schedulingComplaint.userId}
           complainantName={schedulingComplaint.name}
           complainantPhone={schedulingComplaint.phone}
+          complaintCode={schedulingComplaint.complaintCode}
+          officeName={schedulingComplaint.officeName}
           onScheduled={() => {
             setSchedulingComplaint(null);
             fetchComplaints();
