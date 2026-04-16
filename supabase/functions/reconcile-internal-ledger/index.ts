@@ -72,46 +72,54 @@ function buildExpectedRows(
   escrowId: string,
   paymentType: string,
   officeId: string | null,
-  adminSecondary: SecondarySplit[],
+  secondaryByParent: Record<string, SecondarySplit[]>,
 ): any[] {
   const isDeferredOffice = DEFERRED_OFFICE_TYPES.has(paymentType) && !officeId;
-  const officePct = adminSecondary.find(s => s.sub_recipient === "office")?.percentage ?? 0;
-  const hqPct = adminSecondary.find(s => s.sub_recipient === "headquarters")?.percentage ?? 100;
-  const hasSecondary = adminSecondary.length > 0 && (officePct + hqPct) > 0;
-
   const rows: any[] = [];
+
   for (const s of splitPlan) {
-    if (s.recipient === "admin") {
+    if (SECONDARY_SPLIT_RECIPIENTS.includes(s.recipient)) {
+      const sec = secondaryByParent[s.recipient] || [];
+      const officePct = sec.find(x => x.sub_recipient === "office")?.percentage ?? 0;
+      const hqPct = sec.find(x => x.sub_recipient === "headquarters")?.percentage
+        ?? (s.recipient === "admin" ? 100 : 0);
+      const hasSecondary = sec.length > 0 && (officePct + hqPct) > 0;
+
+      const isAdmin = s.recipient === "admin";
+      const officeStatus = isAdmin
+        ? (isDeferredOffice ? "deferred" : "pending_transfer")
+        : "pending_transfer";
+      const officeIdForRow = isAdmin && isDeferredOffice ? null : officeId;
+
       if (!hasSecondary) {
         rows.push({
           escrow_transaction_id: escrowId,
-          recipient: "admin",
+          recipient: s.recipient,
           amount: +Number(s.amount).toFixed(2),
-          description: s.description || "Admin charge",
-          disbursement_status: isDeferredOffice ? "deferred" : "pending_transfer",
-          office_id: isDeferredOffice ? null : officeId,
+          description: s.description || `${s.recipient} charge`,
+          disbursement_status: officeStatus,
+          office_id: officeIdForRow,
           release_mode: "auto",
         });
         continue;
       }
-      // Apply secondary split DIRECTLY to the full primary admin amount
       if (officePct > 0) {
         rows.push({
           escrow_transaction_id: escrowId,
-          recipient: "admin",
+          recipient: s.recipient,
           amount: +(Number(s.amount) * officePct / 100).toFixed(2),
-          description: (s.description || "Admin charge") + " (office share)",
-          disbursement_status: isDeferredOffice ? "deferred" : "pending_transfer",
-          office_id: isDeferredOffice ? null : officeId,
+          description: (s.description || `${s.recipient} charge`) + " (office share)",
+          disbursement_status: officeStatus,
+          office_id: officeIdForRow,
           release_mode: "auto",
         });
       }
       if (hqPct > 0) {
         rows.push({
           escrow_transaction_id: escrowId,
-          recipient: "admin_hq",
+          recipient: `${s.recipient}_hq`,
           amount: +(Number(s.amount) * hqPct / 100).toFixed(2),
-          description: (s.description || "Admin charge") + " (HQ share)",
+          description: (s.description || `${s.recipient} charge`) + " (HQ share)",
           disbursement_status: "pending_transfer",
           office_id: null,
           release_mode: "auto",
