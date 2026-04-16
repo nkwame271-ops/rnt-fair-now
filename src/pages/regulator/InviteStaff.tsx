@@ -244,32 +244,34 @@ const InviteStaff = () => {
             </>
           )}
 
-          {/* Feature selection — shown for BOTH admin types */}
-          <div className="space-y-2">
-            <Label>Allowed Features</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              {adminType === "main_admin"
-                ? "Select features this Main Admin can access. Leave all unchecked for full access (backward compatible)."
-                : "Select which features this Sub Admin can access."}
-            </p>
-            <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border border-border rounded-lg p-3">
-              {allFeatureKeys.map(key => (
-                <label key={key} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/30 rounded px-2 py-1.5">
-                  <Checkbox
-                    checked={selectedFeatures.includes(key)}
-                    onCheckedChange={() => toggleFeature(key)}
-                  />
-                  <span className="capitalize text-card-foreground">{key.replace(/_/g, " ")}</span>
-                </label>
-              ))}
+          {/* Feature selection — hidden for NUGS admins */}
+          {adminType !== "nugs_admin" && (
+            <div className="space-y-2">
+              <Label>Allowed Features</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                {adminType === "main_admin"
+                  ? "Select features this Main Admin can access. Leave all unchecked for full access (backward compatible)."
+                  : "Select which features this Sub Admin can access."}
+              </p>
+              <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border border-border rounded-lg p-3">
+                {allFeatureKeys.map(key => (
+                  <label key={key} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/30 rounded px-2 py-1.5">
+                    <Checkbox
+                      checked={selectedFeatures.includes(key)}
+                      onCheckedChange={() => toggleFeature(key)}
+                    />
+                    <span className="capitalize text-card-foreground">{key.replace(/_/g, " ")}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? (
               <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating Account...</>
             ) : (
-              <><UserPlus className="h-4 w-4 mr-2" /> Create {adminType === "main_admin" ? "Main Admin" : "Sub Admin"} Account</>
+              <><UserPlus className="h-4 w-4 mr-2" /> Create {adminType === "main_admin" ? "Main Admin" : adminType === "nugs_admin" ? "NUGS Admin" : "Sub Admin"} Account</>
             )}
           </Button>
         </form>
