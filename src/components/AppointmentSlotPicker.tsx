@@ -3,6 +3,7 @@ import { CalendarDays, Clock, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { sendNotification } from "@/lib/notificationService";
 
 interface Slot {
   date: string;
