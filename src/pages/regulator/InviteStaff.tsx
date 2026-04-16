@@ -116,22 +116,30 @@ const InviteStaff = () => {
       )}
 
       {/* Admin Type Tabs */}
-      <div className="flex gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <Button
           variant={adminType === "main_admin" ? "default" : "outline"}
           onClick={() => setAdminType("main_admin")}
-          className="flex-1"
+          size="sm"
         >
           <Shield className="h-4 w-4 mr-2" />
-          Invite Main Admin
+          Main Admin
         </Button>
         <Button
           variant={adminType === "sub_admin" ? "default" : "outline"}
           onClick={() => setAdminType("sub_admin")}
-          className="flex-1"
+          size="sm"
         >
           <Building2 className="h-4 w-4 mr-2" />
-          Invite Sub Admin
+          Sub Admin
+        </Button>
+        <Button
+          variant={adminType === "nugs_admin" ? "default" : "outline"}
+          onClick={() => setAdminType("nugs_admin")}
+          size="sm"
+        >
+          <GraduationCap className="h-4 w-4 mr-2" />
+          NUGS Admin
         </Button>
       </div>
 
@@ -142,13 +150,19 @@ const InviteStaff = () => {
         className="bg-card rounded-xl p-6 shadow-elevated border border-border"
       >
         <div className="mb-4 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
-          {adminType === "main_admin" ? (
+          {adminType === "main_admin" && (
             <>
               <strong className="text-foreground">Main Admin</strong> — Select which features this Main Admin can access. Leave all unchecked for full access.
             </>
-          ) : (
+          )}
+          {adminType === "sub_admin" && (
             <>
               <strong className="text-foreground">Sub Admin</strong> — Limited to assigned office and selected features. Cannot access Engine Room or invite staff unless granted.
+            </>
+          )}
+          {adminType === "nugs_admin" && (
+            <>
+              <strong className="text-foreground">NUGS Admin</strong> — Read-only monitoring access to student complaints, institutions, and student profiles. Logs in via the standard staff login and is routed to the NUGS portal.
             </>
           )}
         </div>
