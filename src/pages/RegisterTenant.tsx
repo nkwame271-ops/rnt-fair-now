@@ -442,6 +442,30 @@ const RegisterTenant = () => {
                         <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                       </Select>
                     </FormField>
+
+                    {/* Student section */}
+                    <div className="border border-border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">I am a student</p>
+                          <p className="text-xs text-muted-foreground">Enable to see hostel listings instead of regular rentals</p>
+                        </div>
+                        <Switch checked={isStudent} onCheckedChange={setIsStudent} />
+                      </div>
+                      {isStudent && (
+                        <div className="space-y-3 pt-2 border-t border-border">
+                          <FormField label="School / Institution" valid={school.length > 1}>
+                            <Input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="e.g. University of Ghana" />
+                          </FormField>
+                          <FormField label="Hostel or Hall" optional>
+                            <Input value={hostelOrHall} onChange={(e) => setHostelOrHall(e.target.value)} placeholder="e.g. Commonwealth Hall" />
+                          </FormField>
+                          <FormField label="Room or Bed Space" optional>
+                            <Input value={roomOrBedSpace} onChange={(e) => setRoomOrBedSpace(e.target.value)} placeholder="e.g. Room 12B" />
+                          </FormField>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
