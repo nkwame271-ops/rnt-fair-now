@@ -70,6 +70,7 @@ Deno.serve(async (req) => {
     }
 
     const { email, fullName, password, adminType, officeId, officeName, allowedFeatures } = await req.json();
+    const isNugs = adminType === "nugs_admin";
     if (!email || !fullName || !password) {
       return new Response(JSON.stringify({ error: "email, fullName, and password are required" }), {
         status: 200,
