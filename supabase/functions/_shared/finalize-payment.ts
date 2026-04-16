@@ -184,8 +184,20 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       .in("status", ["pending", "processing"]);
   }
 
-  // Load secondary splits for admin once (used in multiple places)
-  const adminSecondarySplits = await loadSecondarySplits(supabaseAdmin, "admin");
+  // Load secondary splits for all supported parent recipients in one go
+  const { data: secondaryAll } = await supabaseAdmin
+    .from("secondary_split_configurations")
+    .select("parent_recipient, sub_recipient, percentage, description")
+    .in("parent_recipient", SECONDARY_SPLIT_RECIPIENTS);
+  const secondaryByParent: Record<string, SecondarySplit[]> = {};
+  for (const r of secondaryAll || []) {
+    (secondaryByParent[r.parent_recipient] ||= []).push({
+      sub_recipient: r.sub_recipient,
+      percentage: Number(r.percentage),
+      description: r.description,
+    });
+  }
+  const adminSecondarySplits = secondaryByParent["admin"] || [];
 
   // 2b. For bundle types, create child escrow_transactions per fee component
   const BUNDLE_TYPES = ["existing_tenancy_bundle", "add_tenant_fee"];
