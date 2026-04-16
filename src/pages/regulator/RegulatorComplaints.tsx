@@ -587,7 +587,7 @@ const RegulatorComplaints = () => {
                 <span className="text-sm font-medium text-muted-foreground">Status:</span>
                 <Select value={c.status} onValueChange={(v) => {
                   if (v === "schedule_complainant") {
-                    setSchedulingComplaint({ id: c.id, type: "landlord", userId: c.landlord_user_id, name: c._landlordProfile?.full_name || "Unknown", phone: c._landlordProfile?.phone });
+                    setSchedulingComplaint({ id: c.id, type: "landlord", userId: c.landlord_user_id, name: c._landlordProfile?.full_name || "Unknown", phone: c._landlordProfile?.phone, complaintCode: c.complaint_code, officeName: officeMap[c.office_id] });
                   } else {
                     updateLandlordComplaintStatus(c.id, v);
                   }
