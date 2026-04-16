@@ -510,6 +510,16 @@ const RegulatorComplaints = () => {
                           <Clock className="h-3 w-3" />
                           {Math.ceil((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24))} days since filed
                         </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="ml-2"
+                          disabled={downloadingProfile === c.tenant_user_id}
+                          onClick={() => downloadComplainantProfile("tenant", c.tenant_user_id, c._tenantProfile?.full_name || "Tenant")}
+                        >
+                          <FileDown className="h-3.5 w-3.5 mr-1" />
+                          {downloadingProfile === c.tenant_user_id ? "Generating..." : "Download Profile"}
+                        </Button>
                         {profile?.isMainAdmin && (
                           <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive ml-2" onClick={() => setDeletingId({ id: c.id, type: "tenant" })}>
                             <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
