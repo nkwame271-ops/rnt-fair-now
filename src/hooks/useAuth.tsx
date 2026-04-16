@@ -2,11 +2,13 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback,
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
+type AppRole = "tenant" | "landlord" | "regulator" | "nugs_admin";
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  role: "tenant" | "landlord" | "regulator" | null;
+  role: AppRole | null;
   signOut: () => Promise<void>;
 }
 
@@ -22,14 +24,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<"tenant" | "landlord" | "regulator" | null>(null);
+  const [role, setRole] = useState<AppRole | null>(null);
   const roleCache = useRef<Record<string, string>>({});
   const initialSessionHandled = useRef(false);
 
   const fetchRole = useCallback(async (userId: string) => {
     // Return cached role instantly if available
     if (roleCache.current[userId]) {
-      const cached = roleCache.current[userId] as "tenant" | "landlord" | "regulator";
+      const cached = roleCache.current[userId] as AppRole;
       setRole(cached);
       return cached;
     }
@@ -44,7 +46,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setRole(null);
         return null;
       }
-      const r = (data?.role as "tenant" | "landlord" | "regulator") || null;
+      const r = (data?.role as AppRole) || null;
       if (r) roleCache.current[userId] = r;
       setRole(r);
       return r;
@@ -83,7 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Use cached role for instant response, fetch in background
         const cached = roleCache.current[newSession.user.id];
         if (cached) {
-          setRole(cached as "tenant" | "landlord" | "regulator");
+          setRole(cached as AppRole);
           setLoading(false);
         } else {
           setLoading(true);

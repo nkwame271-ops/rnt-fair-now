@@ -36,6 +36,12 @@ const RegisterTenant = () => {
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [generatedId, setGeneratedId] = useState("");
+
+  // Student fields
+  const [isStudent, setIsStudent] = useState(false);
+  const [school, setSchool] = useState("");
+  const [hostelOrHall, setHostelOrHall] = useState("");
+  const [roomOrBedSpace, setRoomOrBedSpace] = useState("");
   const [payingRegistration, setPayingRegistration] = useState(false);
 
   // Citizenship
@@ -209,11 +215,15 @@ const RegisterTenant = () => {
         user_id: userId,
         tenant_id: tenantId,
         registration_fee_paid: !regFeeEnabled,
+        is_student: isStudent,
+        school: isStudent ? (school.trim() || null) : null,
+        hostel_or_hall: isStudent ? (hostelOrHall.trim() || null) : null,
+        room_or_bed_space: isStudent ? (roomOrBedSpace.trim() || null) : null,
         ...(!regFeeEnabled ? {
           registration_date: now.toISOString(),
           expiry_date: expiryDate.toISOString(),
         } : {}),
-      });
+      } as any);
 
       if (tenantError) {
         await supabase.auth.signOut();
@@ -470,6 +480,30 @@ const RegisterTenant = () => {
                           <Input value={emergencyPhone} onChange={(e) => setEmergencyPhone(formatPhone(e.target.value))} placeholder="020 555 5678" maxLength={12} />
                         </FormField>
                       </div>
+                    </div>
+
+                    {/* Student section */}
+                    <div className="border-t border-border pt-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">I am a student</p>
+                          <p className="text-xs text-muted-foreground">Enable to see hostel listings instead of regular rentals</p>
+                        </div>
+                        <Switch checked={isStudent} onCheckedChange={setIsStudent} />
+                      </div>
+                      {isStudent && (
+                        <div className="space-y-3 pt-2">
+                          <FormField label="School / Institution" valid={school.length > 1}>
+                            <Input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="e.g. University of Ghana" />
+                          </FormField>
+                          <FormField label="Hostel or Hall" optional>
+                            <Input value={hostelOrHall} onChange={(e) => setHostelOrHall(e.target.value)} placeholder="e.g. Commonwealth Hall" />
+                          </FormField>
+                          <FormField label="Room or Bed Space" optional>
+                            <Input value={roomOrBedSpace} onChange={(e) => setRoomOrBedSpace(e.target.value)} placeholder="e.g. Room 12B" />
+                          </FormField>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

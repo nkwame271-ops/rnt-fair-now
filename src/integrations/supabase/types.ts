@@ -129,6 +129,8 @@ export type Database = {
           registration_deadline_days: number
           tax_rate: number
           tax_rates: Json
+          template_label: string
+          template_type: string
           terms: string[]
           updated_at: string
           updated_by: string | null
@@ -142,6 +144,8 @@ export type Database = {
           registration_deadline_days?: number
           tax_rate?: number
           tax_rates?: Json
+          template_label?: string
+          template_type?: string
           terms?: string[]
           updated_at?: string
           updated_by?: string | null
@@ -155,6 +159,8 @@ export type Database = {
           registration_deadline_days?: number
           tax_rate?: number
           tax_rates?: Json
+          template_label?: string
+          template_type?: string
           terms?: string[]
           updated_at?: string
           updated_by?: string | null
@@ -3120,9 +3126,13 @@ export type Database = {
           account_status: string
           created_at: string
           expiry_date: string | null
+          hostel_or_hall: string | null
           id: string
+          is_student: boolean
           registration_date: string | null
           registration_fee_paid: boolean
+          room_or_bed_space: string | null
+          school: string | null
           status: string
           tenant_id: string
           user_id: string
@@ -3131,9 +3141,13 @@ export type Database = {
           account_status?: string
           created_at?: string
           expiry_date?: string | null
+          hostel_or_hall?: string | null
           id?: string
+          is_student?: boolean
           registration_date?: string | null
           registration_fee_paid?: boolean
+          room_or_bed_space?: string | null
+          school?: string | null
           status?: string
           tenant_id: string
           user_id: string
@@ -3142,9 +3156,13 @@ export type Database = {
           account_status?: string
           created_at?: string
           expiry_date?: string | null
+          hostel_or_hall?: string | null
           id?: string
+          is_student?: boolean
           registration_date?: string | null
           registration_fee_paid?: boolean
+          room_or_bed_space?: string | null
+          school?: string | null
           status?: string
           tenant_id?: string
           user_id?: string
@@ -3421,7 +3439,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "tenant" | "landlord" | "regulator"
+      app_role: "tenant" | "landlord" | "regulator" | "nugs_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3549,7 +3567,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["tenant", "landlord", "regulator"],
+      app_role: ["tenant", "landlord", "regulator", "nugs_admin"],
     },
   },
 } as const

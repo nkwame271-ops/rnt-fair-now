@@ -10,7 +10,7 @@ import { formatGHSDecimal, formatGHS } from "@/lib/formatters";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: "tenant" | "landlord" | "regulator";
+  requiredRole?: "tenant" | "landlord" | "regulator" | "nugs_admin";
 }
 
 const registrationBenefits = [
@@ -43,7 +43,8 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   }, []);
 
   useEffect(() => {
-    if (!user || !role || role === "regulator") {
+    // No registration fee for regulators or NUGS admins
+    if (!user || !role || role === "regulator" || role === "nugs_admin") {
       setCheckingFee(false);
       return;
     }
@@ -129,7 +130,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   if (requiredRole && role !== requiredRole) return <Navigate to="/" replace />;
 
   // Block deactivated or archived accounts
-  if (role !== "regulator" && (accountStatus === "deactivated" || accountStatus === "archived")) {
+  if (role !== "regulator" && role !== "nugs_admin" && (accountStatus === "deactivated" || accountStatus === "archived")) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center space-y-6">
@@ -171,7 +172,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   }
 
   // Block dashboard if fee not paid (but skip if fee is disabled)
-  if (role !== "regulator" && !feePaid && !hasRegistrationDate && regFeeEnabled) {
+  if (role !== "regulator" && role !== "nugs_admin" && !feePaid && !hasRegistrationDate && regFeeEnabled) {
     const paymentType = role === "tenant" ? "tenant_registration" : "landlord_registration";
     const roleLabel = role === "tenant" ? "Tenant" : "Landlord";
 

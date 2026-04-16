@@ -76,12 +76,25 @@ const Marketplace = () => {
   const [viewingRequestsByUnit, setViewingRequestsByUnit] = useState<Record<string, string>>({});
   const [applyingRent, setApplyingRent] = useState(false);
 
+  const [isStudent, setIsStudent] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("tenants").select("is_student").eq("user_id", user.id).maybeSingle().then(({ data }) => {
+      setIsStudent(!!(data as any)?.is_student);
+    });
+  }, [user]);
+
   useEffect(() => {
     const fetchUnits = async () => {
-      const { data: vacantData } = await (supabase
+      let vacantQuery: any = supabase
         .from("units")
-        .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace)")
-        .eq("status", "vacant") as any).eq("property.listed_on_marketplace", true);
+        .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace, property_category)")
+        .eq("status", "vacant");
+      vacantQuery = vacantQuery.eq("property.listed_on_marketplace", true);
+      if (isStudent) vacantQuery = vacantQuery.eq("property.property_category", "hostel");
+      else vacantQuery = vacantQuery.neq("property.property_category", "hostel");
+      const { data: vacantData } = await vacantQuery;
 
       const thirtyDaysFromNow = format(addDays(new Date(), 30), "yyyy-MM-dd");
       const today = format(new Date(), "yyyy-MM-dd");
@@ -96,10 +109,14 @@ const Marketplace = () => {
       let expiringUnits: any[] = [];
       if (expiringTenancies && expiringTenancies.length > 0) {
         const expiringUnitIds = expiringTenancies.map((t) => t.unit_id);
-        const { data: occupiedData } = await (supabase
+        let occupiedQuery: any = supabase
           .from("units")
-          .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace)")
-          .in("id", expiringUnitIds) as any).eq("property.listed_on_marketplace", true);
+          .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace, property_category)")
+          .in("id", expiringUnitIds);
+        occupiedQuery = occupiedQuery.eq("property.listed_on_marketplace", true);
+        if (isStudent) occupiedQuery = occupiedQuery.eq("property.property_category", "hostel");
+        else occupiedQuery = occupiedQuery.neq("property.property_category", "hostel");
+        const { data: occupiedData } = await occupiedQuery;
 
         if (occupiedData) {
           const endDateMap: Record<string, string> = {};
@@ -142,7 +159,7 @@ const Marketplace = () => {
       setLoading(false);
     };
     fetchUnits();
-  }, []);
+  }, [isStudent]);
 
   // Handle viewing payment callback
   useEffect(() => {
