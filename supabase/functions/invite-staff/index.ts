@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      message: `${resolvedAdminType === "main_admin" ? "Main Admin" : "Sub Admin"} account created for ${email}`,
+      message: `${labelMap[resolvedAdminType] || resolvedAdminType} account created for ${email}`,
       userId: newUser.user.id,
       adminType: resolvedAdminType,
     }), {
