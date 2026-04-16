@@ -78,6 +78,60 @@ const AppointmentSlotPicker = ({ complaintTable, userIdColumn }: Props) => {
         .eq("id", scheduleId);
       if (error) throw error;
 
+      // Find schedule for context (complaint id, created_by admin)
+      const schedule = schedules.find(s => s.id === scheduleId);
+
+      // Resolve complaint office + code, complainant phone
+      let officeName = "";
+      let complaintCode = "";
+      let createdByAdmin: string | null = null;
+      if (schedule) {
+        const { data: complaint } = await (supabase
+          .from(complaintTable)
+          .select("complaint_code, office_id") as any)
+          .eq("id", schedule.complaint_id)
+          .maybeSingle();
+        complaintCode = complaint?.complaint_code || "";
+        if (complaint?.office_id) {
+          const { data: office } = await supabase.from("offices").select("name").eq("id", complaint.office_id).maybeSingle();
+          officeName = office?.name || "";
+        }
+        const { data: schedRow } = await supabase
+          .from("complaint_schedules")
+          .select("created_by")
+          .eq("id", scheduleId)
+          .maybeSingle();
+        createdByAdmin = schedRow?.created_by || null;
+      }
+
+      // SMS confirmation to complainant
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("phone")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (profile?.phone) {
+        const dateStr = new Date(slot.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+        const codePart = complaintCode ? ` for complaint ${complaintCode}` : "";
+        const officePart = officeName ? ` at ${officeName} Office, Rent Control Department` : " at the Rent Control Office";
+        const message = `RentGhana: Appointment confirmed${codePart}. Date: ${dateStr}, Time: ${slot.time_start}-${slot.time_end}${officePart}. Please arrive on time.`;
+        sendNotification("complaint_reminder", {
+          phone: profile.phone,
+          user_id: user.id,
+          data: { message },
+        });
+      }
+
+      // Notify admin who created the schedule
+      if (createdByAdmin) {
+        await supabase.from("notifications").insert({
+          user_id: createdByAdmin,
+          title: "Appointment Confirmed",
+          body: `Complainant confirmed appointment${complaintCode ? ` for ${complaintCode}` : ""} on ${new Date(slot.date).toLocaleDateString("en-GB")} ${slot.time_start}-${slot.time_end}.`,
+          link: "/regulator/complaints",
+        });
+      }
+
       setSchedules(prev => prev.map(s =>
         s.id === scheduleId ? { ...s, selected_slot: slot, status: "confirmed" } : s
       ));
