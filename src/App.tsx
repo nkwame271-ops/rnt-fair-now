@@ -210,7 +210,6 @@ const App = () => (
                 <Route path="office-fund-requests" element={<OfficeFundRequests />} />
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
                 <Route path="payment-errors" element={<PaymentErrors />} />
-                <Route path="super-admin" element={<SuperAdminDashboard />} />
               </Route>
 
               {/* NUGS Admin Routes — hidden monitoring portal */}
