@@ -609,6 +609,15 @@ const RegulatorComplaints = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={downloadingProfile === c.landlord_user_id}
+                  onClick={() => downloadComplainantProfile("landlord", c.landlord_user_id, c._landlordProfile?.full_name || "Landlord")}
+                >
+                  <FileDown className="h-3.5 w-3.5 mr-1" />
+                  {downloadingProfile === c.landlord_user_id ? "Generating..." : "Download Profile"}
+                </Button>
                 {profile?.isMainAdmin && (
                   <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeletingId({ id: c.id, type: "landlord" })}>
                     <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
