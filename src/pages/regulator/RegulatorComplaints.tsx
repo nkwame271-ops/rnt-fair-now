@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2 } from "lucide-react";
+import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2, FileDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import ScheduleComplainantDialog from "@/components/ScheduleComplainantDialog";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import { generateProfilePdf } from "@/lib/generateProfilePdf";
 
 interface SchedulingTarget {
   id: string;
@@ -20,6 +21,8 @@ interface SchedulingTarget {
   userId: string;
   name: string;
   phone?: string;
+  complaintCode?: string;
+  officeName?: string;
 }
 
 const allStatuses = ["submitted", "under_review", "in_progress", "schedule_complainant", "resolved", "closed"];
