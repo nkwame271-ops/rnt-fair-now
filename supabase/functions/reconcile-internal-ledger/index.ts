@@ -43,15 +43,25 @@ const DEFERRED_OFFICE_TYPES = new Set([
   "filing_fee",
 ]);
 
-async function loadSecondary(client: any, parent: string): Promise<SecondarySplit[]> {
+// Recipients that may be sub-split office vs HQ via secondary_split_configurations
+const SECONDARY_SPLIT_RECIPIENTS = ["admin", "rent_control"];
+
+async function loadSecondaryAll(client: any): Promise<Record<string, SecondarySplit[]>> {
   try {
     const { data } = await client
       .from("secondary_split_configurations")
-      .select("sub_recipient, percentage")
-      .eq("parent_recipient", parent);
-    return data || [];
+      .select("parent_recipient, sub_recipient, percentage")
+      .in("parent_recipient", SECONDARY_SPLIT_RECIPIENTS);
+    const out: Record<string, SecondarySplit[]> = {};
+    for (const r of data || []) {
+      (out[r.parent_recipient] ||= []).push({
+        sub_recipient: r.sub_recipient,
+        percentage: Number(r.percentage),
+      });
+    }
+    return out;
   } catch {
-    return [];
+    return {};
   }
 }
 
