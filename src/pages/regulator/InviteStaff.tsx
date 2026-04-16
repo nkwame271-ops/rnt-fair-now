@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { UserPlus, Mail, Lock, User, Loader2, CheckCircle2, Shield, Building2 } from "lucide-react";
+import { UserPlus, Mail, Lock, User, Loader2, CheckCircle2, Shield, Building2, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
