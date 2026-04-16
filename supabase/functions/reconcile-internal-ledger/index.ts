@@ -168,7 +168,7 @@ Deno.serve(async (req) => {
     const limit: number = Math.min(Number(body.limit || 200), 500);
     const dryRun: boolean = !!body.dry_run;
 
-    const adminSecondary = await loadSecondary(admin, "admin");
+    const secondaryByParent = await loadSecondaryAll(admin);
 
     // Pull completed transactions in window
     let q = admin.from("escrow_transactions")
@@ -187,8 +187,11 @@ Deno.serve(async (req) => {
       already_balanced: 0,
       repaired: 0,
       rows_inserted: 0,
+      rows_voided: 0,
+      office_id_corrected: 0,
       skipped_no_plan: 0,
       total_recovered_amount: 0,
+      total_voided_amount: 0,
       details: [] as any[],
     };
 
