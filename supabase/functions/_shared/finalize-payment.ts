@@ -15,6 +15,7 @@
 const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
   rent_control: "igf",
   admin: "admin",
+  admin_hq: "admin",   // HQ share routes to the same system admin settlement account
   platform: "platform",
   gra: "gra",
 };
@@ -31,6 +32,102 @@ interface SplitItem {
   recipient: string;
   amount: number;
   description?: string;
+}
+
+interface SecondarySplit {
+  sub_recipient: string;
+  percentage: number;
+  description?: string;
+}
+
+/** Load secondary split config for a parent recipient (e.g. "admin") */
+async function loadSecondarySplits(supabaseAdmin: any, parentRecipient: string): Promise<SecondarySplit[]> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("secondary_split_configurations")
+      .select("sub_recipient, percentage, description")
+      .eq("parent_recipient", parentRecipient);
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Given a single admin split item, expand it into sub-rows based on secondary_split_configurations.
+ * Returns an array of split row objects ready for insert.
+ */
+function expandAdminSplit(
+  adminItem: SplitItem,
+  secondarySplits: SecondarySplit[],
+  escrowTxId: string,
+  officeId: string | null,
+  isDeferredOffice: boolean,
+  autoRelease: boolean,
+): any[] {
+  const officePct = secondarySplits.find(s => s.sub_recipient === "office")?.percentage ?? 0;
+  const hqPct = secondarySplits.find(s => s.sub_recipient === "headquarters")?.percentage ?? 100;
+  // If no secondary config or they don't sum to anything meaningful, fall back to legacy behavior
+  const totalPct = officePct + hqPct;
+  if (secondarySplits.length === 0 || totalPct === 0) {
+    // Legacy: full amount to admin (office)
+    const releaseMode = autoRelease ? "auto" : "manual";
+    let disbStatus: string;
+    if (isDeferredOffice) disbStatus = "deferred";
+    else if (!autoRelease) disbStatus = "held";
+    else disbStatus = "pending_transfer";
+
+    return [{
+      escrow_transaction_id: escrowTxId,
+      recipient: "admin",
+      amount: adminItem.amount,
+      description: adminItem.description || "",
+      disbursement_status: disbStatus,
+      released_at: null,
+      office_id: isDeferredOffice ? null : officeId,
+      release_mode: releaseMode,
+    }];
+  }
+
+  const rows: any[] = [];
+
+  // Office portion
+  if (officePct > 0) {
+    const officeAmount = +(adminItem.amount * officePct / 100).toFixed(2);
+    const releaseMode = autoRelease ? "auto" : "manual";
+    let disbStatus: string;
+    if (isDeferredOffice) disbStatus = "deferred";
+    else if (!autoRelease) disbStatus = "held";
+    else disbStatus = "pending_transfer";
+
+    rows.push({
+      escrow_transaction_id: escrowTxId,
+      recipient: "admin",
+      amount: officeAmount,
+      description: (adminItem.description || "Admin charge") + " (office share)",
+      disbursement_status: disbStatus,
+      released_at: null,
+      office_id: isDeferredOffice ? null : officeId,
+      release_mode: releaseMode,
+    });
+  }
+
+  // HQ portion — never deferred, goes to system admin settlement
+  if (hqPct > 0) {
+    const hqAmount = +(adminItem.amount * hqPct / 100).toFixed(2);
+    rows.push({
+      escrow_transaction_id: escrowTxId,
+      recipient: "admin_hq",
+      amount: hqAmount,
+      description: (adminItem.description || "Admin charge") + " (HQ share)",
+      disbursement_status: "pending_transfer",
+      released_at: null,
+      office_id: null,
+      release_mode: "auto",
+    });
+  }
+
+  return rows;
 }
 
 export async function finalizePayment({ supabaseAdmin, reference, amountPaid, transactionId, logError }: FinalizeOpts): Promise<{ verified: boolean; status: string }> {
@@ -58,10 +155,12 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       .in("status", ["pending", "processing"]);
   }
 
+  // Load secondary splits for admin once (used in multiple places)
+  const adminSecondarySplits = await loadSecondarySplits(supabaseAdmin, "admin");
+
   // 2b. For bundle types, create child escrow_transactions per fee component
   const BUNDLE_TYPES = ["existing_tenancy_bundle", "add_tenant_fee"];
   if (BUNDLE_TYPES.includes(paymentType) && Array.isArray(meta.fee_components) && meta.fee_components.length > 0) {
-    // Check if child transactions already exist (idempotent) — check for first component
     const firstChildRef = `${reference}_${meta.fee_components[0].type}`;
     const { data: existingChildren } = await supabaseAdmin
       .from("escrow_transactions")
@@ -77,7 +176,6 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
             ? meta.split_plan.filter((s: any) => s.description?.includes(component.type))
             : [{ recipient: "admin", amount: component.amount, description: component.type }]);
 
-        // Create child escrow_transaction
         const { data: childTx } = await supabaseAdmin
           .from("escrow_transactions")
           .insert({
@@ -98,7 +196,6 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
           .single();
 
         if (childTx) {
-          // Create splits for child transaction
           let autoRelease = false;
           try {
             const { data: flag } = await supabaseAdmin.from("feature_flags").select("is_enabled").eq("feature_key", "office_payout_mode").single();
@@ -108,26 +205,24 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
           const DEFERRED_OFFICE_TYPES = ["register_tenant_fee", "filing_fee", "agreement_sale"];
           const isDeferredOffice = DEFERRED_OFFICE_TYPES.includes(component.type);
 
-          const childSplitRows = childSplitPlan.map((s: SplitItem) => {
-            const isAdmin = s.recipient === "admin";
-            const releaseMode = (isAdmin && autoRelease) ? "auto" : "manual";
-            let disbStatus: string;
-            if (isAdmin && isDeferredOffice) disbStatus = "deferred";
-            else if (s.recipient === "landlord") disbStatus = "held";
-            else if (isAdmin && !autoRelease) disbStatus = "held";
-            else disbStatus = "pending_transfer";
-
-            return {
-              escrow_transaction_id: childTx.id,
-              recipient: s.recipient,
-              amount: s.amount,
-              description: s.description || "",
-              disbursement_status: disbStatus,
-              released_at: null,
-              office_id: isDeferredOffice && isAdmin ? null : officeId,
-              release_mode: releaseMode,
-            };
-          });
+          const childSplitRows: any[] = [];
+          for (const s of childSplitPlan as SplitItem[]) {
+            if (s.recipient === "admin") {
+              childSplitRows.push(...expandAdminSplit(s, adminSecondarySplits, childTx.id, officeId, isDeferredOffice, autoRelease));
+            } else {
+              const isLandlord = s.recipient === "landlord";
+              childSplitRows.push({
+                escrow_transaction_id: childTx.id,
+                recipient: s.recipient,
+                amount: s.amount,
+                description: s.description || "",
+                disbursement_status: isLandlord ? "held" : "pending_transfer",
+                released_at: null,
+                office_id: officeId,
+                release_mode: "manual",
+              });
+            }
+          }
 
           await supabaseAdmin.from("escrow_splits").insert(childSplitRows);
         }
@@ -152,7 +247,6 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
   let splits = existingSplits || [];
 
   if (splits.length === 0 && splitPlan.length > 0) {
-    // Get office payout mode
     let autoRelease = false;
     try {
       const { data: flag } = await supabaseAdmin
@@ -163,37 +257,31 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       autoRelease = flag?.is_enabled ?? false;
     } catch {}
 
-    // Payment types where office attribution is deferred until service is handled
     const DEFERRED_OFFICE_TYPES = ["rent_card", "rent_card_bulk", "add_tenant_fee", "declare_existing_tenancy_fee", "agreement_sale"];
     const isDeferredOffice = DEFERRED_OFFICE_TYPES.includes(paymentType);
 
-    const splitRows = splitPlan.map((s: SplitItem) => {
-      const isAdmin = s.recipient === "admin";
-      const releaseMode = (isAdmin && autoRelease) ? "auto" : "manual";
-
-      let disbStatus: string;
-      if (isAdmin && isDeferredOffice) {
-        // Defer office split until the responsible office is determined
-        disbStatus = "deferred";
-      } else if (s.recipient === "landlord") {
-        disbStatus = "held";
-      } else if (isAdmin && !autoRelease) {
-        disbStatus = "held";
+    const splitRows: any[] = [];
+    for (const s of splitPlan) {
+      if (s.recipient === "admin") {
+        splitRows.push(...expandAdminSplit(s, adminSecondarySplits, escrowId, officeId, isDeferredOffice, autoRelease));
       } else {
-        disbStatus = "pending_transfer";
-      }
+        const releaseMode = "manual";
+        let disbStatus: string;
+        if (s.recipient === "landlord") disbStatus = "held";
+        else disbStatus = "pending_transfer";
 
-      return {
-        escrow_transaction_id: escrowId,
-        recipient: s.recipient,
-        amount: s.amount,
-        description: s.description || "",
-        disbursement_status: disbStatus,
-        released_at: null,
-        office_id: isDeferredOffice && isAdmin ? null : officeId,
-        release_mode: releaseMode,
-      };
-    });
+        splitRows.push({
+          escrow_transaction_id: escrowId,
+          recipient: s.recipient,
+          amount: s.amount,
+          description: s.description || "",
+          disbursement_status: disbStatus,
+          released_at: null,
+          office_id: officeId,
+          release_mode: releaseMode,
+        });
+      }
+    }
 
     const { data: inserted } = await supabaseAdmin
       .from("escrow_splits")
@@ -202,14 +290,16 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
 
     splits = inserted || [];
 
-    // Auto-release office fund request if needed
+    // Auto-release office fund request if needed — only for the office share
     if (autoRelease && officeId) {
+      const officePct = adminSecondarySplits.find(s => s.sub_recipient === "office")?.percentage ?? 0;
+      // Only create fund request for the office's portion of admin splits
       const adminTotal = splitPlan
         .filter(s => s.recipient === "admin")
         .reduce((sum, s) => sum + s.amount, 0);
+      const officeAmount = adminSecondarySplits.length > 0 ? +(adminTotal * officePct / 100).toFixed(2) : adminTotal;
 
-      if (adminTotal > 0) {
-        // Check if auto fund request already exists
+      if (officeAmount > 0) {
         const { data: existingReq } = await supabaseAdmin
           .from("office_fund_requests")
           .select("id")
@@ -219,8 +309,8 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
         if (!existingReq) {
           await supabaseAdmin.from("office_fund_requests").insert({
             office_id: officeId,
-            amount: adminTotal,
-            purpose: `Auto-released from ${paymentType.replace(/_/g, " ")} payment`,
+            amount: officeAmount,
+            purpose: `Auto-released from ${paymentType.replace(/_/g, " ")} payment (office share)`,
             requested_by: userId,
             status: "approved",
             reviewed_by: userId,
@@ -328,39 +418,44 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
           let recipientType = split.recipient;
 
           if (accountType) {
-            const { data: account } = await supabaseAdmin
-              .from("system_settlement_accounts")
-              .select("payment_method, account_name, bank_name, account_number, momo_number, momo_provider, paystack_recipient_code")
-              .eq("account_type", accountType)
-              .single();
+            // admin_hq and admin both map to "admin" system settlement account
+            // but admin (office share) should go to office payout account when not deferred
+            if (split.recipient === "admin" && officeId) {
+              // Office payout account
+              const { data: officeAccount } = await supabaseAdmin
+                .from("office_payout_accounts")
+                .select("payment_method, account_name, bank_name, account_number, momo_number, momo_provider, paystack_recipient_code")
+                .eq("office_id", officeId)
+                .single();
 
-            if (account) {
-              recipientCode = account.paystack_recipient_code;
-              if (!recipientCode) {
-                recipientCode = await createPaystackRecipient(PAYSTACK_SK, account);
-                if (recipientCode) {
-                  await supabaseAdmin.from("system_settlement_accounts").update({ paystack_recipient_code: recipientCode }).eq("account_type", accountType);
+              if (officeAccount) {
+                recipientCode = officeAccount.paystack_recipient_code;
+                if (!recipientCode) {
+                  recipientCode = await createPaystackRecipient(PAYSTACK_SK, officeAccount);
+                  if (recipientCode) {
+                    await supabaseAdmin.from("office_payout_accounts").update({ paystack_recipient_code: recipientCode }).eq("office_id", officeId);
+                  }
                 }
+                recipientType = "office";
               }
-              recipientType = accountType;
-            }
-          } else if (split.recipient === "admin" && officeId) {
-            // Office payout account
-            const { data: officeAccount } = await supabaseAdmin
-              .from("office_payout_accounts")
-              .select("payment_method, account_name, bank_name, account_number, momo_number, momo_provider, paystack_recipient_code")
-              .eq("office_id", officeId)
-              .single();
+            } else {
+              // System settlement account (rent_control, admin_hq, platform, gra)
+              const { data: account } = await supabaseAdmin
+                .from("system_settlement_accounts")
+                .select("payment_method, account_name, bank_name, account_number, momo_number, momo_provider, paystack_recipient_code")
+                .eq("account_type", accountType)
+                .single();
 
-            if (officeAccount) {
-              recipientCode = officeAccount.paystack_recipient_code;
-              if (!recipientCode) {
-                recipientCode = await createPaystackRecipient(PAYSTACK_SK, officeAccount);
-                if (recipientCode) {
-                  await supabaseAdmin.from("office_payout_accounts").update({ paystack_recipient_code: recipientCode }).eq("office_id", officeId);
+              if (account) {
+                recipientCode = account.paystack_recipient_code;
+                if (!recipientCode) {
+                  recipientCode = await createPaystackRecipient(PAYSTACK_SK, account);
+                  if (recipientCode) {
+                    await supabaseAdmin.from("system_settlement_accounts").update({ paystack_recipient_code: recipientCode }).eq("account_type", accountType);
+                  }
                 }
+                recipientType = accountType;
               }
-              recipientType = "office";
             }
           }
 
@@ -466,7 +561,6 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
     if (landlord && !landlord.registration_fee_paid) {
       await supabaseAdmin.from("landlords").update(regData).eq("user_id", userId);
     } else if (!landlord) {
-      // Defensive: create landlord record if missing
       const landlordId = "LL-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
       await supabaseAdmin.from("landlords").insert({ user_id: userId, landlord_id: landlordId, ...regData });
     }
@@ -536,7 +630,6 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
   } else if (paymentType === "renewal_payment") {
     const tenancyId = escrow.related_tenancy_id || meta?.tenancyId;
     if (tenancyId) {
-      // Check if renewal already processed (new tenancy exists)
       const { data: existingRenewal } = await supabaseAdmin
         .from("tenancies")
         .select("id")
