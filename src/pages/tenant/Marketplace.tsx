@@ -109,10 +109,14 @@ const Marketplace = () => {
       let expiringUnits: any[] = [];
       if (expiringTenancies && expiringTenancies.length > 0) {
         const expiringUnitIds = expiringTenancies.map((t) => t.unit_id);
-        const { data: occupiedData } = await (supabase
+        let occupiedQuery: any = supabase
           .from("units")
-          .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace)")
-          .in("id", expiringUnitIds) as any).eq("property.listed_on_marketplace", true);
+          .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace, property_category)")
+          .in("id", expiringUnitIds);
+        occupiedQuery = occupiedQuery.eq("property.listed_on_marketplace", true);
+        if (isStudent) occupiedQuery = occupiedQuery.eq("property.property_category", "hostel");
+        else occupiedQuery = occupiedQuery.neq("property.property_category", "hostel");
+        const { data: occupiedData } = await occupiedQuery;
 
         if (occupiedData) {
           const endDateMap: Record<string, string> = {};
