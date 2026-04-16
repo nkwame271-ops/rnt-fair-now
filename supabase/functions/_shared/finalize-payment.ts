@@ -248,8 +248,11 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
 
           const childSplitRows: any[] = [];
           for (const s of childSplitPlan as SplitItem[]) {
-            if (s.recipient === "admin") {
-              childSplitRows.push(...expandAdminSplit(s, adminSecondarySplits, childTx.id, officeId, isDeferredOffice, autoRelease));
+            if (SECONDARY_SPLIT_RECIPIENTS.includes(s.recipient)) {
+              childSplitRows.push(...expandSecondarySplit(
+                s, s.recipient, secondaryByParent[s.recipient] || [],
+                childTx.id, officeId, isDeferredOffice, autoRelease,
+              ));
             } else {
               const isLandlord = s.recipient === "landlord";
               childSplitRows.push({
