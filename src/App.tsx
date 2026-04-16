@@ -200,7 +200,8 @@ const App = () => (
                 <Route path="feedback" element={<RegulatorFeedback />} />
                 <Route path="support-chats" element={<RegulatorSupportChats />} />
                 <Route path="api-keys" element={<AgencyApiKeys />} />
-                <Route path="engine-room" element={<EngineRoom />} />
+                <Route path="engine-room" element={<ErrorBoundary section="Engine Room"><EngineRoom /></ErrorBoundary>} />
+                <Route path="super-admin" element={<ErrorBoundary section="Super Admin Dashboard"><SuperAdminDashboard /></ErrorBoundary>} />
                 <Route path="rent-assessments" element={<RegulatorRentAssessments />} />
                 <Route path="terminations" element={<RegulatorTerminations />} />
                 <Route path="rent-cards" element={<RegulatorRentCards />} />
@@ -209,7 +210,6 @@ const App = () => (
                 <Route path="office-fund-requests" element={<OfficeFundRequests />} />
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
                 <Route path="payment-errors" element={<PaymentErrors />} />
-                <Route path="super-admin" element={<SuperAdminDashboard />} />
               </Route>
 
               {/* NUGS Admin Routes — hidden monitoring portal */}
