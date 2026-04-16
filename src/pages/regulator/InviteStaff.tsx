@@ -15,7 +15,7 @@ import LogoLoader from "@/components/LogoLoader";
 const InviteStaff = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
   const { flags, loading: flagsLoading } = useAllFeatureFlags();
-  const [adminType, setAdminType] = useState<"main_admin" | "sub_admin">("sub_admin");
+  const [adminType, setAdminType] = useState<"main_admin" | "sub_admin" | "nugs_admin">("sub_admin");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
