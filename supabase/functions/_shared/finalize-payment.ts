@@ -65,8 +65,15 @@ async function loadSecondarySplits(supabaseAdmin: any, parentRecipient: string):
  * Given a single admin split item, expand it into sub-rows based on secondary_split_configurations.
  * Returns an array of split row objects ready for insert.
  */
-function expandAdminSplit(
-  adminItem: SplitItem,
+/**
+ * Given a single primary split item whose recipient supports secondary split
+ * (admin OR rent_control), expand it into office-share + HQ-share rows based on
+ * secondary_split_configurations. Falls back to a single legacy row when no
+ * config exists.
+ */
+function expandSecondarySplit(
+  item: SplitItem,
+  parentRecipient: string,
   secondarySplits: SecondarySplit[],
   escrowTxId: string,
   officeId: string | null,
@@ -74,60 +81,74 @@ function expandAdminSplit(
   autoRelease: boolean,
 ): any[] {
   const officePct = secondarySplits.find(s => s.sub_recipient === "office")?.percentage ?? 0;
-  const hqPct = secondarySplits.find(s => s.sub_recipient === "headquarters")?.percentage ?? 100;
-  // If no secondary config or they don't sum to anything meaningful, fall back to legacy behavior
+  const hqPct = secondarySplits.find(s => s.sub_recipient === "headquarters")?.percentage ?? 0;
   const totalPct = officePct + hqPct;
-  if (secondarySplits.length === 0 || totalPct === 0) {
-    // Legacy: full amount to admin (office)
-    const releaseMode = autoRelease ? "auto" : "manual";
-    let disbStatus: string;
-    if (isDeferredOffice) disbStatus = "deferred";
-    else if (!autoRelease) disbStatus = "held";
-    else disbStatus = "pending_transfer";
 
+  // Default disbursement status for office-side row (only "admin" supports deferral)
+  const computeOfficeDisbStatus = () => {
+    if (parentRecipient === "admin") {
+      if (isDeferredOffice) return "deferred";
+      if (!autoRelease) return "held";
+      return "pending_transfer";
+    }
+    // rent_control / others: just goes straight to pending_transfer at the office (rare)
+    return "pending_transfer";
+  };
+  const officeReleaseMode = (parentRecipient === "admin" && autoRelease) ? "auto" : (parentRecipient === "admin" ? "manual" : "auto");
+
+  // No secondary config → keep legacy behavior: full amount on the parent recipient
+  if (secondarySplits.length === 0 || totalPct === 0) {
+    // For non-admin parents, just emit a single row tagged to office (legacy)
+    if (parentRecipient !== "admin") {
+      return [{
+        escrow_transaction_id: escrowTxId,
+        recipient: parentRecipient,
+        amount: +Number(item.amount).toFixed(2),
+        description: item.description || "",
+        disbursement_status: "pending_transfer",
+        released_at: null,
+        office_id: officeId,
+        release_mode: "auto",
+      }];
+    }
+    // Admin legacy path
     return [{
       escrow_transaction_id: escrowTxId,
       recipient: "admin",
-      amount: adminItem.amount,
-      description: adminItem.description || "",
-      disbursement_status: disbStatus,
+      amount: +Number(item.amount).toFixed(2),
+      description: item.description || "",
+      disbursement_status: computeOfficeDisbStatus(),
       released_at: null,
       office_id: isDeferredOffice ? null : officeId,
-      release_mode: releaseMode,
+      release_mode: officeReleaseMode,
     }];
   }
 
   const rows: any[] = [];
 
-  // Office portion
+  // Office portion — keep parent recipient name, tag with office
   if (officePct > 0) {
-    const officeAmount = +(adminItem.amount * officePct / 100).toFixed(2);
-    const releaseMode = autoRelease ? "auto" : "manual";
-    let disbStatus: string;
-    if (isDeferredOffice) disbStatus = "deferred";
-    else if (!autoRelease) disbStatus = "held";
-    else disbStatus = "pending_transfer";
-
+    const officeAmount = +(Number(item.amount) * officePct / 100).toFixed(2);
     rows.push({
       escrow_transaction_id: escrowTxId,
-      recipient: "admin",
+      recipient: parentRecipient,
       amount: officeAmount,
-      description: (adminItem.description || "Admin charge") + " (office share)",
-      disbursement_status: disbStatus,
+      description: (item.description || `${parentRecipient} charge`) + " (office share)",
+      disbursement_status: computeOfficeDisbStatus(),
       released_at: null,
-      office_id: isDeferredOffice ? null : officeId,
-      release_mode: releaseMode,
+      office_id: (parentRecipient === "admin" && isDeferredOffice) ? null : officeId,
+      release_mode: officeReleaseMode,
     });
   }
 
-  // HQ portion — never deferred, goes to system admin settlement
+  // HQ portion — new recipient suffix, never deferred, never tied to office
   if (hqPct > 0) {
-    const hqAmount = +(adminItem.amount * hqPct / 100).toFixed(2);
+    const hqAmount = +(Number(item.amount) * hqPct / 100).toFixed(2);
     rows.push({
       escrow_transaction_id: escrowTxId,
-      recipient: "admin_hq",
+      recipient: `${parentRecipient}_hq`,
       amount: hqAmount,
-      description: (adminItem.description || "Admin charge") + " (HQ share)",
+      description: (item.description || `${parentRecipient} charge`) + " (HQ share)",
       disbursement_status: "pending_transfer",
       released_at: null,
       office_id: null,
