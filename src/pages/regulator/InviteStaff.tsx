@@ -106,10 +106,24 @@ const InviteStaff = () => {
       {created && (
         <div className="flex items-start gap-3 bg-success/10 border border-success/20 rounded-xl p-4">
           <CheckCircle2 className="h-5 w-5 text-success shrink-0 mt-0.5" />
-          <div>
+          <div className="space-y-1">
             <p className="font-semibold text-foreground text-sm">Account Created</p>
             <p className="text-muted-foreground text-sm">
-              <strong>{created}</strong> can now log in at the Staff Login page.
+              <strong>{created}</strong> can now sign in using the password you set.
+            </p>
+            <p className="text-sm">
+              <span className="text-muted-foreground">Login URL: </span>
+              <a
+                href="/regulator/login"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary font-medium underline underline-offset-2"
+              >
+                {window.location.origin}/regulator/login
+              </a>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Share this URL with the new staff member. NUGS Admins are auto-routed to the NUGS portal after sign-in.
             </p>
           </div>
         </div>
