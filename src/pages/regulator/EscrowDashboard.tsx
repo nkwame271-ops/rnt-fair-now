@@ -60,7 +60,7 @@ const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string; visi
   { label: "Archive Search", types: ["archive_search_fee"], color: "bg-muted border-border text-muted-foreground", visibilityKey: "revenue_type_archive" },
 ];
 
-const SUB_ADMIN_VISIBLE_RECIPIENTS = ["rent_control", "admin"];
+const SUB_ADMIN_VISIBLE_RECIPIENTS = ["rent_control", "rent_control_hq", "admin", "admin_hq"];
 
 type DatePreset = "all" | "today" | "yesterday" | "last7" | "this_week" | "this_month" | "custom";
 
@@ -356,9 +356,9 @@ const EscrowDashboard = () => {
     );
 
     if (officeRevenue.length > 0) {
-      rows.push([], ["OFFICE BREAKDOWN"], ["Office", "Total", "IGF", "Admin", "Platform", "GRA", "Landlord", "Wallet Balance"]);
+      rows.push([], ["OFFICE BREAKDOWN"], ["Office", "Total", "IGF (Office)", "IGF (HQ)", "Admin (Office)", "Admin (HQ)", "Platform", "GRA", "Landlord", "Wallet Balance"]);
       officeRevenue.forEach(o => {
-        rows.push([o.officeName, o.total.toFixed(2), o.igf.toFixed(2), o.admin.toFixed(2), o.platform.toFixed(2), o.gra.toFixed(2), o.landlord.toFixed(2), o.walletBalance.toFixed(2)]);
+        rows.push([o.officeName, o.total.toFixed(2), o.igf.toFixed(2), o.igfHq.toFixed(2), o.admin.toFixed(2), o.adminHq.toFixed(2), o.platform.toFixed(2), o.gra.toFixed(2), o.landlord.toFixed(2), o.walletBalance.toFixed(2)]);
       });
     }
 
@@ -712,7 +712,7 @@ const EscrowDashboard = () => {
             {isVisible("escrow", "revenue_destination") && (
             <div className="bg-card rounded-xl p-6 shadow-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4">Allocation Summary (Internal Ledger)</h2>
-              <div className={`grid grid-cols-2 ${isMainAdmin ? "lg:grid-cols-5" : "lg:grid-cols-2"} gap-4`}>
+              <div className={`grid grid-cols-2 ${isMainAdmin ? "lg:grid-cols-4 xl:grid-cols-7" : "lg:grid-cols-4"} gap-4`}>
                 {allocationCards.map(r => (
                   <div key={r.label} className={`border rounded-lg p-4 text-center ${r.color}`}>
                     <div className="text-2xl font-bold">GH₵ {r.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
@@ -761,8 +761,10 @@ const EscrowDashboard = () => {
                       <tr className="border-b border-border text-muted-foreground">
                         <th className="text-left py-2 pr-4">Office</th>
                         <th className="text-right py-2 px-2">Total</th>
-                        <th className="text-right py-2 px-2">IGF</th>
-                        <th className="text-right py-2 px-2">Admin</th>
+                        <th className="text-right py-2 px-2">IGF (Office)</th>
+                        <th className="text-right py-2 px-2">IGF (HQ)</th>
+                        <th className="text-right py-2 px-2">Admin (Office)</th>
+                        <th className="text-right py-2 px-2">Admin (HQ)</th>
                         <th className="text-right py-2 px-2">Platform</th>
                         <th className="text-right py-2 px-2">GRA</th>
                         <th className="text-right py-2 px-2">Landlord</th>
@@ -776,7 +778,9 @@ const EscrowDashboard = () => {
                           <td className="py-2 pr-4 font-medium text-card-foreground">{o.officeName}</td>
                           <td className="text-right py-2 px-2 font-semibold">₵{o.total.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-primary">₵{o.igf.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2 text-primary/80">₵{o.igfHq.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-info">₵{o.admin.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2 text-info/80">₵{o.adminHq.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-success">₵{o.platform.toFixed(2)}</td>
                           <td className="text-right py-2 px-2">₵{o.gra.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-warning">₵{o.landlord.toFixed(2)}</td>
