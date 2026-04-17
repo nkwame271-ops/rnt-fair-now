@@ -263,23 +263,45 @@ const RegulatorReceipts = () => {
           const expanded = expandedId === r.id;
           return (
             <div key={r.id} className="bg-card rounded-xl border border-border overflow-hidden">
-              <button
-                onClick={() => setExpandedId(expanded ? null : r.id)}
-                className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/30 transition-colors"
-              >
-                <div className="flex-1 grid grid-cols-2 sm:grid-cols-6 gap-2 items-center text-sm">
-                  <div className="font-mono font-bold text-primary text-xs">{r.receipt_number}</div>
-                  <div className="text-muted-foreground text-xs">{new Date(r.created_at).toLocaleString()}</div>
-                  <div className="text-foreground">{r._payerProfile?.full_name || r.payer_name || "—"}</div>
-                  <div className="text-muted-foreground capitalize text-xs">{r.payment_type.replace(/_/g, " ")}</div>
-                  <div className="text-muted-foreground text-xs">{r._officeName || "—"}</div>
-                  <div className="font-bold text-foreground">{formatGHSDecimal(Number(r.total_amount))}</div>
-                </div>
-                {r._ticketNumber && (
-                  <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded mr-2">{r._ticketNumber}</span>
+              <div className="w-full flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors">
+                <button
+                  onClick={() => setExpandedId(expanded ? null : r.id)}
+                  className="flex-1 flex items-center gap-4 text-left min-w-0"
+                >
+                  <div className="flex-1 grid grid-cols-2 sm:grid-cols-6 gap-2 items-center text-sm">
+                    <div className="font-mono font-bold text-primary text-xs">{r.receipt_number}</div>
+                    <div className="text-muted-foreground text-xs">{new Date(r.created_at).toLocaleString()}</div>
+                    <div className="text-foreground">{r._payerProfile?.full_name || r.payer_name || "—"}</div>
+                    <div className="text-muted-foreground capitalize text-xs">{r.payment_type.replace(/_/g, " ")}</div>
+                    <div className="text-muted-foreground text-xs">{r._officeName || "—"}</div>
+                    <div className="font-bold text-foreground">{formatGHSDecimal(Number(r.total_amount))}</div>
+                  </div>
+                  {r._ticketNumber && (
+                    <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded mr-2">{r._ticketNumber}</span>
+                  )}
+                </button>
+                {r.payment_type === "complaint_fee" && (
+                  r.admin_confirmed_at ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-success/10 text-success border border-success/30 shrink-0">
+                      <ShieldCheck className="h-3 w-3" /> Confirmed
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      disabled={confirming === r.id}
+                      onClick={(e) => { e.stopPropagation(); handleConfirm(r.id); }}
+                      className="shrink-0"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                      {confirming === r.id ? "Confirming..." : "Confirm Payment"}
+                    </Button>
+                  )
                 )}
-                {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
-              </button>
+                <button onClick={() => setExpandedId(expanded ? null : r.id)} className="shrink-0">
+                  {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                </button>
+              </div>
 
               {expanded && (
                 <div className="border-t border-border p-5 bg-muted/10 space-y-4">
