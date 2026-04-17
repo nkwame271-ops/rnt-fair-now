@@ -6,7 +6,7 @@ import { motionTokens, cardHoverByTier } from "@/lib/motion";
 
 type CardTier = "primary" | "secondary" | "row" | "default" | "none";
 
-type CardProps = Omit<React.HTMLAttributes<HTMLDivElement>, keyof HTMLMotionProps<"div">> & {
+type CardProps = React.HTMLAttributes<HTMLDivElement> & {
   tier?: CardTier;
 };
 
