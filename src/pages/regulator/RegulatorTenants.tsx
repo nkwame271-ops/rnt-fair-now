@@ -149,7 +149,8 @@ const RegulatorTenants = () => {
   const filtered = tenants.filter((t) => {
     if (statusFilter === "deactivated" && t.account_status !== "deactivated") return false;
     else if (statusFilter === "archived" && t.account_status !== "archived") return false;
-    else if (statusFilter !== "all" && statusFilter !== "deactivated" && statusFilter !== "archived" && t.status !== statusFilter) return false;
+    else if (statusFilter === "students" && !t.is_student) return false;
+    else if (statusFilter !== "all" && statusFilter !== "deactivated" && statusFilter !== "archived" && statusFilter !== "students" && t.status !== statusFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -159,6 +160,8 @@ const RegulatorTenants = () => {
       t.profile?.email?.toLowerCase().includes(s)
     );
   });
+
+  const studentCount = tenants.filter(t => t.is_student).length;
 
   const exportCSV = () => {
     const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Status", "Account Status", "Active Tenancies", "Complaints", "Registered", "Expires"];
