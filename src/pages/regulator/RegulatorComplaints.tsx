@@ -521,6 +521,11 @@ const RegulatorComplaints = () => {
                             <Receipt className="h-3 w-3" /> Paid
                           </span>
                         )}
+                        {c.payment_status === "paid" && !confirmedComplaintIds.has(c.id) && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/10 text-warning inline-flex items-center gap-1 ml-1">
+                            Awaiting admin confirmation
+                          </span>
+                        )}
                         {c.payment_status === "pending" && (
                           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/10 text-warning inline-flex items-center gap-1 ml-1">
                             <CreditCard className="h-3 w-3" /> Awaiting payer
