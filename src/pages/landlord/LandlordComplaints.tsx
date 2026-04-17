@@ -59,7 +59,31 @@ const LandlordComplaints = () => {
 
   useEffect(() => {
     if (!user) return;
-    fetchComplaints();
+    const reference = searchParams.get("reference") || searchParams.get("trxref");
+    if (reference) {
+      (async () => {
+        try {
+          const { data } = await supabase.functions.invoke("verify-payment", { body: { reference } });
+          if (data?.verified) toast.success("Payment confirmed! Your complaint is now ready for scheduling.");
+        } catch (_) {}
+        setSearchParams({}, { replace: true });
+        await new Promise((r) => setTimeout(r, 1500));
+        await fetchComplaints();
+        setTimeout(() => fetchComplaints(), 3000);
+      })();
+    } else {
+      fetchComplaints();
+    }
+  }, [user]);
+
+  // Realtime: refresh when admin requests payment / status changes
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`landlord_complaints:${user.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "landlord_complaints", filter: `landlord_user_id=eq.${user.id}` }, () => fetchComplaints())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const fetchComplaints = async () => {
@@ -70,7 +94,7 @@ const LandlordComplaints = () => {
       .order("created_at", { ascending: false });
     setComplaints(data || []);
 
-    // Fetch schedules
+    // Fetch schedules + basket items
     if (data && data.length > 0) {
       const ids = data.map((c: any) => c.id);
       const { data: schedules } = await supabase
@@ -83,9 +107,53 @@ const LandlordComplaints = () => {
         schedules.forEach((s: any) => { map[s.complaint_id] = s; });
         setScheduleMap(map);
       }
+
+      const payIds = data.filter((c: any) => c.payment_status === "pending" && Number(c.outstanding_amount) > 0).map((c: any) => c.id);
+      if (payIds.length > 0) {
+        const { data: items } = await (supabase.from("complaint_basket_items") as any)
+          .select("id, complaint_id, label, amount, kind")
+          .in("complaint_id", payIds)
+          .eq("complaint_table", "landlord_complaints")
+          .order("created_at");
+        const bm: Record<string, any[]> = {};
+        (items || []).forEach((it: any) => { (bm[it.complaint_id] ||= []).push(it); });
+        setBasketMap(bm);
+      }
     }
 
     setLoading(false);
+  };
+
+  const handlePayNow = async (complaint: any) => {
+    setPaying(complaint.id);
+    try {
+      const { data: rawData, error } = await supabase.functions.invoke("paystack-checkout", {
+        body: { type: "complaint_fee", complaintId: complaint.id },
+      });
+      let data = rawData;
+      if (typeof rawData === "string") { try { data = JSON.parse(rawData); } catch {} }
+      if (error) {
+        let msg = error.message || "Payment initiation failed";
+        try {
+          if ((error as any).context) {
+            const body = await (error as any).context.json();
+            msg = body?.error || msg;
+          }
+        } catch {}
+        throw new Error(msg);
+      }
+      if (data?.error) throw new Error(data.error);
+      if (data?.authorization_url) {
+        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
+        window.location.href = data.authorization_url;
+      } else {
+        throw new Error("No checkout URL received");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Could not start payment");
+    } finally {
+      setPaying(null);
+    }
   };
 
   const handleDocChange = (e: React.ChangeEvent<HTMLInputElement>) => {
