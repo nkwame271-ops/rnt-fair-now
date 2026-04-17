@@ -91,7 +91,7 @@ const RegulatorLayout = () => {
   });
 
   return (
-    <div className="min-h-screen flex">
+    <div data-app-shell className="min-h-screen flex bg-transparent">
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-60 lg:w-60 glass-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0 lg:m-3 lg:rounded-2xl lg:inset-y-auto lg:h-[calc(100vh-1.5rem)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -156,10 +156,12 @@ const RegulatorLayout = () => {
             <NotificationBell />
           </div>
         </header>
-         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto pb-16">
-          <Outlet />
+         <main data-app-main className="flex-1 px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8 overflow-y-auto pb-16 bg-transparent">
+          <div className="mx-auto w-full max-w-[1400px]">
+            <Outlet />
+          </div>
         </main>
-        <footer className="border-t border-border bg-card px-4 py-2 flex items-center justify-center gap-2">
+        <footer className="border-t border-white/30 bg-transparent px-4 py-2 flex items-center justify-center gap-2">
           <img src="/cfled-logo.png" alt="CFLED" className="h-5 w-auto opacity-60" />
           <span className="text-muted-foreground text-[10px]">Designed by Center for Financial Literacy, E-Commerce and Digitalization</span>
         </footer>
