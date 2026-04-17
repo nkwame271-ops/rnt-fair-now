@@ -34,15 +34,24 @@ const ProtectedRoute = ({ children, requiredRole, allowStudent }: ProtectedRoute
   const [hasRegistrationDate, setHasRegistrationDate] = useState(false);
 
   const checkRegistration = useCallback(async (userId: string, userRole: string) => {
-    const table = userRole === "tenant" ? "tenants" : "landlords";
+    if (userRole === "tenant") {
+      const { data } = await supabase
+        .from("tenants")
+        .select("registration_fee_paid, registration_date, account_status, is_student")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (data?.registration_date) setHasRegistrationDate(true);
+      if (data?.account_status) setAccountStatus(data.account_status);
+      if (data?.is_student) setIsStudent(true);
+      return data?.registration_fee_paid ?? false;
+    }
     const { data } = await supabase
-      .from(table)
-      .select(userRole === "tenant" ? "registration_fee_paid, registration_date, account_status, is_student" : "registration_fee_paid, registration_date, account_status")
+      .from("landlords")
+      .select("registration_fee_paid, registration_date, account_status")
       .eq("user_id", userId)
       .maybeSingle();
     if (data?.registration_date) setHasRegistrationDate(true);
     if (data?.account_status) setAccountStatus(data.account_status);
-    if (userRole === "tenant" && (data as any)?.is_student) setIsStudent(true);
     return data?.registration_fee_paid ?? false;
   }, []);
 
