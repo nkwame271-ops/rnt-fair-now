@@ -1898,6 +1898,8 @@ export type Database = {
       }
       payment_receipts: {
         Row: {
+          admin_confirmed_at: string | null
+          admin_confirmed_by: string | null
           created_at: string
           description: string | null
           escrow_transaction_id: string | null
@@ -1915,6 +1917,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          admin_confirmed_at?: string | null
+          admin_confirmed_by?: string | null
           created_at?: string
           description?: string | null
           escrow_transaction_id?: string | null
@@ -1932,6 +1936,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          admin_confirmed_at?: string | null
+          admin_confirmed_by?: string | null
           created_at?: string
           description?: string | null
           escrow_transaction_id?: string | null
