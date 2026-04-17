@@ -35,6 +35,7 @@ import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 const navItems = [
   { to: "/landlord/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/landlord/my-properties", label: "My Properties", icon: Building2 },
+  { to: "/landlord/my-tenants", label: "My Tenants", icon: UserCircle },
   { to: "/landlord/register-property", label: "Register Property", icon: PlusCircle, featureKey: "register_property" },
   { to: "/landlord/add-tenant", label: "Add Tenant", icon: PlusCircle, featureKey: "add_tenant" },
   { to: "/landlord/declare-existing-tenancy", label: "Existing Tenancy", icon: FileCheck, featureKey: "declare_existing_tenancy" },

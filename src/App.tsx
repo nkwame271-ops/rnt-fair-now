@@ -68,6 +68,7 @@ const ManageRentCards = lazy(() => import("./pages/landlord/ManageRentCards"));
 const LandlordPaymentSettings = lazy(() => import("./pages/landlord/PaymentSettings"));
 const LandlordReceipts = lazy(() => import("./pages/landlord/Receipts"));
 const InviteTenant = lazy(() => import("./pages/landlord/InviteTenant"));
+const MyTenants = lazy(() => import("./pages/landlord/MyTenants"));
 
 // Regulator pages
 const RegulatorDashboard = lazy(() => import("./pages/regulator/RegulatorDashboard"));
@@ -164,6 +165,7 @@ const App = () => (
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<LandlordDashboard />} />
                 <Route path="my-properties" element={<MyProperties />} />
+                <Route path="my-tenants" element={<MyTenants />} />
                 <Route path="register-property" element={<ErrorBoundary section="Register Property Page"><RegisterProperty /></ErrorBoundary>} />
                 <Route path="edit-property/:id" element={<EditProperty />} />
                 <Route path="agreements" element={<Agreements />} />
