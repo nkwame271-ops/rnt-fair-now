@@ -40,7 +40,7 @@ const PropertyLocationPicker = ({
   confirmed = false,
   required = false,
 }: Props) => {
-  const { isLoaded } = useJsApiLoader({ googleMapsApiKey: GOOGLE_MAPS_API_KEY, libraries: GOOGLE_MAPS_LIBRARIES });
+  const { isLoaded, loadError } = useJsApiLoader({ googleMapsApiKey: GOOGLE_MAPS_API_KEY, libraries: GOOGLE_MAPS_LIBRARIES });
 
   const [markerPos, setMarkerPos] = useState<{ lat: number; lng: number } | null>(null);
   const [manualLat, setManualLat] = useState("");
@@ -163,8 +163,13 @@ const PropertyLocationPicker = ({
     );
   }
 
-  // Check for Google Maps load errors by wrapping the map with an error boundary fallback
-  const mapLoadError = typeof google === "undefined" || !google?.maps;
+  // Check for Google Maps load errors. We must verify google.maps.places exists too,
+  // because <Autocomplete> reads from it and will throw "Cannot read properties of undefined" if missing.
+  const mapLoadError =
+    !!loadError ||
+    typeof google === "undefined" ||
+    !(google as any)?.maps ||
+    !(google as any)?.maps?.places;
 
   if (mapLoadError) {
     return (
@@ -247,14 +252,18 @@ const PropertyLocationPicker = ({
         </span>
       </div>
 
-      {/* Address Search with Google Places Autocomplete */}
-      <Autocomplete
-        onLoad={(ac) => { autocompleteRef.current = ac; }}
-        onPlaceChanged={onPlaceSelected}
-        options={{ componentRestrictions: { country: "gh" } }}
-      >
-        <Input placeholder="Search property address in Ghana..." />
-      </Autocomplete>
+      {/* Address Search with Google Places Autocomplete — only render when places lib is available */}
+      {(google as any)?.maps?.places ? (
+        <Autocomplete
+          onLoad={(ac) => { autocompleteRef.current = ac; }}
+          onPlaceChanged={onPlaceSelected}
+          options={{ componentRestrictions: { country: "gh" } }}
+        >
+          <Input placeholder="Search property address in Ghana..." />
+        </Autocomplete>
+      ) : (
+        <Input placeholder="Address search unavailable — use the map or coordinates below" disabled />
+      )}
 
       {/* Google Map */}
       <div className="rounded-lg overflow-hidden border border-border">
