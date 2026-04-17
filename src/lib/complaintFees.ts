@@ -144,3 +144,53 @@ export const FEE_STRUCTURE_LABELS: Record<FeeStructure, string> = {
   rent_band: "Rent Band",
   percentage: "Percentage",
 };
+
+// ====== Basket model ======
+
+export type BasketItemKind = "fee_rule" | "manual_adjustment";
+
+export interface BasketItem {
+  /** Local UI id (uuid). Persisted db id is captured in `dbId` after insert. */
+  uid: string;
+  dbId?: string;
+  kind: BasketItemKind;
+  /** Required for fee_rule items. Null for manual adjustments. */
+  complaint_type_id: string | null;
+  label: string;
+  amount: number;
+  igf_pct: number;
+  admin_pct: number;
+  platform_pct: number;
+  computation_meta?: {
+    rentUsed?: number | null;
+    bandLabel?: string | null;
+    claimAmount?: number | null;
+    feeStructure?: FeeStructure | null;
+  } | null;
+  /** Manual-adjustment only: reason string captured in audit log */
+  reason?: string;
+}
+
+export interface BasketTotals {
+  total: number;
+  igf: number;
+  admin: number;
+  platform: number;
+}
+
+export function summariseBasket(items: BasketItem[]): BasketTotals {
+  let total = 0, igf = 0, admin = 0, platform = 0;
+  for (const it of items) {
+    const amt = Number(it.amount) || 0;
+    total += amt;
+    igf += amt * (Number(it.igf_pct) || 0) / 100;
+    admin += amt * (Number(it.admin_pct) || 0) / 100;
+    platform += amt * (Number(it.platform_pct) || 0) / 100;
+  }
+  return {
+    total: round2(total),
+    igf: round2(igf),
+    admin: round2(admin),
+    platform: round2(platform),
+  };
+}

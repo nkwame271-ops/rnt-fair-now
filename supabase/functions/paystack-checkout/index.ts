@@ -620,11 +620,41 @@ Deno.serve(async (req) => {
 
       // Trusted server-side amount; ignore any client-supplied figure
       totalAmount = serverAmount;
-      splitPlan = await loadAllocation(supabaseAdmin, "complaint_fee", totalAmount, null);
+
+      // Try basket-driven per-item split plan first; fall back to legacy single allocation.
+      const { data: basketRows } = await supabaseAdmin
+        .from("complaint_basket_items")
+        .select("id, kind, label, amount, igf_pct, admin_pct, platform_pct")
+        .eq("complaint_id", complaintId)
+        .eq("complaint_table", isLandlordComplaint ? "landlord_complaints" : "complaints")
+        .order("created_at");
+
+      if (Array.isArray(basketRows) && basketRows.length > 0) {
+        const basketSum = basketRows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+        // Sanity: outstanding_amount must equal basket sum (within 1 pesewa)
+        if (Math.abs(basketSum - serverAmount) > 0.01) {
+          throw new Error(`Basket total (GH₵ ${basketSum.toFixed(2)}) does not match the outstanding amount (GH₵ ${serverAmount.toFixed(2)})`);
+        }
+        const perItemSplits: any[] = [];
+        for (const row of basketRows) {
+          const amt = Number(row.amount) || 0;
+          const igf = +(amt * (Number(row.igf_pct) || 0) / 100).toFixed(2);
+          const adm = +(amt * (Number(row.admin_pct) || 0) / 100).toFixed(2);
+          const plat = +(amt * (Number(row.platform_pct) || 0) / 100).toFixed(2);
+          if (igf > 0) perItemSplits.push({ recipient: "rent_control", amount: igf, description: `${row.label} (IGF)`, complaint_basket_item_id: row.id });
+          if (adm > 0) perItemSplits.push({ recipient: "admin", amount: adm, description: `${row.label} (Admin)`, complaint_basket_item_id: row.id });
+          if (plat > 0) perItemSplits.push({ recipient: "platform", amount: plat, description: `${row.label} (Platform)`, complaint_basket_item_id: row.id });
+        }
+        splitPlan = perItemSplits;
+      } else {
+        splitPlan = await loadAllocation(supabaseAdmin, "complaint_fee", totalAmount, null);
+      }
+
       description = `Complaint Filing Fee (GH₵ ${totalAmount.toFixed(2)})`;
       reference = `comp_${complaintId}_${Date.now()}`;
       callbackPath = "/tenant/my-cases?status=success";
-      metadata = { ...metadata, complaintId, isLandlordComplaint };
+      metadata = { ...metadata, complaintId, isLandlordComplaint, basket_items: (basketRows || []).map((r: any) => r.id) };
+
 
     } else if (type === "listing_fee") {
       const { propertyId } = body;

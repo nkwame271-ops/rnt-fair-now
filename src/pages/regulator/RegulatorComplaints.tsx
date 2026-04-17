@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2, FileDown } from "lucide-react";
+import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2, FileDown, GraduationCap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,6 +20,8 @@ import RequestComplaintPaymentDialog from "@/components/RequestComplaintPaymentD
 import { CreditCard, Receipt, Hash } from "lucide-react";
 import { ComplaintSimilarityPanel } from "@/components/PropertySimilarityMatches";
 import { SkeletonCardList } from "@/components/ui/skeleton";
+
+type TabKey = "landlord" | "tenant" | "student";
 
 interface SchedulingTarget {
   id: string;
@@ -274,18 +277,33 @@ const RegulatorComplaints = () => {
     fetchComplaints();
   };
 
-  const [categoryFilter, setCategoryFilter] = useState<"all" | "student">("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get("tab") as TabKey) || "tenant";
+  const [activeTab, setActiveTab] = useState<TabKey>(["landlord", "tenant", "student"].includes(initialTab) ? initialTab : "tenant");
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (next.get("tab") !== activeTab) {
+      next.set("tab", activeTab);
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const isStudentRow = (c: any) => !!(c._tenantRecord?.is_student || c._tenantRecord?.school);
 
   const filtered = complaints.filter((c) => {
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
-    if (categoryFilter === "student" && !c._tenantRecord?.is_student) return false;
+    if (activeTab === "student" && !isStudentRow(c)) return false;
+    if (activeTab === "tenant" && isStudentRow(c)) return false;
     if (officeFilter !== "all" && c.office_id !== officeFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return c.complaint_code?.toLowerCase().includes(s) || c.landlord_name?.toLowerCase().includes(s) || c.complaint_type?.toLowerCase().includes(s) || c._tenantProfile?.full_name?.toLowerCase().includes(s);
   });
 
-  const studentComplaintCount = complaints.filter(c => c._tenantRecord?.is_student).length;
+  const studentComplaintCount = complaints.filter(isStudentRow).length;
+  const tenantComplaintCount = complaints.filter((c) => !isStudentRow(c)).length;
 
   const exportCSV = () => {
     const headers = ["Code", "Tenant", "Phone", "Type", "Landlord", "Address", "Region", "Status", "Filed", "Description"];
@@ -300,7 +318,7 @@ const RegulatorComplaints = () => {
     const a = document.createElement("a"); a.href = url; a.download = "complaints_export.csv"; a.click();
   };
 
-  const [activeTab, setActiveTab] = useState<"tenant" | "landlord">("tenant");
+  // (activeTab is declared above with URL-param sync)
   const [landlordComplaints, setLandlordComplaints] = useState<any[]>([]);
   const [requestPaymentFor, setRequestPaymentFor] = useState<{ id: string; table: "complaints" | "landlord_complaints"; rent?: number | null; propertyId?: string | null } | null>(null);
 
@@ -377,17 +395,20 @@ const RegulatorComplaints = () => {
         <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
       </div>
 
-      {/* Tab switcher */}
-      <div className="flex bg-muted rounded-lg p-0.5 w-fit">
-        <button onClick={() => setActiveTab("tenant")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "tenant" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-          Tenant Complaints ({complaints.length})
-        </button>
+      {/* Tab switcher: Landlord / Tenant / Student */}
+      <div className="flex bg-muted rounded-lg p-0.5 w-fit flex-wrap">
         <button onClick={() => setActiveTab("landlord")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "landlord" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           Landlord Complaints ({landlordComplaints.length})
         </button>
+        <button onClick={() => setActiveTab("tenant")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "tenant" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          Tenant Complaints ({tenantComplaintCount})
+        </button>
+        <button onClick={() => setActiveTab("student")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "student" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          Student Complaints ({studentComplaintCount})
+        </button>
       </div>
 
-      {activeTab === "tenant" && (
+      {(activeTab === "tenant" || activeTab === "student") && (
         <>
           {/* Status summary cards */}
           <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
@@ -410,13 +431,7 @@ const RegulatorComplaints = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search by code, name, landlord, type..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as "all" | "student")}>
-              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Complaints</SelectItem>
-                <SelectItem value="student">Student ({studentComplaintCount})</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Category split is now driven by the top-level Tenant / Student tabs */}
             <Select value={officeFilter} onValueChange={setOfficeFilter} disabled={!isUnscoped}>
               <SelectTrigger className="w-52"><SelectValue placeholder="Office" /></SelectTrigger>
               <SelectContent>

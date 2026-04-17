@@ -53,6 +53,7 @@ const MyCases = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
   const [paying, setPaying] = useState<string | null>(null);
+  const [basketMap, setBasketMap] = useState<Record<string, any[]>>({});
 
   const fetchComplaints = async () => {
     if (!user) return;
@@ -74,6 +75,19 @@ const MyCases = () => {
         const map: Record<string, any> = {};
         schedules.forEach((s: any) => { map[s.complaint_id] = s; });
         setScheduleMap(map);
+      }
+
+      // Load basket items for any complaint awaiting payment
+      const payIds = data.filter((c: any) => c.payment_status === "pending" && Number(c.outstanding_amount) > 0).map((c: any) => c.id);
+      if (payIds.length > 0) {
+        const { data: items } = await (supabase.from("complaint_basket_items") as any)
+          .select("id, complaint_id, label, amount, kind")
+          .in("complaint_id", payIds)
+          .eq("complaint_table", "complaints")
+          .order("created_at");
+        const bm: Record<string, any[]> = {};
+        (items || []).forEach((it: any) => { (bm[it.complaint_id] ||= []).push(it); });
+        setBasketMap(bm);
       }
     }
     setLoading(false);
@@ -193,19 +207,49 @@ const MyCases = () => {
 
               {/* Pay Now CTA when admin has requested payment */}
               {c.status === "pending_payment" && c.payment_status === "pending" && Number(c.outstanding_amount) > 0 && (
-                <div className="mt-3 bg-warning/5 border border-warning/30 rounded-lg p-4 flex items-center justify-between gap-3 flex-wrap">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                      <CreditCard className="h-4 w-4 text-warning" /> Filing fee requested
+                <div className="mt-3 bg-warning/5 border border-warning/30 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <CreditCard className="h-4 w-4 text-warning" /> Filing fee requested
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-0.5">
+                        An officer has set the fee for this complaint. Pay to proceed to scheduling.
+                      </div>
                     </div>
-                    <div className="text-sm text-muted-foreground mt-0.5">
-                      An officer has set the fee for this complaint. Pay to proceed to scheduling.
-                    </div>
-                    <div className="text-lg font-bold text-foreground mt-1">GH₵ {Number(c.outstanding_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <Button onClick={() => handlePayNow(c)} disabled={paying === c.id}>
+                      {paying === c.id ? "Processing..." : "Pay Now"}
+                    </Button>
                   </div>
-                  <Button onClick={() => handlePayNow(c)} disabled={paying === c.id}>
-                    {paying === c.id ? "Processing..." : "Pay Now"}
-                  </Button>
+
+                  {basketMap[c.id]?.length > 0 && (
+                    <div className="bg-background border border-border rounded-md divide-y divide-border">
+                      {basketMap[c.id].map((it: any) => (
+                        <div key={it.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-foreground truncate">{it.label}</span>
+                            {it.kind === "manual_adjustment" && (
+                              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-warning/15 text-warning shrink-0">Manual</span>
+                            )}
+                          </div>
+                          <span className="font-medium text-foreground tabular-nums">GH₵ {Number(it.amount).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between border-t border-warning/30 pt-2">
+                    <span className="text-sm font-semibold text-foreground">Total</span>
+                    <span className="text-lg font-bold text-foreground">GH₵ {Number(c.outstanding_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Paid receipt indicator */}
+              {c.payment_status === "paid" && (
+                <div className="mt-3 bg-success/5 border border-success/20 rounded-lg p-3 flex items-center gap-2 text-sm">
+                  <Receipt className="h-4 w-4 text-success" />
+                  <span className="text-foreground"><strong>Filing fee paid.</strong> Your complaint is ready for scheduling.</span>
                 </div>
               )}
 
