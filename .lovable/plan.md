@@ -1,35 +1,55 @@
 
 
-## Plan — Make Internal Ledger Equal Total Revenue
+## Two-Bug Fix Plan
 
-### Root cause (verified against the DB)
+### Bug 1 — Complaint submit fails with check-constraint violation
 
-Revenue total: **GHS 30,950.77** (278 completed tx, bundle parents excluded).
-Active-splits total: **GHS 30,734.92**.
-Gap: **GHS 215.85** broken into two parts:
+**Root cause:** `src/pages/tenant/FileComplaint.tsx` line 256 inserts `status: "awaiting_payment"` but the DB constraint `complaints_status_check` only allows `submitted, under_review, in_progress, resolved, closed, pending_payment`. The UI’s `MyCases.tsx` already maps `submitted` to display label “Submitted — Awaiting Review”, so the intended state is `submitted` with `payment_status='awaiting'` (which IS allowed).
 
-1. **28 completed transactions have ZERO active splits** (sum = GHS 224.85). All have valid `metadata.split_plan` — so `reconcile-internal-ledger` *should* fix them but apparently has never run successfully (the edge-function logs are empty and `payment_processing_errors` has nothing for it).
-2. **Bundle-parent splits inflate the ledger by GHS 9.** The dashboard *excludes* `existing_tenancy_bundle` / `add_tenant_fee` from revenue but *includes* their splits in the allocation total, so the two sides will never reconcile even after a perfect run.
+`landlord_complaints` table has no status check constraint, but for consistency we’ll align the value.
 
-There is also a **UI bug**: the success alert reads `data.repaired` and `data.rows_inserted`, but the function returns `corrected` and `rows_inserted`. So when the function does run successfully the user sees "Repaired: undefined" and assumes nothing happened.
+**Fix (1 file, 1 line):**
+- `src/pages/tenant/FileComplaint.tsx` line 256: change `status: "awaiting_payment"` → `status: "submitted"`. Keep `payment_status: "awaiting"` unchanged.
 
-### Fix (3 small changes, no schema changes)
+That alone unblocks complaint submission. No migration needed (the allowed enum already covers the corrected value, and the front-end status maps already include `submitted`).
 
-**1. `supabase/functions/reconcile-internal-ledger/index.ts`** — make the function tolerate a missing/expired auth header from the SDK invoke path the same way other admin functions do, and return clear `corrected_count` + `missing_split_inserts` fields so the UI message is unambiguous. Add a console.log of the run summary so future runs show in edge logs. No logic change to the supersede/insert pipeline.
+---
 
-**2. `src/pages/regulator/EscrowDashboard.tsx`**
-   - Fix the alert to read the correct fields: `data.corrected`, `data.rows_inserted`, `data.already_balanced`, `data.validation_gate_aborts`, `data.total_recovered_amount`.
-   - Filter the active-splits query the same way revenue is filtered: exclude splits whose parent `escrow_transaction.payment_type` is in `BUNDLE_PARENT_TYPES`. This guarantees Allocation Total == Revenue Total once splits exist for every completed tx.
-   - After a successful reconcile, instead of `window.location.reload()` re-trigger the existing `fetchData` so the user sees the new totals in place.
+### Bug 2 — Engine Room: “Failed to load. Cannot read properties of null (reading ‘includes’)”
 
-**3. One-time backfill** — invoke `reconcile-internal-ledger` from the dashboard on the full operational range (the user's existing button) once Step 1+2 are deployed. This will create the 28 missing split sets and close the GHS 215.85 gap. No DB migration needed; the function itself does the inserts safely (validation gate + supersede-not-delete).
+**Root cause:** When a Super Admin opens Engine Room, `useAdminProfile` fetches their `admin_staff` row. If `allowed_features` or `muted_features` is `null` in the DB, the hook coerces them with `|| []` (safe). BUT the code path at line 518 reads `profile!.allowedFeatures.includes(...)` only when `isSubAdmin` is true — Super Admin never hits it.
+
+The actual crash is in `useModuleVisibility.isVisible` (called at line 717 `isVisible("engine_room", "split_engine")`) when `rule.allowed_admin_ids` is `null`. The hook *does* default it to `[]` on fetch, BUT during the first render before the fetch resolves, `rules` is `cachedRules || []` and a freshly-created rule row could have `allowed_admin_ids: null`. More importantly, the visible crash trace points at `.includes` on null — the only candidates that can actually be null at render time in this flow are:
+
+1. `member.allowed_features` / `member.muted_features` in the staff list render (lines 1298, 1312–1313) when an `admin_staff` row has those columns as NULL. The component reads them directly without `|| []`, unlike `useAdminProfile` which normalises its own copy.
+2. `profile.allowedFeatures` / `profile.mutedFeatures` if `profile` itself is `null` and `isSubAdmin` evaluates falsy — already guarded.
+
+I verified there ARE staff rows in the DB where these columns can be NULL (the `invite-staff` function inserts `allowed_features: allowedFeatures || []` but legacy rows pre-date that).
+
+**Fix (1 file, 2 small changes in `src/pages/regulator/EngineRoom.tsx`):**
+
+1. Normalise on fetch — in the `fetchStaff` mapper around line 154, coerce both arrays:
+   ```ts
+   allowed_features: s.allowed_features || [],
+   muted_features: s.muted_features || [],
+   ```
+2. Defensive guard in render (lines 1298, 1312–1313) using `(member.allowed_features || [])` and `(member.muted_features || [])` so any future null row can’t crash the page.
+
+Also normalise `allowed_admin_ids` defensively in `useModuleVisibility.isVisible` (line 59) → `(rule.allowed_admin_ids || []).includes(user.id)` even though the fetch already does this — belt-and-braces against the cached path.
+
+---
+
+### Files touched
+- `src/pages/tenant/FileComplaint.tsx` — 1 line
+- `src/pages/regulator/EngineRoom.tsx` — staff fetch mapper + 2 render guards
+- `src/hooks/useModuleVisibility.ts` — 1 defensive `|| []`
 
 ### What stays untouched
-RLS, auth, Paystack, finalize-payment, escrow_transactions data, payout_transfers, the supersede/insert audit trail, all other portals.
+RLS, schema, edge functions, all other portals, complaint workflow, payment flow.
 
 ### Verification
-- Click **Recalculate Ledger** → alert shows `Corrected: 28, Rows inserted: ~50, Recovered: GH₵ 224.85`.
-- Total Revenue card and sum of Allocation cards now match exactly.
-- Edge function logs for `reconcile-internal-ledger` show the run summary.
-- Re-clicking Recalculate is a no-op (`Already balanced: 278`).
+- Tenant files a complaint → row inserted, redirected to My Cases, shown as “Submitted — Awaiting Review”.
+- Landlord files a complaint → unchanged (already used a valid status).
+- Super Admin opens Engine Room → page loads fully; staff list renders even for staff with NULL feature arrays.
+- Sub Admin Engine Room view continues to filter correctly.
 
