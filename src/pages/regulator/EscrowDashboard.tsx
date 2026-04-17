@@ -286,7 +286,7 @@ const EscrowDashboard = () => {
       const { data: recentReceipts } = await receiptsQuery;
       setReceipts(recentReceipts || []);
       setLoading(false);
-  }, [effectiveOffice, dateRange.from, dateRange.to, isVisible]);
+  }, [effectiveOffice, dateRange.from, dateRange.to]);
 
   useEffect(() => {
     fetchData();
