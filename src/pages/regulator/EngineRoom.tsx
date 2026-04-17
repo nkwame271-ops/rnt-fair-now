@@ -1187,7 +1187,22 @@ const EngineRoom = () => {
             </p>
           )}
           <div className="bg-card rounded-xl border border-border shadow-card divide-y divide-border">
-            {feeFlags.map(renderFeeRow)}
+            {feeFlags.filter(f => f.feature_key !== "complaint_filing_fee").map(renderFeeRow)}
+          </div>
+        </div>
+      )}
+
+      {/* Complaint Fee Architecture — Main Admin only */}
+      {isMainAdmin && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-5 w-5 text-warning" /> Complaint Fee Architecture
+          </h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Configure the complete catalogue of complaint types in three structures (Fixed, Rent Band, Percentage). The legacy generic complaint fee has been retired.
+          </p>
+          <div className="bg-card rounded-xl border border-border shadow-card p-5">
+            <ComplaintTypesManager />
           </div>
         </div>
       )}
