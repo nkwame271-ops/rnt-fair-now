@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import LogoLoader from "@/components/LogoLoader";
 import PaymentReceipt from "@/components/PaymentReceipt";
+import OfficeReconciliationReport from "@/components/OfficeReconciliationReport";
 import { useAdminScope } from "@/hooks/useAdminScope";
 import { formatGHSDecimal } from "@/lib/formatters";
 
@@ -198,6 +199,12 @@ const RegulatorReceipts = () => {
         </div>
         <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
       </div>
+
+      <OfficeReconciliationReport
+        offices={allOffices}
+        defaultOfficeId={scopeOfficeId || (allOffices[0]?.id ?? null)}
+        isUnscoped={isUnscoped}
+      />
 
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[240px] max-w-md">
