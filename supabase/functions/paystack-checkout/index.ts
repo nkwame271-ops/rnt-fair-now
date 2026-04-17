@@ -583,27 +583,48 @@ Deno.serve(async (req) => {
       const { complaintId } = body;
       if (!complaintId) throw new Error("complaintId is required");
 
-      const { data: complaint } = await supabase
+      // Try tenant complaints first
+      let complaint: any = null;
+      let isLandlordComplaint = false;
+      const { data: tComp } = await supabaseAdmin
         .from("complaints")
-        .select("id, status, tenant_user_id, region")
+        .select("id, status, payment_status, tenant_user_id, region, office_id, outstanding_amount")
         .eq("id", complaintId)
-        .single();
+        .maybeSingle();
+      if (tComp) {
+        complaint = tComp;
+      } else {
+        const { data: lComp } = await supabaseAdmin
+          .from("landlord_complaints")
+          .select("id, status, payment_status, landlord_user_id, region, office_id, outstanding_amount")
+          .eq("id", complaintId)
+          .maybeSingle();
+        complaint = lComp;
+        isLandlordComplaint = true;
+      }
 
       if (!complaint) throw new Error("Complaint not found");
-      if (complaint.tenant_user_id !== userId) throw new Error("Unauthorized");
-      if (complaint.status !== "pending_payment") throw new Error("Complaint not awaiting payment");
+      const ownerId = isLandlordComplaint ? complaint.landlord_user_id : complaint.tenant_user_id;
+      if (ownerId !== userId) throw new Error("Unauthorized");
+      if (complaint.payment_status !== "pending" || complaint.status !== "pending_payment") {
+        throw new Error("This complaint is not awaiting payment");
+      }
+      const serverAmount = Number(complaint.outstanding_amount || 0);
+      if (!Number.isFinite(serverAmount) || serverAmount <= 0) {
+        throw new Error("No payment amount has been set by the admin yet");
+      }
 
-      officeId = await resolveOffice(supabaseAdmin, { region: (complaint as any).region });
+      officeId = complaint.office_id || await resolveOffice(supabaseAdmin, { region: complaint.region });
       caseType = "complaint";
       relatedComplaintId = complaintId;
 
-      const fee = await determineFee(supabaseAdmin, "complaint_fee");
-      if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Complaint fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      totalAmount = fee.amount;
-      splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
-      description = `Complaint Filing Fee (GH₵ ${fee.amount})`;
-      reference = `comp_${complaintId}`;
+      // Trusted server-side amount; ignore any client-supplied figure
+      totalAmount = serverAmount;
+      splitPlan = await loadAllocation(supabaseAdmin, "complaint_fee", totalAmount, null);
+      description = `Complaint Filing Fee (GH₵ ${totalAmount.toFixed(2)})`;
+      reference = `comp_${complaintId}_${Date.now()}`;
       callbackPath = "/tenant/my-cases?status=success";
+      metadata = { ...metadata, complaintId, isLandlordComplaint };
 
     } else if (type === "listing_fee") {
       const { propertyId } = body;

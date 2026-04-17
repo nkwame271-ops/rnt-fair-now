@@ -664,7 +664,28 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
   } else if (paymentType === "complaint_fee") {
     const complaintId = meta?.complaintId || escrow.related_complaint_id;
     if (complaintId) {
-      await supabaseAdmin.from("complaints").update({ status: "submitted" }).eq("id", complaintId).eq("status", "pending_payment");
+      // Find the receipt we just created (by escrow_transaction_id)
+      const { data: rcpt } = await supabaseAdmin
+        .from("payment_receipts")
+        .select("id")
+        .eq("escrow_transaction_id", escrow.id)
+        .maybeSingle();
+
+      // Try tenant complaints first, then landlord complaints
+      const updates: any = {
+        status: "ready_for_scheduling",
+        payment_status: "paid",
+        receipt_id: rcpt?.id || null,
+      };
+      const { data: tUpd } = await supabaseAdmin
+        .from("complaints")
+        .update(updates)
+        .eq("id", complaintId)
+        .select("id")
+        .maybeSingle();
+      if (!tUpd) {
+        await supabaseAdmin.from("landlord_complaints").update(updates).eq("id", complaintId);
+      }
     }
   } else if (paymentType === "viewing_fee") {
     const viewingRequestId = meta?.viewingRequestId;
