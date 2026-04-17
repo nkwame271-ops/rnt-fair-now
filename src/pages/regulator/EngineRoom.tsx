@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X, UserX, Search, Archive } from "lucide-react";
+import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X, UserX, Search, Archive, AlertTriangle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useAdminProfile, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
 import { useModuleVisibility } from "@/hooks/useModuleVisibility";
 import LogoLoader from "@/components/LogoLoader";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import ComplaintTypesManager from "@/components/ComplaintTypesManager";
 
 interface StaffMember {
   user_id: string;
@@ -1186,7 +1187,22 @@ const EngineRoom = () => {
             </p>
           )}
           <div className="bg-card rounded-xl border border-border shadow-card divide-y divide-border">
-            {feeFlags.map(renderFeeRow)}
+            {feeFlags.filter(f => f.feature_key !== "complaint_filing_fee").map(renderFeeRow)}
+          </div>
+        </div>
+      )}
+
+      {/* Complaint Fee Architecture — Main Admin only */}
+      {isMainAdmin && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-5 w-5 text-warning" /> Complaint Fee Architecture
+          </h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Configure the complete catalogue of complaint types in three structures (Fixed, Rent Band, Percentage). The legacy generic complaint fee has been retired.
+          </p>
+          <div className="bg-card rounded-xl border border-border shadow-card p-5">
+            <ComplaintTypesManager />
           </div>
         </div>
       )}

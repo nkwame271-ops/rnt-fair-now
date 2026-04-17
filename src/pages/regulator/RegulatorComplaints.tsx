@@ -287,7 +287,7 @@ const RegulatorComplaints = () => {
 
   const [activeTab, setActiveTab] = useState<"tenant" | "landlord">("tenant");
   const [landlordComplaints, setLandlordComplaints] = useState<any[]>([]);
-  const [requestPaymentFor, setRequestPaymentFor] = useState<{ id: string; table: "complaints" | "landlord_complaints"; rent?: number | null } | null>(null);
+  const [requestPaymentFor, setRequestPaymentFor] = useState<{ id: string; table: "complaints" | "landlord_complaints"; rent?: number | null; propertyId?: string | null } | null>(null);
 
   // Realtime: refresh on any complaint update (admin sees paid status instantly)
   useEffect(() => {
@@ -554,6 +554,17 @@ const RegulatorComplaints = () => {
                           <Clock className="h-3 w-3" />
                           {Math.ceil((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24))} days since filed
                         </div>
+                        {c.payment_status !== "paid" && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="ml-2"
+                            onClick={() => setRequestPaymentFor({ id: c.id, table: "complaints", rent: c._activeTenancy?.agreed_rent ?? null, propertyId: c.linked_property_id })}
+                          >
+                            <CreditCard className="h-3.5 w-3.5 mr-1" />
+                            {c.payment_status === "pending" ? "Update Type / Fee" : "Set Type & Request Payment"}
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -653,6 +664,16 @@ const RegulatorComplaints = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {c.payment_status !== "paid" && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setRequestPaymentFor({ id: c.id, table: "landlord_complaints", rent: null, propertyId: c.linked_property_id })}
+                  >
+                    <CreditCard className="h-3.5 w-3.5 mr-1" />
+                    {c.payment_status === "pending" ? "Update Type / Fee" : "Set Type & Request Payment"}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -701,6 +722,18 @@ const RegulatorComplaints = () => {
         actionLabel="Delete Permanently"
         onConfirm={handleDeleteComplaint}
       />
+
+      {requestPaymentFor && (
+        <RequestComplaintPaymentDialog
+          open={!!requestPaymentFor}
+          onOpenChange={(o) => { if (!o) setRequestPaymentFor(null); }}
+          complaintId={requestPaymentFor.id}
+          complaintTable={requestPaymentFor.table}
+          monthlyRent={requestPaymentFor.rent ?? null}
+          linkedPropertyId={requestPaymentFor.propertyId ?? null}
+          onRequested={() => { setRequestPaymentFor(null); fetchComplaints(); fetchLandlordComplaints(); }}
+        />
+      )}
     </div>
   );
 };
