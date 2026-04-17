@@ -318,7 +318,7 @@ const RegulatorComplaints = () => {
     const a = document.createElement("a"); a.href = url; a.download = "complaints_export.csv"; a.click();
   };
 
-  const [landlordComplaints_unused_marker, _setLM] = [null, null];
+  // (activeTab is declared above with URL-param sync)
   const [landlordComplaints, setLandlordComplaints] = useState<any[]>([]);
   const [requestPaymentFor, setRequestPaymentFor] = useState<{ id: string; table: "complaints" | "landlord_complaints"; rent?: number | null; propertyId?: string | null } | null>(null);
 
