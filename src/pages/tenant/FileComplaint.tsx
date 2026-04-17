@@ -12,12 +12,15 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useJsApiLoader } from "@react-google-maps/api";
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
 
 const steps = ["Office", "Complaint Type", "Property Details", "Location", "Description & Evidence", "Review & Submit"];
 
 const FileComplaint = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  useJsApiLoader({ id: "google-map-script", googleMapsApiKey: GOOGLE_MAPS_API_KEY, libraries: GOOGLE_MAPS_LIBRARIES });
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
@@ -211,10 +214,35 @@ const FileComplaint = () => {
     if (!form.type || !form.landlordName || !form.address || !form.region || !form.description) {
       toast.error("Please fill in all required fields before submitting"); return;
     }
+    if (!form.propertyType || !form.monthlyRent) {
+      toast.error("Please complete the Property Details (type and monthly rent)"); return;
+    }
+    if (!form.locationMethod || form.locationLat === null || form.locationLng === null) {
+      toast.error("Please provide the property location to continue."); return;
+    }
     setSubmitting(true);
     try {
       const complaintCode = `RC-${new Date().getFullYear()}-${String(Math.floor(10000 + Math.random() * 90000))}`;
       const { data: ticketNumber } = await supabase.rpc("generate_complaint_ticket");
+
+      // 1. Insert complaint_properties snapshot first
+      const { data: cp, error: cpErr } = await supabase.from("complaint_properties").insert({
+        tenant_user_id: user.id,
+        landlord_name: form.landlordName,
+        property_name: form.propertyName || null,
+        property_type: form.propertyType,
+        unit_description: form.unitDescription || null,
+        monthly_rent: parseFloat(form.monthlyRent) || 0,
+        address_description: form.addressDescription || null,
+        lat: form.locationLat,
+        lng: form.locationLng,
+        gps_code: form.gpsCode || null,
+        place_name: form.placeName || null,
+        place_id: form.placeId || null,
+        location_method: form.locationMethod,
+      } as any).select("id").single();
+
+      if (cpErr) console.error("complaint_properties insert error:", cpErr);
 
       const { data: complaint, error } = await supabase.from("complaints").insert({
         tenant_user_id: user.id,
@@ -227,14 +255,20 @@ const FileComplaint = () => {
         description: form.description,
         status: "awaiting_payment",
         payment_status: "awaiting",
-        gps_location: form.gpsLocation || null,
+        gps_location: `${form.locationLat}, ${form.locationLng}`,
         gps_confirmed: form.gpsConfirmed,
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
         office_id: form.officeId,
+        complaint_property_id: cp?.id || null,
       } as any).select("id").single();
 
       if (error) throw error;
       if (!complaint?.id) throw new Error("Complaint was not created properly");
+
+      // Link back: update complaint_properties.complaint_id
+      if (cp?.id) {
+        await supabase.from("complaint_properties").update({ complaint_id: complaint.id } as any).eq("id", cp.id);
+      }
 
       try {
         const { data: caseNumber } = await supabase.rpc("generate_case_number");
@@ -256,6 +290,13 @@ const FileComplaint = () => {
           evidence_urls: evidenceUrls.length > 0 ? evidenceUrls : undefined,
           audio_url: uploadedAudioUrl || undefined,
         } as any).eq("id", complaint.id);
+      }
+
+      // Fire-and-forget similarity check
+      if (cp?.id) {
+        supabase.functions.invoke("run-similarity-check", {
+          body: { source_type: "complaint_property", source_id: cp.id },
+        }).catch((e) => console.error("similarity check failed:", e));
       }
 
       toast.success("Complaint submitted! An officer will review and contact you regarding any required fee.");
