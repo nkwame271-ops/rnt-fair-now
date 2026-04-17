@@ -283,6 +283,62 @@ export type Database = {
           },
         ]
       }
+      complaint_basket_items: {
+        Row: {
+          admin_pct: number
+          amount: number
+          complaint_id: string
+          complaint_table: string
+          complaint_type_id: string | null
+          computation_meta: Json | null
+          created_at: string
+          created_by: string
+          id: string
+          igf_pct: number
+          kind: string
+          label: string
+          platform_pct: number
+        }
+        Insert: {
+          admin_pct?: number
+          amount: number
+          complaint_id: string
+          complaint_table: string
+          complaint_type_id?: string | null
+          computation_meta?: Json | null
+          created_at?: string
+          created_by: string
+          id?: string
+          igf_pct?: number
+          kind: string
+          label: string
+          platform_pct?: number
+        }
+        Update: {
+          admin_pct?: number
+          amount?: number
+          complaint_id?: string
+          complaint_table?: string
+          complaint_type_id?: string | null
+          computation_meta?: Json | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          igf_pct?: number
+          kind?: string
+          label?: string
+          platform_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_basket_items_complaint_type_id_fkey"
+            columns: ["complaint_type_id"]
+            isOneToOne: false
+            referencedRelation: "complaint_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       complaint_fee_bands: {
         Row: {
           admin_pct: number
@@ -580,6 +636,7 @@ export type Database = {
       complaints: {
         Row: {
           audio_url: string | null
+          basket_total: number | null
           claim_amount: number | null
           complaint_code: string
           complaint_property_id: string | null
@@ -607,6 +664,7 @@ export type Database = {
         }
         Insert: {
           audio_url?: string | null
+          basket_total?: number | null
           claim_amount?: number | null
           complaint_code: string
           complaint_property_id?: string | null
@@ -634,6 +692,7 @@ export type Database = {
         }
         Update: {
           audio_url?: string | null
+          basket_total?: number | null
           claim_amount?: number | null
           complaint_code?: string
           complaint_property_id?: string | null
@@ -774,6 +833,7 @@ export type Database = {
       escrow_splits: {
         Row: {
           amount: number
+          complaint_basket_item_id: string | null
           correction_run_id: string | null
           description: string | null
           disbursement_status: string
@@ -789,6 +849,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          complaint_basket_item_id?: string | null
           correction_run_id?: string | null
           description?: string | null
           disbursement_status?: string
@@ -804,6 +865,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          complaint_basket_item_id?: string | null
           correction_run_id?: string | null
           description?: string | null
           disbursement_status?: string
@@ -1183,6 +1245,7 @@ export type Database = {
       landlord_complaints: {
         Row: {
           audio_url: string | null
+          basket_total: number | null
           claim_amount: number | null
           complaint_code: string
           complaint_type: string
@@ -1206,6 +1269,7 @@ export type Database = {
         }
         Insert: {
           audio_url?: string | null
+          basket_total?: number | null
           claim_amount?: number | null
           complaint_code: string
           complaint_type: string
@@ -1229,6 +1293,7 @@ export type Database = {
         }
         Update: {
           audio_url?: string | null
+          basket_total?: number | null
           claim_amount?: number | null
           complaint_code?: string
           complaint_type?: string
