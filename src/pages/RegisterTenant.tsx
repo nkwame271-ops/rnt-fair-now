@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useFeeConfig, useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Briefcase, UserPlus, Lock, Globe, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Shield, User, Phone, Mail, MapPin, CheckCircle2, ArrowLeft, ArrowRight, IdCard, Briefcase, UserPlus, Lock, Globe, Eye, EyeOff, Loader2, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,6 +19,8 @@ const steps = ["Account", "Contact", "Your ID"];
 
 const RegisterTenant = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const studentMode = searchParams.get("student") === "1";
   const { amount: regFee, enabled: regFeeEnabled } = useFeeConfig("tenant_registration_fee");
   const { enabled: otpEnabled } = useFeatureFlag("phone_otp_verification");
   const [step, setStep] = useState(0);
@@ -37,8 +39,8 @@ const RegisterTenant = () => {
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [generatedId, setGeneratedId] = useState("");
 
-  // Student fields
-  const [isStudent, setIsStudent] = useState(false);
+  // Student fields — auto-enabled when arriving via student card
+  const [isStudent, setIsStudent] = useState(studentMode);
   const [school, setSchool] = useState("");
   const [hostelOrHall, setHostelOrHall] = useState("");
   const [roomOrBedSpace, setRoomOrBedSpace] = useState("");
@@ -200,7 +202,8 @@ const RegisterTenant = () => {
         is_citizen: isCitizen,
         nationality: isCitizen ? "Ghanaian" : nationality,
         residence_permit_no: isCitizen ? null : residencePermitNo,
-      }).eq("user_id", userId);
+        user_type: isStudent ? "student" : "tenant",
+      } as any).eq("user_id", userId);
 
       if (profileError) {
         console.error("Profile update failed:", profileError);
@@ -263,10 +266,12 @@ const RegisterTenant = () => {
       {/* Left Panel */}
       <div className="hidden lg:flex lg:w-2/5 gradient-hero items-center justify-center p-12 relative">
         <div className="text-primary-foreground max-w-sm">
-          <Shield className="h-12 w-12 text-secondary mb-6" />
-          <h2 className="text-3xl font-bold mb-4">Register as a Tenant</h2>
+          {studentMode ? <GraduationCap className="h-12 w-12 text-secondary mb-6" /> : <Shield className="h-12 w-12 text-secondary mb-6" />}
+          <h2 className="text-3xl font-bold mb-4">{studentMode ? "Register as a Student" : "Register as a Tenant"}</h2>
           <p className="text-primary-foreground/80 text-lg mb-8">
-            Get your unique Tenant ID to access rent control services, file complaints, and manage your tenancy agreements.
+            {studentMode
+              ? "Get your unique Student ID to access NUGS-supported hostel listings, file complaints, and manage your accommodation."
+              : "Get your unique Tenant ID to access rent control services, file complaints, and manage your tenancy agreements."}
           </p>
           {regFeeEnabled && (
             <div className="bg-primary-foreground/10 rounded-xl p-5 backdrop-blur-sm border border-primary-foreground/20">
@@ -279,7 +284,7 @@ const RegisterTenant = () => {
               <div className="border-t border-primary-foreground/20 pt-3">
                 <p className="text-sm font-semibold mb-2">Registration Fee Covers:</p>
                 <ul className="space-y-1.5 text-sm text-primary-foreground/80">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />Tenant ID card</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />{studentMode ? "Student ID card" : "Tenant ID card"}</li>
                   <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-secondary shrink-0" />12-month platform access</li>
                 </ul>
               </div>
@@ -334,7 +339,7 @@ const RegisterTenant = () => {
               {step === 0 && (
                 <div className="space-y-5">
                   <div>
-                    <h1 className="text-2xl font-bold text-foreground">Create Your Account</h1>
+                    <h1 className="text-2xl font-bold text-foreground">{studentMode ? "Create Your Student Account" : "Create Your Account"}</h1>
                     <p className="text-muted-foreground mt-1">Your name and phone number to get started</p>
                   </div>
                   <div className="space-y-4">
@@ -345,17 +350,14 @@ const RegisterTenant = () => {
                       </div>
                     </FormField>
 
-                    {/* Student section */}
-                    <div className="border border-border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">I am a student</p>
-                          <p className="text-xs text-muted-foreground">Enable to see hostel listings instead of regular rentals</p>
+                    {/* Student section — toggle hidden when arriving via Student card */}
+                    {studentMode ? (
+                      <div className="border border-border rounded-lg p-4 space-y-3 bg-primary/5">
+                        <div className="flex items-center gap-2">
+                          <GraduationCap className="h-4 w-4 text-primary" />
+                          <p className="text-sm font-medium text-foreground">Student Details</p>
                         </div>
-                        <Switch checked={isStudent} onCheckedChange={setIsStudent} />
-                      </div>
-                      {isStudent && (
-                        <div className="space-y-3 pt-2 border-t border-border">
+                        <div className="space-y-3">
                           <FormField label="School / Institution" valid={school.length > 1}>
                             <Input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="e.g. University of Ghana" />
                           </FormField>
@@ -366,8 +368,31 @@ const RegisterTenant = () => {
                             <Input value={roomOrBedSpace} onChange={(e) => setRoomOrBedSpace(e.target.value)} placeholder="e.g. Room 12B" />
                           </FormField>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="border border-border rounded-lg p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">I am a student</p>
+                            <p className="text-xs text-muted-foreground">Enable to see hostel listings instead of regular rentals</p>
+                          </div>
+                          <Switch checked={isStudent} onCheckedChange={setIsStudent} />
+                        </div>
+                        {isStudent && (
+                          <div className="space-y-3 pt-2 border-t border-border">
+                            <FormField label="School / Institution" valid={school.length > 1}>
+                              <Input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="e.g. University of Ghana" />
+                            </FormField>
+                            <FormField label="Hostel or Hall" optional>
+                              <Input value={hostelOrHall} onChange={(e) => setHostelOrHall(e.target.value)} placeholder="e.g. Commonwealth Hall" />
+                            </FormField>
+                            <FormField label="Room or Bed Space" optional>
+                              <Input value={roomOrBedSpace} onChange={(e) => setRoomOrBedSpace(e.target.value)} placeholder="e.g. Room 12B" />
+                            </FormField>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Citizenship toggle */}
                     <div className="space-y-3 border border-border rounded-lg p-4">

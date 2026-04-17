@@ -11,6 +11,8 @@ import { formatGHSDecimal, formatGHS } from "@/lib/formatters";
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: "tenant" | "landlord" | "regulator" | "nugs_admin";
+  /** When true, also allow tenants flagged as students (is_student=true) to access this route. */
+  allowStudent?: boolean;
 }
 
 const registrationBenefits = [
@@ -18,7 +20,7 @@ const registrationBenefits = [
   { icon: Shield, label: "12-month platform access" },
 ];
 
-const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, requiredRole, allowStudent }: ProtectedRouteProps) => {
   const { user, loading, role } = useAuth();
   const feeKey = role === "tenant" ? "tenant_registration_fee" : "landlord_registration_fee";
   const { amount: regFee, enabled: regFeeEnabled } = useFeeConfig(feeKey);
@@ -27,6 +29,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [payingFee, setPayingFee] = useState(false);
   const [accountStatus, setAccountStatus] = useState<string>("active");
   const [verifying, setVerifying] = useState(false);
+  const [isStudent, setIsStudent] = useState(false);
 
   const [hasRegistrationDate, setHasRegistrationDate] = useState(false);
 
@@ -34,11 +37,12 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     const table = userRole === "tenant" ? "tenants" : "landlords";
     const { data } = await supabase
       .from(table)
-      .select("registration_fee_paid, registration_date, account_status")
+      .select(userRole === "tenant" ? "registration_fee_paid, registration_date, account_status, is_student" : "registration_fee_paid, registration_date, account_status")
       .eq("user_id", userId)
       .maybeSingle();
     if (data?.registration_date) setHasRegistrationDate(true);
     if (data?.account_status) setAccountStatus(data.account_status);
+    if (userRole === "tenant" && (data as any)?.is_student) setIsStudent(true);
     return data?.registration_fee_paid ?? false;
   }, []);
 
@@ -127,7 +131,12 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   }
 
   if (!user) return <Navigate to="/" replace />;
-  if (requiredRole && role !== requiredRole) return <Navigate to="/" replace />;
+  if (requiredRole && role !== requiredRole) {
+    // Allow student-tenants to access nugs routes when allowStudent flag is set
+    if (!(allowStudent && role === "tenant" && isStudent)) {
+      return <Navigate to="/" replace />;
+    }
+  }
 
   // Block deactivated or archived accounts
   if (role !== "regulator" && role !== "nugs_admin" && (accountStatus === "deactivated" || accountStatus === "archived")) {
