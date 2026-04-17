@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Search, GraduationCap } from "lucide-react";
+import { Loader2, Search, GraduationCap, ChevronDown, ChevronUp, History } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import StudentResidenceTrail from "@/components/student/StudentResidenceTrail";
 
 interface StudentRow {
   user_id: string;
