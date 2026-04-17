@@ -1,28 +1,17 @@
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Outlet, useLocation } from "react-router-dom";
-import { motionTokens } from "@/lib/motion";
 
 /**
- * Wraps <Outlet /> with AnimatePresence for slide-fade page transitions
- * keyed by pathname. Honours prefers-reduced-motion.
+ * Renders <Outlet /> inside a div whose `key` changes on every route change.
+ * This forces a remount, which re-triggers the CSS [data-app-main] > * pageEnter
+ * animation defined in index.css. Works for every page across the app without
+ * needing per-page edits.
  */
 const AnimatedOutlet = () => {
   const location = useLocation();
-  const reduce = useReducedMotion();
-
-  if (reduce) return <Outlet />;
-
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={location.pathname}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0, transition: motionTokens.springGentle }}
-        exit={{ opacity: 0, y: -8, transition: motionTokens.easeIn }}
-      >
-        <Outlet />
-      </motion.div>
-    </AnimatePresence>
+    <div key={location.pathname} className="contents">
+      <Outlet />
+    </div>
   );
 };
 

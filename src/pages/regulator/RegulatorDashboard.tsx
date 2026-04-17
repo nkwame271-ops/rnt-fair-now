@@ -8,6 +8,7 @@ import AnimatedCounter from "@/components/AnimatedCounter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { FeatureCard, type FeatureCardVariant } from "@/components/FeatureCard";
+import { useMouseParallax } from "@/hooks/useMouseParallax";
 
 const RegulatorDashboard = () => {
   const { profile } = useAdminProfile();
