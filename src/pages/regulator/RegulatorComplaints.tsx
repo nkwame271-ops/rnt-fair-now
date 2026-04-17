@@ -277,18 +277,33 @@ const RegulatorComplaints = () => {
     fetchComplaints();
   };
 
-  const [categoryFilter, setCategoryFilter] = useState<"all" | "student">("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get("tab") as TabKey) || "tenant";
+  const [activeTab, setActiveTab] = useState<TabKey>(["landlord", "tenant", "student"].includes(initialTab) ? initialTab : "tenant");
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (next.get("tab") !== activeTab) {
+      next.set("tab", activeTab);
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const isStudentRow = (c: any) => !!(c._tenantRecord?.is_student || c._tenantRecord?.school);
 
   const filtered = complaints.filter((c) => {
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
-    if (categoryFilter === "student" && !c._tenantRecord?.is_student) return false;
+    if (activeTab === "student" && !isStudentRow(c)) return false;
+    if (activeTab === "tenant" && isStudentRow(c)) return false;
     if (officeFilter !== "all" && c.office_id !== officeFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return c.complaint_code?.toLowerCase().includes(s) || c.landlord_name?.toLowerCase().includes(s) || c.complaint_type?.toLowerCase().includes(s) || c._tenantProfile?.full_name?.toLowerCase().includes(s);
   });
 
-  const studentComplaintCount = complaints.filter(c => c._tenantRecord?.is_student).length;
+  const studentComplaintCount = complaints.filter(isStudentRow).length;
+  const tenantComplaintCount = complaints.filter((c) => !isStudentRow(c)).length;
 
   const exportCSV = () => {
     const headers = ["Code", "Tenant", "Phone", "Type", "Landlord", "Address", "Region", "Status", "Filed", "Description"];
