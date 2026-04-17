@@ -620,6 +620,10 @@ const RegulatorComplaints = () => {
                         <span className="text-sm font-medium text-muted-foreground">Update status:</span>
                         <Select value={c.status} onValueChange={(v) => {
                           if (v === "schedule_complainant") {
+                            if (!canScheduleComplaint(c)) {
+                              toast.error("Confirm the payment in the Receipts page before scheduling.");
+                              return;
+                            }
                             setSchedulingComplaint({ id: c.id, type: "tenant", userId: c.tenant_user_id, name: c._tenantProfile?.full_name || "Unknown", phone: c._tenantProfile?.phone, complaintCode: c.complaint_code, officeName: officeMap[c.office_id] });
                           } else {
                             updateStatus(c.id, v);
@@ -734,6 +738,10 @@ const RegulatorComplaints = () => {
                 <span className="text-sm font-medium text-muted-foreground">Status:</span>
                 <Select value={c.status} onValueChange={(v) => {
                   if (v === "schedule_complainant") {
+                    if (!canScheduleComplaint(c)) {
+                      toast.error("Confirm the payment in the Receipts page before scheduling.");
+                      return;
+                    }
                     setSchedulingComplaint({ id: c.id, type: "landlord", userId: c.landlord_user_id, name: c._landlordProfile?.full_name || "Unknown", phone: c._landlordProfile?.phone, complaintCode: c.complaint_code, officeName: officeMap[c.office_id] });
                   } else {
                     updateLandlordComplaintStatus(c.id, v);
