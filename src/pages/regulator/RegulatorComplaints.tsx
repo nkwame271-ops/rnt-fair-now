@@ -189,10 +189,10 @@ const RegulatorComplaints = () => {
         .select("user_id, full_name, phone, email, ghana_card_no, nationality, occupation")
         .in("user_id", tenantIds);
 
-      // Also fetch tenant registration info
+      // Also fetch tenant registration info (incl. student flag)
       const { data: tenantRecords } = await supabase
         .from("tenants")
-        .select("user_id, tenant_id, status, registration_date")
+        .select("user_id, tenant_id, status, registration_date, is_student, school")
         .in("user_id", tenantIds);
 
       // Fetch tenancies for these tenants to show their current residence
@@ -258,12 +258,17 @@ const RegulatorComplaints = () => {
     fetchComplaints();
   };
 
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "student">("all");
+
   const filtered = complaints.filter((c) => {
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
+    if (categoryFilter === "student" && !c._tenantRecord?.is_student) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return c.complaint_code?.toLowerCase().includes(s) || c.landlord_name?.toLowerCase().includes(s) || c.complaint_type?.toLowerCase().includes(s) || c._tenantProfile?.full_name?.toLowerCase().includes(s);
   });
+
+  const studentComplaintCount = complaints.filter(c => c._tenantRecord?.is_student).length;
 
   const exportCSV = () => {
     const headers = ["Code", "Tenant", "Phone", "Type", "Landlord", "Address", "Region", "Status", "Filed", "Description"];
@@ -365,6 +370,13 @@ const RegulatorComplaints = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search by code, name, landlord, type..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
+            <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as "all" | "student")}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Complaints</SelectItem>
+                <SelectItem value="student">Student ({studentComplaintCount})</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
               <SelectContent>

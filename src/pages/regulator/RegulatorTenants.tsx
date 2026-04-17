@@ -227,10 +227,15 @@ const RegulatorTenants = () => {
               >
                 <div className="flex-1 grid grid-cols-2 sm:grid-cols-7 gap-2 items-center text-sm">
                   <div className="font-mono font-bold text-primary">{t.tenant_id}</div>
-                  <div className="font-medium text-foreground">{t.profile?.full_name || "—"}</div>
+                  <div className="font-medium text-foreground flex items-center gap-1.5">
+                    {t.profile?.full_name || "—"}
+                    {t.is_student && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-info/10 text-info">STUDENT</span>
+                    )}
+                  </div>
                   <div className="text-muted-foreground">{t.profile?.phone || "—"}</div>
                   <div className="text-muted-foreground">{t.profile?.is_citizen ? "🇬🇭 Citizen" : "Permit"}</div>
-                  <div className="text-muted-foreground">{t.profile?.occupation || "—"}</div>
+                  <div className="text-muted-foreground">{t.is_student && t.school ? t.school : (t.profile?.occupation || "—")}</div>
                   <div className="flex flex-wrap gap-1">
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${t.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{t.status}</span>
                     {t.account_status !== "active" && (

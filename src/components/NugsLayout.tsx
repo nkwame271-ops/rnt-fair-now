@@ -1,19 +1,31 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, AlertTriangle, Users, GraduationCap, LogOut, Menu, Shield } from "lucide-react";
+import { LayoutDashboard, AlertTriangle, Users, GraduationCap, LogOut, Menu, Shield, Store, FileText } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
-const navItems = [
+const adminNav = [
   { to: "/nugs/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/nugs/students", label: "Students", icon: GraduationCap },
   { to: "/nugs/complaints", label: "Student Complaints", icon: AlertTriangle },
   { to: "/nugs/institutions", label: "Institutions", icon: Users },
 ];
 
+const studentNav = [
+  { to: "/nugs/dashboard", label: "My Dashboard", icon: LayoutDashboard },
+  { to: "/tenant/marketplace", label: "Hostel Listings", icon: Store },
+  { to: "/tenant/file-complaint", label: "File a Complaint", icon: AlertTriangle },
+  { to: "/tenant/my-cases", label: "My Cases", icon: FileText },
+  { to: "/tenant/profile", label: "My Profile", icon: GraduationCap },
+];
+
 const NugsLayout = () => {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, role } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Tenants who land here are students; nugs_admin gets the monitoring portal
+  const isAdmin = role === "nugs_admin";
+  const navItems = isAdmin ? adminNav : studentNav;
 
   const handleSignOut = async () => {
     await signOut();
@@ -31,7 +43,7 @@ const NugsLayout = () => {
           <Shield className="h-6 w-6 text-sidebar-primary" />
           <span className="font-bold text-lg">NUGS</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold ml-auto bg-primary text-primary-foreground">
-            ADMIN
+            {isAdmin ? "ADMIN" : "STUDENT"}
           </span>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -73,7 +85,7 @@ const NugsLayout = () => {
           <button onClick={() => setMobileOpen(true)} className="lg:hidden">
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-bold text-sm">NUGS Monitoring Portal</span>
+          <span className="font-bold text-sm">{isAdmin ? "NUGS Monitoring Portal" : "NUGS Student Portal"}</span>
         </header>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <Outlet />
