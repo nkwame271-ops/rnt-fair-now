@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Loader2, Wallet, TrendingUp, Receipt, DollarSign, Building, Tag, Zap, Hand, CheckCircle, XCircle, Clock, AlertTriangle, Download, Calendar as CalendarIcon, Filter, Info } from "lucide-react";
 import { useModuleVisibility } from "@/hooks/useModuleVisibility";
 import { supabase } from "@/integrations/supabase/client";
@@ -152,8 +152,7 @@ const EscrowDashboard = () => {
     fetchOffices();
   }, []);
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = useCallback(async () => {
       setLoading(true);
       const officeFilter = effectiveOffice !== "all" ? effectiveOffice : null;
 
@@ -287,9 +286,11 @@ const EscrowDashboard = () => {
       const { data: recentReceipts } = await receiptsQuery;
       setReceipts(recentReceipts || []);
       setLoading(false);
-    };
+  }, [effectiveOffice, dateRange.from, dateRange.to, isVisible]);
+
+  useEffect(() => {
     fetchData();
-  }, [effectiveOffice, dateRange.from, dateRange.to]);
+  }, [fetchData]);
 
   const filteredReceipts = search
     ? receipts.filter(r =>
