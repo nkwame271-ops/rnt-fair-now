@@ -295,7 +295,7 @@ const ComplaintTypesManager = () => {
                     <Label className="text-xs">Fee Amount (GHS)</Label>
                     <Input type="number" step="0.01" value={row.fee_amount} onChange={(e) => setFixedMap((m) => ({ ...m, [t.id]: { ...row, fee_amount: Number(e.target.value) } }))} />
                   </div>
-                  <SplitInputs row={row} onChange={(patch) => setFixedMap((m) => ({ ...m, [t.id]: { ...row, ...patch } }))} />
+                  <SplitInputsFlat row={row} feeAmount={Number(row.fee_amount) || 0} onChange={(patch) => setFixedMap((m) => ({ ...m, [t.id]: { ...row, ...patch } }))} />
                 </div>
                 <div className="flex justify-end">
                   <Button size="sm" onClick={() => saveFixed(t.id)} disabled={savingId === t.id}>
