@@ -14,6 +14,8 @@ import ScheduleComplainantDialog from "@/components/ScheduleComplainantDialog";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import { generateProfilePdf } from "@/lib/generateProfilePdf";
+import RequestComplaintPaymentDialog from "@/components/RequestComplaintPaymentDialog";
+import { CreditCard, Receipt, Hash } from "lucide-react";
 
 interface SchedulingTarget {
   id: string;
@@ -25,7 +27,7 @@ interface SchedulingTarget {
   officeName?: string;
 }
 
-const allStatuses = ["submitted", "under_review", "in_progress", "schedule_complainant", "resolved", "closed"];
+const allStatuses = ["submitted", "awaiting_payment", "pending_payment", "ready_for_scheduling", "under_review", "in_progress", "schedule_complainant", "scheduled", "resolved", "closed"];
 
 const RegulatorComplaints = () => {
   const { user } = useAuth();
@@ -285,6 +287,17 @@ const RegulatorComplaints = () => {
 
   const [activeTab, setActiveTab] = useState<"tenant" | "landlord">("tenant");
   const [landlordComplaints, setLandlordComplaints] = useState<any[]>([]);
+  const [requestPaymentFor, setRequestPaymentFor] = useState<{ id: string; table: "complaints" | "landlord_complaints"; rent?: number | null } | null>(null);
+
+  // Realtime: refresh on any complaint update (admin sees paid status instantly)
+  useEffect(() => {
+    const ch = supabase
+      .channel("regulator-complaints-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "complaints" }, () => fetchComplaints())
+      .on("postgres_changes", { event: "*", schema: "public", table: "landlord_complaints" }, () => fetchLandlordComplaints())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   const fetchLandlordComplaints = async () => {
     const { data } = await supabase
@@ -313,6 +326,10 @@ const RegulatorComplaints = () => {
 
   const statusColors: Record<string, string> = {
     submitted: "bg-info/10 text-info",
+    awaiting_payment: "bg-info/10 text-info",
+    pending_payment: "bg-warning/10 text-warning",
+    ready_for_scheduling: "bg-primary/10 text-primary",
+    scheduled: "bg-accent/10 text-accent-foreground",
     under_review: "bg-warning/10 text-warning",
     in_progress: "bg-primary/10 text-primary",
     schedule_complainant: "bg-accent/10 text-accent-foreground",
@@ -403,6 +420,11 @@ const RegulatorComplaints = () => {
                     <div className="flex-1 grid grid-cols-1 sm:grid-cols-6 gap-2 items-center">
                       <div>
                         <span className="font-mono text-sm font-bold text-primary">{c.complaint_code}</span>
+                        {c.ticket_number && (
+                          <div className="text-xs text-muted-foreground mt-0.5 font-mono flex items-center gap-1">
+                            <Hash className="h-3 w-3" />{c.ticket_number}
+                          </div>
+                        )}
                         <div className="text-xs text-muted-foreground mt-0.5">{new Date(c.created_at).toLocaleDateString()}</div>
                       </div>
                       <div>
@@ -411,10 +433,20 @@ const RegulatorComplaints = () => {
                       </div>
                       <div className="text-sm text-foreground">{c.complaint_type}</div>
                       <div className="text-sm text-foreground">{c.landlord_name}</div>
-                      <div>
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusColors[c.status] || ""}`}>
-                          {c.status.replace("_", " ")}
+                      <div className="space-y-1">
+                        <span className={`text-xs font-semibold px-2 py-1 rounded-full inline-block ${statusColors[c.status] || ""}`}>
+                          {c.status.replace(/_/g, " ")}
                         </span>
+                        {c.payment_status === "paid" && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-success/10 text-success inline-flex items-center gap-1 ml-1">
+                            <Receipt className="h-3 w-3" /> Paid
+                          </span>
+                        )}
+                        {c.payment_status === "pending" && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/10 text-warning inline-flex items-center gap-1 ml-1">
+                            <CreditCard className="h-3 w-3" /> Awaiting payer
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground">{c.region}</div>
                     </div>

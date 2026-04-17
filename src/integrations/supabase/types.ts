@@ -322,11 +322,60 @@ export type Database = {
         }
         Relationships: []
       }
+      complaint_types: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          display_order: number
+          fee_amount: number | null
+          fee_mode: string
+          fee_percentage: number | null
+          id: string
+          key: string
+          label: string
+          rent_band_config: Json | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          fee_amount?: number | null
+          fee_mode?: string
+          fee_percentage?: number | null
+          id?: string
+          key: string
+          label: string
+          rent_band_config?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          fee_amount?: number | null
+          fee_mode?: string
+          fee_percentage?: number | null
+          id?: string
+          key?: string
+          label?: string
+          rent_band_config?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       complaints: {
         Row: {
           audio_url: string | null
           complaint_code: string
           complaint_type: string
+          complaint_type_id: string | null
           created_at: string
           description: string
           evidence_urls: string[] | null
@@ -336,16 +385,21 @@ export type Database = {
           id: string
           landlord_name: string
           office_id: string | null
+          outstanding_amount: number | null
+          payment_status: string
           property_address: string
+          receipt_id: string | null
           region: string
           status: string
           tenant_user_id: string
+          ticket_number: string
           updated_at: string
         }
         Insert: {
           audio_url?: string | null
           complaint_code: string
           complaint_type: string
+          complaint_type_id?: string | null
           created_at?: string
           description: string
           evidence_urls?: string[] | null
@@ -355,16 +409,21 @@ export type Database = {
           id?: string
           landlord_name: string
           office_id?: string | null
+          outstanding_amount?: number | null
+          payment_status?: string
           property_address: string
+          receipt_id?: string | null
           region: string
           status?: string
           tenant_user_id: string
+          ticket_number?: string
           updated_at?: string
         }
         Update: {
           audio_url?: string | null
           complaint_code?: string
           complaint_type?: string
+          complaint_type_id?: string | null
           created_at?: string
           description?: string
           evidence_urls?: string[] | null
@@ -374,13 +433,39 @@ export type Database = {
           id?: string
           landlord_name?: string
           office_id?: string | null
+          outstanding_amount?: number | null
+          payment_status?: string
           property_address?: string
+          receipt_id?: string | null
           region?: string
           status?: string
           tenant_user_id?: string
+          ticket_number?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "complaints_complaint_type_id_fkey"
+            columns: ["complaint_type_id"]
+            isOneToOne: false
+            referencedRelation: "complaint_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "complaints_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "complaints_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "payment_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contact_submissions: {
         Row: {
@@ -877,51 +962,88 @@ export type Database = {
           audio_url: string | null
           complaint_code: string
           complaint_type: string
+          complaint_type_id: string | null
           created_at: string
           description: string
           evidence_urls: string[] | null
           id: string
           landlord_user_id: string
           office_id: string | null
+          outstanding_amount: number | null
+          payment_status: string
           property_address: string
+          receipt_id: string | null
           region: string
           status: string
           tenant_name: string | null
+          ticket_number: string
           updated_at: string
         }
         Insert: {
           audio_url?: string | null
           complaint_code: string
           complaint_type: string
+          complaint_type_id?: string | null
           created_at?: string
           description: string
           evidence_urls?: string[] | null
           id?: string
           landlord_user_id: string
           office_id?: string | null
+          outstanding_amount?: number | null
+          payment_status?: string
           property_address: string
+          receipt_id?: string | null
           region: string
           status?: string
           tenant_name?: string | null
+          ticket_number?: string
           updated_at?: string
         }
         Update: {
           audio_url?: string | null
           complaint_code?: string
           complaint_type?: string
+          complaint_type_id?: string | null
           created_at?: string
           description?: string
           evidence_urls?: string[] | null
           id?: string
           landlord_user_id?: string
           office_id?: string | null
+          outstanding_amount?: number | null
+          payment_status?: string
           property_address?: string
+          receipt_id?: string | null
           region?: string
           status?: string
           tenant_name?: string | null
+          ticket_number?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "landlord_complaints_complaint_type_id_fkey"
+            columns: ["complaint_type_id"]
+            isOneToOne: false
+            referencedRelation: "complaint_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landlord_complaints_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landlord_complaints_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "payment_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       landlord_payment_settings: {
         Row: {
@@ -3413,6 +3535,7 @@ export type Database = {
         Returns: Json
       }
       generate_case_number: { Args: never; Returns: string }
+      generate_complaint_ticket: { Args: never; Returns: string }
       generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
       has_role: {
