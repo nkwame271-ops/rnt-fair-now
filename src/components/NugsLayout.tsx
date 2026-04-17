@@ -1,4 +1,6 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import AnimatedNavLink from "@/components/AnimatedNavLink";
+import AnimatedOutlet from "@/components/AnimatedOutlet";
 import { LayoutDashboard, AlertTriangle, Users, GraduationCap, LogOut, Menu, Shield, Store, FileText, UserCircle, Inbox } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -48,21 +50,15 @@ const NugsLayout = () => {
         </div>
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => (
-            <NavLink
+            <AnimatedNavLink
               key={item.to}
               to={item.to}
+              layoutId="nugs-nav-pill"
               onClick={() => setMobileOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors ${
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                }`
-              }
             >
               <item.icon className="h-4 w-4 shrink-0" />
               <span className="truncate">{item.label}</span>
-            </NavLink>
+            </AnimatedNavLink>
           ))}
         </nav>
         <div className="p-2 border-t border-sidebar-border/50">
@@ -89,7 +85,7 @@ const NugsLayout = () => {
         </header>
         <main data-app-main className="flex-1 px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8 overflow-y-auto bg-transparent">
           <div className="mx-auto w-full max-w-[1400px]">
-            <Outlet />
+            <AnimatedOutlet />
           </div>
         </main>
       </div>

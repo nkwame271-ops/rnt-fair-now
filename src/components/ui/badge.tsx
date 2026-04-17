@@ -1,7 +1,9 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { motion, useReducedMotion, type HTMLMotionProps } from "framer-motion";
 
 import { cn } from "@/lib/utils";
+import { motionTokens } from "@/lib/motion";
 
 const badgeVariants = cva(
   "inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 backdrop-blur-[4px]",
@@ -23,10 +25,21 @@ const badgeVariants = cva(
   },
 );
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+  const reduce = useReducedMotion();
+  return (
+    <motion.div
+      className={cn(badgeVariants({ variant }), className)}
+      initial={reduce ? false : { scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={reduce ? { duration: 0.01 } : motionTokens.springSnappy}
+      {...(props as unknown as HTMLMotionProps<"div">)}
+    />
+  );
 }
 
 export { Badge, badgeVariants };
