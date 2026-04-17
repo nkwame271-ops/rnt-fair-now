@@ -80,7 +80,7 @@ const RegulatorReceipts = () => {
     // Step 1: receipts (with optional office scoping via the txn join below)
     let q = supabase
       .from("payment_receipts")
-      .select("id, receipt_number, created_at, payer_name, payer_email, payment_type, total_amount, status, description, qr_code_data, office_id, user_id, escrow_transaction_id")
+      .select("id, receipt_number, created_at, payer_name, payer_email, payment_type, total_amount, status, description, qr_code_data, office_id, user_id, escrow_transaction_id, admin_confirmed_at, admin_confirmed_by")
       .order("created_at", { ascending: false })
       .limit(500);
 
