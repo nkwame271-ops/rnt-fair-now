@@ -158,25 +158,46 @@ const StudentView = () => {
       </div>
 
       {/* Student info card */}
-      <div className="bg-card rounded-xl p-6 border border-border shadow-card">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Student ID</p>
-            <p className="font-mono font-bold text-primary">{tenant?.tenant_id || "—"}</p>
+      <div className="bg-card rounded-xl p-6 border border-border shadow-card space-y-5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm flex-1">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Student ID</p>
+              <p className="font-mono font-bold text-primary">{tenant?.tenant_id || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Institution</p>
+              <p className="font-medium text-foreground">{tenant?.school || "Not set"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Hostel / Hall</p>
+              <p className="font-medium text-foreground">{tenant?.hostel_or_hall || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Room / Bed</p>
+              <p className="font-medium text-foreground">{tenant?.room_or_bed_space || "—"}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Institution</p>
-            <p className="font-medium text-foreground">{tenant?.school || "Not set"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Hostel / Hall</p>
-            <p className="font-medium text-foreground">{tenant?.hostel_or_hall || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Room / Bed</p>
-            <p className="font-medium text-foreground">{tenant?.room_or_bed_space || "—"}</p>
-          </div>
+          <UpdateResidenceDialog
+            current={tenant ? { school: tenant.school, hostel_or_hall: tenant.hostel_or_hall, room_or_bed_space: tenant.room_or_bed_space } : null}
+            onUpdated={async () => {
+              const { data } = await supabase.from("tenants").select("tenant_id, school, hostel_or_hall, room_or_bed_space, status").eq("user_id", user!.id).maybeSingle();
+              setTenant(data);
+            }}
+          />
         </div>
+
+        {user && (
+          <Collapsible>
+            <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
+              <History className="h-3.5 w-3.5" /> View residence history
+              <ChevronDown className="h-3.5 w-3.5" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <StudentResidenceTrail tenantUserId={user.id} compact />
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </div>
 
       {/* Quick stats */}
