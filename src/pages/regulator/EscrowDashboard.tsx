@@ -578,8 +578,17 @@ const EscrowDashboard = () => {
                       alert("Reconciliation error: " + data.error);
                       return;
                     }
-                    alert(`Reconciliation complete.\nScanned: ${data.scanned}\nAlready balanced: ${data.already_balanced}\nRepaired: ${data.repaired}\nLedger rows inserted: ${data.rows_inserted}\nRecovered amount: GH₵ ${(data.total_recovered_amount || 0).toFixed(2)}`);
-                    window.location.reload();
+                    alert(
+                      `Reconciliation complete.\n` +
+                      `Scanned: ${data.scanned ?? 0}\n` +
+                      `Already balanced: ${data.already_balanced ?? 0}\n` +
+                      `Corrected: ${data.corrected ?? 0}\n` +
+                      `Ledger rows inserted: ${data.rows_inserted ?? 0}\n` +
+                      `Rows superseded: ${data.rows_superseded ?? 0}\n` +
+                      `Validation gate aborts: ${data.validation_gate_aborts ?? 0}\n` +
+                      `Recovered amount: GH₵ ${(data.total_recovered_amount || 0).toFixed(2)}`
+                    );
+                    fetchData();
                   }}
                 >
                   <AlertTriangle className="h-4 w-4 mr-1" /> Recalculate Ledger
