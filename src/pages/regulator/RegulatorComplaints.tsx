@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import ScheduleComplainantDialog from "@/components/ScheduleComplainantDialog";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
+import { useAdminScope } from "@/hooks/useAdminScope";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import { generateProfilePdf } from "@/lib/generateProfilePdf";
 import RequestComplaintPaymentDialog from "@/components/RequestComplaintPaymentDialog";
@@ -32,6 +33,9 @@ const allStatuses = ["submitted", "awaiting_payment", "pending_payment", "ready_
 const RegulatorComplaints = () => {
   const { user } = useAuth();
   const { profile } = useAdminProfile();
+  const { scopeOfficeId, isUnscoped } = useAdminScope();
+  const [officeFilter, setOfficeFilter] = useState<string>("all");
+  const [allOffices, setAllOffices] = useState<{ id: string; name: string }[]>([]);
   const [complaints, setComplaints] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -45,14 +49,22 @@ const RegulatorComplaints = () => {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("offices").select("id, name");
+      const { data } = await supabase.from("offices").select("id, name").order("name");
       if (data) {
         const m: Record<string, string> = {};
         data.forEach((o: any) => { m[o.id] = o.name; });
         setOfficeMap(m);
+        setAllOffices(data);
       }
     })();
   }, []);
+
+  // Lock office filter to staff's office when scoped
+  useEffect(() => {
+    if (!isUnscoped && scopeOfficeId) {
+      setOfficeFilter(scopeOfficeId);
+    }
+  }, [isUnscoped, scopeOfficeId]);
 
   const downloadComplainantProfile = async (
     role: "tenant" | "landlord",
