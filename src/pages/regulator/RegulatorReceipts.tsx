@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Receipt, Search, Download, ChevronDown, ChevronUp } from "lucide-react";
+import { Receipt, Search, Download, ChevronDown, ChevronUp, CheckCircle2, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,7 +8,9 @@ import LogoLoader from "@/components/LogoLoader";
 import PaymentReceipt from "@/components/PaymentReceipt";
 import OfficeReconciliationReport from "@/components/OfficeReconciliationReport";
 import { useAdminScope } from "@/hooks/useAdminScope";
+import { useAuth } from "@/hooks/useAuth";
 import { formatGHSDecimal } from "@/lib/formatters";
+import { toast } from "sonner";
 
 interface ReceiptRow {
   id: string;
@@ -24,6 +26,8 @@ interface ReceiptRow {
   office_id: string | null;
   user_id: string;
   escrow_transaction_id: string | null;
+  admin_confirmed_at: string | null;
+  admin_confirmed_by: string | null;
   _txn?: any;
   _splits?: { recipient: string; amount: number }[];
   _ticketNumber?: string | null;
@@ -46,6 +50,8 @@ const PAYMENT_TYPES = [
 
 const RegulatorReceipts = () => {
   const { scopeOfficeId, isUnscoped } = useAdminScope();
+  const { user } = useAuth();
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [rows, setRows] = useState<ReceiptRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
