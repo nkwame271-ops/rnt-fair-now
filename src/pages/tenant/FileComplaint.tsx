@@ -253,7 +253,7 @@ const FileComplaint = () => {
         property_address: form.address,
         region: form.region,
         description: form.description,
-        status: "awaiting_payment",
+        status: "submitted",
         payment_status: "awaiting",
         gps_location: `${form.locationLat}, ${form.locationLng}`,
         gps_confirmed: form.gpsConfirmed,
