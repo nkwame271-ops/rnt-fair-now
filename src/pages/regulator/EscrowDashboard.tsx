@@ -195,7 +195,8 @@ const EscrowDashboard = () => {
         for (let i = 0; i < completedIds.length; i += batchSize) {
           const batch = completedIds.slice(i, i + batchSize);
           let q = supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode, escrow_transaction_id")
-            .in("escrow_transaction_id", batch);
+            .in("escrow_transaction_id", batch)
+            .eq("status", "active");
           if (officeFilter) q = q.eq("office_id", officeFilter);
           const { data } = await q;
           if (data) splits.push(...data);

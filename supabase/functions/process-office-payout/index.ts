@@ -58,12 +58,13 @@ Deno.serve(async (req) => {
 
       if (!request) throw new Error("Request not found or already processed");
 
-      // Calculate available balance for this office
+      // Calculate available balance for this office — ACTIVE ledger rows only
       const { data: totalSplits } = await supabaseAdmin
         .from("escrow_splits")
         .select("amount")
         .eq("office_id", request.office_id)
-        .eq("recipient", "admin");
+        .eq("recipient", "admin")
+        .eq("status", "active");
 
       const totalEarned = (totalSplits || []).reduce((sum: number, s: any) => sum + Number(s.amount), 0);
 

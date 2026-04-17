@@ -100,7 +100,8 @@ const OfficeFundRequests = () => {
       .from("escrow_splits")
       .select("amount")
       .eq("office_id", oid)
-      .eq("recipient", "admin");
+      .eq("recipient", "admin")
+      .eq("status", "active");
 
     const totalEarned = (splits || []).reduce((sum, s: any) => sum + Number(s.amount), 0);
 
