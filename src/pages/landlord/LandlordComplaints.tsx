@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { AlertTriangle, Plus, Loader2, Upload, X, Clock, CheckCircle2, Image, Mic, Square, Play, Trash2, CalendarDays } from "lucide-react";
+import { AlertTriangle, Plus, Loader2, Upload, X, Clock, CheckCircle2, Image, Mic, Square, Play, Trash2, CalendarDays, CreditCard, Receipt } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
