@@ -427,6 +427,63 @@ export type Database = {
           },
         ]
       }
+      complaint_properties: {
+        Row: {
+          address_description: string | null
+          complaint_id: string | null
+          created_at: string
+          gps_code: string | null
+          id: string
+          landlord_name: string
+          lat: number | null
+          lng: number | null
+          location_method: string
+          monthly_rent: number
+          place_id: string | null
+          place_name: string | null
+          property_name: string | null
+          property_type: string
+          tenant_user_id: string
+          unit_description: string | null
+        }
+        Insert: {
+          address_description?: string | null
+          complaint_id?: string | null
+          created_at?: string
+          gps_code?: string | null
+          id?: string
+          landlord_name: string
+          lat?: number | null
+          lng?: number | null
+          location_method: string
+          monthly_rent?: number
+          place_id?: string | null
+          place_name?: string | null
+          property_name?: string | null
+          property_type: string
+          tenant_user_id: string
+          unit_description?: string | null
+        }
+        Update: {
+          address_description?: string | null
+          complaint_id?: string | null
+          created_at?: string
+          gps_code?: string | null
+          id?: string
+          landlord_name?: string
+          lat?: number | null
+          lng?: number | null
+          location_method?: string
+          monthly_rent?: number
+          place_id?: string | null
+          place_name?: string | null
+          property_name?: string | null
+          property_type?: string
+          tenant_user_id?: string
+          unit_description?: string | null
+        }
+        Relationships: []
+      }
       complaint_schedules: {
         Row: {
           available_slots: Json
@@ -525,6 +582,7 @@ export type Database = {
           audio_url: string | null
           claim_amount: number | null
           complaint_code: string
+          complaint_property_id: string | null
           complaint_type: string
           complaint_type_id: string | null
           created_at: string
@@ -551,6 +609,7 @@ export type Database = {
           audio_url?: string | null
           claim_amount?: number | null
           complaint_code: string
+          complaint_property_id?: string | null
           complaint_type: string
           complaint_type_id?: string | null
           created_at?: string
@@ -577,6 +636,7 @@ export type Database = {
           audio_url?: string | null
           claim_amount?: number | null
           complaint_code?: string
+          complaint_property_id?: string | null
           complaint_type?: string
           complaint_type_id?: string | null
           created_at?: string
@@ -600,6 +660,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "complaints_complaint_property_id_fkey"
+            columns: ["complaint_property_id"]
+            isOneToOne: false
+            referencedRelation: "complaint_properties"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "complaints_complaint_type_id_fkey"
             columns: ["complaint_type_id"]
@@ -2225,6 +2292,63 @@ export type Database = {
           },
         ]
       }
+      property_similarity_scores: {
+        Row: {
+          dismissed_at: string | null
+          dismissed_by: string | null
+          gps_points: number
+          id: string
+          landlord_name_points: number
+          last_calculated_at: string
+          location_points: number
+          manually_dismissed: boolean
+          matched_property_id: string
+          property_name_points: number
+          property_type_points: number
+          score: number
+          similarity_level: string
+          source_id: string
+          source_type: string
+          tenant_boost_applied: boolean
+        }
+        Insert: {
+          dismissed_at?: string | null
+          dismissed_by?: string | null
+          gps_points?: number
+          id?: string
+          landlord_name_points?: number
+          last_calculated_at?: string
+          location_points?: number
+          manually_dismissed?: boolean
+          matched_property_id: string
+          property_name_points?: number
+          property_type_points?: number
+          score: number
+          similarity_level: string
+          source_id: string
+          source_type: string
+          tenant_boost_applied?: boolean
+        }
+        Update: {
+          dismissed_at?: string | null
+          dismissed_by?: string | null
+          gps_points?: number
+          id?: string
+          landlord_name_points?: number
+          last_calculated_at?: string
+          location_points?: number
+          manually_dismissed?: boolean
+          matched_property_id?: string
+          property_name_points?: number
+          property_type_points?: number
+          score?: number
+          similarity_level?: string
+          source_id?: string
+          source_type?: string
+          tenant_boost_applied?: boolean
+        }
+        Relationships: []
+      }
       ratings: {
         Row: {
           created_at: string
@@ -3040,6 +3164,27 @@ export type Database = {
         }
         Relationships: []
       }
+      similarity_check_errors: {
+        Row: {
+          created_at: string
+          error_message: string
+          id: string
+          source_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message: string
+          id?: string
+          source_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string
+          id?: string
+          source_id?: string | null
+        }
+        Relationships: []
+      }
       split_configurations: {
         Row: {
           amount: number
@@ -3733,6 +3878,8 @@ export type Database = {
         Args: { p_area?: string; p_region: string }
         Returns: string
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       unassign_serial_atomic: {
         Args: { p_serial_number: string }
         Returns: Json

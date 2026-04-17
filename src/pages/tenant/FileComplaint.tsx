@@ -12,12 +12,15 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useJsApiLoader } from "@react-google-maps/api";
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
 
 const steps = ["Office", "Complaint Type", "Property Details", "Location", "Description & Evidence", "Review & Submit"];
 
 const FileComplaint = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  useJsApiLoader({ id: "google-map-script", googleMapsApiKey: GOOGLE_MAPS_API_KEY, libraries: GOOGLE_MAPS_LIBRARIES });
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
@@ -35,6 +38,19 @@ const FileComplaint = () => {
     date: "",
     gpsLocation: "",
     gpsConfirmed: false,
+    // Property snapshot fields (for similarity engine)
+    propertyName: "",
+    propertyType: "",
+    unitDescription: "",
+    monthlyRent: "",
+    addressDescription: "",
+    // Location capture method
+    locationMethod: "" as "" | "live" | "gps_code" | "map_search",
+    locationLat: null as number | null,
+    locationLng: null as number | null,
+    gpsCode: "",
+    placeName: "",
+    placeId: "",
   });
 
   const [isRecording, setIsRecording] = useState(false);
@@ -112,13 +128,60 @@ const FileComplaint = () => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
-        setForm(prev => ({ ...prev, gpsLocation: loc, gpsConfirmed: false }));
+        setForm(prev => ({
+          ...prev,
+          gpsLocation: loc,
+          gpsConfirmed: false,
+          locationMethod: "live",
+          locationLat: pos.coords.latitude,
+          locationLng: pos.coords.longitude,
+        }));
         setGettingLocation(false);
         toast.success("Location captured! Please confirm it matches the complaint property.");
       },
       () => { setGettingLocation(false); toast.error("Could not get your location. Please enable location access."); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const handleGeocodeGpsCode = async () => {
+    const code = form.gpsCode.trim();
+    if (!code) { toast.error("Enter a GPS or digital address"); return; }
+    setGettingLocation(true);
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(code + ", Ghana")}&key=AIzaSyBbj3EaLVeMViYbbn8Zrzgqu1qg4OMSLQ4`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.status === "OK" && json.results?.[0]) {
+        const loc = json.results[0].geometry.location;
+        setForm(prev => ({
+          ...prev,
+          locationMethod: "gps_code",
+          locationLat: loc.lat,
+          locationLng: loc.lng,
+          gpsLocation: `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}`,
+        }));
+        toast.success("Address located on the map.");
+      } else {
+        toast.error("Address not found — check and retry.");
+      }
+    } catch {
+      toast.error("Could not geocode address. Try again.");
+    } finally {
+      setGettingLocation(false);
+    }
+  };
+
+  const handleMapSearchSelect = (place: { lat: number; lng: number; name: string; place_id: string }) => {
+    setForm(prev => ({
+      ...prev,
+      locationMethod: "map_search",
+      locationLat: place.lat,
+      locationLng: place.lng,
+      placeName: place.name,
+      placeId: place.place_id,
+      gpsLocation: `${place.lat.toFixed(6)}, ${place.lng.toFixed(6)}`,
+    }));
   };
 
   const uploadFiles = async (complaintId: string) => {
@@ -151,10 +214,35 @@ const FileComplaint = () => {
     if (!form.type || !form.landlordName || !form.address || !form.region || !form.description) {
       toast.error("Please fill in all required fields before submitting"); return;
     }
+    if (!form.propertyType || !form.monthlyRent) {
+      toast.error("Please complete the Property Details (type and monthly rent)"); return;
+    }
+    if (!form.locationMethod || form.locationLat === null || form.locationLng === null) {
+      toast.error("Please provide the property location to continue."); return;
+    }
     setSubmitting(true);
     try {
       const complaintCode = `RC-${new Date().getFullYear()}-${String(Math.floor(10000 + Math.random() * 90000))}`;
       const { data: ticketNumber } = await supabase.rpc("generate_complaint_ticket");
+
+      // 1. Insert complaint_properties snapshot first
+      const { data: cp, error: cpErr } = await supabase.from("complaint_properties").insert({
+        tenant_user_id: user.id,
+        landlord_name: form.landlordName,
+        property_name: form.propertyName || null,
+        property_type: form.propertyType,
+        unit_description: form.unitDescription || null,
+        monthly_rent: parseFloat(form.monthlyRent) || 0,
+        address_description: form.addressDescription || null,
+        lat: form.locationLat,
+        lng: form.locationLng,
+        gps_code: form.gpsCode || null,
+        place_name: form.placeName || null,
+        place_id: form.placeId || null,
+        location_method: form.locationMethod,
+      } as any).select("id").single();
+
+      if (cpErr) console.error("complaint_properties insert error:", cpErr);
 
       const { data: complaint, error } = await supabase.from("complaints").insert({
         tenant_user_id: user.id,
@@ -167,14 +255,20 @@ const FileComplaint = () => {
         description: form.description,
         status: "awaiting_payment",
         payment_status: "awaiting",
-        gps_location: form.gpsLocation || null,
+        gps_location: `${form.locationLat}, ${form.locationLng}`,
         gps_confirmed: form.gpsConfirmed,
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
         office_id: form.officeId,
+        complaint_property_id: cp?.id || null,
       } as any).select("id").single();
 
       if (error) throw error;
       if (!complaint?.id) throw new Error("Complaint was not created properly");
+
+      // Link back: update complaint_properties.complaint_id
+      if (cp?.id) {
+        await supabase.from("complaint_properties").update({ complaint_id: complaint.id } as any).eq("id", cp.id);
+      }
 
       try {
         const { data: caseNumber } = await supabase.rpc("generate_case_number");
@@ -196,6 +290,13 @@ const FileComplaint = () => {
           evidence_urls: evidenceUrls.length > 0 ? evidenceUrls : undefined,
           audio_url: uploadedAudioUrl || undefined,
         } as any).eq("id", complaint.id);
+      }
+
+      // Fire-and-forget similarity check
+      if (cp?.id) {
+        supabase.functions.invoke("run-similarity-check", {
+          body: { source_type: "complaint_property", source_id: cp.id },
+        }).catch((e) => console.error("similarity check failed:", e));
       }
 
       toast.success("Complaint submitted! An officer will review and contact you regarding any required fee.");
@@ -287,7 +388,7 @@ const FileComplaint = () => {
           <div className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Landlord / Agent Name</Label>
+                <Label>Landlord / Agent Name <span className="text-destructive">*</span></Label>
                 <Input value={form.landlordName} onChange={(e) => update("landlordName", e.target.value)} placeholder="e.g. Mr. Kofi Boateng" />
               </div>
               <div className="space-y-2">
@@ -295,9 +396,42 @@ const FileComplaint = () => {
                 <Input value={form.landlordPhone} onChange={(e) => update("landlordPhone", e.target.value)} placeholder="024 555 1234" />
               </div>
             </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Property / Building Name (optional)</Label>
+                <Input value={form.propertyName} onChange={(e) => update("propertyName", e.target.value)} placeholder="e.g. Oak Court Apartments" />
+              </div>
+              <div className="space-y-2">
+                <Label>Property Type <span className="text-destructive">*</span></Label>
+                <Select value={form.propertyType} onValueChange={(v) => update("propertyType", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="residential">Residential</SelectItem>
+                    <SelectItem value="commercial">Commercial</SelectItem>
+                    <SelectItem value="hostel">Student Hostel</SelectItem>
+                    <SelectItem value="hall_of_residence">Hall of Residence</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Unit Description (optional)</Label>
+                <Input value={form.unitDescription} onChange={(e) => update("unitDescription", e.target.value)} placeholder="e.g. Room 4, Block B" />
+              </div>
+              <div className="space-y-2">
+                <Label>Monthly Rent (GH₵) <span className="text-destructive">*</span></Label>
+                <Input type="number" value={form.monthlyRent} onChange={(e) => update("monthlyRent", e.target.value)} placeholder="e.g. 1200" />
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label>Property Address</Label>
+              <Label>Property Address <span className="text-destructive">*</span></Label>
               <Input value={form.address} onChange={(e) => update("address", e.target.value)} placeholder="e.g. 12 Ring Road, Osu" />
+            </div>
+            <div className="space-y-2">
+              <Label>Address / Area Description (optional)</Label>
+              <Input value={form.addressDescription} onChange={(e) => update("addressDescription", e.target.value)} placeholder="Street, neighbourhood, landmark..." />
             </div>
             <div className="space-y-2">
               <Label>District / Area (optional)</Label>
@@ -311,28 +445,111 @@ const FileComplaint = () => {
 
         {step === 3 && (
           <div className="space-y-4">
-            <Label className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Complaint Location (GPS)</Label>
-            <div className="flex items-start gap-2 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-lg px-3 py-2">
+            <Label className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Property Location <span className="text-destructive">*</span></Label>
+            <div className="flex items-start gap-2 text-xs bg-warning/10 text-warning border border-warning/20 rounded-lg px-3 py-2">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>Please capture your GPS location <strong>at or near the property</strong> where the complaint occurred.</span>
+              <span>Choose <strong>one</strong> of the three methods below to pin the property location. This helps us match your complaint to the registered property record.</span>
             </div>
-            <Button type="button" variant="outline" onClick={handleCaptureGps} disabled={gettingLocation} className="w-full">
-              <Navigation className="h-4 w-4 mr-2" />
-              {gettingLocation ? "Getting location..." : form.gpsLocation ? "Recapture GPS Location" : "Capture My GPS Location"}
-            </Button>
-            {form.gpsLocation && (
+
+            {/* Tab selector */}
+            <div className="flex gap-1 bg-muted rounded-lg p-1">
+              {(["map_search", "live", "gps_code"] as const).map((m) => {
+                const labels = { map_search: "Search on Map", live: "Live Location", gps_code: "GPS / Digital Address" };
+                const active = (form.locationMethod || "map_search") === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, locationMethod: m }))}
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-md transition-colors ${active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {labels[m]}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Live Location */}
+            {(form.locationMethod === "live" || (!form.locationMethod && false)) && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
-                  <Check className="h-4 w-4" />
-                  <span>Location captured: {form.gpsLocation}</span>
-                </div>
-                <label className="flex items-start gap-2.5 cursor-pointer bg-muted rounded-lg px-3 py-2.5 border border-border">
-                  <Checkbox checked={form.gpsConfirmed} onCheckedChange={(v) => update("gpsConfirmed", !!v)} className="mt-0.5" />
-                  <span className="text-sm">I confirm I am at or near the <strong>property in question</strong> and this GPS location is accurate.</span>
-                </label>
+                <Button type="button" variant="outline" onClick={handleCaptureGps} disabled={gettingLocation} className="w-full">
+                  <Navigation className="h-4 w-4 mr-2" />
+                  {gettingLocation ? "Getting location..." : form.locationMethod === "live" && form.locationLat ? "Recapture My Location" : "Use My Current Location"}
+                </Button>
+                {form.locationMethod === "live" && form.locationLat !== null && (
+                  <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                    <Check className="h-4 w-4" />
+                    <span>Location captured: {form.locationLat.toFixed(6)}, {form.locationLng?.toFixed(6)}</span>
+                  </div>
+                )}
               </div>
             )}
-            <p className="text-xs text-muted-foreground">GPS capture is optional but highly recommended.</p>
+
+            {/* GPS Code */}
+            {form.locationMethod === "gps_code" && (
+              <div className="space-y-2">
+                <Input
+                  value={form.gpsCode}
+                  onChange={(e) => update("gpsCode", e.target.value)}
+                  placeholder="e.g. GA-123-4567"
+                  onBlur={() => form.gpsCode && handleGeocodeGpsCode()}
+                />
+                <Button type="button" variant="outline" size="sm" onClick={handleGeocodeGpsCode} disabled={gettingLocation || !form.gpsCode}>
+                  {gettingLocation ? "Locating..." : "Locate Address"}
+                </Button>
+                {form.locationMethod === "gps_code" && form.locationLat !== null && (
+                  <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                    <Check className="h-4 w-4" />
+                    <span>Found: {form.locationLat.toFixed(6)}, {form.locationLng?.toFixed(6)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Map Search (default) */}
+            {(form.locationMethod === "map_search" || !form.locationMethod) && (
+              <div className="space-y-2">
+                <Input
+                  placeholder="Search a place, building, or address (autocomplete)"
+                  value={form.placeName}
+                  onChange={(e) => update("placeName", e.target.value)}
+                  ref={(el) => {
+                    if (!el || (el as any).__autocomplete_attached) return;
+                    if (typeof window === "undefined" || !(window as any).google?.maps?.places) return;
+                    const ac = new (window as any).google.maps.places.Autocomplete(el, {
+                      componentRestrictions: { country: "gh" },
+                      fields: ["geometry", "name", "place_id", "formatted_address"],
+                    });
+                    ac.addListener("place_changed", () => {
+                      const p = ac.getPlace();
+                      if (p?.geometry?.location) {
+                        handleMapSearchSelect({
+                          lat: p.geometry.location.lat(),
+                          lng: p.geometry.location.lng(),
+                          name: p.name || p.formatted_address || "",
+                          place_id: p.place_id || "",
+                        });
+                      }
+                    });
+                    (el as any).__autocomplete_attached = true;
+                  }}
+                />
+                {form.locationMethod === "map_search" && form.locationLat !== null && (
+                  <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                    <Check className="h-4 w-4" />
+                    <span>{form.placeName} ({form.locationLat.toFixed(6)}, {form.locationLng?.toFixed(6)})</span>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">Tip: type a place name or address — Google will suggest matches.</p>
+              </div>
+            )}
+
+            {form.locationLat !== null && (
+              <label className="flex items-start gap-2.5 cursor-pointer bg-muted rounded-lg px-3 py-2.5 border border-border">
+                <Checkbox checked={form.gpsConfirmed} onCheckedChange={(v) => update("gpsConfirmed", !!v)} className="mt-0.5" />
+                <span className="text-sm">I confirm this location refers to the <strong>property in question</strong>.</span>
+              </label>
+            )}
           </div>
         )}
 
