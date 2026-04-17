@@ -34,11 +34,14 @@ const statusConfig: Record<string, string> = {
 
 const LandlordComplaints = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [complaints, setComplaints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
+  const [basketMap, setBasketMap] = useState<Record<string, any[]>>({});
+  const [paying, setPaying] = useState<string | null>(null);
 
   const [complaintType, setComplaintType] = useState("");
   const [tenantName, setTenantName] = useState("");
