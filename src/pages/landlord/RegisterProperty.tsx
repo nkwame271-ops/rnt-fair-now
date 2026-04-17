@@ -585,7 +585,99 @@ const RegisterProperty = () => {
             </div>
           </ErrorBoundary>
 
+          {/* ── Hostel Room Categories ── */}
+          {isHostel && (
+            <ErrorBoundary section="Hostel Rooms">
+              <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h2 className="font-semibold text-card-foreground">Hostel Room Categories</h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Define room types — the system will auto-generate rooms and bed-spaces.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="text-xs">
+                      {hostelTotals.rooms} rooms · {hostelTotals.beds} beds
+                    </Badge>
+                    <Button type="button" variant="outline" size="sm" onClick={addHostelCategory}>
+                      <PlusCircle className="h-4 w-4 mr-1" /> Add Category
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {hostelCategories.map((cat, i) => {
+                    const rooms = parseInt(cat.roomCount) || 0;
+                    const cap = parseInt(cat.capacityPerRoom) || 0;
+                    return (
+                      <div key={i} className="bg-muted rounded-lg p-4 space-y-3">
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Category Label *</Label>
+                            <Input
+                              value={cat.label}
+                              onChange={(e) => updateHostelCategory(i, { label: e.target.value })}
+                              placeholder="e.g. 4-in-room"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Capacity / Room *</Label>
+                            <Input
+                              type="number" min="1"
+                              value={cat.capacityPerRoom}
+                              onChange={(e) => updateHostelCategory(i, { capacityPerRoom: e.target.value })}
+                              placeholder="e.g. 4"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Number of Rooms *</Label>
+                            <Input
+                              type="number" min="1"
+                              value={cat.roomCount}
+                              onChange={(e) => updateHostelCategory(i, { roomCount: e.target.value })}
+                              placeholder="e.g. 10"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Rent / Bed (GH₵) *</Label>
+                            <Input
+                              type="number" min="0"
+                              value={cat.monthlyRent}
+                              onChange={(e) => updateHostelCategory(i, { monthlyRent: e.target.value })}
+                              placeholder="e.g. 800"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Block Label</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                value={cat.blockLabel}
+                                onChange={(e) => updateHostelCategory(i, { blockLabel: e.target.value })}
+                                placeholder="Block A"
+                              />
+                              {hostelCategories.length > 1 && (
+                                <Button type="button" variant="ghost" size="icon" onClick={() => removeHostelCategory(i)} className="text-destructive shrink-0">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {rooms > 0 && cap > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            → Will create {rooms} rooms × {cap} beds = <span className="font-medium text-foreground">{rooms * cap} bed-spaces</span>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </ErrorBoundary>
+          )}
+
           {/* ── Units ── */}
+          {!isHostel && (
           <ErrorBoundary section="Units">
             <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
               <div className="flex items-center justify-between">
