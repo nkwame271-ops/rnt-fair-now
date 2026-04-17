@@ -336,7 +336,7 @@ const ComplaintTypesManager = () => {
                       </div>
                       <div className="grid sm:grid-cols-2 gap-3">
                         <div className="space-y-1"><Label className="text-xs">Fee Amount (GHS)</Label><Input type="number" step="0.01" value={band.fee_amount} onChange={(e) => setBandsMap((m) => ({ ...m, [t.id]: bands.map((b) => b.id === band.id ? { ...b, fee_amount: Number(e.target.value) } : b) }))} /></div>
-                        <SplitInputs row={band} onChange={(patch) => setBandsMap((m) => ({ ...m, [t.id]: bands.map((b) => b.id === band.id ? { ...b, ...patch } : b) }))} />
+                        <SplitInputsFlat row={band} feeAmount={Number(band.fee_amount) || 0} onChange={(patch) => setBandsMap((m) => ({ ...m, [t.id]: bands.map((b) => b.id === band.id ? { ...b, ...patch } : b) }))} />
                       </div>
                       <div className="flex justify-between">
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={() => removeBand(band.id)}><Trash2 className="h-3.5 w-3.5 mr-1" /> Delete band</Button>
