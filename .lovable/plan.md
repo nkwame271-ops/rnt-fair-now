@@ -1,55 +1,84 @@
 
 
-## Two-Bug Fix Plan
+## Plan — Complaint Basket Model + Three-View Complaint System
 
-### Bug 1 — Complaint submit fails with check-constraint violation
+### Part 1: Complaint Basket Model (Admin Payment Request)
 
-**Root cause:** `src/pages/tenant/FileComplaint.tsx` line 256 inserts `status: "awaiting_payment"` but the DB constraint `complaints_status_check` only allows `submitted, under_review, in_progress, resolved, closed, pending_payment`. The UI’s `MyCases.tsx` already maps `submitted` to display label “Submitted — Awaiting Review”, so the intended state is `submitted` with `payment_status='awaiting'` (which IS allowed).
+**Current state:** `RequestComplaintPaymentDialog` lets admin pick ONE complaint type, computes ONE fee, sets `complaint_type_id` + `outstanding_amount` on the complaint row. Override replaces the whole total. Splits at payment time use that single type's rule.
 
-`landlord_complaints` table has no status check constraint, but for consistency we’ll align the value.
+**New behaviour:** Admin builds a basket of N items. Each item carries its own type, computed amount, and split percentages snapshot. Total = sum of items. Optional override is a separate "manual_adjustment" line item with its own reason. On payment, splits are computed per line item and posted to the ledger as N separate split sets sharing the same `escrow_transaction_id` but tagged with `complaint_item_id`.
 
-**Fix (1 file, 1 line):**
-- `src/pages/tenant/FileComplaint.tsx` line 256: change `status: "awaiting_payment"` → `status: "submitted"`. Keep `payment_status: "awaiting"` unchanged.
+**Schema changes (1 migration):**
 
-That alone unblocks complaint submission. No migration needed (the allowed enum already covers the corrected value, and the front-end status maps already include `submitted`).
+1. New table `public.complaint_basket_items`:
+   - `id uuid pk`, `complaint_id uuid`, `complaint_table text` (`'complaints'` | `'landlord_complaints'`)
+   - `complaint_type_id uuid` (nullable for manual adjustment line)
+   - `kind text check in ('fee_rule','manual_adjustment')`
+   - `label text` (snapshot of type label, or admin-entered reason)
+   - `amount numeric not null`
+   - `igf_pct numeric`, `admin_pct numeric`, `platform_pct numeric` (snapshots at request time)
+   - `computation_meta jsonb` (rent used, band label, claim amount)
+   - `created_by uuid`, `created_at timestamptz default now()`
+   - RLS: admins read/write all; complainant SELECT own (joined via parent complaint).
+2. Add `basket_total numeric` to `complaints` and `landlord_complaints` (kept in sync via app code; existing `outstanding_amount` mirrors `basket_total` for backward compat).
+3. No change to `escrow_splits` schema — we'll add `complaint_basket_item_id uuid nullable` column so each split set is traceable to its line item.
 
----
+**Edge function changes:**
 
-### Bug 2 — Engine Room: “Failed to load. Cannot read properties of null (reading ‘includes’)”
+- `finalize-payment.ts` (shared): when `payment_type` is a complaint payment, instead of reading one `complaint_type_id` rule, read `complaint_basket_items` for the complaint and emit one split set per item using its snapshotted `igf_pct/admin_pct/platform_pct` and `amount`. Stamp `complaint_basket_item_id` on each emitted split. Manual-adjustment items default to 100% admin unless splits were captured at request time.
 
-**Root cause:** When a Super Admin opens Engine Room, `useAdminProfile` fetches their `admin_staff` row. If `allowed_features` or `muted_features` is `null` in the DB, the hook coerces them with `|| []` (safe). BUT the code path at line 518 reads `profile!.allowedFeatures.includes(...)` only when `isSubAdmin` is true — Super Admin never hits it.
+**UI changes:**
 
-The actual crash is in `useModuleVisibility.isVisible` (called at line 717 `isVisible("engine_room", "split_engine")`) when `rule.allowed_admin_ids` is `null`. The hook *does* default it to `[]` on fetch, BUT during the first render before the fetch resolves, `rules` is `cachedRules || []` and a freshly-created rule row could have `allowed_admin_ids: null`. More importantly, the visible crash trace points at `.includes` on null — the only candidates that can actually be null at render time in this flow are:
+- `src/components/RequestComplaintPaymentDialog.tsx` — rebuild as a basket UI:
+  - Top section: basket list with per-line label, amount, splits, remove button.
+  - "Add complaint type" picker (existing grouped Select).
+  - "Add manual adjustment" button → inline row with label + amount + splits inputs (defaults 0/100/0) + reason.
+  - Footer: total = sum of items, splits totals row (IGF / Admin / Platform aggregated).
+  - On submit: insert N rows into `complaint_basket_items`, set parent's `outstanding_amount = basket_total`, `payment_status='pending'`, `status='pending_payment'`. Audit log captures the full basket payload.
 
-1. `member.allowed_features` / `member.muted_features` in the staff list render (lines 1298, 1312–1313) when an `admin_staff` row has those columns as NULL. The component reads them directly without `|| []`, unlike `useAdminProfile` which normalises its own copy.
-2. `profile.allowedFeatures` / `profile.mutedFeatures` if `profile` itself is `null` and `isSubAdmin` evaluates falsy — already guarded.
+- Tenant/landlord complaint payment screens: show line-itemised breakdown when paying (read from `complaint_basket_items`). Receipt PDF lists items.
 
-I verified there ARE staff rows in the DB where these columns can be NULL (the `invite-staff` function inserts `allowed_features: allowedFeatures || []` but legacy rows pre-date that).
+### Part 2: Three Complaint Views (Rent Control) + NUGS Scoping
 
-**Fix (1 file, 2 small changes in `src/pages/regulator/EngineRoom.tsx`):**
+**Current state:**
+- `RegulatorComplaints.tsx` already exists for tenant complaints, `LandlordComplaints` for landlord-side. NUGS has its own `NugsComplaints.tsx` reading the `complaints` table filtered to student rows.
+- No tabbed three-view shell.
 
-1. Normalise on fetch — in the `fetchStaff` mapper around line 154, coerce both arrays:
-   ```ts
-   allowed_features: s.allowed_features || [],
-   muted_features: s.muted_features || [],
-   ```
-2. Defensive guard in render (lines 1298, 1312–1313) using `(member.allowed_features || [])` and `(member.muted_features || [])` so any future null row can’t crash the page.
+**Approach (no data duplication):**
 
-Also normalise `allowed_admin_ids` defensively in `useModuleVisibility.isVisible` (line 59) → `(rule.allowed_admin_ids || []).includes(user.id)` even though the fetch already does this — belt-and-braces against the cached path.
+- Refactor `src/pages/regulator/RegulatorComplaints.tsx` into a tabbed page with three tabs:
+  1. **Landlord Complaints** — reads `landlord_complaints` (current `RegulatorLandlordComplaints` content moves here as a tab body).
+  2. **Tenant Complaints** — reads `complaints` WHERE `tenant_user_id` belongs to a non-student tenant (filter via join on `tenants.school IS NULL`).
+  3. **Student Complaints** — reads `complaints` WHERE `tenants.school IS NOT NULL`.
+- All three tabs share the same row components, ticket numbers (`complaint_code`), and detail drawer. No duplicate records — same tables, just filtered views.
+- NUGS portal (`NugsComplaints.tsx`) stays as-is (already RLS-scoped to student complaints), but we'll align its row component and ticket display to match the regulator's Student tab so admins and NUGS see identical ticket/code/status formatting.
+- Add deep-link tab state via `?tab=landlord|tenant|student` so command palette and notifications can land on the correct view.
 
----
+### Files Touched
 
-### Files touched
-- `src/pages/tenant/FileComplaint.tsx` — 1 line
-- `src/pages/regulator/EngineRoom.tsx` — staff fetch mapper + 2 render guards
-- `src/hooks/useModuleVisibility.ts` — 1 defensive `|| []`
+**Migration (1):**
+- New: `complaint_basket_items` table + RLS, add `complaint_basket_item_id` to `escrow_splits`, add `basket_total` to `complaints` and `landlord_complaints`.
 
-### What stays untouched
-RLS, schema, edge functions, all other portals, complaint workflow, payment flow.
+**Code:**
+- `src/components/RequestComplaintPaymentDialog.tsx` — full rebuild to basket UI.
+- `src/lib/complaintFees.ts` — add `BasketItem` type + helper to compute aggregated total/splits.
+- `supabase/functions/_shared/finalize-payment.ts` — per-item split emission for complaint payments.
+- `src/pages/tenant/MyCases.tsx` (and landlord equivalent) — show line-item breakdown on the pay screen.
+- `src/pages/regulator/RegulatorComplaints.tsx` — convert to 3-tab shell; move existing landlord complaints view into a tab.
+- `src/pages/regulator/LandlordComplaints.tsx` — extract its body as a reusable component for the tab.
+- `src/components/LandlordLayout.tsx` / regulator sidebar — remove standalone "Landlord Complaints" entry (now inside tabbed page) OR keep as deep link to `?tab=landlord`.
+- `src/pages/nugs/NugsComplaints.tsx` — minor: align row + ticket display with regulator student tab.
+
+### What Stays Untouched
+
+- RLS on `complaints` / `landlord_complaints`, NUGS scoping policies, ticket-number generator, Paystack flow, escrow_transactions schema, payout_transfers, all other portals, tenancy/rent-card systems.
+- Existing single-type complaints already in flight: backfill — for any complaint with `complaint_type_id` set and no basket rows, the finalize function falls back to the legacy single-type path so nothing breaks mid-flight.
 
 ### Verification
-- Tenant files a complaint → row inserted, redirected to My Cases, shown as “Submitted — Awaiting Review”.
-- Landlord files a complaint → unchanged (already used a valid status).
-- Super Admin opens Engine Room → page loads fully; staff list renders even for staff with NULL feature arrays.
-- Sub Admin Engine Room view continues to filter correctly.
+
+1. Admin opens a complaint → Set Type & Request Payment → adds 2 fee-rule items + 1 manual adjustment → total = sum, splits aggregated correctly → submits → tenant sees itemised bill → pays → ledger has 3 split sets all linked to the same escrow_transaction with distinct `complaint_basket_item_id`.
+2. Reconciliation: `Total Revenue` for that transaction equals sum of split amounts.
+3. Rent Control admin opens **Complaints** → sees three tabs; ticket `TKT-...` shown in Student tab matches the same ticket NUGS sees in their portal.
+4. NUGS admin still only sees student complaints (RLS unchanged).
+5. Override-only flow: admin adds zero fee-rule items + 1 manual adjustment with custom splits → works; audit log records reason.
 
