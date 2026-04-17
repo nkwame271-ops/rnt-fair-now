@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, AlertTriangle, Users, GraduationCap, LogOut, Menu, Shield, Store, FileText } from "lucide-react";
+import { LayoutDashboard, AlertTriangle, Users, GraduationCap, LogOut, Menu, Shield, Store, FileText, UserCircle } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -15,7 +15,7 @@ const studentNav = [
   { to: "/tenant/marketplace", label: "Hostel Listings", icon: Store },
   { to: "/tenant/file-complaint", label: "File a Complaint", icon: AlertTriangle },
   { to: "/tenant/my-cases", label: "My Cases", icon: FileText },
-  { to: "/tenant/profile", label: "My Profile", icon: GraduationCap },
+  { to: "/tenant/profile", label: "My Profile", icon: UserCircle },
 ];
 
 const NugsLayout = () => {
