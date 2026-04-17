@@ -25,7 +25,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, tier = "d
       className={cn("rounded-2xl border text-card-foreground glass-card", className)}
       whileHover={tier === "none" ? undefined : hover}
       transition={motionTokens.spring}
-      {...(props as HTMLMotionProps<"div">)}
+      {...(props as unknown as HTMLMotionProps<"div">)}
     />
   );
 });

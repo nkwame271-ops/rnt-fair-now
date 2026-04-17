@@ -37,7 +37,7 @@ function Badge({ className, variant, ...props }: BadgeProps) {
       initial={reduce ? false : { scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={reduce ? { duration: 0.01 } : motionTokens.springSnappy}
-      {...(props as HTMLMotionProps<"div">)}
+      {...(props as unknown as HTMLMotionProps<"div">)}
     />
   );
 }

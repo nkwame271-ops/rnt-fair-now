@@ -70,7 +70,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         whileHover={hover}
         whileTap={tap}
         transition={motionTokens.spring}
-        {...(props as HTMLMotionProps<"button">)}
+        {...(props as unknown as HTMLMotionProps<"button">)}
       />
     );
   },
