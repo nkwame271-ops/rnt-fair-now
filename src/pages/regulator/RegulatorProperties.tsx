@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import LogoLoader from "@/components/LogoLoader";
+import { SkeletonCardList } from "@/components/ui/skeleton";
 import PropertyMap, { MapMarker } from "@/components/PropertyMap";
 import { parseGPS } from "@/lib/gpsUtils";
 import { toast } from "sonner";
@@ -352,7 +352,15 @@ const RegulatorProperties = () => {
     toast.success(`Property status changed to ${statusLabels[newStatus] || newStatus}`);
   };
 
-  if (loading) return <LogoLoader message="Loading properties..." />;
+  if (loading) return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><Building2 className="h-7 w-7 text-primary" /> Property Database</h1>
+        <p className="text-muted-foreground mt-1">Loading properties…</p>
+      </div>
+      <SkeletonCardList count={5} />
+    </div>
+  );
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">

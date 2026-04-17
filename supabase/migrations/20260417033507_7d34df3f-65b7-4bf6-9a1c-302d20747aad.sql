@@ -1,0 +1,10 @@
+CREATE INDEX IF NOT EXISTS idx_complaints_office_id ON public.complaints(office_id);
+CREATE INDEX IF NOT EXISTS idx_complaints_status ON public.complaints(status);
+CREATE INDEX IF NOT EXISTS idx_complaints_payment_status ON public.complaints(payment_status);
+CREATE INDEX IF NOT EXISTS idx_complaints_created_at ON public.complaints(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tenancies_status ON public.tenancies(status);
+CREATE INDEX IF NOT EXISTS idx_tenancies_tenant_user_id ON public.tenancies(tenant_user_id);
+CREATE INDEX IF NOT EXISTS idx_tenancies_landlord_user_id ON public.tenancies(landlord_user_id);
+CREATE INDEX IF NOT EXISTS idx_escrow_splits_status ON public.escrow_splits(status);
+CREATE INDEX IF NOT EXISTS idx_escrow_splits_transaction_id ON public.escrow_splits(escrow_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_property_similarity_source ON public.property_similarity_scores(source_id);

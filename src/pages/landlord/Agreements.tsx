@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { SkeletonCardList } from "@/components/ui/skeleton";
 
 interface CustomFieldDef {
   label: string;
@@ -146,7 +147,15 @@ const Agreements = () => {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  if (loading) return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">Tenancy Agreements</h1>
+        <p className="text-muted-foreground mt-1">Loading agreements…</p>
+      </div>
+      <SkeletonCardList count={5} />
+    </div>
+  );
   const activeTenancies = tenancies.filter(t => t.status !== "rejected");
   const rejectedTenancies = tenancies.filter(t => t.status === "rejected");
 

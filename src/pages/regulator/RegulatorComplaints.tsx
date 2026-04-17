@@ -18,6 +18,7 @@ import { generateProfilePdf } from "@/lib/generateProfilePdf";
 import RequestComplaintPaymentDialog from "@/components/RequestComplaintPaymentDialog";
 import { CreditCard, Receipt, Hash } from "lucide-react";
 import { ComplaintSimilarityPanel } from "@/components/PropertySimilarityMatches";
+import { SkeletonCardList } from "@/components/ui/skeleton";
 
 interface SchedulingTarget {
   id: string;
@@ -336,7 +337,15 @@ const RegulatorComplaints = () => {
     fetchLandlordComplaints();
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+  if (loading) return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><AlertTriangle className="h-7 w-7 text-warning" /> Complaints Management</h1>
+        <p className="text-muted-foreground mt-1">Loading complaints…</p>
+      </div>
+      <SkeletonCardList count={5} />
+    </div>
+  );
 
   const statusColors: Record<string, string> = {
     submitted: "bg-info/10 text-info",

@@ -107,9 +107,10 @@ const NugsMyComplaints = lazy(() => import("./pages/nugs/NugsMyComplaints"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60_000,
-      gcTime: 300_000,
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
       refetchOnWindowFocus: false,
+      refetchOnMount: false,
       retry: 1,
     },
   },
