@@ -426,6 +426,28 @@ const FileComplaint = () => {
 
         {step === 2 && (
           <div className="space-y-4">
+            {isStudent && residences.length > 0 && (
+              <div className="bg-info/5 border border-info/20 rounded-lg p-3 space-y-2">
+                <Label className="flex items-center gap-1.5 text-xs font-semibold text-info uppercase tracking-wide">
+                  <Building2 className="h-3.5 w-3.5" /> File complaint about which residence?
+                </Label>
+                <Select value={selectedResidenceId} onValueChange={applyResidence}>
+                  <SelectTrigger><SelectValue placeholder="Select residence" /></SelectTrigger>
+                  <SelectContent>
+                    {residences.map((r) => {
+                      const current = r.effective_to == null;
+                      const dates = `${new Date(r.effective_from).toLocaleDateString("en-GB", { month: "short", year: "numeric" })} – ${r.effective_to ? new Date(r.effective_to).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "Present"}`;
+                      return (
+                        <SelectItem key={r.id} value={r.id}>
+                          {(r.hostel_or_hall || "Unnamed")}{r.room_or_bed_space ? ` · ${r.room_or_bed_space}` : ""} {current ? "(Current)" : `(${dates})`}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Defaults to your current residence. Pick a previous one if the complaint relates to where you used to live.</p>
+              </div>
+            )}
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Landlord / Agent Name <span className="text-destructive">*</span></Label>
