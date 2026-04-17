@@ -117,7 +117,7 @@
     background: transparent;
   }
 
-  /* Mesh gradient orbs — fixed layer behind app content */
+  /* Mesh gradient orbs — fixed layer behind app content. Richer, more saturated so colour bleeds through frosted glass. */
   body::before {
     content: "";
     position: fixed;
@@ -126,9 +126,11 @@
     pointer-events: none;
     background-color: #ffffff;
     background-image:
-      radial-gradient(ellipse 50% 50% at 0% 0%, rgba(199, 217, 245, 0.5) 0%, rgba(199, 217, 245, 0) 70%),
-      radial-gradient(ellipse 40% 45% at 100% 0%, rgba(187, 242, 216, 0.35) 0%, rgba(187, 242, 216, 0) 70%),
-      radial-gradient(ellipse 35% 40% at 50% 100%, rgba(221, 214, 254, 0.25) 0%, rgba(221, 214, 254, 0) 70%);
+      radial-gradient(ellipse 55% 55% at 0% 0%, rgba(120, 175, 245, 0.75) 0%, rgba(120, 175, 245, 0) 70%),
+      radial-gradient(ellipse 50% 55% at 100% 0%, rgba(110, 230, 180, 0.6) 0%, rgba(110, 230, 180, 0) 70%),
+      radial-gradient(ellipse 45% 50% at 100% 100%, rgba(255, 200, 130, 0.5) 0%, rgba(255, 200, 130, 0) 70%),
+      radial-gradient(ellipse 50% 50% at 0% 100%, rgba(200, 160, 255, 0.55) 0%, rgba(200, 160, 255, 0) 70%),
+      radial-gradient(ellipse 40% 40% at 50% 50%, rgba(255, 170, 210, 0.35) 0%, rgba(255, 170, 210, 0) 70%);
   }
 
   #root {
@@ -200,18 +202,19 @@
   }
 
   /* === Glassmorphism utilities === */
+  /* Lower opacity + heavier saturation lets the background colour bleed through the frosted layer. */
   .glass-card {
-    background-color: rgba(255, 255, 255, 0.55);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.38);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.55);
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
   }
   .glass-stat {
-    background-color: rgba(255, 255, 255, 0.45);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.65);
+    background-color: rgba(255, 255, 255, 0.32);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.6);
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
   }
   .glass-sidebar {
@@ -221,16 +224,16 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
   .glass-header {
-    background-color: rgba(255, 255, 255, 0.6);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    background-color: rgba(255, 255, 255, 0.45);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
     border-bottom: 1px solid rgba(255, 255, 255, 0.4);
   }
   .glass-modal {
-    background-color: rgba(255, 255, 255, 0.72);
-    -webkit-backdrop-filter: blur(24px);
-    backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.6);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.55);
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.1);
   }
   .glass-overlay {
