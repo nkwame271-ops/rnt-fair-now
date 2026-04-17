@@ -153,6 +153,8 @@ const EngineRoom = () => {
         const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
         setStaffMembers(staff.map((s: any) => ({
           ...s,
+          allowed_features: s.allowed_features || [],
+          muted_features: s.muted_features || [],
           full_name: nameMap.get(s.user_id) || "Unknown",
         })));
       }
@@ -1295,7 +1297,7 @@ const EngineRoom = () => {
             <div className="space-y-4">
               {staffMembers.map(member => {
                 const isAddingThis = addingFeature === member.user_id;
-                const availableToAdd = Object.keys(FEATURE_ROUTE_MAP).filter(k => !member.allowed_features.includes(k));
+                const availableToAdd = Object.keys(FEATURE_ROUTE_MAP).filter(k => !(member.allowed_features || []).includes(k));
                 return (
                   <div key={member.user_id} className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
                     <div className="p-4 border-b border-border flex items-center justify-between">
@@ -1309,8 +1311,8 @@ const EngineRoom = () => {
                     </div>
                     <div className="p-4 space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {member.allowed_features.map(featureKey => {
-                          const isMuted = member.muted_features.includes(featureKey);
+                        {(member.allowed_features || []).map(featureKey => {
+                          const isMuted = (member.muted_features || []).includes(featureKey);
                           const isMuting = mutingStaff === member.user_id + "_" + featureKey;
                           return (
                             <div

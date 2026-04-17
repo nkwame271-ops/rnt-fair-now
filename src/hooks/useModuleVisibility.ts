@@ -56,7 +56,7 @@ export const useModuleVisibility = (moduleKey: string, sectionKey?: string) => {
     if (rule.visibility === "all") return true;
     if (rule.visibility === "super_admin_only") return false;
     if (rule.visibility === "selected_admins") {
-      return user?.id ? rule.allowed_admin_ids.includes(user.id) : false;
+      return user?.id ? (rule.allowed_admin_ids || []).includes(user.id) : false;
     }
     return true;
   };
