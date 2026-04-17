@@ -349,6 +349,38 @@ const RegulatorComplaints = () => {
 
   useEffect(() => { fetchLandlordComplaints(); }, []);
 
+  // Track which complaints have an admin-confirmed receipt (gates scheduling)
+  const [confirmedComplaintIds, setConfirmedComplaintIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    (async () => {
+      const allIds = [
+        ...complaints.map((c: any) => c.id),
+        ...landlordComplaints.map((c: any) => c.id),
+      ].filter(Boolean);
+      if (allIds.length === 0) { setConfirmedComplaintIds(new Set()); return; }
+      const { data: txns } = await supabase
+        .from("escrow_transactions")
+        .select("id, related_complaint_id")
+        .in("related_complaint_id", allIds);
+      const txnIds = (txns || []).map((t: any) => t.id);
+      if (txnIds.length === 0) { setConfirmedComplaintIds(new Set()); return; }
+      const { data: receipts } = await supabase
+        .from("payment_receipts")
+        .select("escrow_transaction_id, admin_confirmed_at")
+        .in("escrow_transaction_id", txnIds)
+        .not("admin_confirmed_at", "is", null);
+      const txnToComplaint = new Map((txns || []).map((t: any) => [t.id, t.related_complaint_id]));
+      const confirmed = new Set<string>();
+      (receipts || []).forEach((r: any) => {
+        const cid = txnToComplaint.get(r.escrow_transaction_id);
+        if (cid) confirmed.add(cid);
+      });
+      setConfirmedComplaintIds(confirmed);
+    })();
+  }, [complaints.length, landlordComplaints.length]);
+
+  const canScheduleComplaint = (c: any) => c.payment_status === "paid" && confirmedComplaintIds.has(c.id);
+
   const updateLandlordComplaintStatus = async (id: string, newStatus: string) => {
     await supabase.from("landlord_complaints").update({ status: newStatus } as any).eq("id", id);
     toast.success(`Status updated to ${newStatus}`);
