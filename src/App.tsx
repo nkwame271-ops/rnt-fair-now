@@ -95,6 +95,7 @@ const OfficeFundRequests = lazy(() => import("./pages/regulator/OfficeFundReques
 const OfficePayoutSettings = lazy(() => import("./pages/regulator/OfficePayoutSettings"));
 const PaymentErrors = lazy(() => import("./pages/regulator/PaymentErrors"));
 const SuperAdminDashboard = lazy(() => import("./pages/regulator/SuperAdminDashboard"));
+const RegulatorReceipts = lazy(() => import("./pages/regulator/RegulatorReceipts"));
 
 // NUGS pages (hidden monitoring portal)
 const NugsDashboard = lazy(() => import("./pages/nugs/NugsDashboard"));
@@ -210,6 +211,7 @@ const App = () => (
                 <Route path="office-fund-requests" element={<OfficeFundRequests />} />
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
                 <Route path="payment-errors" element={<PaymentErrors />} />
+                <Route path="receipts" element={<RegulatorReceipts />} />
               </Route>
 
               {/* NUGS Admin Routes — hidden monitoring portal */}

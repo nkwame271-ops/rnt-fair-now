@@ -44,6 +44,7 @@ const allNavItems = [
   { to: "/regulator/terminations", label: "Terminations", icon: Gavel },
   { to: "/regulator/rent-cards", label: "Rent Cards", icon: IdCard },
   { to: "/regulator/escrow", label: "Escrow & Revenue", icon: BarChart3 },
+  { to: "/regulator/receipts", label: "Receipts", icon: FileText },
   { to: "/regulator/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/regulator/kyc", label: "KYC Verification", icon: IdCard },
   { to: "/regulator/engine-room", label: "Engine Room", icon: Settings },

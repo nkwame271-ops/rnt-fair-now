@@ -262,6 +262,7 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   payout_settings: ["/regulator/office-payout-settings"],
   rent_reviews: ["/regulator/rent-reviews"],
   payment_errors: ["/regulator/payment-errors"],
+  receipts: ["/regulator/receipts"],
   super_admin: ["/regulator/super-admin"],
 };
 
