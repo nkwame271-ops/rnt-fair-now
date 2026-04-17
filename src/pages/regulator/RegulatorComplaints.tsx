@@ -287,7 +287,7 @@ const RegulatorComplaints = () => {
 
   const [activeTab, setActiveTab] = useState<"tenant" | "landlord">("tenant");
   const [landlordComplaints, setLandlordComplaints] = useState<any[]>([]);
-  const [requestPaymentFor, setRequestPaymentFor] = useState<{ id: string; table: "complaints" | "landlord_complaints"; rent?: number | null } | null>(null);
+  const [requestPaymentFor, setRequestPaymentFor] = useState<{ id: string; table: "complaints" | "landlord_complaints"; rent?: number | null; propertyId?: string | null } | null>(null);
 
   // Realtime: refresh on any complaint update (admin sees paid status instantly)
   useEffect(() => {
