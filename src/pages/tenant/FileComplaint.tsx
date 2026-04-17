@@ -347,7 +347,7 @@ const FileComplaint = () => {
           <div className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Landlord / Agent Name</Label>
+                <Label>Landlord / Agent Name <span className="text-destructive">*</span></Label>
                 <Input value={form.landlordName} onChange={(e) => update("landlordName", e.target.value)} placeholder="e.g. Mr. Kofi Boateng" />
               </div>
               <div className="space-y-2">
@@ -355,9 +355,42 @@ const FileComplaint = () => {
                 <Input value={form.landlordPhone} onChange={(e) => update("landlordPhone", e.target.value)} placeholder="024 555 1234" />
               </div>
             </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Property / Building Name (optional)</Label>
+                <Input value={form.propertyName} onChange={(e) => update("propertyName", e.target.value)} placeholder="e.g. Oak Court Apartments" />
+              </div>
+              <div className="space-y-2">
+                <Label>Property Type <span className="text-destructive">*</span></Label>
+                <Select value={form.propertyType} onValueChange={(v) => update("propertyType", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="residential">Residential</SelectItem>
+                    <SelectItem value="commercial">Commercial</SelectItem>
+                    <SelectItem value="hostel">Student Hostel</SelectItem>
+                    <SelectItem value="hall_of_residence">Hall of Residence</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Unit Description (optional)</Label>
+                <Input value={form.unitDescription} onChange={(e) => update("unitDescription", e.target.value)} placeholder="e.g. Room 4, Block B" />
+              </div>
+              <div className="space-y-2">
+                <Label>Monthly Rent (GH₵) <span className="text-destructive">*</span></Label>
+                <Input type="number" value={form.monthlyRent} onChange={(e) => update("monthlyRent", e.target.value)} placeholder="e.g. 1200" />
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label>Property Address</Label>
+              <Label>Property Address <span className="text-destructive">*</span></Label>
               <Input value={form.address} onChange={(e) => update("address", e.target.value)} placeholder="e.g. 12 Ring Road, Osu" />
+            </div>
+            <div className="space-y-2">
+              <Label>Address / Area Description (optional)</Label>
+              <Input value={form.addressDescription} onChange={(e) => update("addressDescription", e.target.value)} placeholder="Street, neighbourhood, landmark..." />
             </div>
             <div className="space-y-2">
               <Label>District / Area (optional)</Label>
@@ -371,28 +404,111 @@ const FileComplaint = () => {
 
         {step === 3 && (
           <div className="space-y-4">
-            <Label className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Complaint Location (GPS)</Label>
-            <div className="flex items-start gap-2 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-lg px-3 py-2">
+            <Label className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Property Location <span className="text-destructive">*</span></Label>
+            <div className="flex items-start gap-2 text-xs bg-warning/10 text-warning border border-warning/20 rounded-lg px-3 py-2">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>Please capture your GPS location <strong>at or near the property</strong> where the complaint occurred.</span>
+              <span>Choose <strong>one</strong> of the three methods below to pin the property location. This helps us match your complaint to the registered property record.</span>
             </div>
-            <Button type="button" variant="outline" onClick={handleCaptureGps} disabled={gettingLocation} className="w-full">
-              <Navigation className="h-4 w-4 mr-2" />
-              {gettingLocation ? "Getting location..." : form.gpsLocation ? "Recapture GPS Location" : "Capture My GPS Location"}
-            </Button>
-            {form.gpsLocation && (
+
+            {/* Tab selector */}
+            <div className="flex gap-1 bg-muted rounded-lg p-1">
+              {(["map_search", "live", "gps_code"] as const).map((m) => {
+                const labels = { map_search: "Search on Map", live: "Live Location", gps_code: "GPS / Digital Address" };
+                const active = (form.locationMethod || "map_search") === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, locationMethod: m }))}
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-md transition-colors ${active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {labels[m]}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Live Location */}
+            {(form.locationMethod === "live" || (!form.locationMethod && false)) && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
-                  <Check className="h-4 w-4" />
-                  <span>Location captured: {form.gpsLocation}</span>
-                </div>
-                <label className="flex items-start gap-2.5 cursor-pointer bg-muted rounded-lg px-3 py-2.5 border border-border">
-                  <Checkbox checked={form.gpsConfirmed} onCheckedChange={(v) => update("gpsConfirmed", !!v)} className="mt-0.5" />
-                  <span className="text-sm">I confirm I am at or near the <strong>property in question</strong> and this GPS location is accurate.</span>
-                </label>
+                <Button type="button" variant="outline" onClick={handleCaptureGps} disabled={gettingLocation} className="w-full">
+                  <Navigation className="h-4 w-4 mr-2" />
+                  {gettingLocation ? "Getting location..." : form.locationMethod === "live" && form.locationLat ? "Recapture My Location" : "Use My Current Location"}
+                </Button>
+                {form.locationMethod === "live" && form.locationLat !== null && (
+                  <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                    <Check className="h-4 w-4" />
+                    <span>Location captured: {form.locationLat.toFixed(6)}, {form.locationLng?.toFixed(6)}</span>
+                  </div>
+                )}
               </div>
             )}
-            <p className="text-xs text-muted-foreground">GPS capture is optional but highly recommended.</p>
+
+            {/* GPS Code */}
+            {form.locationMethod === "gps_code" && (
+              <div className="space-y-2">
+                <Input
+                  value={form.gpsCode}
+                  onChange={(e) => update("gpsCode", e.target.value)}
+                  placeholder="e.g. GA-123-4567"
+                  onBlur={() => form.gpsCode && handleGeocodeGpsCode()}
+                />
+                <Button type="button" variant="outline" size="sm" onClick={handleGeocodeGpsCode} disabled={gettingLocation || !form.gpsCode}>
+                  {gettingLocation ? "Locating..." : "Locate Address"}
+                </Button>
+                {form.locationMethod === "gps_code" && form.locationLat !== null && (
+                  <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                    <Check className="h-4 w-4" />
+                    <span>Found: {form.locationLat.toFixed(6)}, {form.locationLng?.toFixed(6)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Map Search (default) */}
+            {(form.locationMethod === "map_search" || !form.locationMethod) && (
+              <div className="space-y-2">
+                <Input
+                  placeholder="Search a place, building, or address (autocomplete)"
+                  value={form.placeName}
+                  onChange={(e) => update("placeName", e.target.value)}
+                  ref={(el) => {
+                    if (!el || (el as any).__autocomplete_attached) return;
+                    if (typeof window === "undefined" || !(window as any).google?.maps?.places) return;
+                    const ac = new (window as any).google.maps.places.Autocomplete(el, {
+                      componentRestrictions: { country: "gh" },
+                      fields: ["geometry", "name", "place_id", "formatted_address"],
+                    });
+                    ac.addListener("place_changed", () => {
+                      const p = ac.getPlace();
+                      if (p?.geometry?.location) {
+                        handleMapSearchSelect({
+                          lat: p.geometry.location.lat(),
+                          lng: p.geometry.location.lng(),
+                          name: p.name || p.formatted_address || "",
+                          place_id: p.place_id || "",
+                        });
+                      }
+                    });
+                    (el as any).__autocomplete_attached = true;
+                  }}
+                />
+                {form.locationMethod === "map_search" && form.locationLat !== null && (
+                  <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                    <Check className="h-4 w-4" />
+                    <span>{form.placeName} ({form.locationLat.toFixed(6)}, {form.locationLng?.toFixed(6)})</span>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">Tip: type a place name or address — Google will suggest matches.</p>
+              </div>
+            )}
+
+            {form.locationLat !== null && (
+              <label className="flex items-start gap-2.5 cursor-pointer bg-muted rounded-lg px-3 py-2.5 border border-border">
+                <Checkbox checked={form.gpsConfirmed} onCheckedChange={(v) => update("gpsConfirmed", !!v)} className="mt-0.5" />
+                <span className="text-sm">I confirm this location refers to the <strong>property in question</strong>.</span>
+              </label>
+            )}
           </div>
         )}
 
