@@ -9,6 +9,7 @@ import { generateAgreementPdf, AgreementPdfData } from "@/lib/generateAgreementP
 import { toast } from "sonner";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import { SkeletonCardList } from "@/components/ui/skeleton";
 
 const RegulatorAgreements = () => {
   const { profile } = useAdminProfile();
@@ -158,7 +159,15 @@ const RegulatorAgreements = () => {
     const el = document.createElement("a"); el.href = url; el.download = "agreements_export.csv"; el.click();
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+  if (loading) return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><FileText className="h-7 w-7 text-primary" /> Rental Agreements</h1>
+        <p className="text-muted-foreground mt-1">Loading agreements…</p>
+      </div>
+      <SkeletonCardList count={5} />
+    </div>
+  );
 
   const statusColors: Record<string, string> = {
     active: "bg-success/10 text-success",

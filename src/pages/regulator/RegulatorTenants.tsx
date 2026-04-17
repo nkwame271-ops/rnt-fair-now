@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useSearchParams } from "react-router-dom";
 import { Users, Download, Search, ChevronDown, ChevronUp, Home, FileText, Calendar, User, Phone, Mail, MessageSquare, FileBadge, AlertCircle } from "lucide-react";
-import LogoLoader from "@/components/LogoLoader";
+import { SkeletonCardList } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -244,7 +244,15 @@ const RegulatorTenants = () => {
     toast.success("Profile PDF downloaded");
   };
 
-  if (loading) return <LogoLoader message="Loading tenants..." />;
+  if (loading) return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><Users className="h-7 w-7 text-primary" /> Tenant Database</h1>
+        <p className="text-muted-foreground mt-1">Loading tenants…</p>
+      </div>
+      <SkeletonCardList count={5} />
+    </div>
+  );
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">

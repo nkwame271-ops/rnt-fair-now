@@ -20,6 +20,7 @@ import {
   Crown,
 } from "lucide-react";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminProfile, getFeatureKeyForRoute } from "@/hooks/useAdminProfile";
 import { useFeatureLabels } from "@/hooks/useFeatureLabel";
@@ -29,6 +30,41 @@ import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
 import CommandSearch from "@/components/CommandSearch";
 import { useActivityTracker } from "@/hooks/useActivityTracker";
+import { supabase } from "@/integrations/supabase/client";
+
+// Routes whose first 25 rows we warm on hover.
+const PREFETCH_MAP: Record<string, { key: string; fetcher: () => Promise<unknown> }> = {
+  "/regulator/tenants": {
+    key: "prefetch:tenants",
+    fetcher: async () =>
+      (await supabase.from("tenants").select("tenant_id, user_id, status, account_status, registration_date, expiry_date").order("created_at", { ascending: false }).range(0, 24)).data,
+  },
+  "/regulator/landlords": {
+    key: "prefetch:landlords",
+    fetcher: async () =>
+      (await supabase.from("landlords").select("landlord_id, user_id, status, account_status, registration_date, expiry_date").order("created_at", { ascending: false }).range(0, 24)).data,
+  },
+  "/regulator/properties": {
+    key: "prefetch:properties",
+    fetcher: async () =>
+      (await supabase.from("properties").select("id, property_code, property_name, address, region, area, property_status").order("created_at", { ascending: false }).range(0, 24)).data,
+  },
+  "/regulator/complaints": {
+    key: "prefetch:complaints",
+    fetcher: async () =>
+      (await supabase.from("complaints").select("id, complaint_code, complaint_type, status, payment_status, tenant_user_id, created_at, office_id").order("created_at", { ascending: false }).range(0, 24)).data,
+  },
+  "/regulator/agreements": {
+    key: "prefetch:agreements",
+    fetcher: async () =>
+      (await supabase.from("tenancies").select("id, registration_code, status, agreed_rent, start_date, end_date, tenant_user_id, landlord_user_id, unit_id").order("created_at", { ascending: false }).range(0, 24)).data,
+  },
+  "/regulator/escrow": {
+    key: "prefetch:escrow",
+    fetcher: async () =>
+      (await supabase.from("escrow_transactions").select("id, total_amount, status, payment_type, created_at").order("created_at", { ascending: false }).range(0, 24)).data,
+  },
+};
 
 const allNavItems = [
   { to: "/regulator/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -65,7 +101,18 @@ const RegulatorLayout = () => {
   const { profile } = useAdminProfile();
   const { getLabel } = useFeatureLabels("admin");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const queryClient = useQueryClient();
   useActivityTracker();
+
+  const handlePrefetch = (route: string) => {
+    const entry = PREFETCH_MAP[route];
+    if (!entry) return;
+    queryClient.prefetchQuery({
+      queryKey: [entry.key],
+      queryFn: entry.fetcher,
+      staleTime: 5 * 60 * 1000,
+    });
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -116,6 +163,7 @@ const RegulatorLayout = () => {
               key={item.to}
               to={item.to}
               onClick={() => setMobileOpen(false)}
+              onMouseEnter={() => handlePrefetch(item.to)}
               className={({ isActive }) =>
                 `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors ${
                   isActive

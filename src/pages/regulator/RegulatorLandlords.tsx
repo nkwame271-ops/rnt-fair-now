@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useSearchParams } from "react-router-dom";
 import { Building2, Download, Search, ChevronDown, ChevronUp, Users, Home, DollarSign } from "lucide-react";
-import LogoLoader from "@/components/LogoLoader";
+import { SkeletonCardList } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { generateProfilePdf } from "@/lib/generateProfilePdf";
@@ -177,7 +177,15 @@ const RegulatorLandlords = () => {
     const a = document.createElement("a"); a.href = url; a.download = "landlords_export.csv"; a.click();
   };
 
-  if (loading) return <LogoLoader message="Loading landlords..." />;
+  if (loading) return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><Building2 className="h-7 w-7 text-primary" /> Landlord Database</h1>
+        <p className="text-muted-foreground mt-1">Loading landlords…</p>
+      </div>
+      <SkeletonCardList count={5} />
+    </div>
+  );
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
