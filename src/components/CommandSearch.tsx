@@ -52,6 +52,7 @@ const keywordMap: Record<string, { description: string; keywords: string[] }> = 
   // Landlord
   "/landlord/dashboard": { description: "Landlord overview dashboard", keywords: ["overview", "summary", "home"] },
   "/landlord/my-properties": { description: "View your registered properties", keywords: ["building", "house", "unit", "listing"] },
+  "/landlord/my-tenants": { description: "Browse all tenants in your properties", keywords: ["tenant", "students", "occupants", "directory", "room", "bed", "hostel"] },
   "/landlord/register-property": { description: "Register a new property", keywords: ["add", "new", "create", "building"] },
   "/landlord/add-tenant": { description: "Add a tenant to a property", keywords: ["new tenant", "assign", "onboard", "tenancy"] },
   "/landlord/declare-existing-tenancy": { description: "Declare a pre-existing tenancy", keywords: ["existing", "legacy", "current", "migrate"] },

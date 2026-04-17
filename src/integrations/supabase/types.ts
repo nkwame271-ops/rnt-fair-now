@@ -1062,6 +1062,92 @@ export type Database = {
         }
         Relationships: []
       }
+      hostel_room_categories: {
+        Row: {
+          block_label: string | null
+          capacity_per_room: number
+          created_at: string
+          id: string
+          label: string
+          monthly_rent: number
+          property_id: string
+          room_count: number
+        }
+        Insert: {
+          block_label?: string | null
+          capacity_per_room: number
+          created_at?: string
+          id?: string
+          label: string
+          monthly_rent?: number
+          property_id: string
+          room_count: number
+        }
+        Update: {
+          block_label?: string | null
+          capacity_per_room?: number
+          created_at?: string
+          id?: string
+          label?: string
+          monthly_rent?: number
+          property_id?: string
+          room_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hostel_room_categories_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hostel_rooms: {
+        Row: {
+          block_label: string
+          capacity: number
+          category_id: string
+          created_at: string
+          id: string
+          property_id: string
+          room_number: string
+        }
+        Insert: {
+          block_label?: string
+          capacity: number
+          category_id: string
+          created_at?: string
+          id?: string
+          property_id: string
+          room_number: string
+        }
+        Update: {
+          block_label?: string
+          capacity?: number
+          category_id?: string
+          created_at?: string
+          id?: string
+          property_id?: string
+          room_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hostel_rooms_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "hostel_room_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hostel_rooms_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       illegal_payment_attempts: {
         Row: {
           attempted_amount: number
@@ -3729,6 +3815,7 @@ export type Database = {
       units: {
         Row: {
           amenities: string[] | null
+          bed_label: string | null
           created_at: string
           custom_amenities: string | null
           electricity_available: boolean | null
@@ -3736,16 +3823,19 @@ export type Database = {
           has_kitchen: boolean | null
           has_polytank: boolean | null
           has_toilet_bathroom: boolean | null
+          hostel_room_id: string | null
           id: string
           monthly_rent: number
           property_id: string
           status: string
+          unit_kind: string
           unit_name: string
           unit_type: string
           water_available: boolean | null
         }
         Insert: {
           amenities?: string[] | null
+          bed_label?: string | null
           created_at?: string
           custom_amenities?: string | null
           electricity_available?: boolean | null
@@ -3753,16 +3843,19 @@ export type Database = {
           has_kitchen?: boolean | null
           has_polytank?: boolean | null
           has_toilet_bathroom?: boolean | null
+          hostel_room_id?: string | null
           id?: string
           monthly_rent: number
           property_id: string
           status?: string
+          unit_kind?: string
           unit_name: string
           unit_type: string
           water_available?: boolean | null
         }
         Update: {
           amenities?: string[] | null
+          bed_label?: string | null
           created_at?: string
           custom_amenities?: string | null
           electricity_available?: boolean | null
@@ -3770,15 +3863,24 @@ export type Database = {
           has_kitchen?: boolean | null
           has_polytank?: boolean | null
           has_toilet_bathroom?: boolean | null
+          hostel_room_id?: string | null
           id?: string
           monthly_rent?: number
           property_id?: string
           status?: string
+          unit_kind?: string
           unit_name?: string
           unit_type?: string
           water_available?: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "units_hostel_room_id_fkey"
+            columns: ["hostel_room_id"]
+            isOneToOne: false
+            referencedRelation: "hostel_rooms"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "units_property_id_fkey"
             columns: ["property_id"]

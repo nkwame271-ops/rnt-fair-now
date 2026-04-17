@@ -39,6 +39,14 @@ interface UnitForm {
   benchmark?: { pricing_band: string; pricing_label: string; benchmark_min: number; benchmark_max: number; benchmark_expected: number; confidence: string };
 }
 
+interface HostelCategoryForm {
+  label: string;
+  capacityPerRoom: string;
+  roomCount: string;
+  monthlyRent: string;
+  blockLabel: string;
+}
+
 const amenityOptions = ["Security", "Parking", "Balcony", "Compound", "AC", "Generator", "Pool", "Gym"];
 
 const createEmptyUnit = (index: number): UnitForm => ({
@@ -47,6 +55,10 @@ const createEmptyUnit = (index: number): UnitForm => ({
   hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
   electricityAvailable: false, hasBorehole: false, hasPolytank: false,
   amenities: [], customAmenities: "",
+});
+
+const createEmptyHostelCategory = (): HostelCategoryForm => ({
+  label: "", capacityPerRoom: "", roomCount: "", monthlyRent: "", blockLabel: "Block A",
 });
 
 const normalizeAddress = (addr: string) => addr.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
@@ -70,6 +82,9 @@ const RegisterProperty = () => {
   const [propertyStructure, setPropertyStructure] = useState<"single_unit" | "multi_unit">("single_unit");
   const [occupancyStatus, setOccupancyStatus] = useState<"vacant" | "occupied">("vacant");
   const [units, setUnits] = useState<UnitForm[]>([createEmptyUnit(0)]);
+  const [hostelCategories, setHostelCategories] = useState<HostelCategoryForm[]>([createEmptyHostelCategory()]);
+
+  const isHostel = propertyCategory === "hostel";
 
   const areas = region ? areasByRegion[region] || [] : [];
   const effectiveArea = customArea.trim() || area;
@@ -81,6 +96,25 @@ const RegisterProperty = () => {
     updated[i] = { ...updated[i], ...updates };
     setUnits(updated);
   };
+
+  const addHostelCategory = () => setHostelCategories([...hostelCategories, createEmptyHostelCategory()]);
+  const removeHostelCategory = (i: number) => setHostelCategories(hostelCategories.filter((_, idx) => idx !== i));
+  const updateHostelCategory = (i: number, updates: Partial<HostelCategoryForm>) => {
+    const updated = [...hostelCategories];
+    updated[i] = { ...updated[i], ...updates };
+    setHostelCategories(updated);
+  };
+
+  const hostelTotals = hostelCategories.reduce(
+    (acc, c) => {
+      const rooms = parseInt(c.roomCount) || 0;
+      const cap = parseInt(c.capacityPerRoom) || 0;
+      acc.rooms += rooms;
+      acc.beds += rooms * cap;
+      return acc;
+    },
+    { rooms: 0, beds: 0 }
+  );
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -227,46 +261,108 @@ const RegisterProperty = () => {
         });
       }
 
-      // Create units and compute benchmarks
-      for (const u of units) {
-        if (!u.type || !u.rent) continue;
-        const { data: unitData } = await supabase.from("units").insert({
-          property_id: prop.id,
-          unit_name: u.name,
-          unit_type: u.type,
-          monthly_rent: parseFloat(u.rent),
-          has_toilet_bathroom: u.hasToiletBathroom,
-          has_kitchen: u.hasKitchen,
-          water_available: u.waterAvailable,
-          electricity_available: u.electricityAvailable,
-          has_borehole: u.hasBorehole,
-          has_polytank: u.hasPolytank,
-          amenities: u.amenities,
-          custom_amenities: u.customAmenities || null,
-        }).select().single();
+      if (isHostel) {
+        // Hostel branch: create categories, rooms, and bed-space units
+        const validCats = hostelCategories.filter(
+          (c) => c.label.trim() && parseInt(c.roomCount) > 0 && parseInt(c.capacityPerRoom) > 0
+        );
+        if (validCats.length === 0) {
+          throw new Error("Please add at least one room category");
+        }
+        for (const cat of validCats) {
+          const roomCount = parseInt(cat.roomCount);
+          const capacity = parseInt(cat.capacityPerRoom);
+          const rentPerBed = parseFloat(cat.monthlyRent) || 0;
+          const blockLabel = cat.blockLabel.trim() || "Block A";
 
-        // Compute benchmark for each unit
-        if (unitData) {
-          await supabase.functions.invoke("compute-rent-benchmark", {
-            body: {
+          const { data: catRow, error: catErr } = await supabase
+            .from("hostel_room_categories")
+            .insert({
+              property_id: prop.id,
+              label: cat.label.trim(),
+              capacity_per_room: capacity,
+              room_count: roomCount,
+              monthly_rent: rentPerBed,
+              block_label: blockLabel,
+            } as any)
+            .select()
+            .single();
+          if (catErr) throw catErr;
+
+          // Generate rooms (numbered 001, 002, ...)
+          const roomsPayload = Array.from({ length: roomCount }, (_, idx) => ({
+            property_id: prop.id,
+            category_id: catRow.id,
+            block_label: blockLabel,
+            room_number: String(idx + 1).padStart(3, "0"),
+            capacity,
+          }));
+          const { data: roomRows, error: roomsErr } = await supabase
+            .from("hostel_rooms")
+            .insert(roomsPayload as any)
+            .select();
+          if (roomsErr) throw roomsErr;
+
+          // Generate bed-space units for each room
+          const bedsPayload = (roomRows || []).flatMap((room: any) =>
+            Array.from({ length: capacity }, (_, bedIdx) => ({
+              property_id: prop.id,
+              hostel_room_id: room.id,
+              unit_kind: "bed_space",
+              unit_name: `${blockLabel} – Room ${room.room_number} – Bed ${bedIdx + 1}`,
+              unit_type: cat.label.trim(),
+              bed_label: `Bed ${bedIdx + 1}`,
+              monthly_rent: rentPerBed,
+              status: "vacant",
+            }))
+          );
+          if (bedsPayload.length > 0) {
+            const { error: bedsErr } = await supabase.from("units").insert(bedsPayload as any);
+            if (bedsErr) throw bedsErr;
+          }
+        }
+      } else {
+        // Standard branch: create units and compute benchmarks
+        for (const u of units) {
+          if (!u.type || !u.rent) continue;
+          const { data: unitData } = await supabase.from("units").insert({
+            property_id: prop.id,
+            unit_name: u.name,
+            unit_type: u.type,
+            monthly_rent: parseFloat(u.rent),
+            has_toilet_bathroom: u.hasToiletBathroom,
+            has_kitchen: u.hasKitchen,
+            water_available: u.waterAvailable,
+            electricity_available: u.electricityAvailable,
+            has_borehole: u.hasBorehole,
+            has_polytank: u.hasPolytank,
+            amenities: u.amenities,
+            custom_amenities: u.customAmenities || null,
+          }).select().single();
+
+          // Compute benchmark for each unit
+          if (unitData) {
+            await supabase.functions.invoke("compute-rent-benchmark", {
+              body: {
+                property_id: prop.id,
+                unit_id: unitData.id,
+                zone_key: `${region}|${effectiveArea}`,
+                property_class: u.type,
+                asking_rent: parseFloat(u.rent),
+              },
+            });
+
+            // Store market data event
+            await supabase.from("rent_market_data").insert({
               property_id: prop.id,
               unit_id: unitData.id,
               zone_key: `${region}|${effectiveArea}`,
               property_class: u.type,
               asking_rent: parseFloat(u.rent),
-            },
-          });
-
-          // Store market data event
-          await supabase.from("rent_market_data").insert({
-            property_id: prop.id,
-            unit_id: unitData.id,
-            zone_key: `${region}|${effectiveArea}`,
-            property_class: u.type,
-            asking_rent: parseFloat(u.rent),
-            event_type: "listing",
-            event_date: new Date().toISOString().split("T")[0],
-          } as any);
+              event_type: "listing",
+              event_date: new Date().toISOString().split("T")[0],
+            } as any);
+          }
         }
       }
 
@@ -489,7 +585,99 @@ const RegisterProperty = () => {
             </div>
           </ErrorBoundary>
 
+          {/* ── Hostel Room Categories ── */}
+          {isHostel && (
+            <ErrorBoundary section="Hostel Rooms">
+              <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h2 className="font-semibold text-card-foreground">Hostel Room Categories</h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Define room types — the system will auto-generate rooms and bed-spaces.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="text-xs">
+                      {hostelTotals.rooms} rooms · {hostelTotals.beds} beds
+                    </Badge>
+                    <Button type="button" variant="outline" size="sm" onClick={addHostelCategory}>
+                      <PlusCircle className="h-4 w-4 mr-1" /> Add Category
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {hostelCategories.map((cat, i) => {
+                    const rooms = parseInt(cat.roomCount) || 0;
+                    const cap = parseInt(cat.capacityPerRoom) || 0;
+                    return (
+                      <div key={i} className="bg-muted rounded-lg p-4 space-y-3">
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Category Label *</Label>
+                            <Input
+                              value={cat.label}
+                              onChange={(e) => updateHostelCategory(i, { label: e.target.value })}
+                              placeholder="e.g. 4-in-room"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Capacity / Room *</Label>
+                            <Input
+                              type="number" min="1"
+                              value={cat.capacityPerRoom}
+                              onChange={(e) => updateHostelCategory(i, { capacityPerRoom: e.target.value })}
+                              placeholder="e.g. 4"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Number of Rooms *</Label>
+                            <Input
+                              type="number" min="1"
+                              value={cat.roomCount}
+                              onChange={(e) => updateHostelCategory(i, { roomCount: e.target.value })}
+                              placeholder="e.g. 10"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Rent / Bed (GH₵) *</Label>
+                            <Input
+                              type="number" min="0"
+                              value={cat.monthlyRent}
+                              onChange={(e) => updateHostelCategory(i, { monthlyRent: e.target.value })}
+                              placeholder="e.g. 800"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Block Label</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                value={cat.blockLabel}
+                                onChange={(e) => updateHostelCategory(i, { blockLabel: e.target.value })}
+                                placeholder="Block A"
+                              />
+                              {hostelCategories.length > 1 && (
+                                <Button type="button" variant="ghost" size="icon" onClick={() => removeHostelCategory(i)} className="text-destructive shrink-0">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {rooms > 0 && cap > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            → Will create {rooms} rooms × {cap} beds = <span className="font-medium text-foreground">{rooms * cap} bed-spaces</span>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </ErrorBoundary>
+          )}
+
           {/* ── Units ── */}
+          {!isHostel && (
           <ErrorBoundary section="Units">
             <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
               <div className="flex items-center justify-between">
@@ -611,6 +799,7 @@ const RegisterProperty = () => {
               </div>
             </div>
           </ErrorBoundary>
+          )}
 
           <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting}>
             {submitting ? "Registering..." : "Register Property"}
