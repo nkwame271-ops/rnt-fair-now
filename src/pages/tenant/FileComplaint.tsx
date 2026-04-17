@@ -35,6 +35,19 @@ const FileComplaint = () => {
     date: "",
     gpsLocation: "",
     gpsConfirmed: false,
+    // Property snapshot fields (for similarity engine)
+    propertyName: "",
+    propertyType: "",
+    unitDescription: "",
+    monthlyRent: "",
+    addressDescription: "",
+    // Location capture method
+    locationMethod: "" as "" | "live" | "gps_code" | "map_search",
+    locationLat: null as number | null,
+    locationLng: null as number | null,
+    gpsCode: "",
+    placeName: "",
+    placeId: "",
   });
 
   const [isRecording, setIsRecording] = useState(false);
@@ -112,13 +125,60 @@ const FileComplaint = () => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
-        setForm(prev => ({ ...prev, gpsLocation: loc, gpsConfirmed: false }));
+        setForm(prev => ({
+          ...prev,
+          gpsLocation: loc,
+          gpsConfirmed: false,
+          locationMethod: "live",
+          locationLat: pos.coords.latitude,
+          locationLng: pos.coords.longitude,
+        }));
         setGettingLocation(false);
         toast.success("Location captured! Please confirm it matches the complaint property.");
       },
       () => { setGettingLocation(false); toast.error("Could not get your location. Please enable location access."); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const handleGeocodeGpsCode = async () => {
+    const code = form.gpsCode.trim();
+    if (!code) { toast.error("Enter a GPS or digital address"); return; }
+    setGettingLocation(true);
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(code + ", Ghana")}&key=AIzaSyBbj3EaLVeMViYbbn8Zrzgqu1qg4OMSLQ4`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.status === "OK" && json.results?.[0]) {
+        const loc = json.results[0].geometry.location;
+        setForm(prev => ({
+          ...prev,
+          locationMethod: "gps_code",
+          locationLat: loc.lat,
+          locationLng: loc.lng,
+          gpsLocation: `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}`,
+        }));
+        toast.success("Address located on the map.");
+      } else {
+        toast.error("Address not found — check and retry.");
+      }
+    } catch {
+      toast.error("Could not geocode address. Try again.");
+    } finally {
+      setGettingLocation(false);
+    }
+  };
+
+  const handleMapSearchSelect = (place: { lat: number; lng: number; name: string; place_id: string }) => {
+    setForm(prev => ({
+      ...prev,
+      locationMethod: "map_search",
+      locationLat: place.lat,
+      locationLng: place.lng,
+      placeName: place.name,
+      placeId: place.place_id,
+      gpsLocation: `${place.lat.toFixed(6)}, ${place.lng.toFixed(6)}`,
+    }));
   };
 
   const uploadFiles = async (complaintId: string) => {
