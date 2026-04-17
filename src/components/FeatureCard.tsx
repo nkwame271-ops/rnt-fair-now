@@ -13,10 +13,10 @@ interface FeatureCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "t
 }
 
 const variantBg: Record<FeatureCardVariant, string> = {
-  primary: "bg-[hsl(var(--feature-card-primary))]",
-  teal: "bg-[hsl(var(--feature-card-teal))]",
-  dark: "bg-[hsl(var(--feature-card-dark))]",
-  amber: "bg-[hsl(var(--feature-card-amber))]",
+  primary: "bg-[hsl(var(--feature-card-primary)/0.88)] backdrop-blur-[12px] border border-white/20",
+  teal: "bg-[hsl(var(--feature-card-teal)/0.88)] backdrop-blur-[12px] border border-white/20",
+  dark: "bg-[hsl(var(--feature-card-dark)/0.88)] backdrop-blur-[12px] border border-white/20",
+  amber: "bg-[hsl(var(--feature-card-amber)/0.88)] backdrop-blur-[12px] border border-white/20",
 };
 
 const FeatureCard = React.forwardRef<HTMLDivElement, FeatureCardProps>(

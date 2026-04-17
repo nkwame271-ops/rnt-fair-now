@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --background: 210 30% 98%;
+    --background: 0 0% 100%;
     --foreground: 220 20% 12%;
 
     --card: 0 0% 100%;
@@ -65,6 +65,8 @@
     --shadow-card: none;
     --shadow-elevated: none;
     --shadow-glow: none;
+
+    --glass-border: 255 255 255;
   }
 
   .dark {
@@ -103,12 +105,29 @@
     @apply border-border;
   }
 
+  html, body {
+    background-color: #ffffff;
+  }
+
   body {
     @apply text-foreground font-sans antialiased;
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    background: var(--gradient-app-bg);
-    background-attachment: fixed;
     min-height: 100vh;
+    position: relative;
+  }
+
+  /* Mesh gradient orbs — sit behind everything */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: #ffffff;
+    background-image:
+      radial-gradient(ellipse 50% 50% at 0% 0%, rgba(199, 217, 245, 0.5) 0%, rgba(199, 217, 245, 0) 70%),
+      radial-gradient(ellipse 40% 45% at 100% 0%, rgba(187, 242, 216, 0.35) 0%, rgba(187, 242, 216, 0) 70%),
+      radial-gradient(ellipse 35% 40% at 50% 100%, rgba(221, 214, 254, 0.25) 0%, rgba(221, 214, 254, 0) 70%);
   }
 }
 
@@ -134,11 +153,99 @@
   .shadow-glow {
     box-shadow: var(--shadow-glow);
   }
+
+  /* === Glassmorphism utilities === */
+  .glass-card {
+    background-color: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  }
+  .glass-stat {
+    background-color: rgba(255, 255, 255, 0.45);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  }
+  .glass-sidebar {
+    background-color: rgba(15, 20, 40, 0.78);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .glass-header {
+    background-color: rgba(255, 255, 255, 0.6);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  .glass-modal {
+    background-color: rgba(255, 255, 255, 0.72);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.1);
+  }
+  .glass-overlay {
+    background-color: rgba(15, 20, 40, 0.3);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+  .glass-input {
+    background-color: rgba(255, 255, 255, 0.6);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+  }
+  .glass-input:focus,
+  .glass-input:focus-visible {
+    background-color: rgba(255, 255, 255, 0.8);
+    border-color: hsl(var(--primary) / 0.6);
+    outline: none;
+  }
+  .glass-badge {
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+
+  /* Reduced transparency / no backdrop-filter support → solid fallback */
+  @media (prefers-reduced-transparency: reduce) {
+    .glass-card,
+    .glass-stat,
+    .glass-modal,
+    .glass-header,
+    .glass-input {
+      background-color: rgba(255, 255, 255, 0.92) !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+    .glass-sidebar {
+      background-color: hsl(var(--sidebar-background)) !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-card,
+    .glass-stat,
+    .glass-modal,
+    .glass-header,
+    .glass-input {
+      background-color: rgba(255, 255, 255, 0.92);
+    }
+    .glass-sidebar {
+      background-color: hsl(var(--sidebar-background));
+    }
+  }
 }
 
 @media print {
   nav, aside, header, footer,
-  .sidebar, .print\\:hidden,
+  .sidebar, .print\:hidden,
   [data-sidebar], [role="navigation"] {
     display: none !important;
   }
@@ -146,5 +253,8 @@
     margin: 0;
     padding: 0;
     background: white !important;
+  }
+  body::before {
+    display: none !important;
   }
 }

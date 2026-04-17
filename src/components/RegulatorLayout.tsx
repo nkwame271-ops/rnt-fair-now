@@ -93,7 +93,7 @@ const RegulatorLayout = () => {
   return (
     <div className="min-h-screen flex">
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-60 lg:w-60 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0 lg:m-3 lg:rounded-2xl lg:inset-y-auto lg:h-[calc(100vh-1.5rem)] ${
+        className={`fixed inset-y-0 left-0 z-50 w-60 lg:w-60 glass-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0 lg:m-3 lg:rounded-2xl lg:inset-y-auto lg:h-[calc(100vh-1.5rem)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         } lg:relative lg:translate-x-0 overflow-hidden`}
       >
@@ -145,7 +145,7 @@ const RegulatorLayout = () => {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b border-border/60 bg-card/60 backdrop-blur flex items-center px-4 gap-4">
+        <header className="h-14 glass-header flex items-center px-4 gap-4">
           <button onClick={() => setMobileOpen(true)} className="lg:hidden shrink-0">
             <Menu className="h-5 w-5" />
           </button>
