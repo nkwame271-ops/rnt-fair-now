@@ -146,6 +146,14 @@
     background: transparent !important;
   }
 
+  /* Make every bg-card surface frosted so the gradient bleeds through globally.
+     Excludes anything inside the dark sidebar. */
+  .bg-card:not([data-sidebar] *):not(.glass-sidebar *) {
+    background-color: rgba(255, 255, 255, 0.42) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+
   /* Typography defaults — utilities still override */
   h1 {
     @apply text-[26px] font-semibold text-foreground tracking-tight;
