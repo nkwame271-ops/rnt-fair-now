@@ -1,106 +1,72 @@
 
 
-## Plan: Office-Scoped Complaints + Central Receipts + Student Visibility
+## Plan: 4 Deferred Items — Property Capture, Similarity Engine, NUGS Complaints, Hostel Backfill
 
 ### Blast radius
 
-**Schema (one migration)**:
-- `profiles` — add `user_type text default 'individual' check in ('individual','student','organization')` (additive; only `student` is meaningful for filtering today, others reserved).
-- `properties` — extend `property_type` allowed values to include `hostel` and `hall`. The column is text (no enum), so this is enforced at the app layer + a soft check constraint that includes legacy values.
-- No RLS changes (rule: don't touch). All office-scoping is enforced **at the query layer**, not RLS — Super/main admins must continue to see everything via existing read policies.
+**DB schema (one migration)**:
+- `complaint_properties` (new) — full row per filed complaint, captures landlord name, property name, type, unit, monthly_rent, address, lat/lng, gps_code, place_id, location_method.
+- `complaints` — add `complaint_property_id UUID` FK (nullable).
+- `property_similarity_scores` (new) — match results with per-signal point breakdown, dismissal fields, unique on (source_id, matched_property_id).
+- `similarity_check_errors` (new) — error log.
+- `properties` — add `property_category TEXT` if missing; backfill `student_housing` for existing `hostel`/`hall`/`hall_of_residence` rows.
+- Enable `pg_trgm` extension for fuzzy matching.
+- Indexes: `complaint_properties(complaint_id)`, `property_similarity_scores(matched_property_id, similarity_level) WHERE NOT manually_dismissed`, GIN trigram on landlord name + property name.
+- RLS: same model as complaints — tenants insert/select their own complaint_properties via parent complaint; admins (regulator/super) full read; similarity scores readable by admins, dismissals updateable by admins. No changes to existing RLS, has_role, or is_main_admin.
 
-**Frontend (regulator)**:
-- New helper `useAdminScope()` (small wrapper over existing `useAdminProfile`) that returns `{ scopeOfficeId, isUnscoped }` — `scopeOfficeId` set when `!isMainAdmin && !isSuperAdmin && profile.officeId`, otherwise null.
-- `RegulatorComplaints.tsx` —
-  - Add an Office filter dropdown above the tabs. Options: "All Offices" + every office from the existing `GHANA_OFFICES` flat list (or fetch from `offices` table).
-  - For scoped staff: dropdown is disabled, locked to their office. Default value = their office.
-  - For super/main admin: defaults to "All Offices", freely changeable.
-  - Apply the filter to both `fetchComplaints()` and `fetchLandlordComplaints()` using `.eq('office_id', officeId)` when set.
-- `RegulatorTenants.tsx` — add a "Students" tab/category filter (`profile.user_type = 'student'`) and a "Student" badge next to student rows.
-- `RegulatorProperties.tsx` — add a "Student Housing" filter chip and group header for `property_type in ('hostel','hall')`.
-- New page `src/pages/regulator/RegulatorReceipts.tsx`:
-  - Joins `payment_receipts` → `escrow_transactions` → active `escrow_splits` (`status='active'`).
-  - Searchable by receipt number, ticket number, payer name/email, payment type.
-  - Filters: payment type, date range, office (locked for scoped staff, free for unscoped).
-  - Each row expands to show splits + Paystack reference; "Download/Print" reuses existing `<PaymentReceipt>` component → already supports browser print.
-  - Office scoping: scoped staff → `escrow_transactions.office_id = scopeOfficeId`; super/main admin → all.
-- `RegulatorLayout.tsx` — add nav entry "Receipts" gated by `feature='receipts'` OR by being a regulator. Wire route in `App.tsx`.
-- `useAdminProfile.ts` — add `'receipts'` to `FEATURE_ROUTE_MAP`.
-- Sign-up — out of scope for this prompt (Prompt 1 already handles student registration). This batch only consumes `user_type` for filtering; no sign-up form change.
+**Edge function (new)**:
+- `supabase/functions/run-similarity-check/index.ts` — accepts `{ source_type: 'complaint_property', source_id: uuid }`, idempotent upsert on (source_id, matched_property_id), null lat/lng tolerated, errors logged to `similarity_check_errors`. Uses pg_trgm via SQL (not JS). Tenant boost = 1.15x if filer name matches any tenant under matched landlord. Threshold logic: ≥75 high, 50–74 medium, 25–49 low, <25 discard.
+- Invoked client-side from FileComplaint after the complaint_property insert (fire-and-forget).
+- `supabase/config.toml` — add `verify_jwt = false` (admin-side context but tenant-callable; we validate via service role internally).
+
+**Frontend**:
+- `src/pages/tenant/FileComplaint.tsx` — insert new "Property Details" card between office and description. Tabs (default "Search on Map"): Live Location / GPS Code / Map Search. Leaflet for live + GPS preview, Google Places autocomplete for map search. Validation gate before submit.
+- `src/pages/regulator/RegulatorProperties.tsx` — fetch counts of high/medium non-dismissed matches per property, show "High Match · N" / "Possible Match · N" badge.
+- `src/pages/regulator/RegulatorProperties.tsx` (or new detail dialog within it) — Similarity Matches tab on property detail showing per-match breakdown chips, Dismiss + View Complaint buttons, "Show dismissed" toggle.
+- `src/pages/regulator/RegulatorComplaints.tsx` — collapsible "Possible property matches found (N)" panel inside complaint detail when scores ≥50 exist; otherwise "No similar properties found".
+- `src/pages/nugs/NugsMyComplaints.tsx` (new) — student-only complaints list (mirrors MyCases but in NUGS layout, redirects non-students).
+- `src/components/NugsLayout.tsx` — replace "File a Complaint" item: keep file-complaint, add "My Complaints" linking to `/nugs/my-complaints`.
+- `src/App.tsx` — register `/nugs/my-complaints`.
+- Reuse existing Google Maps loader (`@react-google-maps/api`, libraries already include `places`).
+- Leaflet — already a dependency (used in PropertyHeatmap); reuse pattern.
 
 **Out of scope (do not touch)**:
-- RLS, `has_role`, `is_main_admin`, password flows, Paystack pipeline, escrow correction logic.
-- Tenant-side or landlord-side receipts page (already exists at `LandlordReceipts.tsx` etc.).
-- Student NUGS portal routing (handled separately).
-- The 3 `service_role` linter warnings — pre-existing storage bucket policies, untouched.
+- RLS on existing tables, has_role, is_main_admin, password flows, Paystack pipeline, payout_transfers, escrow correction logic, complaint status/payment flow.
+- Office selection, complaint description, submit logic in FileComplaint (only the new property card is added).
+- Student NUGS dashboard or other pages.
 
 ### Build sequence
 
-**Step 1 — Migration (single tool call, await approval)**:
-```sql
--- Add user_type to profiles (default 'individual')
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS user_type text NOT NULL DEFAULT 'individual';
+**Step 1 — Migration (single tool call, await approval)** — create tables, add columns, enable pg_trgm, indexes, RLS, backfill hostels.
 
--- Add a permissive check that includes existing/expected values
-DO $$ BEGIN
-  ALTER TABLE public.profiles
-    ADD CONSTRAINT profiles_user_type_check
-    CHECK (user_type IN ('individual','student','organization'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
--- Extend property_type allowed values via a soft check
--- (column is text — preserve all current data, just add new accepted values)
-DO $$
-DECLARE
-  v_existing text[];
-BEGIN
-  SELECT array_agg(DISTINCT property_type) INTO v_existing FROM public.properties WHERE property_type IS NOT NULL;
-  -- We won't add a CHECK constraint to avoid breaking legacy rows; values are validated at the app layer.
-  RAISE NOTICE 'Existing property_type values: %', v_existing;
-END $$;
-
--- Index for student filter and office scoping
-CREATE INDEX IF NOT EXISTS idx_profiles_user_type ON public.profiles(user_type) WHERE user_type <> 'individual';
-CREATE INDEX IF NOT EXISTS idx_complaints_office_id ON public.complaints(office_id);
-CREATE INDEX IF NOT EXISTS idx_landlord_complaints_office_id ON public.landlord_complaints(office_id);
-CREATE INDEX IF NOT EXISTS idx_escrow_transactions_office_id ON public.escrow_transactions(office_id);
-CREATE INDEX IF NOT EXISTS idx_payment_receipts_user_id ON public.payment_receipts(user_id);
-```
-
-**Step 2 — Code (parallel batch)**:
-1. `src/hooks/useAdminScope.ts` — new helper.
-2. `src/pages/regulator/RegulatorComplaints.tsx` — add Office filter dropdown + apply scoping to both fetches.
-3. `src/pages/regulator/RegulatorTenants.tsx` — add Students filter chip + badge.
-4. `src/pages/regulator/RegulatorProperties.tsx` — add Student Housing filter chip + group header.
-5. `src/pages/regulator/RegulatorReceipts.tsx` — new page (full receipts module).
-6. `src/components/RegulatorLayout.tsx` — add "Receipts" nav link.
-7. `src/App.tsx` — register `/regulator/receipts` route.
-8. `src/hooks/useAdminProfile.ts` — add `receipts` to `FEATURE_ROUTE_MAP`.
+**Step 2 — Edge function + code (parallel batch)**:
+1. `supabase/functions/run-similarity-check/index.ts`
+2. `src/pages/tenant/FileComplaint.tsx` (additive Property Details card)
+3. `src/pages/nugs/NugsMyComplaints.tsx`
+4. `src/components/NugsLayout.tsx`
+5. `src/App.tsx`
+6. `src/pages/regulator/RegulatorProperties.tsx` (badge + similarity tab)
+7. `src/pages/regulator/RegulatorComplaints.tsx` (similarity panel)
 
 **Step 3 — Verification**:
-- Sub-admin assigned to "Tema" office sees only Tema complaints; office dropdown is locked.
-- Super admin sees all complaints; office dropdown freely toggles between offices.
-- Receipts module returns rows for super admin matching `payment_receipts` count; scoped staff sees subset filtered by their `escrow_transactions.office_id`.
-- Filtering by ticket number returns the correct receipt.
-- Print button opens browser print preview with full receipt + splits.
-- A profile with `user_type='student'` appears under Tenants → Students filter with a Student badge.
-- A property with `property_type='hostel'` appears under Properties → Student Housing.
+- File a complaint as tenant → row appears in `complaint_properties`, complaint links to it, similarity check runs, scores ≥25 stored.
+- Regulator sees badge on matched property, opens Similarity Matches tab, dismiss works.
+- Complaint detail shows similarity panel with N matches.
+- Student visits `/nugs/my-complaints` — sees their complaints; non-student is redirected.
+- Existing hostels query: `select count(*) from properties where property_category='student_housing'` > 0.
 
 ### Acceptance criteria
-- Office filter dropdown visible on complaints list for everyone; locked for scoped staff; defaults correctly per role.
-- Receipts page accessible at `/regulator/receipts` with search + filters + per-row split breakdown + print.
-- Active-only splits (`status='active'`) used in the join (matches escrow correction rules).
-- Student tenants visibly labelled under Tenants → Students filter.
-- Hostel/hall properties grouped/labelled "Student Housing".
-- Zero changes to RLS, `has_role`, `is_main_admin`, password handling, or Paystack pipeline.
-- Existing `LandlordReceipts.tsx` and `TenantReceipts` pages untouched.
+- New Property Details card renders between office and description; no existing FileComplaint behavior changed.
+- One of three location methods is enforced before submit.
+- `complaint_properties.location_method` matches the chosen tab.
+- Similarity scores written with full per-signal breakdown; dismissed matches hidden by default.
+- Idempotent re-runs produce no duplicate rows (unique constraint).
+- Null lat/lng → gps_points=0, no error.
+- Hostel backfill complete; no UI change there.
+- Zero changes to RLS on existing tables, has_role, is_main_admin, payment pipeline.
 
-### Open questions (lock before migration)
-- **Q1** — Office source: should the Office filter dropdown options come from the live `offices` DB table (preferred for consistency with newly added offices) or from the static `GHANA_OFFICES` constant in `useAdminProfile.ts`? Recommended: **live `offices` table**.
-- **Q2** — Receipts office source: receipts are scoped via `escrow_transactions.office_id`. Some legacy receipts may have `office_id IS NULL` (older transactions). For super admin those still appear; for scoped staff they are hidden. Confirm OK, or should we backfill via `complaints.office_id` for `payment_type='complaint_fee'`?
-- **Q3** — Student Housing property types: confirm the only two new values are `hostel` and `hall`. Anything else (e.g., `dormitory`)?
-- **Q4** — Where to place the "Receipts" nav item in the regulator sidebar — under "Finance" group (with Escrow / Office Wallet) or as its own top-level entry? Recommended: **under Finance**.
+### Open question (non-blocking)
+- **Q1** — For the property detail "Similarity Matches tab": `RegulatorProperties.tsx` currently uses a row-expand model rather than a full detail page. I'll add the matches as an expandable sub-section within the existing property row (so it works inside the existing UX). If you'd rather have a dedicated dialog/page, say so and I'll switch.
 
-Approve and I'll run the migration first, then ship all code in one parallel batch.
+Approve and I'll run the migration first, then ship the rest in one parallel batch.
 
