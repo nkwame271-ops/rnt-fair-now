@@ -384,7 +384,7 @@ const ComplaintTypesManager = () => {
                   <div className="space-y-1"><Label className="text-xs">Below Threshold %</Label><Input type="number" step="0.01" value={row.below_threshold_pct} onChange={(e) => setPercentMap((m) => ({ ...m, [t.id]: { ...row, below_threshold_pct: Number(e.target.value) } }))} /></div>
                   <div className="space-y-1"><Label className="text-xs">At/Above Threshold %</Label><Input type="number" step="0.01" value={row.above_threshold_pct} onChange={(e) => setPercentMap((m) => ({ ...m, [t.id]: { ...row, above_threshold_pct: Number(e.target.value) } }))} /></div>
                 </div>
-                <SplitInputs row={row} onChange={(patch) => setPercentMap((m) => ({ ...m, [t.id]: { ...row, ...patch } }))} />
+                <SplitInputsPct row={row} onChange={(patch) => setPercentMap((m) => ({ ...m, [t.id]: { ...row, ...patch } }))} />
                 <div className="flex justify-end">
                   <Button size="sm" onClick={() => savePct(t.id)} disabled={savingId === t.id}>{savingId === t.id ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />} Save</Button>
                 </div>
