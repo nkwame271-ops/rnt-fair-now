@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { AlertTriangle, Plus, Loader2, Upload, X, Clock, CheckCircle2, Image, Mic, Square, Play, Trash2, CalendarDays } from "lucide-react";
+import { AlertTriangle, Plus, Loader2, Upload, X, Clock, CheckCircle2, Image, Mic, Square, Play, Trash2, CalendarDays, CreditCard, Receipt } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,11 +34,14 @@ const statusConfig: Record<string, string> = {
 
 const LandlordComplaints = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [complaints, setComplaints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
+  const [basketMap, setBasketMap] = useState<Record<string, any[]>>({});
+  const [paying, setPaying] = useState<string | null>(null);
 
   const [complaintType, setComplaintType] = useState("");
   const [tenantName, setTenantName] = useState("");
@@ -55,7 +59,31 @@ const LandlordComplaints = () => {
 
   useEffect(() => {
     if (!user) return;
-    fetchComplaints();
+    const reference = searchParams.get("reference") || searchParams.get("trxref");
+    if (reference) {
+      (async () => {
+        try {
+          const { data } = await supabase.functions.invoke("verify-payment", { body: { reference } });
+          if (data?.verified) toast.success("Payment confirmed! Your complaint is now ready for scheduling.");
+        } catch (_) {}
+        setSearchParams({}, { replace: true });
+        await new Promise((r) => setTimeout(r, 1500));
+        await fetchComplaints();
+        setTimeout(() => fetchComplaints(), 3000);
+      })();
+    } else {
+      fetchComplaints();
+    }
+  }, [user]);
+
+  // Realtime: refresh when admin requests payment / status changes
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`landlord_complaints:${user.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "landlord_complaints", filter: `landlord_user_id=eq.${user.id}` }, () => fetchComplaints())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const fetchComplaints = async () => {
@@ -66,7 +94,7 @@ const LandlordComplaints = () => {
       .order("created_at", { ascending: false });
     setComplaints(data || []);
 
-    // Fetch schedules
+    // Fetch schedules + basket items
     if (data && data.length > 0) {
       const ids = data.map((c: any) => c.id);
       const { data: schedules } = await supabase
@@ -79,9 +107,53 @@ const LandlordComplaints = () => {
         schedules.forEach((s: any) => { map[s.complaint_id] = s; });
         setScheduleMap(map);
       }
+
+      const payIds = data.filter((c: any) => c.payment_status === "pending" && Number(c.outstanding_amount) > 0).map((c: any) => c.id);
+      if (payIds.length > 0) {
+        const { data: items } = await (supabase.from("complaint_basket_items") as any)
+          .select("id, complaint_id, label, amount, kind")
+          .in("complaint_id", payIds)
+          .eq("complaint_table", "landlord_complaints")
+          .order("created_at");
+        const bm: Record<string, any[]> = {};
+        (items || []).forEach((it: any) => { (bm[it.complaint_id] ||= []).push(it); });
+        setBasketMap(bm);
+      }
     }
 
     setLoading(false);
+  };
+
+  const handlePayNow = async (complaint: any) => {
+    setPaying(complaint.id);
+    try {
+      const { data: rawData, error } = await supabase.functions.invoke("paystack-checkout", {
+        body: { type: "complaint_fee", complaintId: complaint.id },
+      });
+      let data = rawData;
+      if (typeof rawData === "string") { try { data = JSON.parse(rawData); } catch {} }
+      if (error) {
+        let msg = error.message || "Payment initiation failed";
+        try {
+          if ((error as any).context) {
+            const body = await (error as any).context.json();
+            msg = body?.error || msg;
+          }
+        } catch {}
+        throw new Error(msg);
+      }
+      if (data?.error) throw new Error(data.error);
+      if (data?.authorization_url) {
+        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
+        window.location.href = data.authorization_url;
+      } else {
+        throw new Error("No checkout URL received");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Could not start payment");
+    } finally {
+      setPaying(null);
+    }
   };
 
   const handleDocChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -247,6 +319,53 @@ const LandlordComplaints = () => {
                 <Badge className={`${statusConfig[c.status] || ""} text-xs`}>{c.status.replace("_", " ")}</Badge>
               </div>
               <p className="text-sm text-foreground">{c.description}</p>
+
+              {/* Pay Now CTA when admin has requested payment */}
+              {c.status === "pending_payment" && c.payment_status === "pending" && Number(c.outstanding_amount) > 0 && (
+                <div className="bg-warning/5 border border-warning/30 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <CreditCard className="h-4 w-4 text-warning" /> Filing fee requested
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-0.5">
+                        An officer has set the fee for this complaint. Pay to proceed to scheduling.
+                      </div>
+                    </div>
+                    <Button onClick={() => handlePayNow(c)} disabled={paying === c.id}>
+                      {paying === c.id ? "Processing..." : "Pay Now"}
+                    </Button>
+                  </div>
+
+                  {basketMap[c.id]?.length > 0 && (
+                    <div className="bg-background border border-border rounded-md divide-y divide-border">
+                      {basketMap[c.id].map((it: any) => (
+                        <div key={it.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-foreground truncate">{it.label}</span>
+                            {it.kind === "manual_adjustment" && (
+                              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-warning/15 text-warning shrink-0">Manual</span>
+                            )}
+                          </div>
+                          <span className="font-medium text-foreground tabular-nums">GH₵ {Number(it.amount).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between border-t border-warning/30 pt-2">
+                    <span className="text-sm font-semibold text-foreground">Total</span>
+                    <span className="text-lg font-bold text-foreground">GH₵ {Number(c.outstanding_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              )}
+
+              {c.payment_status === "paid" && (
+                <div className="bg-success/5 border border-success/20 rounded-lg p-3 flex items-center gap-2 text-sm">
+                  <Receipt className="h-4 w-4 text-success" />
+                  <span className="text-foreground"><strong>Filing fee paid.</strong> Your complaint is ready for scheduling.</span>
+                </div>
+              )}
               {/* Appointment info */}
               {scheduleMap[c.id] && (
                 <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">

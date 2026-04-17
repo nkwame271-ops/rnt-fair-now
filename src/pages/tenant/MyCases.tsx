@@ -253,13 +253,6 @@ const MyCases = () => {
                 </div>
               )}
 
-              {/* Paid receipt indicator */}
-              {c.payment_status === "paid" && (
-                <div className="mt-3 bg-success/5 border border-success/20 rounded-lg p-3 flex items-center gap-2 text-sm">
-                  <Receipt className="h-4 w-4 text-success" />
-                  <span className="text-foreground"><strong>Filing fee paid.</strong> Your complaint is ready for scheduling.</span>
-                </div>
-              )}
 
               {scheduleMap[c.id] && (
                 <div className="mt-3 bg-primary/5 border border-primary/20 rounded-lg p-3">
