@@ -369,10 +369,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Audit log
-    if (!dryRun && summary.corrected > 0) {
+    // Audit log (only when we know who initiated the run)
+    if (!dryRun && summary.corrected > 0 && actingUserId) {
       await admin.from("admin_audit_log").insert({
-        admin_user_id: user.id,
+        admin_user_id: actingUserId,
         action: "ledger_correction_run",
         target_type: "escrow_splits",
         target_id: correctionRunId,
@@ -391,6 +391,20 @@ Deno.serve(async (req) => {
         },
       });
     }
+
+    console.log("reconcile-internal-ledger summary:", JSON.stringify({
+      correction_run_id: correctionRunId,
+      dry_run: dryRun,
+      scanned: summary.scanned,
+      already_balanced: summary.already_balanced,
+      corrected: summary.corrected,
+      rows_inserted: summary.rows_inserted,
+      rows_superseded: summary.rows_superseded,
+      validation_gate_aborts: summary.validation_gate_aborts,
+      skipped_no_plan: summary.skipped_no_plan,
+      total_recovered_amount: +summary.total_recovered_amount.toFixed(2),
+      total_superseded_amount: +summary.total_superseded_amount.toFixed(2),
+    }));
 
     return new Response(JSON.stringify({ success: true, dry_run: dryRun, ...summary }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
