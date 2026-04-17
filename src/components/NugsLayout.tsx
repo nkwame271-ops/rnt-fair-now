@@ -33,42 +33,42 @@ const NugsLayout = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex">
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-60 bg-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0 lg:m-3 lg:rounded-2xl lg:inset-y-auto lg:h-[calc(100vh-1.5rem)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:relative`}
+        } lg:relative lg:translate-x-0 overflow-hidden`}
       >
-        <div className="p-5 flex items-center gap-2 border-b border-sidebar-border">
-          <Shield className="h-6 w-6 text-sidebar-primary" />
-          <span className="font-bold text-lg">NUGS</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold ml-auto bg-primary text-primary-foreground">
+        <div className="p-4 flex items-center gap-2 border-b border-sidebar-border/50">
+          <Shield className="h-5 w-5 text-sidebar-primary" />
+          <span className="font-semibold text-sm">NUGS</span>
+          <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold ml-auto bg-sidebar-accent text-sidebar-accent-foreground">
             {isAdmin ? "ADMIN" : "STUDENT"}
           </span>
         </div>
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               onClick={() => setMobileOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors ${
                   isActive
-                    ? "bg-sidebar-accent text-sidebar-primary"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 }`
               }
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              <item.icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{item.label}</span>
             </NavLink>
           ))}
         </nav>
-        <div className="p-3 border-t border-sidebar-border">
+        <div className="p-2 border-t border-sidebar-border/50">
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 w-full"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 w-full"
           >
             <LogOut className="h-4 w-4" />
             Sign Out
@@ -81,7 +81,7 @@ const NugsLayout = () => {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-4">
+        <header className="h-14 border-b border-border/60 bg-card/60 backdrop-blur flex items-center px-4 gap-4">
           <button onClick={() => setMobileOpen(true)} className="lg:hidden">
             <Menu className="h-5 w-5" />
           </button>

@@ -13,6 +13,7 @@ import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import { getTimeGreeting } from "@/lib/greeting";
 import { Badge } from "@/components/ui/badge";
+import { FeatureCard, type FeatureCardVariant } from "@/components/FeatureCard";
 
 const LandlordDashboard = () => {
   const { user } = useAuth();
@@ -164,31 +165,23 @@ const LandlordDashboard = () => {
             <h1 className="text-3xl font-bold text-foreground">{getTimeGreeting(profileName)}</h1>
             <p className="text-muted-foreground mt-1">Manage your properties and stay compliant</p>
           </div>
-          <div className="bg-card rounded-xl p-4 shadow-card border border-border text-center">
+          <div className="bg-card rounded-xl p-4 border border-border text-center">
             <Award className={`h-6 w-6 mx-auto mb-1 ${complianceScore >= 80 ? "text-success" : complianceScore >= 50 ? "text-warning" : "text-destructive"}`} />
             <div className={`text-2xl font-bold ${complianceScore >= 80 ? "text-success" : complianceScore >= 50 ? "text-warning" : "text-destructive"}`}>{complianceScore}%</div>
-            <div className="text-xs text-muted-foreground">Compliance Score</div>
+            <div className="text-[11px] text-muted-foreground">Compliance Score</div>
           </div>
         </div>
 
-        <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: "Properties", value: stats.properties, icon: Building2, color: "text-primary" },
-            { label: "Total Units", value: stats.totalUnits, icon: Building2, color: "text-info" },
-            { label: "Tenants", value: stats.occupiedUnits, icon: Users, color: "text-success" },
-            { label: "Pending Agreements", value: stats.pendingTenancies, icon: AlertTriangle, color: "text-destructive" },
-          ].map((stat) => (
-            <StaggeredItem key={stat.label}>
-              <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
-                <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
-                <div className="text-2xl font-bold text-card-foreground">
-                  <AnimatedCounter value={stat.value} />
-                </div>
-                <div className="text-xs text-muted-foreground">{stat.label}</div>
-              </div>
-            </StaggeredItem>
+            { variant: "primary" as FeatureCardVariant, eyebrow: "Portfolio", title: "Registered properties", value: stats.properties, icon: <Building2 className="h-5 w-5" /> },
+            { variant: "teal" as FeatureCardVariant, eyebrow: "Total units", title: "Units across all properties", value: stats.totalUnits, icon: <Building2 className="h-5 w-5" /> },
+            { variant: "dark" as FeatureCardVariant, eyebrow: "Occupancy", title: "Active tenants", value: stats.occupiedUnits, icon: <Users className="h-5 w-5" /> },
+            { variant: "amber" as FeatureCardVariant, eyebrow: "Action needed", title: "Pending agreements", value: stats.pendingTenancies, icon: <AlertTriangle className="h-5 w-5" /> },
+          ].map((c) => (
+            <FeatureCard key={c.title} variant={c.variant} eyebrow={c.eyebrow} title={c.title} icon={c.icon} value={<AnimatedCounter value={c.value} />} />
           ))}
-        </StaggeredGrid>
+        </div>
 
         {/* Tenancy Status Breakdown */}
         <div className="bg-card rounded-xl p-6 shadow-card border border-border">
