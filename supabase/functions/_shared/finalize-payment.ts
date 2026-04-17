@@ -40,6 +40,8 @@ interface SplitItem {
   recipient: string;
   amount: number;
   description?: string;
+  /** When the split row originates from a complaint basket line, propagate to escrow_splits for ledger traceability. */
+  complaint_basket_item_id?: string | null;
 }
 
 interface SecondarySplit {
@@ -109,6 +111,7 @@ function expandSecondarySplit(
         released_at: null,
         office_id: officeId,
         release_mode: "auto",
+        complaint_basket_item_id: item.complaint_basket_item_id ?? null,
       }];
     }
     // Admin legacy path
@@ -121,6 +124,7 @@ function expandSecondarySplit(
       released_at: null,
       office_id: isDeferredOffice ? null : officeId,
       release_mode: officeReleaseMode,
+      complaint_basket_item_id: item.complaint_basket_item_id ?? null,
     }];
   }
 
@@ -138,6 +142,7 @@ function expandSecondarySplit(
       released_at: null,
       office_id: (parentRecipient === "admin" && isDeferredOffice) ? null : officeId,
       release_mode: officeReleaseMode,
+      complaint_basket_item_id: item.complaint_basket_item_id ?? null,
     });
   }
 
@@ -153,6 +158,7 @@ function expandSecondarySplit(
       released_at: null,
       office_id: null,
       release_mode: "auto",
+      complaint_basket_item_id: item.complaint_basket_item_id ?? null,
     });
   }
 
@@ -264,6 +270,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
                 released_at: null,
                 office_id: officeId,
                 release_mode: "manual",
+                complaint_basket_item_id: (s as any).complaint_basket_item_id ?? null,
               });
             }
           }
@@ -334,6 +341,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
           released_at: null,
           office_id: officeId,
           release_mode: releaseMode,
+          complaint_basket_item_id: (s as any).complaint_basket_item_id ?? null,
         });
       }
     }
