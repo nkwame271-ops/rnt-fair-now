@@ -27,6 +27,7 @@ export interface TenancyCardData {
   rentCardRole2?: string;
   taxComplianceStatus?: string;
   tenancyType?: string;
+  terminatedAt?: string | null;
 }
 
 const statusColor = (status: string) => {

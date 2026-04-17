@@ -118,67 +118,15 @@ Deno.serve(async (req) => {
 
     console.log(`Updated ${updated} tenancies to renewal_window`);
 
-    // Auto-expire tenancies past end_date with no renewal
-    const { data: expired, error: expError } = await supabase
-      .from("tenancies")
-      .select("id, tenant_user_id, landlord_user_id, unit_id, registration_code")
-      .in("status", ["active", "renewal_window"])
-      .lt("end_date", now.toISOString().split("T")[0]);
-
+    // Auto-expire tenancies past end_date — single SQL helper handles
+    // status flip, unit vacate, property off-market, notifications, audit log.
+    const { data: expiredCount, error: expError } = await supabase.rpc("expire_overdue_tenancies");
     if (expError) {
-      console.error("Expiry query error:", expError.message);
+      console.error("expire_overdue_tenancies error:", expError.message);
     }
+    console.log(`Auto-expired ${expiredCount ?? 0} tenancies`);
 
-    let expiredCount = 0;
-    for (const t of expired || []) {
-      const { error: ue } = await supabase
-        .from("tenancies")
-        .update({ status: "expired", terminated_at: now.toISOString(), termination_reason: "auto_expired" })
-        .eq("id", t.id);
-      if (ue) { console.error(`Failed to expire ${t.id}:`, ue.message); continue; }
-
-      await supabase.from("units").update({ status: "vacant" }).eq("id", t.unit_id);
-
-      // Update property status to off_market when tenancy expires
-      const { data: unitData } = await supabase.from("units").select("property_id").eq("id", t.unit_id).single();
-      if (unitData?.property_id) {
-        // Check if any other units on this property are still occupied
-        const { data: otherOccupied } = await supabase
-          .from("units")
-          .select("id")
-          .eq("property_id", unitData.property_id)
-          .eq("status", "occupied")
-          .neq("id", t.unit_id)
-          .limit(1);
-
-        if (!otherOccupied || otherOccupied.length === 0) {
-          await supabase.from("properties").update({
-            property_status: "off_market",
-            listed_on_marketplace: false,
-          }).eq("id", unitData.property_id);
-
-          // Log property event
-          await supabase.from("property_events").insert({
-            property_id: unitData.property_id,
-            event_type: "status_change",
-            old_value: { status: "occupied" },
-            new_value: { status: "off_market" },
-            performed_by: null,
-            reason: "All tenancies expired — property moved to off-market",
-          });
-        }
-      }
-
-      await supabase.from("notifications").insert([
-        { user_id: t.tenant_user_id, title: "Tenancy Expired", body: `Your tenancy ${t.registration_code} has expired. The unit is now unlocked.`, link: "/tenant/my-agreements" },
-        { user_id: t.landlord_user_id, title: "Tenancy Expired", body: `Tenancy ${t.registration_code} has expired. The unit is now vacant. Your property is now off-market. You can relist it from My Properties when ready.`, link: "/landlord/my-properties" },
-      ]);
-      expiredCount++;
-    }
-
-    console.log(`Auto-expired ${expiredCount} tenancies`);
-
-    return new Response(JSON.stringify({ ok: true, updated, expired: expiredCount }), {
+    return new Response(JSON.stringify({ ok: true, updated, expired: expiredCount ?? 0 }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
