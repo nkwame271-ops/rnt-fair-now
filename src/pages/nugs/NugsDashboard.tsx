@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { GraduationCap, AlertTriangle, CheckCircle2, Clock, Building2, Loader2, Store, FileText } from "lucide-react";
+import { GraduationCap, AlertTriangle, CheckCircle2, Clock, Building2, Loader2, Store, FileText, History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +8,10 @@ import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import { Button } from "@/components/ui/button";
 import { FeatureCard, type FeatureCardVariant } from "@/components/FeatureCard";
+import UpdateResidenceDialog from "@/components/student/UpdateResidenceDialog";
+import StudentResidenceTrail from "@/components/student/StudentResidenceTrail";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 
 const AdminView = () => {
   const [loading, setLoading] = useState(true);
