@@ -12,6 +12,7 @@ import { useAdminProfile, FEATURE_ROUTE_MAP } from "@/hooks/useAdminProfile";
 import { useModuleVisibility } from "@/hooks/useModuleVisibility";
 import LogoLoader from "@/components/LogoLoader";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import ComplaintTypesManager from "@/components/ComplaintTypesManager";
 
 interface StaffMember {
   user_id: string;
