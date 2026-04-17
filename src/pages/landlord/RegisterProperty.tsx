@@ -261,46 +261,108 @@ const RegisterProperty = () => {
         });
       }
 
-      // Create units and compute benchmarks
-      for (const u of units) {
-        if (!u.type || !u.rent) continue;
-        const { data: unitData } = await supabase.from("units").insert({
-          property_id: prop.id,
-          unit_name: u.name,
-          unit_type: u.type,
-          monthly_rent: parseFloat(u.rent),
-          has_toilet_bathroom: u.hasToiletBathroom,
-          has_kitchen: u.hasKitchen,
-          water_available: u.waterAvailable,
-          electricity_available: u.electricityAvailable,
-          has_borehole: u.hasBorehole,
-          has_polytank: u.hasPolytank,
-          amenities: u.amenities,
-          custom_amenities: u.customAmenities || null,
-        }).select().single();
+      if (isHostel) {
+        // Hostel branch: create categories, rooms, and bed-space units
+        const validCats = hostelCategories.filter(
+          (c) => c.label.trim() && parseInt(c.roomCount) > 0 && parseInt(c.capacityPerRoom) > 0
+        );
+        if (validCats.length === 0) {
+          throw new Error("Please add at least one room category");
+        }
+        for (const cat of validCats) {
+          const roomCount = parseInt(cat.roomCount);
+          const capacity = parseInt(cat.capacityPerRoom);
+          const rentPerBed = parseFloat(cat.monthlyRent) || 0;
+          const blockLabel = cat.blockLabel.trim() || "Block A";
 
-        // Compute benchmark for each unit
-        if (unitData) {
-          await supabase.functions.invoke("compute-rent-benchmark", {
-            body: {
+          const { data: catRow, error: catErr } = await supabase
+            .from("hostel_room_categories")
+            .insert({
+              property_id: prop.id,
+              label: cat.label.trim(),
+              capacity_per_room: capacity,
+              room_count: roomCount,
+              monthly_rent: rentPerBed,
+              block_label: blockLabel,
+            } as any)
+            .select()
+            .single();
+          if (catErr) throw catErr;
+
+          // Generate rooms (numbered 001, 002, ...)
+          const roomsPayload = Array.from({ length: roomCount }, (_, idx) => ({
+            property_id: prop.id,
+            category_id: catRow.id,
+            block_label: blockLabel,
+            room_number: String(idx + 1).padStart(3, "0"),
+            capacity,
+          }));
+          const { data: roomRows, error: roomsErr } = await supabase
+            .from("hostel_rooms")
+            .insert(roomsPayload as any)
+            .select();
+          if (roomsErr) throw roomsErr;
+
+          // Generate bed-space units for each room
+          const bedsPayload = (roomRows || []).flatMap((room: any) =>
+            Array.from({ length: capacity }, (_, bedIdx) => ({
+              property_id: prop.id,
+              hostel_room_id: room.id,
+              unit_kind: "bed_space",
+              unit_name: `${blockLabel} – Room ${room.room_number} – Bed ${bedIdx + 1}`,
+              unit_type: cat.label.trim(),
+              bed_label: `Bed ${bedIdx + 1}`,
+              monthly_rent: rentPerBed,
+              status: "vacant",
+            }))
+          );
+          if (bedsPayload.length > 0) {
+            const { error: bedsErr } = await supabase.from("units").insert(bedsPayload as any);
+            if (bedsErr) throw bedsErr;
+          }
+        }
+      } else {
+        // Standard branch: create units and compute benchmarks
+        for (const u of units) {
+          if (!u.type || !u.rent) continue;
+          const { data: unitData } = await supabase.from("units").insert({
+            property_id: prop.id,
+            unit_name: u.name,
+            unit_type: u.type,
+            monthly_rent: parseFloat(u.rent),
+            has_toilet_bathroom: u.hasToiletBathroom,
+            has_kitchen: u.hasKitchen,
+            water_available: u.waterAvailable,
+            electricity_available: u.electricityAvailable,
+            has_borehole: u.hasBorehole,
+            has_polytank: u.hasPolytank,
+            amenities: u.amenities,
+            custom_amenities: u.customAmenities || null,
+          }).select().single();
+
+          // Compute benchmark for each unit
+          if (unitData) {
+            await supabase.functions.invoke("compute-rent-benchmark", {
+              body: {
+                property_id: prop.id,
+                unit_id: unitData.id,
+                zone_key: `${region}|${effectiveArea}`,
+                property_class: u.type,
+                asking_rent: parseFloat(u.rent),
+              },
+            });
+
+            // Store market data event
+            await supabase.from("rent_market_data").insert({
               property_id: prop.id,
               unit_id: unitData.id,
               zone_key: `${region}|${effectiveArea}`,
               property_class: u.type,
               asking_rent: parseFloat(u.rent),
-            },
-          });
-
-          // Store market data event
-          await supabase.from("rent_market_data").insert({
-            property_id: prop.id,
-            unit_id: unitData.id,
-            zone_key: `${region}|${effectiveArea}`,
-            property_class: u.type,
-            asking_rent: parseFloat(u.rent),
-            event_type: "listing",
-            event_date: new Date().toISOString().split("T")[0],
-          } as any);
+              event_type: "listing",
+              event_date: new Date().toISOString().split("T")[0],
+            } as any);
+          }
         }
       }
 
