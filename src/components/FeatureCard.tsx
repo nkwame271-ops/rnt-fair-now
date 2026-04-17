@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 type FeatureCardVariant = "primary" | "teal" | "dark" | "amber";
 
-interface FeatureCardProps extends React.HTMLAttributes<HTMLDivElement> {
+interface FeatureCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
   variant?: FeatureCardVariant;
   eyebrow?: React.ReactNode;
   title?: React.ReactNode;
