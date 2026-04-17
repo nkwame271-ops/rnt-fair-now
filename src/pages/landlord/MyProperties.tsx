@@ -390,8 +390,16 @@ const MyProperties = () => {
                   </div>
                 </div>
                 <div className="flex gap-4 mt-3 text-sm">
-                  <span className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {p.units.length} units</span>
-                  <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {p.tenancyCount} tenants</span>
+                  {p.property_category === "hostel" ? (
+                    <span className="flex items-center gap-1">
+                      <Building2 className="h-3.5 w-3.5" /> {p.units.length} bed-spaces ({p.tenancyCount} occupied)
+                    </span>
+                  ) : (
+                    <>
+                      <span className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {p.units.length} units</span>
+                      <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {p.tenancyCount} tenants</span>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex gap-2 mt-3 flex-wrap">
