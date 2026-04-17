@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useSearchParams } from "react-router-dom";
-import { Users, Download, Search, ChevronDown, ChevronUp, Home, FileText, Calendar, User } from "lucide-react";
+import { Users, Download, Search, ChevronDown, ChevronUp, Home, FileText, Calendar, User, Phone, Mail, MessageSquare, FileBadge, AlertCircle } from "lucide-react";
 import LogoLoader from "@/components/LogoLoader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateProfilePdf } from "@/lib/generateProfilePdf";
 import { toast } from "sonner";
@@ -61,6 +62,55 @@ interface TenantFull {
   }>;
 }
 
+// Helpers
+const initials = (name?: string) => {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
+};
+
+const NotProvided = () => <span className="italic text-muted-foreground/70">Not provided</span>;
+
+const FieldRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <div className="flex items-start justify-between gap-3 py-1.5">
+    <span className="text-[12px] text-muted-foreground">{label}</span>
+    <span className="text-[13px] font-medium text-foreground text-right max-w-[60%] break-words">{value}</span>
+  </div>
+);
+
+const TenantIdPill = ({ id }: { id: string }) => (
+  <span className="inline-flex items-center font-mono text-[11px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">{id}</span>
+);
+
+const IconButton = ({ children, onClick, title }: { children: React.ReactNode; onClick?: () => void; title?: string }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={title}
+    className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-border bg-background hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
+  >
+    {children}
+  </button>
+);
+
+const SectionHeader = ({ icon: Icon, label }: { icon: any; label: string }) => (
+  <div className="flex items-center gap-1.5 mb-3">
+    <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+    <span className="text-[12px] font-medium text-muted-foreground">{label}</span>
+  </div>
+);
+
+const ExpiryValue = ({ date }: { date: string | null }) => {
+  if (!date) return <NotProvided />;
+  const d = new Date(date);
+  const now = new Date();
+  const diffDays = Math.floor((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  let cls = "text-foreground";
+  if (diffDays < 0) cls = "text-destructive";
+  else if (diffDays <= 30) cls = "text-warning";
+  return <span className={`font-medium ${cls}`}>{d.toLocaleDateString()}</span>;
+};
+
 const RegulatorTenants = () => {
   const [tenants, setTenants] = useState<TenantFull[]>([]);
   const [searchParams] = useSearchParams();
@@ -80,14 +130,12 @@ const RegulatorTenants = () => {
 
       const userIds = tenantData.map(t => t.user_id);
 
-      // Parallel fetches
       const [profilesRes, tenanciesRes, complaintsRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, phone, email, nationality, is_citizen, ghana_card_no, residence_permit_no, occupation, emergency_contact_name, emergency_contact_phone, work_address, delivery_address, delivery_region").in("user_id", userIds),
         supabase.from("tenancies").select("id, tenant_user_id, landlord_user_id, status, agreed_rent, start_date, end_date, move_in_date, registration_code, advance_months, unit_id").in("tenant_user_id", userIds).order("start_date", { ascending: false }),
         supabase.from("complaints").select("tenant_user_id, complaint_code, complaint_type, status, created_at").in("tenant_user_id", userIds),
       ]);
 
-      // Get landlord names and property info for tenancies
       const landlordIds = [...new Set((tenanciesRes.data || []).map(t => t.landlord_user_id))];
       const unitIds = [...new Set((tenanciesRes.data || []).map(t => t.unit_id))];
 
@@ -106,7 +154,6 @@ const RegulatorTenants = () => {
       const unitMap = new Map((unitsRes.data || []).map(u => [u.id, u]));
       const propMap = new Map((properties || []).map(p => [p.id, p]));
 
-      // Group tenancies by tenant
       const tenancyMap = new Map<string, any[]>();
       (tenanciesRes.data || []).forEach(t => {
         const unit = unitMap.get(t.unit_id);
@@ -116,10 +163,10 @@ const RegulatorTenants = () => {
           ...t,
           _landlordName: (landlordProfile?.full_name as string) || "Unknown",
           _landlordPhone: (landlordProfile?.phone as string) || "",
-          _propertyName: prop?.property_name || "—",
-          _propertyAddress: prop?.address || "—",
-          _unitName: unit?.unit_name || "—",
-          _region: prop?.region || "—",
+          _propertyName: prop?.property_name || null,
+          _propertyAddress: prop?.address || null,
+          _unitName: unit?.unit_name || null,
+          _region: prop?.region || null,
           _propertyId: prop?.id || null,
         };
         const arr = tenancyMap.get(t.tenant_user_id) || [];
@@ -127,7 +174,6 @@ const RegulatorTenants = () => {
         tenancyMap.set(t.tenant_user_id, arr);
       });
 
-      // Group complaints by tenant
       const complaintMap = new Map<string, any[]>();
       (complaintsRes.data || []).forEach(c => {
         const arr = complaintMap.get(c.tenant_user_id) || [];
@@ -181,6 +227,23 @@ const RegulatorTenants = () => {
     const a = document.createElement("a"); a.href = url; a.download = "tenants_export.csv"; a.click();
   };
 
+  const downloadPdf = async (t: TenantFull) => {
+    const { data: kyc } = await supabase.from("kyc_verifications").select("status, ghana_card_number, ai_match_score, ai_match_result, reviewer_notes").eq("user_id", t.user_id).maybeSingle();
+    generateProfilePdf({
+      role: "tenant",
+      roleId: t.tenant_id,
+      status: t.status,
+      registrationDate: t.registration_date,
+      expiryDate: t.expiry_date,
+      registrationFeePaid: t.registration_fee_paid,
+      profile: t.profile as any,
+      kyc: kyc as any,
+      tenancies: t.tenancies,
+      complaints: t.complaints,
+    });
+    toast.success("Profile PDF downloaded");
+  };
+
   if (loading) return <LogoLoader message="Loading tenants..." />;
 
   return (
@@ -217,135 +280,183 @@ const RegulatorTenants = () => {
         ) : filtered.map((t) => {
           const isExpanded = expandedId === t.tenant_id;
           const activeTenancies = t.tenancies?.filter(tc => tc.status === "active") || [];
-          const pastTenancies = t.tenancies?.filter(tc => tc.status !== "active") || [];
+          const profile = t.profile;
+          const idNumber = profile?.is_citizen ? profile?.ghana_card_no : profile?.residence_permit_no;
 
           return (
-            <div key={t.tenant_id} className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
-              <button
+            <div key={t.tenant_id} className="bg-card rounded-xl border border-border overflow-hidden">
+              <div
                 onClick={() => setExpandedId(isExpanded ? null : t.tenant_id)}
-                className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/30 transition-colors"
+                className="w-full flex items-center gap-4 p-4 text-left hover:bg-[#f9fafb] dark:hover:bg-muted/30 transition-colors cursor-pointer"
               >
-                <div className="flex-1 grid grid-cols-2 sm:grid-cols-7 gap-2 items-center text-sm">
-                  <div className="font-mono font-bold text-primary">{t.tenant_id}</div>
-                  <div className="font-medium text-foreground flex items-center gap-1.5">
-                    {t.profile?.full_name || "—"}
-                    {t.is_student && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-info/10 text-info">STUDENT</span>
-                    )}
+                <div className="flex-1 grid grid-cols-2 sm:grid-cols-7 gap-2 items-center">
+                  <div><TenantIdPill id={t.tenant_id} /></div>
+                  <div className="text-[14px] font-medium text-foreground flex items-center gap-1.5">
+                    {profile?.full_name || <NotProvided />}
+                    {t.is_student && <Badge variant="info" className="text-[10px]">Student</Badge>}
                   </div>
-                  <div className="text-muted-foreground">{t.profile?.phone || "—"}</div>
-                  <div className="text-muted-foreground">{t.profile?.is_citizen ? "🇬🇭 Citizen" : "Permit"}</div>
-                  <div className="text-muted-foreground">{t.is_student && t.school ? t.school : (t.profile?.occupation || "—")}</div>
+                  <div className="text-[13px] text-muted-foreground">{profile?.phone || "—"}</div>
+                  <div className="text-[13px] text-muted-foreground">{profile?.is_citizen ? "🇬🇭 Citizen" : "Permit"}</div>
+                  <div className="text-[13px] text-muted-foreground truncate">{t.is_student && t.school ? t.school : (profile?.occupation || "—")}</div>
                   <div className="flex flex-wrap gap-1">
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${t.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{t.status}</span>
-                    {t.account_status !== "active" && (
-                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-destructive/10 text-destructive">{t.account_status}</span>
-                    )}
-                    {activeTenancies.length > 0 && <span className="ml-1 text-xs text-primary font-medium">{activeTenancies.length} active</span>}
+                    <Badge variant={t.status === "active" ? "success" : "destructive"} className="capitalize">{t.status}</Badge>
+                    {t.account_status !== "active" && <Badge variant="destructive" className="capitalize">{t.account_status}</Badge>}
+                    {activeTenancies.length > 0 && <span className="text-[11px] text-primary font-medium self-center">{activeTenancies.length} active</span>}
                   </div>
-                  <div className="text-muted-foreground text-xs">{t.expiry_date ? new Date(t.expiry_date).toLocaleDateString() : "—"}</div>
+                  <div className="text-[13px] text-muted-foreground">{t.expiry_date ? new Date(t.expiry_date).toLocaleDateString() : "—"}</div>
                 </div>
-                {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : t.tenant_id); }}
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-full border border-border bg-background hover:bg-muted/60 transition-colors text-muted-foreground shrink-0"
+                  aria-label={isExpanded ? "Collapse" : "Expand"}
+                >
+                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+              </div>
 
               {isExpanded && (
-                <div className="border-t border-border p-5 bg-muted/10 space-y-5">
-                  <div className="flex justify-end">
-                    <Button size="sm" variant="outline" onClick={async () => {
-                      const { data: kyc } = await supabase.from("kyc_verifications").select("status, ghana_card_number, ai_match_score, ai_match_result, reviewer_notes").eq("user_id", t.user_id).maybeSingle();
-                      generateProfilePdf({
-                        role: "tenant",
-                        roleId: t.tenant_id,
-                        status: t.status,
-                        registrationDate: t.registration_date,
-                        expiryDate: t.expiry_date,
-                        registrationFeePaid: t.registration_fee_paid,
-                        profile: t.profile as any,
-                        kyc: kyc as any,
-                        tenancies: t.tenancies,
-                        complaints: t.complaints,
-                      });
-                      toast.success("Profile PDF downloaded");
-                    }}>
-                      <Download className="h-4 w-4 mr-1" /> Download Full Profile PDF
-                    </Button>
-                  </div>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {/* Personal Info */}
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><User className="h-4 w-4 text-primary" /> Personal Information</h3>
-                      <div className="text-sm space-y-1.5">
-                        <div><span className="text-muted-foreground">Full Name:</span> <span className="font-medium text-foreground">{t.profile?.full_name}</span></div>
-                        <div><span className="text-muted-foreground">Phone:</span> <span className="text-foreground">{t.profile?.phone}</span></div>
-                        <div><span className="text-muted-foreground">Email:</span> <span className="text-foreground">{t.profile?.email || "—"}</span></div>
-                        <div><span className="text-muted-foreground">Nationality:</span> <span className="text-foreground">{t.profile?.nationality}</span></div>
-                        <div><span className="text-muted-foreground">Citizen:</span> <span className="text-foreground">{t.profile?.is_citizen ? "Yes" : "No"}</span></div>
-                        <div><span className="text-muted-foreground">ID Number:</span> <span className="font-mono text-xs text-foreground">{t.profile?.is_citizen ? t.profile?.ghana_card_no || "—" : t.profile?.residence_permit_no || "—"}</span></div>
-                        <div><span className="text-muted-foreground">Occupation:</span> <span className="text-foreground">{t.profile?.occupation || "—"}</span></div>
-                        <div><span className="text-muted-foreground">Work Address:</span> <span className="text-foreground">{t.profile?.work_address || "—"}</span></div>
+                <div className="border-t border-border p-5 bg-muted/20 space-y-5">
+                  {/* Section 1 — Profile Hero */}
+                  <div className="bg-card rounded-2xl border border-border p-5 flex flex-col sm:flex-row gap-5 items-start justify-between">
+                    <div className="flex gap-4 items-start">
+                      <div className="h-[52px] w-[52px] rounded-full bg-primary text-primary-foreground flex items-center justify-center text-base font-semibold shrink-0">
+                        {initials(profile?.full_name)}
                       </div>
-                    </div>
-
-                    {/* Emergency & delivery */}
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-foreground">Emergency & Contact</h3>
-                      <div className="text-sm space-y-1.5">
-                        <div><span className="text-muted-foreground">Emergency Contact:</span> <span className="text-foreground">{t.profile?.emergency_contact_name || "—"}</span></div>
-                        <div><span className="text-muted-foreground">Emergency Phone:</span> <span className="text-foreground">{t.profile?.emergency_contact_phone || "—"}</span></div>
-                        <div><span className="text-muted-foreground">Delivery Address:</span> <span className="text-foreground">{t.profile?.delivery_address || "—"}</span></div>
-                        <div><span className="text-muted-foreground">Delivery Region:</span> <span className="text-foreground">{t.profile?.delivery_region || "—"}</span></div>
-                      </div>
-                      <h3 className="text-sm font-semibold text-foreground pt-2">Registration</h3>
-                      <div className="text-sm space-y-1.5">
-                        <div><span className="text-muted-foreground">Tenant ID:</span> <span className="font-mono text-primary font-bold">{t.tenant_id}</span></div>
-                        <div><span className="text-muted-foreground">Fee Paid:</span> <span className={`font-semibold ${t.registration_fee_paid ? "text-success" : "text-destructive"}`}>{t.registration_fee_paid ? "Yes" : "No"}</span></div>
-                        <div><span className="text-muted-foreground">Registered:</span> <span className="text-foreground">{t.registration_date ? new Date(t.registration_date).toLocaleDateString() : "—"}</span></div>
-                        <div><span className="text-muted-foreground">Expires:</span> <span className="text-foreground">{t.expiry_date ? new Date(t.expiry_date).toLocaleDateString() : "—"}</span></div>
-                      </div>
-                    </div>
-
-                    {/* Complaints */}
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><FileText className="h-4 w-4 text-warning" /> Complaints ({t.complaints?.length || 0})</h3>
-                      {(t.complaints?.length || 0) === 0 ? (
-                        <div className="text-sm text-muted-foreground italic">No complaints filed</div>
-                      ) : (
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {t.complaints?.map(c => (
-                            <div key={c.complaint_code} className="text-sm bg-background rounded-lg p-2.5 border border-border">
-                              <div className="font-mono text-xs text-primary font-semibold">{c.complaint_code}</div>
-                              <div className="text-foreground">{c.complaint_type}</div>
-                              <div className="text-xs text-muted-foreground">{c.status} • {new Date(c.created_at).toLocaleDateString()}</div>
-                            </div>
-                          ))}
+                      <div className="space-y-1.5">
+                        <div className="text-[18px] font-semibold text-foreground leading-tight">{profile?.full_name || <NotProvided />}</div>
+                        <div><TenantIdPill id={t.tenant_id} /></div>
+                        <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                          <Badge variant={t.status === "active" ? "success" : "secondary"} className="capitalize">{t.status === "active" ? "Active" : "Inactive"}</Badge>
+                          <span className="text-[12px] text-muted-foreground inline-flex items-center gap-1.5">
+                            {profile?.is_citizen ? "🇬🇭" : "🌍"} {profile?.nationality || "—"}
+                          </span>
+                          <Badge variant={profile?.is_citizen ? "success" : "secondary"} className="text-[10px]">
+                            {profile?.is_citizen ? "Citizen" : "Non-Citizen"}
+                          </Badge>
                         </div>
-                      )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-3">
+                      <div className="flex items-center gap-2">
+                        <IconButton title="Download profile PDF" onClick={() => downloadPdf(t)}>
+                          <Download className="h-4 w-4" />
+                        </IconButton>
+                        <IconButton title="Email tenant" onClick={() => profile?.email && (window.location.href = `mailto:${profile.email}`)}>
+                          <Mail className="h-4 w-4" />
+                        </IconButton>
+                        <IconButton title="View agreements">
+                          <FileBadge className="h-4 w-4" />
+                        </IconButton>
+                        <IconButton title="View complaints">
+                          <MessageSquare className="h-4 w-4" />
+                        </IconButton>
+                      </div>
+                      <Button size="sm" variant="outline" className="rounded-full" onClick={() => downloadPdf(t)}>
+                        <Download className="h-4 w-4 mr-1.5" /> Download Full Profile PDF
+                      </Button>
                     </div>
                   </div>
 
-                  {/* Tenancy history */}
-                  <div className="space-y-3 pt-3 border-t border-border">
-                    <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><Home className="h-4 w-4 text-primary" /> Tenancy History ({t.tenancies?.length || 0})</h3>
+                  {/* Section 2 — 3-column info cards */}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Personal */}
+                    <div className="bg-card rounded-2xl border border-border p-5">
+                      <SectionHeader icon={User} label="Personal information" />
+                      <div className="divide-y divide-border/60">
+                        <FieldRow label="Full Name" value={profile?.full_name || <NotProvided />} />
+                        <FieldRow label="Phone" value={profile?.phone || <NotProvided />} />
+                        <FieldRow label="Email" value={profile?.email || <NotProvided />} />
+                        <FieldRow label="Nationality" value={profile?.nationality || <NotProvided />} />
+                        <FieldRow label="Citizen" value={profile?.is_citizen ? "Yes" : "No"} />
+                        <FieldRow label="ID Number" value={idNumber ? <span className="font-mono text-[12px]">{idNumber}</span> : <NotProvided />} />
+                        <FieldRow label="Occupation" value={profile?.occupation || <NotProvided />} />
+                        <FieldRow label="Work Address" value={profile?.work_address || <NotProvided />} />
+                      </div>
+                    </div>
+
+                    {/* Emergency & Contact */}
+                    <div className="bg-card rounded-2xl border border-border p-5">
+                      <SectionHeader icon={Phone} label="Emergency & contact" />
+                      <div className="divide-y divide-border/60">
+                        <FieldRow label="Emergency Contact" value={profile?.emergency_contact_name || <NotProvided />} />
+                        <FieldRow label="Emergency Phone" value={profile?.emergency_contact_phone || <NotProvided />} />
+                        <FieldRow label="Delivery Address" value={profile?.delivery_address || <NotProvided />} />
+                        <FieldRow label="Delivery Region" value={profile?.delivery_region || <NotProvided />} />
+                      </div>
+                    </div>
+
+                    {/* Registration */}
+                    <div className="bg-card rounded-2xl border border-border p-5">
+                      <SectionHeader icon={FileText} label="Registration details" />
+                      <div className="divide-y divide-border/60">
+                        <FieldRow label="Tenant ID" value={<TenantIdPill id={t.tenant_id} />} />
+                        <FieldRow label="Fee Paid" value={
+                          <Badge variant={t.registration_fee_paid ? "success" : "destructive"}>
+                            {t.registration_fee_paid ? "Yes" : "No"}
+                          </Badge>
+                        } />
+                        <FieldRow label="Registered" value={t.registration_date ? new Date(t.registration_date).toLocaleDateString() : <NotProvided />} />
+                        <FieldRow label="Expires" value={<ExpiryValue date={t.expiry_date} />} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3 — Complaints */}
+                  {(t.complaints?.length || 0) === 0 ? (
+                    <div className="flex items-center gap-2 text-[13px] text-muted-foreground italic px-1">
+                      <AlertCircle className="h-4 w-4" />
+                      No complaints filed
+                    </div>
+                  ) : (
+                    <div className="bg-card rounded-2xl border border-border p-5">
+                      <SectionHeader icon={FileText} label={`Complaints (${t.complaints?.length || 0})`} />
+                      <div className="space-y-2">
+                        {t.complaints?.slice(0, 5).map(c => (
+                          <div key={c.complaint_code} className="flex items-center justify-between gap-3 py-2 border-b border-border/60 last:border-0">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary shrink-0">{c.complaint_code}</span>
+                              <span className="text-[13px] text-foreground truncate">{c.complaint_type}</span>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <Badge variant={c.status === "resolved" ? "success" : c.status === "pending" ? "warning" : "info"} className="capitalize">{c.status}</Badge>
+                              <span className="text-[12px] text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-end mt-3">
+                        <Link to="/regulator/complaints" className="text-[12px] text-primary hover:underline">View all complaints →</Link>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tenancy history (kept) */}
+                  <div className="bg-card rounded-2xl border border-border p-5">
+                    <SectionHeader icon={Home} label={`Tenancy history (${t.tenancies?.length || 0})`} />
                     {(t.tenancies?.length || 0) === 0 ? (
-                      <div className="text-sm text-muted-foreground italic">No tenancies on record</div>
+                      <div className="text-[13px] text-muted-foreground italic">No tenancies on record</div>
                     ) : (
                       <div className="grid sm:grid-cols-2 gap-3">
                         {t.tenancies?.map(tc => (
-                          <div key={tc.id} className={`text-sm rounded-lg p-3 border ${tc.status === "active" ? "border-primary/30 bg-primary/5" : "border-border bg-background"}`}>
+                          <div key={tc.id} className={`text-sm rounded-xl p-3 border ${tc.status === "active" ? "border-primary/30 bg-primary/5" : "border-border bg-background"}`}>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="font-mono text-xs text-primary font-semibold">{tc.registration_code}</span>
-                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${tc.status === "active" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>{tc.status}</span>
+                              <span className="font-mono text-[11px] text-primary font-semibold">{tc.registration_code}</span>
+                              <Badge variant={tc.status === "active" ? "success" : "secondary"} className="capitalize">{tc.status}</Badge>
                             </div>
                             <div className="font-medium text-foreground">
-                              <Link to={tc._propertyId ? `/regulator/properties?id=${tc._propertyId}` : "#"} className="text-primary hover:underline">{tc._propertyName}</Link>
+                              {tc._propertyId ? (
+                                <Link to={`/regulator/properties?id=${tc._propertyId}`} className="text-primary hover:underline">{tc._propertyName || "Property"}</Link>
+                              ) : (tc._propertyName || <NotProvided />)}
                             </div>
-                            <div className="text-muted-foreground text-xs">{tc._propertyAddress} • {tc._unitName}</div>
-                            <div className="text-muted-foreground text-xs">{tc._region}</div>
-                            <div className="mt-1.5 flex justify-between text-xs">
+                            <div className="text-muted-foreground text-[12px]">{tc._propertyAddress || "—"} {tc._unitName ? `• ${tc._unitName}` : ""}</div>
+                            <div className="text-muted-foreground text-[12px]">{tc._region || ""}</div>
+                            <div className="mt-1.5 flex justify-between text-[12px]">
                               <span className="text-muted-foreground">Landlord: <Link to={`/regulator/landlords?search=${encodeURIComponent(tc._landlordName || "")}`} className="text-primary hover:underline">{tc._landlordName}</Link></span>
                               <span className="font-medium text-foreground">GH₵ {tc.agreed_rent?.toLocaleString()}/mo</span>
                             </div>
-                            <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                            <div className="text-[12px] text-muted-foreground mt-1 flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               {new Date(tc.start_date).toLocaleDateString()} — {new Date(tc.end_date).toLocaleDateString()}
                             </div>
