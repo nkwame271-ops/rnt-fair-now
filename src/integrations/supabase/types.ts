@@ -283,6 +283,150 @@ export type Database = {
           },
         ]
       }
+      complaint_fee_bands: {
+        Row: {
+          admin_pct: number
+          band_label: string
+          complaint_type_id: string
+          display_order: number
+          fee_amount: number
+          id: string
+          igf_pct: number
+          platform_pct: number
+          rent_max: number | null
+          rent_min: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          admin_pct?: number
+          band_label: string
+          complaint_type_id: string
+          display_order?: number
+          fee_amount?: number
+          id?: string
+          igf_pct?: number
+          platform_pct?: number
+          rent_max?: number | null
+          rent_min?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          admin_pct?: number
+          band_label?: string
+          complaint_type_id?: string
+          display_order?: number
+          fee_amount?: number
+          id?: string
+          igf_pct?: number
+          platform_pct?: number
+          rent_max?: number | null
+          rent_min?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_fee_bands_complaint_type_id_fkey"
+            columns: ["complaint_type_id"]
+            isOneToOne: false
+            referencedRelation: "complaint_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      complaint_fee_fixed: {
+        Row: {
+          admin_pct: number
+          complaint_type_id: string
+          fee_amount: number
+          id: string
+          igf_pct: number
+          platform_pct: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          admin_pct?: number
+          complaint_type_id: string
+          fee_amount?: number
+          id?: string
+          igf_pct?: number
+          platform_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          admin_pct?: number
+          complaint_type_id?: string
+          fee_amount?: number
+          id?: string
+          igf_pct?: number
+          platform_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_fee_fixed_complaint_type_id_fkey"
+            columns: ["complaint_type_id"]
+            isOneToOne: true
+            referencedRelation: "complaint_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      complaint_fee_percentage: {
+        Row: {
+          above_threshold_pct: number
+          admin_pct: number
+          base_source: string
+          below_threshold_pct: number
+          complaint_type_id: string
+          id: string
+          igf_pct: number
+          platform_pct: number
+          threshold_amount: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          above_threshold_pct?: number
+          admin_pct?: number
+          base_source?: string
+          below_threshold_pct?: number
+          complaint_type_id: string
+          id?: string
+          igf_pct?: number
+          platform_pct?: number
+          threshold_amount?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          above_threshold_pct?: number
+          admin_pct?: number
+          base_source?: string
+          below_threshold_pct?: number
+          complaint_type_id?: string
+          id?: string
+          igf_pct?: number
+          platform_pct?: number
+          threshold_amount?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_fee_percentage_complaint_type_id_fkey"
+            columns: ["complaint_type_id"]
+            isOneToOne: true
+            referencedRelation: "complaint_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       complaint_schedules: {
         Row: {
           available_slots: Json
@@ -331,10 +475,12 @@ export type Database = {
           fee_amount: number | null
           fee_mode: string
           fee_percentage: number | null
+          fee_structure: string
           id: string
           key: string
           label: string
           rent_band_config: Json | null
+          requires_property_link: boolean
           updated_at: string
           updated_by: string | null
         }
@@ -346,10 +492,12 @@ export type Database = {
           fee_amount?: number | null
           fee_mode?: string
           fee_percentage?: number | null
+          fee_structure?: string
           id?: string
           key: string
           label: string
           rent_band_config?: Json | null
+          requires_property_link?: boolean
           updated_at?: string
           updated_by?: string | null
         }
@@ -361,10 +509,12 @@ export type Database = {
           fee_amount?: number | null
           fee_mode?: string
           fee_percentage?: number | null
+          fee_structure?: string
           id?: string
           key?: string
           label?: string
           rent_band_config?: Json | null
+          requires_property_link?: boolean
           updated_at?: string
           updated_by?: string | null
         }
@@ -373,6 +523,7 @@ export type Database = {
       complaints: {
         Row: {
           audio_url: string | null
+          claim_amount: number | null
           complaint_code: string
           complaint_type: string
           complaint_type_id: string | null
@@ -384,6 +535,7 @@ export type Database = {
           gps_location: string | null
           id: string
           landlord_name: string
+          linked_property_id: string | null
           office_id: string | null
           outstanding_amount: number | null
           payment_status: string
@@ -397,6 +549,7 @@ export type Database = {
         }
         Insert: {
           audio_url?: string | null
+          claim_amount?: number | null
           complaint_code: string
           complaint_type: string
           complaint_type_id?: string | null
@@ -408,6 +561,7 @@ export type Database = {
           gps_location?: string | null
           id?: string
           landlord_name: string
+          linked_property_id?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
@@ -421,6 +575,7 @@ export type Database = {
         }
         Update: {
           audio_url?: string | null
+          claim_amount?: number | null
           complaint_code?: string
           complaint_type?: string
           complaint_type_id?: string | null
@@ -432,6 +587,7 @@ export type Database = {
           gps_location?: string | null
           id?: string
           landlord_name?: string
+          linked_property_id?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
@@ -960,6 +1116,7 @@ export type Database = {
       landlord_complaints: {
         Row: {
           audio_url: string | null
+          claim_amount: number | null
           complaint_code: string
           complaint_type: string
           complaint_type_id: string | null
@@ -968,6 +1125,7 @@ export type Database = {
           evidence_urls: string[] | null
           id: string
           landlord_user_id: string
+          linked_property_id: string | null
           office_id: string | null
           outstanding_amount: number | null
           payment_status: string
@@ -981,6 +1139,7 @@ export type Database = {
         }
         Insert: {
           audio_url?: string | null
+          claim_amount?: number | null
           complaint_code: string
           complaint_type: string
           complaint_type_id?: string | null
@@ -989,6 +1148,7 @@ export type Database = {
           evidence_urls?: string[] | null
           id?: string
           landlord_user_id: string
+          linked_property_id?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
@@ -1002,6 +1162,7 @@ export type Database = {
         }
         Update: {
           audio_url?: string | null
+          claim_amount?: number | null
           complaint_code?: string
           complaint_type?: string
           complaint_type_id?: string | null
@@ -1010,6 +1171,7 @@ export type Database = {
           evidence_urls?: string[] | null
           id?: string
           landlord_user_id?: string
+          linked_property_id?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
