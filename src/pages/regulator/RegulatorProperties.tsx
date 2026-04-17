@@ -16,6 +16,7 @@ import LogoLoader from "@/components/LogoLoader";
 import PropertyMap, { MapMarker } from "@/components/PropertyMap";
 import { parseGPS } from "@/lib/gpsUtils";
 import { toast } from "sonner";
+import { PropertyMatchBadge, PropertySimilarityMatches } from "@/components/PropertySimilarityMatches";
 
 const RegulatorProperties = () => {
   const { user } = useAuth();
@@ -446,7 +447,10 @@ const RegulatorProperties = () => {
                     <TableRow key={p.id}>
                       <TableCell className="font-mono text-sm font-semibold text-primary">{p.property_code}</TableCell>
                       <TableCell className="font-medium">
-                        {p.property_name || "—"}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{p.property_name || "—"}</span>
+                          <PropertyMatchBadge propertyId={p.id} />
+                        </div>
                         {(p as any).duplicate_of_property_id && (
                           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                             <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20 gap-0.5">
@@ -656,6 +660,13 @@ const RegulatorProperties = () => {
                     {(detailProperty as any).approved_rent && <span className="ml-auto font-bold">GH₵ {Number((detailProperty as any).approved_rent).toLocaleString()}/mo</span>}
                   </div>
                 )}
+
+                <div className="border-t border-border pt-4">
+                  <h3 className="font-semibold text-card-foreground mb-3 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-warning" /> Similarity Matches
+                  </h3>
+                  <PropertySimilarityMatches propertyId={detailProperty.id} />
+                </div>
               </div>
             </>
           )}

@@ -17,6 +17,7 @@ import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import { generateProfilePdf } from "@/lib/generateProfilePdf";
 import RequestComplaintPaymentDialog from "@/components/RequestComplaintPaymentDialog";
 import { CreditCard, Receipt, Hash } from "lucide-react";
+import { ComplaintSimilarityPanel } from "@/components/PropertySimilarityMatches";
 
 interface SchedulingTarget {
   id: string;
@@ -528,6 +529,9 @@ const RegulatorComplaints = () => {
                           )}
                         </div>
                       </div>
+                      {/* Similarity Matches Panel */}
+                      <ComplaintSimilarityPanel complaintPropertyId={c.complaint_property_id} />
+
                       {/* Appointment Schedule Info */}
                       {scheduleMap[c.id] && (
                         <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-1">
