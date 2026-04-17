@@ -722,6 +722,18 @@ const RegulatorComplaints = () => {
         actionLabel="Delete Permanently"
         onConfirm={handleDeleteComplaint}
       />
+
+      {requestPaymentFor && (
+        <RequestComplaintPaymentDialog
+          open={!!requestPaymentFor}
+          onOpenChange={(o) => { if (!o) setRequestPaymentFor(null); }}
+          complaintId={requestPaymentFor.id}
+          complaintTable={requestPaymentFor.table}
+          monthlyRent={requestPaymentFor.rent ?? null}
+          linkedPropertyId={requestPaymentFor.propertyId ?? null}
+          onRequested={() => { setRequestPaymentFor(null); fetchComplaints(); fetchLandlordComplaints(); }}
+        />
+      )}
     </div>
   );
 };
