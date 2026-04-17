@@ -364,9 +364,11 @@ const MyAgreements = () => {
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
+  const isPast = (t: TenancyView) => ["expired", "terminated", "archived"].includes(t.status);
   const pending = tenancies.filter(t => !t.tenant_accepted && t.status === "pending");
   const existingPending = tenancies.filter(t => !t.tenant_accepted && t.status === "existing_declared");
-  const active = tenancies.filter(t => (t.tenant_accepted || t.status === "active") && t.status !== "rejected");
+  const active = tenancies.filter(t => (t.tenant_accepted || t.status === "active") && t.status !== "rejected" && !isPast(t));
+  const past = tenancies.filter(isPast);
   const rejected = tenancies.filter(t => t.status === "rejected");
 
   return (
