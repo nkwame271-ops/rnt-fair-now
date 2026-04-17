@@ -543,6 +543,35 @@ const MyAgreements = () => {
         </div>
       )}
 
+      {past.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground mb-3">Past Tenancies</h2>
+          <div className="space-y-3">
+            {past.map(t => (
+              <div key={t.id} className="bg-muted/30 rounded-xl p-5 border border-border space-y-2">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <h3 className="font-semibold text-foreground">{t.propertyName}</h3>
+                    <p className="text-xs text-muted-foreground">{t.propertyAddress} • {t.unitName}</p>
+                  </div>
+                  <span className="text-xs font-semibold bg-destructive/10 text-destructive border border-destructive/20 px-2.5 py-1 rounded-full">
+                    {t.status === "expired" ? "Expired" : t.status === "terminated" ? "Terminated" : "Archived"}
+                  </span>
+                </div>
+                <div className="grid sm:grid-cols-3 gap-3 text-xs text-muted-foreground">
+                  <div>Registration: <span className="font-mono text-foreground">{t.registration_code}</span></div>
+                  <div>Ended: <span className="text-foreground">{new Date(t.end_date).toLocaleDateString("en-GB")}</span></div>
+                  <div>Rent: <span className="text-foreground">GH₵ {t.agreed_rent.toLocaleString()}</span></div>
+                </div>
+                <div className="pt-1">
+                  <Button variant="outline" size="sm" onClick={() => handleDownload(t)}><Download className="h-3.5 w-3.5 mr-1" /> Download Agreement</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {tenancies.length === 0 && (
         <div className="bg-card rounded-xl p-8 text-center border border-border">
           <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
