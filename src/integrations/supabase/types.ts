@@ -3562,6 +3562,7 @@ export type Database = {
           tax_compliance_status: string
           tenancy_type: string
           tenant_accepted: boolean | null
+          tenant_archived_at: string | null
           tenant_id_code: string
           tenant_signed_at: string | null
           tenant_user_id: string
@@ -3604,6 +3605,7 @@ export type Database = {
           tax_compliance_status?: string
           tenancy_type?: string
           tenant_accepted?: boolean | null
+          tenant_archived_at?: string | null
           tenant_id_code: string
           tenant_signed_at?: string | null
           tenant_user_id: string
@@ -3646,6 +3648,7 @@ export type Database = {
           tax_compliance_status?: string
           tenancy_type?: string
           tenant_accepted?: boolean | null
+          tenant_archived_at?: string | null
           tenant_id_code?: string
           tenant_signed_at?: string | null
           tenant_user_id?: string
@@ -4052,6 +4055,11 @@ export type Database = {
           p_pairs: Json
         }
         Returns: Json
+      }
+      expire_overdue_tenancies: { Args: never; Returns: number }
+      expire_tenancy_cascade: {
+        Args: { p_tenancy_id: string }
+        Returns: undefined
       }
       generate_case_number: { Args: never; Returns: string }
       generate_complaint_ticket: { Args: never; Returns: string }
