@@ -29,7 +29,16 @@ const Login = () => {
       .maybeSingle();
 
     const userRole = roleData?.role;
-    if (userRole === "tenant") navigate("/tenant/dashboard");
+    if (userRole === "tenant") {
+      // Route students (tenants flagged is_student) to the NUGS portal
+      const { data: tenantRow } = await supabase
+        .from("tenants")
+        .select("is_student")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if ((tenantRow as any)?.is_student) navigate("/nugs/dashboard");
+      else navigate("/tenant/dashboard");
+    }
     else if (userRole === "landlord") navigate("/landlord/dashboard");
     else if (userRole === "regulator") navigate("/regulator/dashboard");
     else if (userRole === "nugs_admin") navigate("/nugs/dashboard");
