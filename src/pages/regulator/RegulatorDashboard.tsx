@@ -7,6 +7,7 @@ import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
+import { FeatureCard, type FeatureCardVariant } from "@/components/FeatureCard";
 
 const RegulatorDashboard = () => {
   const { profile } = useAdminProfile();
@@ -127,21 +128,36 @@ const RegulatorDashboard = () => {
           <LogoLoader message="Loading stats..." />
         ) : (
           <>
-            <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { variant: "primary" as FeatureCardVariant, eyebrow: "This week", title: "Active tenancies under management", value: stats.activeTenancies, icon: <FileText className="h-5 w-5" /> },
+                { variant: "teal" as FeatureCardVariant, eyebrow: "Live", title: "Open complaints awaiting review", value: stats.pendingComplaints, icon: <AlertTriangle className="h-5 w-5" /> },
+                { variant: "dark" as FeatureCardVariant, eyebrow: "Total", title: "Registered properties on platform", value: stats.totalProperties, icon: <Building2 className="h-5 w-5" /> },
+                { variant: "amber" as FeatureCardVariant, eyebrow: "Action needed", title: "Pending termination cases", value: stats.pendingTerminations, icon: <Gavel className="h-5 w-5" /> },
+              ].map((c) => (
+                <FeatureCard key={c.title} variant={c.variant} eyebrow={c.eyebrow} title={c.title} icon={c.icon} value={<AnimatedCounter value={c.value} />} />
+              ))}
+            </div>
+
+            <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {statCards.map((stat) => (
                 <StaggeredItem key={stat.label}>
-                  <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
-                    <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
-                    <div className="text-2xl font-bold text-card-foreground">
-                      <AnimatedCounter value={stat.value} />
+                  <div className="bg-card rounded-xl p-5 border border-border">
+                    <div className="flex items-center gap-3">
+                      <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                      <div>
+                        <div className="text-3xl font-bold text-card-foreground leading-none">
+                          <AnimatedCounter value={stat.value} />
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-1">{stat.label}</div>
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">{stat.label}</div>
                   </div>
                 </StaggeredItem>
               ))}
             </StaggeredGrid>
 
-            <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+            <div className="bg-card rounded-xl p-6 border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-primary" />
                 Quick Summary

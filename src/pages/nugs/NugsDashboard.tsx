@@ -7,6 +7,7 @@ import PageTransition from "@/components/PageTransition";
 import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import { Button } from "@/components/ui/button";
+import { FeatureCard, type FeatureCardVariant } from "@/components/FeatureCard";
 
 const AdminView = () => {
   const [loading, setLoading] = useState(true);
@@ -74,15 +75,30 @@ const AdminView = () => {
         </p>
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { variant: "primary" as FeatureCardVariant, eyebrow: "Registered", title: "Students on the platform", value: stats.totalStudents, icon: <GraduationCap className="h-5 w-5" /> },
+          { variant: "teal" as FeatureCardVariant, eyebrow: "Coverage", title: "Active institutions", value: stats.institutions, icon: <Building2 className="h-5 w-5" /> },
+          { variant: "amber" as FeatureCardVariant, eyebrow: "Pending", title: "Open student complaints", value: stats.pendingComplaints, icon: <Clock className="h-5 w-5" /> },
+          { variant: "dark" as FeatureCardVariant, eyebrow: "Resolved", title: "Closed complaint cases", value: stats.resolvedComplaints, icon: <CheckCircle2 className="h-5 w-5" /> },
+        ].map((c) => (
+          <FeatureCard key={c.title} variant={c.variant} eyebrow={c.eyebrow} title={c.title} icon={c.icon} value={<AnimatedCounter value={c.value} />} />
+        ))}
+      </div>
+
       <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {cards.map((stat) => (
           <StaggeredItem key={stat.label}>
-            <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
-              <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
-              <div className="text-3xl font-bold text-card-foreground">
-                <AnimatedCounter value={stat.value} />
+            <div className="bg-card rounded-xl p-5 border border-border">
+              <div className="flex items-center gap-3">
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                <div>
+                  <div className="text-3xl font-bold text-card-foreground leading-none">
+                    <AnimatedCounter value={stat.value} />
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">{stat.label}</div>
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground">{stat.label}</div>
             </div>
           </StaggeredItem>
         ))}

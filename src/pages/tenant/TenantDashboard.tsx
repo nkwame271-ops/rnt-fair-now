@@ -14,6 +14,7 @@ import { getTimeGreeting } from "@/lib/greeting";
 import TenancyCard, { TenancyCardData } from "@/components/TenancyCard";
 import { differenceInDays } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { FeatureCard, type FeatureCardVariant } from "@/components/FeatureCard";
 
 
 const TenantDashboard = () => {
@@ -137,24 +138,16 @@ const TenantDashboard = () => {
           <p className="text-muted-foreground mt-1">Here's your rental overview</p>
         </div>
 
-        <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: "Active Cases", value: activeCases, icon: AlertTriangle, color: "text-destructive" },
-            { label: "Tenancy Status", value: 0, icon: Shield, color: daysRemaining > 90 ? "text-success" : daysRemaining > 0 ? "text-warning" : "text-destructive", displayText: primaryCard ? (tenancyStatus === "active" ? "Active" : tenancyStatus === "renewal_window" ? "Renewal" : tenancyStatus === "expired" ? "Expired" : tenancyStatus.replace(/_/g, " ")) : "—" },
-            { label: "Days Remaining", value: daysRemaining > 0 ? daysRemaining : 0, icon: Clock, color: daysRemaining > 90 ? "text-success" : daysRemaining > 0 ? "text-warning" : "text-destructive", displayText: primaryCard ? (daysRemaining > 0 ? `${daysRemaining} days` : "Expired") : "—" },
-            { label: "Active Tenancies", value: tenancyCards.length, icon: CreditCard, color: "text-info", displayText: tenancyCards.length > 0 ? `${tenancyCards.length}` : "—" },
-          ].map((stat) => (
-            <StaggeredItem key={stat.label}>
-              <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
-                <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
-                <div className="text-2xl font-bold text-card-foreground">
-                  {"displayText" in stat ? stat.displayText : <AnimatedCounter value={stat.value} />}
-                </div>
-                <div className="text-xs text-muted-foreground">{stat.label}</div>
-              </div>
-            </StaggeredItem>
+            { variant: "primary" as FeatureCardVariant, eyebrow: "Status", title: "Tenancy status", value: primaryCard ? (tenancyStatus === "active" ? "Active" : tenancyStatus === "renewal_window" ? "Renewal" : tenancyStatus === "expired" ? "Expired" : tenancyStatus.replace(/_/g, " ")) : "—", icon: <Shield className="h-5 w-5" /> },
+            { variant: "teal" as FeatureCardVariant, eyebrow: "Lease", title: "Days remaining on lease", value: primaryCard ? (daysRemaining > 0 ? daysRemaining : 0) : "—", icon: <Clock className="h-5 w-5" /> },
+            { variant: "dark" as FeatureCardVariant, eyebrow: "Tenancies", title: "Active tenancies", value: tenancyCards.length, icon: <CreditCard className="h-5 w-5" /> },
+            { variant: "amber" as FeatureCardVariant, eyebrow: "Open", title: "Active complaint cases", value: activeCases, icon: <AlertTriangle className="h-5 w-5" /> },
+          ].map((c) => (
+            <FeatureCard key={c.title} variant={c.variant} eyebrow={c.eyebrow} title={c.title} icon={c.icon} value={c.value} />
           ))}
-        </StaggeredGrid>
+        </div>
 
         {/* Invite Landlord Card */}
         <Link to="/tenant/invite-landlord" className="group bg-card rounded-xl p-6 shadow-card border border-border hover:shadow-elevated hover:-translate-y-0.5 transition-all block">
