@@ -189,6 +189,24 @@ const RegulatorReceipts = () => {
     a.click();
   };
 
+  const handleConfirm = async (receiptId: string) => {
+    if (!user) return;
+    setConfirming(receiptId);
+    try {
+      const { error } = await supabase
+        .from("payment_receipts")
+        .update({ admin_confirmed_at: new Date().toISOString(), admin_confirmed_by: user.id } as any)
+        .eq("id", receiptId);
+      if (error) throw error;
+      toast.success("Payment confirmed. Complainant can now be scheduled.");
+      setRows((prev) => prev.map((r) => r.id === receiptId ? { ...r, admin_confirmed_at: new Date().toISOString(), admin_confirmed_by: user.id } : r));
+    } catch (err: any) {
+      toast.error(err.message || "Could not confirm receipt");
+    } finally {
+      setConfirming(null);
+    }
+  };
+
   if (loading) return <LogoLoader message="Loading receipts..." />;
 
   return (
