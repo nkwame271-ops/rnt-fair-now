@@ -799,6 +799,7 @@ const RegisterProperty = () => {
               </div>
             </div>
           </ErrorBoundary>
+          )}
 
           <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting}>
             {submitting ? "Registering..." : "Register Property"}
