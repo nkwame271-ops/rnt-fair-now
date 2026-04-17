@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { AlertTriangle, Plus, Loader2, Upload, X, Clock, CheckCircle2, Image, Mic, Square, Play, Trash2, CalendarDays, CreditCard, Receipt } from "lucide-react";
+import { AlertTriangle, Plus, Loader2, Upload, X, CheckCircle2, Image, Mic, Square, Play, Trash2, CalendarDays, CreditCard, Receipt, MapPin, Navigation, Check, Building2, Info } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,11 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { regions } from "@/data/dummyData";
 import AppointmentSlotPicker from "@/components/AppointmentSlotPicker";
+import { useJsApiLoader } from "@react-google-maps/api";
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
 
 const complaintTypes = [
   "Tenant refusing to vacate",
@@ -35,6 +38,7 @@ const statusConfig: Record<string, string> = {
 const LandlordComplaints = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  useJsApiLoader({ id: "google-map-script", googleMapsApiKey: GOOGLE_MAPS_API_KEY, libraries: GOOGLE_MAPS_LIBRARIES });
   const [complaints, setComplaints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -43,12 +47,26 @@ const LandlordComplaints = () => {
   const [basketMap, setBasketMap] = useState<Record<string, any[]>>({});
   const [paying, setPaying] = useState<string | null>(null);
 
+  // Property picker
+  const [properties, setProperties] = useState<any[]>([]);
+  const [offices, setOffices] = useState<{ id: string; name: string; region: string }[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState("");
+
   const [complaintType, setComplaintType] = useState("");
   const [tenantName, setTenantName] = useState("");
-  const [propertyAddress, setPropertyAddress] = useState("");
   const [region, setRegion] = useState("");
+  const [officeId, setOfficeId] = useState("");
   const [description, setDescription] = useState("");
   const [documents, setDocuments] = useState<File[]>([]);
+
+  // Location capture (mirrors tenant flow)
+  const [locationMethod, setLocationMethod] = useState<"" | "live" | "gps_code" | "map_search">("");
+  const [locationLat, setLocationLat] = useState<number | null>(null);
+  const [locationLng, setLocationLng] = useState<number | null>(null);
+  const [gpsCode, setGpsCode] = useState("");
+  const [placeName, setPlaceName] = useState("");
+  const [gpsConfirmed, setGpsConfirmed] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   // Audio recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -76,6 +94,22 @@ const LandlordComplaints = () => {
     }
   }, [user]);
 
+  // Load landlord properties + offices once
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const [{ data: props }, { data: offs }] = await Promise.all([
+        supabase.from("properties")
+          .select("id, property_name, property_code, address, region, area, gps_location")
+          .eq("landlord_user_id", user.id)
+          .neq("property_status", "archived"),
+        supabase.from("offices").select("id, name, region").order("name"),
+      ]);
+      setProperties(props || []);
+      setOffices(offs || []);
+    })();
+  }, [user]);
+
   // Realtime: refresh when admin requests payment / status changes
   useEffect(() => {
     if (!user) return;
@@ -94,7 +128,6 @@ const LandlordComplaints = () => {
       .order("created_at", { ascending: false });
     setComplaints(data || []);
 
-    // Fetch schedules + basket items
     if (data && data.length > 0) {
       const ids = data.map((c: any) => c.id);
       const { data: schedules } = await supabase
@@ -161,8 +194,10 @@ const LandlordComplaints = () => {
   };
 
   const resetForm = () => {
-    setComplaintType(""); setTenantName(""); setPropertyAddress("");
-    setRegion(""); setDescription(""); setDocuments([]);
+    setComplaintType(""); setTenantName(""); setSelectedPropertyId("");
+    setRegion(""); setOfficeId(""); setDescription(""); setDocuments([]);
+    setLocationMethod(""); setLocationLat(null); setLocationLng(null);
+    setGpsCode(""); setPlaceName(""); setGpsConfirmed(false);
     deleteRecording();
   };
 
@@ -208,8 +243,85 @@ const LandlordComplaints = () => {
     setAudioUrl(null);
   };
 
+  // Location capture handlers (mirror tenant flow)
+  const handleCaptureGps = () => {
+    if (!navigator.geolocation) { toast.error("Geolocation not supported by your browser"); return; }
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocationMethod("live");
+        setLocationLat(pos.coords.latitude);
+        setLocationLng(pos.coords.longitude);
+        setGpsConfirmed(false);
+        setGettingLocation(false);
+        toast.success("Location captured! Please confirm it matches the property.");
+      },
+      () => { setGettingLocation(false); toast.error("Could not get your location. Please enable location access."); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleGeocodeGpsCode = async () => {
+    const code = gpsCode.trim();
+    if (!code) { toast.error("Enter a GPS or digital address"); return; }
+    setGettingLocation(true);
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(code + ", Ghana")}&key=${GOOGLE_MAPS_API_KEY}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.status === "OK" && json.results?.[0]) {
+        const loc = json.results[0].geometry.location;
+        setLocationMethod("gps_code");
+        setLocationLat(loc.lat);
+        setLocationLng(loc.lng);
+        toast.success("Address located on the map.");
+      } else {
+        toast.error("Address not found — check and retry.");
+      }
+    } catch {
+      toast.error("Could not geocode address. Try again.");
+    } finally {
+      setGettingLocation(false);
+    }
+  };
+
+  // When property is picked, prefill region/office and try to derive location from property GPS
+  const onPickProperty = (id: string) => {
+    setSelectedPropertyId(id);
+    const p = properties.find((x) => x.id === id);
+    if (!p) return;
+    if (p.region) setRegion(p.region);
+    // Auto-resolve office from property region
+    if (p.region) {
+      supabase.rpc("resolve_office_id", { p_region: p.region, p_area: p.area || null })
+        .then(({ data }) => { if (data) setOfficeId(data); });
+    }
+    // Prefill location from property if available
+    if (p.gps_location && typeof p.gps_location === "string") {
+      const parts = p.gps_location.split(",").map((s: string) => parseFloat(s.trim()));
+      if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        setLocationMethod("map_search");
+        setLocationLat(parts[0]);
+        setLocationLng(parts[1]);
+        setPlaceName(p.address || p.property_name || "");
+      }
+    }
+  };
+
+  const officesInRegion = region ? offices.filter((o) => o.region === region) : [];
+  const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
+  const selectedOffice = offices.find((o) => o.id === officeId);
+
   const handleSubmit = async () => {
     if (!user) return;
+    if (!complaintType) { toast.error("Select a complaint type"); return; }
+    if (!selectedPropertyId) { toast.error("Select a registered property"); return; }
+    if (!region) { toast.error("Select a region"); return; }
+    if (!officeId) { toast.error("Select a Rent Control office"); return; }
+    if (!description.trim()) { toast.error("Provide a description"); return; }
+    if (!locationMethod || locationLat === null || locationLng === null) {
+      toast.error("Provide the property location using one of the three methods"); return;
+    }
     setSubmitting(true);
     try {
       const evidenceUrls: string[] = [];
@@ -222,7 +334,6 @@ const LandlordComplaints = () => {
         evidenceUrls.push(publicUrl);
       }
 
-      // Upload audio if recorded
       let uploadedAudioUrl: string | null = null;
       if (audioBlob) {
         const audioPath = `${user.id}/${Date.now()}_voice.webm`;
@@ -234,10 +345,7 @@ const LandlordComplaints = () => {
       }
 
       const code = `LC-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
-
-      // Resolve office
-      const { data: officeId } = await supabase.rpc("resolve_office_id", { p_region: region, p_area: null });
-      const resolvedOffice = officeId || "accra_central";
+      const propertyAddress = selectedProperty?.address || selectedProperty?.property_name || "";
 
       const { data: complaint, error } = await supabase.from("landlord_complaints").insert({
         landlord_user_id: user.id,
@@ -249,21 +357,25 @@ const LandlordComplaints = () => {
         description,
         evidence_urls: evidenceUrls,
         audio_url: uploadedAudioUrl,
-        office_id: resolvedOffice,
+        office_id: officeId,
+        linked_property_id: selectedPropertyId,
       } as any).select("id").single();
 
       if (error) throw error;
 
-      // Create case
       try {
         const { data: caseNumber } = await supabase.rpc("generate_case_number");
         await supabase.from("cases").insert({
           case_number: caseNumber || `CASE-${Date.now()}`,
-          office_id: resolvedOffice,
+          office_id: officeId,
           user_id: user.id,
           case_type: "complaint",
           related_complaint_id: complaint?.id || null,
-          metadata: { complaint_code: code },
+          related_property_id: selectedPropertyId,
+          metadata: {
+            complaint_code: code,
+            location: { lat: locationLat, lng: locationLng, method: locationMethod, gps_code: gpsCode || null, place_name: placeName || null, confirmed: gpsConfirmed },
+          },
         } as any);
       } catch (e) { console.error("Case creation error:", e); }
       toast.success(`Complaint filed! Code: ${code}`);
@@ -293,7 +405,6 @@ const LandlordComplaints = () => {
         </Button>
       </div>
 
-      {/* Appointment scheduling cards */}
       <AppointmentSlotPicker complaintTable="landlord_complaints" userIdColumn="landlord_user_id" />
 
       {complaints.length === 0 ? (
@@ -320,7 +431,6 @@ const LandlordComplaints = () => {
               </div>
               <p className="text-sm text-foreground">{c.description}</p>
 
-              {/* Pay Now CTA when admin has requested payment */}
               {c.status === "pending_payment" && c.payment_status === "pending" && Number(c.outstanding_amount) > 0 && (
                 <div className="bg-warning/5 border border-warning/30 rounded-lg p-4 space-y-3">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -366,7 +476,6 @@ const LandlordComplaints = () => {
                   <span className="text-foreground"><strong>Filing fee paid.</strong> Your complaint is ready for scheduling.</span>
                 </div>
               )}
-              {/* Appointment info */}
               {scheduleMap[c.id] && (
                 <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -415,21 +524,165 @@ const LandlordComplaints = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Property picker — required */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5" /> Registered Property *</Label>
+              {properties.length === 0 ? (
+                <div className="text-xs text-warning bg-warning/10 border border-warning/30 rounded-lg p-2.5">
+                  You have no registered properties. Register a property first to file a complaint.
+                </div>
+              ) : (
+                <Select value={selectedPropertyId} onValueChange={onPickProperty}>
+                  <SelectTrigger><SelectValue placeholder="Select one of your properties" /></SelectTrigger>
+                  <SelectContent>
+                    {properties.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.property_name || p.property_code} — {p.address}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <p className="text-xs text-muted-foreground">Complaints must be tied to a registered property for proper fee calculation and routing.</p>
+            </div>
+
             <div className="space-y-2">
               <Label>Tenant Name (if applicable)</Label>
               <Input value={tenantName} onChange={(e) => setTenantName(e.target.value)} placeholder="Name of tenant involved" />
             </div>
-            <div className="space-y-2">
-              <Label>Property Address *</Label>
-              <Input value={propertyAddress} onChange={(e) => setPropertyAddress(e.target.value)} placeholder="Address of affected property" />
+
+            {/* Region + Office routing */}
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Region *</Label>
+                <Select value={region} onValueChange={(v) => { setRegion(v); setOfficeId(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
+                  <SelectContent>{regions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Rent Control Office *</Label>
+                <Select value={officeId} onValueChange={setOfficeId} disabled={!region}>
+                  <SelectTrigger><SelectValue placeholder={region ? "Select office" : "Select region first"} /></SelectTrigger>
+                  <SelectContent>
+                    {officesInRegion.length === 0 && region && (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">No offices in {region}</div>
+                    )}
+                    {officesInRegion.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            {selectedOffice && (
+              <div className="flex items-center gap-2 bg-success/10 border border-success/20 rounded-lg p-2.5 text-xs">
+                <Building2 className="h-3.5 w-3.5 text-success" />
+                <span className="text-foreground">Routed to <strong>{selectedOffice.name}</strong> — {selectedOffice.region}</span>
+              </div>
+            )}
+
+            {/* Property Location — 3 methods */}
             <div className="space-y-2">
-              <Label>Region *</Label>
-              <Select value={region} onValueChange={setRegion}>
-                <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
-                <SelectContent>{regions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-              </Select>
+              <Label className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Property Location *</Label>
+              <div className="flex items-start gap-2 text-xs bg-info/10 text-info border border-info/20 rounded-lg px-3 py-2">
+                <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>Choose <strong>one</strong> method to pin the property location.</span>
+              </div>
+
+              <div className="flex gap-1 bg-muted rounded-lg p-1">
+                {(["map_search", "live", "gps_code"] as const).map((m) => {
+                  const labels = { map_search: "Search on Map", live: "Live Location", gps_code: "GPS / Digital Address" };
+                  const active = (locationMethod || "map_search") === m;
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setLocationMethod(m)}
+                      className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-md transition-colors ${active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      {labels[m]}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {locationMethod === "live" && (
+                <div className="space-y-2">
+                  <Button type="button" variant="outline" size="sm" onClick={handleCaptureGps} disabled={gettingLocation} className="w-full">
+                    <Navigation className="h-4 w-4 mr-2" />
+                    {gettingLocation ? "Getting location..." : locationLat ? "Recapture My Location" : "Use My Current Location"}
+                  </Button>
+                  {locationLat !== null && (
+                    <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                      <Check className="h-4 w-4" />
+                      <span>Captured: {locationLat.toFixed(6)}, {locationLng?.toFixed(6)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {locationMethod === "gps_code" && (
+                <div className="space-y-2">
+                  <Input
+                    value={gpsCode}
+                    onChange={(e) => setGpsCode(e.target.value)}
+                    placeholder="e.g. GA-123-4567"
+                    onBlur={() => gpsCode && handleGeocodeGpsCode()}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={handleGeocodeGpsCode} disabled={gettingLocation || !gpsCode}>
+                    {gettingLocation ? "Locating..." : "Locate Address"}
+                  </Button>
+                  {locationLat !== null && (
+                    <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                      <Check className="h-4 w-4" />
+                      <span>Found: {locationLat.toFixed(6)}, {locationLng?.toFixed(6)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(locationMethod === "map_search" || !locationMethod) && (
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Search a place, building, or address"
+                    value={placeName}
+                    onChange={(e) => setPlaceName(e.target.value)}
+                    ref={(el) => {
+                      if (!el || (el as any).__autocomplete_attached) return;
+                      if (typeof window === "undefined" || !(window as any).google?.maps?.places) return;
+                      const ac = new (window as any).google.maps.places.Autocomplete(el, {
+                        componentRestrictions: { country: "gh" },
+                        fields: ["geometry", "name", "place_id", "formatted_address"],
+                      });
+                      ac.addListener("place_changed", () => {
+                        const p = ac.getPlace();
+                        if (p?.geometry?.location) {
+                          setLocationMethod("map_search");
+                          setLocationLat(p.geometry.location.lat());
+                          setLocationLng(p.geometry.location.lng());
+                          setPlaceName(p.name || p.formatted_address || "");
+                        }
+                      });
+                      (el as any).__autocomplete_attached = true;
+                    }}
+                  />
+                  {locationMethod === "map_search" && locationLat !== null && (
+                    <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                      <Check className="h-4 w-4" />
+                      <span>{placeName || "Selected"} ({locationLat.toFixed(6)}, {locationLng?.toFixed(6)})</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {locationLat !== null && (
+                <label className="flex items-start gap-2.5 cursor-pointer bg-muted rounded-lg px-3 py-2 border border-border">
+                  <Checkbox checked={gpsConfirmed} onCheckedChange={(v) => setGpsConfirmed(!!v)} className="mt-0.5" />
+                  <span className="text-xs">I confirm this location refers to the <strong>property in question</strong>.</span>
+                </label>
+              )}
             </div>
+
             <div className="space-y-2">
               <Label>Description *</Label>
               <Textarea
@@ -439,10 +692,9 @@ const LandlordComplaints = () => {
                 className="min-h-[100px]"
               />
             </div>
-            {/* Voice Note */}
+
             <div className="space-y-2">
               <Label className="flex items-center gap-1"><Mic className="h-3.5 w-3.5" /> Voice Note (optional)</Label>
-              <p className="text-xs text-muted-foreground">Can't type? Record a voice note describing your issue.</p>
               {!audioUrl ? (
                 <Button
                   type="button"
@@ -462,6 +714,7 @@ const LandlordComplaints = () => {
                 </div>
               )}
             </div>
+
             <div className="space-y-2">
               <Label className="flex items-center gap-1"><Image className="h-3.5 w-3.5" /> Supporting Documents (up to 6)</Label>
               <input type="file" accept="image/*,.pdf" multiple onChange={handleDocChange} className="text-sm" />
@@ -478,9 +731,10 @@ const LandlordComplaints = () => {
                 </div>
               )}
             </div>
+
             <Button
               onClick={handleSubmit}
-              disabled={submitting || !complaintType || !propertyAddress.trim() || !region || !description.trim()}
+              disabled={submitting || !complaintType || !selectedPropertyId || !region || !officeId || !description.trim() || locationLat === null}
               className="w-full"
             >
               {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
