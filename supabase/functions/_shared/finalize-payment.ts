@@ -268,7 +268,14 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
             }
           }
 
-          await supabaseAdmin.from("escrow_splits").insert(childSplitRows);
+          // All child rows inserted as active ledger entries with payout_readiness='pending'.
+          // Recipient-gap rows get 'unassigned' so missing setup never blocks ledger posting.
+          const childRowsWithStatus = childSplitRows.map((r: any) => ({
+            ...r,
+            status: "active",
+            payout_readiness: (r.recipient === "admin" && !r.office_id) ? "unassigned" : "pending",
+          }));
+          await supabaseAdmin.from("escrow_splits").insert(childRowsWithStatus);
         }
       }
     }
@@ -282,11 +289,12 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     ? meta.split_plan
     : [{ recipient: "platform", amount: amountPaid, description: `${paymentType} payment` }];
 
-  // 5. Create escrow_splits if missing
+  // 5. Create escrow_splits if missing — POST LEDGER FIRST, decoupled from payout
   const { data: existingSplits } = await supabaseAdmin
     .from("escrow_splits")
     .select("id, recipient, amount, disbursement_status")
-    .eq("escrow_transaction_id", escrowId);
+    .eq("escrow_transaction_id", escrowId)
+    .eq("status", "active");
 
   let splits = existingSplits || [];
 
@@ -330,10 +338,19 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       }
     }
 
+    // Tag every row as active immediately. Missing office on a deferred admin
+    // row → payout_readiness='unassigned'. Real recipient-account lookup happens
+    // in step 9 below where rows that successfully resolve get flipped to 'ready'.
+    const splitRowsWithStatus = splitRows.map((r: any) => ({
+      ...r,
+      status: "active",
+      payout_readiness: (r.recipient === "admin" && !r.office_id) ? "unassigned" : "pending",
+    }));
+
     const { data: inserted } = await supabaseAdmin
       .from("escrow_splits")
-      .insert(splitRows)
-      .select("id, recipient, amount, disbursement_status");
+      .insert(splitRowsWithStatus)
+      .select("id, recipient, amount, disbursement_status, payout_readiness");
 
     splits = inserted || [];
 
@@ -509,6 +526,12 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
           const payoutRef = `fpayout_${escrowId.slice(0, 8)}_${(split.id || "").slice(0, 8)}_${Date.now()}`;
 
           if (recipientCode) {
+            // Mark split row as ready BEFORE attempting transfer — ledger is decoupled.
+            if (split.id) {
+              await supabaseAdmin.from("escrow_splits")
+                .update({ payout_readiness: "ready" })
+                .eq("id", split.id);
+            }
             try {
               const tRes = await fetch("https://api.paystack.co/transfer", {
                 method: "POST",
@@ -529,8 +552,18 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
                 failure_reason: tData.status ? null : (tData.message || "Transfer failed"),
               });
 
-              if (tData.status && split.id) {
-                await supabaseAdmin.from("escrow_splits").update({ disbursement_status: "released", released_at: new Date().toISOString() }).eq("id", split.id);
+              if (split.id) {
+                if (tData.status) {
+                  await supabaseAdmin.from("escrow_splits").update({
+                    disbursement_status: "released",
+                    released_at: new Date().toISOString(),
+                    payout_readiness: "released",
+                  }).eq("id", split.id);
+                } else {
+                  await supabaseAdmin.from("escrow_splits").update({
+                    payout_readiness: "failed",
+                  }).eq("id", split.id);
+                }
               }
             } catch (e: any) {
               await supabaseAdmin.from("payout_transfers").insert({
@@ -543,8 +576,20 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
                 paystack_reference: payoutRef,
                 failure_reason: e.message || "Transfer error",
               });
+              if (split.id) {
+                await supabaseAdmin.from("escrow_splits").update({
+                  payout_readiness: "failed",
+                }).eq("id", split.id);
+              }
             }
           } else {
+            // No recipient configured — ledger row stays active, payout marked unassigned.
+            // Missing recipient setup must NEVER block ledger posting.
+            if (split.id) {
+              await supabaseAdmin.from("escrow_splits")
+                .update({ payout_readiness: "unassigned" })
+                .eq("id", split.id);
+            }
             await supabaseAdmin.from("payout_transfers").insert({
               escrow_split_id: split.id || null,
               escrow_transaction_id: escrowId,

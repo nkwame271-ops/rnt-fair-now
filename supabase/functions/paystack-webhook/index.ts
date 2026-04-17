@@ -151,7 +151,11 @@ Deno.serve(async (req) => {
 
         if (transfer?.escrow_split_id) {
           await supabase.from("escrow_splits")
-            .update({ disbursement_status: "released", released_at: new Date().toISOString() })
+            .update({
+              disbursement_status: "released",
+              released_at: new Date().toISOString(),
+              payout_readiness: "released",
+            })
             .eq("id", transfer.escrow_split_id);
         }
 
@@ -187,7 +191,11 @@ Deno.serve(async (req) => {
 
         if (transfer?.escrow_split_id) {
           await supabase.from("escrow_splits")
-            .update({ disbursement_status: "held", released_at: null })
+            .update({
+              disbursement_status: "held",
+              released_at: null,
+              payout_readiness: "failed",
+            })
             .eq("id", transfer.escrow_split_id);
         }
 

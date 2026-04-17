@@ -466,36 +466,48 @@ export type Database = {
       escrow_splits: {
         Row: {
           amount: number
+          correction_run_id: string | null
           description: string | null
           disbursement_status: string
           escrow_transaction_id: string
           id: string
           office_id: string | null
+          payout_readiness: string
           recipient: string
           release_mode: string
           released_at: string | null
+          status: string
+          superseded_at: string | null
         }
         Insert: {
           amount: number
+          correction_run_id?: string | null
           description?: string | null
           disbursement_status?: string
           escrow_transaction_id: string
           id?: string
           office_id?: string | null
+          payout_readiness?: string
           recipient: string
           release_mode?: string
           released_at?: string | null
+          status?: string
+          superseded_at?: string | null
         }
         Update: {
           amount?: number
+          correction_run_id?: string | null
           description?: string | null
           disbursement_status?: string
           escrow_transaction_id?: string
           id?: string
           office_id?: string | null
+          payout_readiness?: string
           recipient?: string
           release_mode?: string
           released_at?: string | null
+          status?: string
+          superseded_at?: string | null
         }
         Relationships: [
           {

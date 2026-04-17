@@ -56,13 +56,16 @@ Deno.serve(async (req) => {
     }
 
     // Find deferred admin splits for this escrow (these are the office shares
-    // that were waiting for an office assignment). We do NOT touch admin_hq
-    // rows — those were already posted to HQ at finalize-payment time.
+    // that were waiting for an office assignment). We only touch ACTIVE rows;
+    // superseded rows are historical and must never be re-tagged.
+    // We do NOT touch admin_hq rows — those were already posted to HQ at
+    // finalize-payment time.
     const { data: deferredSplits } = await adminClient
       .from("escrow_splits")
       .select("id, recipient, amount, disbursement_status, description")
       .eq("escrow_transaction_id", escrow_transaction_id)
       .eq("recipient", "admin")
+      .eq("status", "active")
       .eq("disbursement_status", "deferred");
 
     if (!deferredSplits || deferredSplits.length === 0) {
@@ -74,12 +77,12 @@ Deno.serve(async (req) => {
     const officeSplitIds: string[] = [];
     let totalOfficeAmount = 0;
 
-    // Re-tag each deferred row — keep amount, just attach office and unblock payout
+    // Re-tag each deferred row — keep amount, attach office, unblock payout, mark ready
     for (const split of deferredSplits) {
       const splitAmount = Number(split.amount);
       await adminClient
         .from("escrow_splits")
-        .update({ office_id, disbursement_status: "pending_transfer" })
+        .update({ office_id, disbursement_status: "pending_transfer", payout_readiness: "ready" })
         .eq("id", split.id);
       officeSplitIds.push(split.id);
       totalOfficeAmount += splitAmount;
@@ -151,7 +154,11 @@ Deno.serve(async (req) => {
         if (tData.status && officeSplitIds.length > 0) {
           await adminClient
             .from("escrow_splits")
-            .update({ disbursement_status: "released", released_at: new Date().toISOString() })
+            .update({
+              disbursement_status: "released",
+              released_at: new Date().toISOString(),
+              payout_readiness: "released",
+            })
             .in("id", officeSplitIds);
         }
       } catch (e: any) {
