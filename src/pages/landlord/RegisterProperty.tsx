@@ -39,6 +39,14 @@ interface UnitForm {
   benchmark?: { pricing_band: string; pricing_label: string; benchmark_min: number; benchmark_max: number; benchmark_expected: number; confidence: string };
 }
 
+interface HostelCategoryForm {
+  label: string;
+  capacityPerRoom: string;
+  roomCount: string;
+  monthlyRent: string;
+  blockLabel: string;
+}
+
 const amenityOptions = ["Security", "Parking", "Balcony", "Compound", "AC", "Generator", "Pool", "Gym"];
 
 const createEmptyUnit = (index: number): UnitForm => ({
@@ -47,6 +55,10 @@ const createEmptyUnit = (index: number): UnitForm => ({
   hasToiletBathroom: false, hasKitchen: false, waterAvailable: false,
   electricityAvailable: false, hasBorehole: false, hasPolytank: false,
   amenities: [], customAmenities: "",
+});
+
+const createEmptyHostelCategory = (): HostelCategoryForm => ({
+  label: "", capacityPerRoom: "", roomCount: "", monthlyRent: "", blockLabel: "Block A",
 });
 
 const normalizeAddress = (addr: string) => addr.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
@@ -70,6 +82,9 @@ const RegisterProperty = () => {
   const [propertyStructure, setPropertyStructure] = useState<"single_unit" | "multi_unit">("single_unit");
   const [occupancyStatus, setOccupancyStatus] = useState<"vacant" | "occupied">("vacant");
   const [units, setUnits] = useState<UnitForm[]>([createEmptyUnit(0)]);
+  const [hostelCategories, setHostelCategories] = useState<HostelCategoryForm[]>([createEmptyHostelCategory()]);
+
+  const isHostel = propertyCategory === "hostel";
 
   const areas = region ? areasByRegion[region] || [] : [];
   const effectiveArea = customArea.trim() || area;
@@ -81,6 +96,25 @@ const RegisterProperty = () => {
     updated[i] = { ...updated[i], ...updates };
     setUnits(updated);
   };
+
+  const addHostelCategory = () => setHostelCategories([...hostelCategories, createEmptyHostelCategory()]);
+  const removeHostelCategory = (i: number) => setHostelCategories(hostelCategories.filter((_, idx) => idx !== i));
+  const updateHostelCategory = (i: number, updates: Partial<HostelCategoryForm>) => {
+    const updated = [...hostelCategories];
+    updated[i] = { ...updated[i], ...updates };
+    setHostelCategories(updated);
+  };
+
+  const hostelTotals = hostelCategories.reduce(
+    (acc, c) => {
+      const rooms = parseInt(c.roomCount) || 0;
+      const cap = parseInt(c.capacityPerRoom) || 0;
+      acc.rooms += rooms;
+      acc.beds += rooms * cap;
+      return acc;
+    },
+    { rooms: 0, beds: 0 }
+  );
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
