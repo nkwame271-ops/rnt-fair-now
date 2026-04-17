@@ -319,6 +319,53 @@ const LandlordComplaints = () => {
                 <Badge className={`${statusConfig[c.status] || ""} text-xs`}>{c.status.replace("_", " ")}</Badge>
               </div>
               <p className="text-sm text-foreground">{c.description}</p>
+
+              {/* Pay Now CTA when admin has requested payment */}
+              {c.status === "pending_payment" && c.payment_status === "pending" && Number(c.outstanding_amount) > 0 && (
+                <div className="bg-warning/5 border border-warning/30 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <CreditCard className="h-4 w-4 text-warning" /> Filing fee requested
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-0.5">
+                        An officer has set the fee for this complaint. Pay to proceed to scheduling.
+                      </div>
+                    </div>
+                    <Button onClick={() => handlePayNow(c)} disabled={paying === c.id}>
+                      {paying === c.id ? "Processing..." : "Pay Now"}
+                    </Button>
+                  </div>
+
+                  {basketMap[c.id]?.length > 0 && (
+                    <div className="bg-background border border-border rounded-md divide-y divide-border">
+                      {basketMap[c.id].map((it: any) => (
+                        <div key={it.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-foreground truncate">{it.label}</span>
+                            {it.kind === "manual_adjustment" && (
+                              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-warning/15 text-warning shrink-0">Manual</span>
+                            )}
+                          </div>
+                          <span className="font-medium text-foreground tabular-nums">GH₵ {Number(it.amount).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between border-t border-warning/30 pt-2">
+                    <span className="text-sm font-semibold text-foreground">Total</span>
+                    <span className="text-lg font-bold text-foreground">GH₵ {Number(c.outstanding_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              )}
+
+              {c.payment_status === "paid" && (
+                <div className="bg-success/5 border border-success/20 rounded-lg p-3 flex items-center gap-2 text-sm">
+                  <Receipt className="h-4 w-4 text-success" />
+                  <span className="text-foreground"><strong>Filing fee paid.</strong> Your complaint is ready for scheduling.</span>
+                </div>
+              )}
               {/* Appointment info */}
               {scheduleMap[c.id] && (
                 <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
