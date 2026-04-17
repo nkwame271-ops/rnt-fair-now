@@ -13,7 +13,57 @@ import type { ComplaintTypeRow, FixedFeeRow, BandRow, PercentageRow } from "@/li
 
 const splitSum = (i: number, a: number, p: number) => Math.round((Number(i) + Number(a) + Number(p)) * 100) / 100;
 
-const SplitInputs = ({ row, onChange }: { row: { igf_pct: number; admin_pct: number; platform_pct: number }; onChange: (patch: any) => void }) => {
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// Flat-amount split inputs. The row stores percentages (igf_pct/admin_pct/platform_pct) but the
+// admin enters absolute GHS amounts that must sum exactly to the fee total. We convert on change.
+const SplitInputsFlat = ({
+  row,
+  feeAmount,
+  onChange,
+}: {
+  row: { igf_pct: number; admin_pct: number; platform_pct: number };
+  feeAmount: number;
+  onChange: (patch: { igf_pct?: number; admin_pct?: number; platform_pct?: number }) => void;
+}) => {
+  const fee = Number(feeAmount) || 0;
+  const igfAmt = round2((fee * (Number(row.igf_pct) || 0)) / 100);
+  const admAmt = round2((fee * (Number(row.admin_pct) || 0)) / 100);
+  const platAmt = round2((fee * (Number(row.platform_pct) || 0)) / 100);
+  const sum = round2(igfAmt + admAmt + platAmt);
+  const ok = fee > 0 && Math.abs(sum - fee) < 0.01;
+
+  const setAmt = (key: "igf_pct" | "admin_pct" | "platform_pct", amount: number) => {
+    if (fee <= 0) { onChange({ [key]: 0 } as any); return; }
+    const pct = round2((amount / fee) * 100);
+    onChange({ [key]: pct });
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <div className="space-y-1">
+        <Label className="text-xs">IGF (GHS)</Label>
+        <Input type="number" step="0.01" min={0} value={igfAmt} onChange={(e) => setAmt("igf_pct", Number(e.target.value))} className={!ok ? "border-destructive" : ""} />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Admin (GHS)</Label>
+        <Input type="number" step="0.01" min={0} value={admAmt} onChange={(e) => setAmt("admin_pct", Number(e.target.value))} className={!ok ? "border-destructive" : ""} />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Platform (GHS)</Label>
+        <Input type="number" step="0.01" min={0} value={platAmt} onChange={(e) => setAmt("platform_pct", Number(e.target.value))} className={!ok ? "border-destructive" : ""} />
+      </div>
+      <div className="col-span-3 text-xs">
+        Sum: <span className={ok ? "text-success font-semibold" : "text-destructive font-semibold"}>GHS {sum.toFixed(2)}</span>
+        {fee > 0 && !ok && <span className="text-destructive"> (must equal fee total GHS {fee.toFixed(2)})</span>}
+        {fee <= 0 && <span className="text-muted-foreground"> — set a fee amount first</span>}
+      </div>
+    </div>
+  );
+};
+
+// Percentage-type fees vary with rent/claim, so splits remain entered as percentages.
+const SplitInputsPct = ({ row, onChange }: { row: { igf_pct: number; admin_pct: number; platform_pct: number }; onChange: (patch: any) => void }) => {
   const sum = splitSum(row.igf_pct, row.admin_pct, row.platform_pct);
   const ok = sum === 100;
   return (
@@ -32,6 +82,7 @@ const SplitInputs = ({ row, onChange }: { row: { igf_pct: number; admin_pct: num
       </div>
       <div className="col-span-3 text-xs">
         Sum: <span className={ok ? "text-success font-semibold" : "text-destructive font-semibold"}>{sum}%</span> {!ok && "(must equal 100)"}
+        <span className="text-muted-foreground"> — fee varies with rent/claim, so splits stay as %.</span>
       </div>
     </div>
   );
@@ -244,7 +295,7 @@ const ComplaintTypesManager = () => {
                     <Label className="text-xs">Fee Amount (GHS)</Label>
                     <Input type="number" step="0.01" value={row.fee_amount} onChange={(e) => setFixedMap((m) => ({ ...m, [t.id]: { ...row, fee_amount: Number(e.target.value) } }))} />
                   </div>
-                  <SplitInputs row={row} onChange={(patch) => setFixedMap((m) => ({ ...m, [t.id]: { ...row, ...patch } }))} />
+                  <SplitInputsFlat row={row} feeAmount={Number(row.fee_amount) || 0} onChange={(patch) => setFixedMap((m) => ({ ...m, [t.id]: { ...row, ...patch } }))} />
                 </div>
                 <div className="flex justify-end">
                   <Button size="sm" onClick={() => saveFixed(t.id)} disabled={savingId === t.id}>
@@ -285,7 +336,7 @@ const ComplaintTypesManager = () => {
                       </div>
                       <div className="grid sm:grid-cols-2 gap-3">
                         <div className="space-y-1"><Label className="text-xs">Fee Amount (GHS)</Label><Input type="number" step="0.01" value={band.fee_amount} onChange={(e) => setBandsMap((m) => ({ ...m, [t.id]: bands.map((b) => b.id === band.id ? { ...b, fee_amount: Number(e.target.value) } : b) }))} /></div>
-                        <SplitInputs row={band} onChange={(patch) => setBandsMap((m) => ({ ...m, [t.id]: bands.map((b) => b.id === band.id ? { ...b, ...patch } : b) }))} />
+                        <SplitInputsFlat row={band} feeAmount={Number(band.fee_amount) || 0} onChange={(patch) => setBandsMap((m) => ({ ...m, [t.id]: bands.map((b) => b.id === band.id ? { ...b, ...patch } : b) }))} />
                       </div>
                       <div className="flex justify-between">
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={() => removeBand(band.id)}><Trash2 className="h-3.5 w-3.5 mr-1" /> Delete band</Button>
@@ -333,7 +384,7 @@ const ComplaintTypesManager = () => {
                   <div className="space-y-1"><Label className="text-xs">Below Threshold %</Label><Input type="number" step="0.01" value={row.below_threshold_pct} onChange={(e) => setPercentMap((m) => ({ ...m, [t.id]: { ...row, below_threshold_pct: Number(e.target.value) } }))} /></div>
                   <div className="space-y-1"><Label className="text-xs">At/Above Threshold %</Label><Input type="number" step="0.01" value={row.above_threshold_pct} onChange={(e) => setPercentMap((m) => ({ ...m, [t.id]: { ...row, above_threshold_pct: Number(e.target.value) } }))} /></div>
                 </div>
-                <SplitInputs row={row} onChange={(patch) => setPercentMap((m) => ({ ...m, [t.id]: { ...row, ...patch } }))} />
+                <SplitInputsPct row={row} onChange={(patch) => setPercentMap((m) => ({ ...m, [t.id]: { ...row, ...patch } }))} />
                 <div className="flex justify-end">
                   <Button size="sm" onClick={() => savePct(t.id)} disabled={savingId === t.id}>{savingId === t.id ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />} Save</Button>
                 </div>
