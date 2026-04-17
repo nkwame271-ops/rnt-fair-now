@@ -267,6 +267,83 @@
     border: 1px solid rgba(255, 255, 255, 0.4);
   }
 
+  /* === App-wide motion: hover lift on any card-like surface === */
+  /* Applied via attribute selectors so even raw <div className="bg-card rounded-xl"> blocks lift. */
+  .glass-card,
+  [class*="bg-card"][class*="rounded-xl"],
+  [class*="bg-card"][class*="rounded-2xl"],
+  [class*="bg-card"][class*="rounded-lg"] {
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                background-color 0.35s ease;
+    will-change: transform;
+  }
+  .glass-card:hover,
+  [class*="bg-card"][class*="rounded-xl"]:hover,
+  [class*="bg-card"][class*="rounded-2xl"]:hover,
+  [class*="bg-card"][class*="rounded-lg"]:hover {
+    transform: translateY(-6px) scale(1.012);
+    box-shadow: 0 14px 44px rgba(0, 0, 0, 0.10), 0 4px 16px rgba(0, 0, 0, 0.06);
+  }
+
+  /* Page enter animation — runs every time main content mounts (route change). */
+  @keyframes pageEnter {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  [data-app-main] > * {
+    animation: pageEnter 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Staggered list entrance — opt-in via data-stagger on a parent. */
+  @keyframes staggerIn {
+    from { opacity: 0; transform: translateY(18px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  [data-stagger] > * {
+    animation: staggerIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  [data-stagger] > *:nth-child(1) { animation-delay: 0.04s; }
+  [data-stagger] > *:nth-child(2) { animation-delay: 0.08s; }
+  [data-stagger] > *:nth-child(3) { animation-delay: 0.12s; }
+  [data-stagger] > *:nth-child(4) { animation-delay: 0.16s; }
+  [data-stagger] > *:nth-child(5) { animation-delay: 0.20s; }
+  [data-stagger] > *:nth-child(6) { animation-delay: 0.24s; }
+  [data-stagger] > *:nth-child(7) { animation-delay: 0.28s; }
+  [data-stagger] > *:nth-child(8) { animation-delay: 0.32s; }
+  [data-stagger] > *:nth-child(n+9) { animation-delay: 0.36s; }
+
+  /* Button press feedback — applies app-wide. */
+  button:not(:disabled),
+  a[role="button"]:not(:disabled) {
+    transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.18s ease,
+                background-color 0.2s ease;
+  }
+  button:not(:disabled):hover,
+  a[role="button"]:not(:disabled):hover {
+    transform: translateY(-1px);
+  }
+  button:not(:disabled):active,
+  a[role="button"]:not(:disabled):active {
+    transform: translateY(0) scale(0.97);
+    transition-duration: 0.08s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-app-main] > *,
+    [data-stagger] > * {
+      animation: none !important;
+    }
+    .glass-card:hover,
+    [class*="bg-card"][class*="rounded-xl"]:hover,
+    [class*="bg-card"][class*="rounded-2xl"]:hover,
+    [class*="bg-card"][class*="rounded-lg"]:hover {
+      transform: none;
+    }
+    button:hover, a[role="button"]:hover { transform: none; }
+  }
+
   /* Reduced transparency / no backdrop-filter support → solid fallback */
   @media (prefers-reduced-transparency: reduce) {
     .glass-card,
