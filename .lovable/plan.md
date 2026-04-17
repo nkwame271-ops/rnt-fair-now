@@ -1,56 +1,72 @@
 
 
-## Global Layout & Visual Rules — Plan
+## Performance Optimisation — Plan
 
-### Approach: token + layout-shell level
-Apply 90% via `src/index.css` (background z-index fix, scrollbar, typography defaults) + the 4 layout shells (`RegulatorLayout`, `LandlordLayout`, `TenantLayout`, `NugsLayout`) for transparent main + consistent padding + max-width. No per-page edits.
+### Reality check (from codebase audit)
+- App.tsx **already** uses `React.lazy` + `Suspense` for all routes (Fix 5 ✅ done).
+- Only ~2 files use `useQuery` (`PaymentErrors`, `AgencyApiKeys`). Everything else uses `useEffect + supabase` directly. So React Query defaults (Fix 1) alone won't move the needle for most pages — perceived speed (skeletons) and reduced payload (column selection on the hottest pages) matter more.
+- 57 files use `select('*')`. Refactoring all of them risks breaking field access. Scope to the 6 highest-traffic list pages.
 
 ### Changes
 
-**1. `src/index.css` — global rules**
+**1. `src/App.tsx` — tighten QueryClient defaults**
+```ts
+staleTime: 5 * 60 * 1000,
+gcTime: 10 * 60 * 1000,
+refetchOnWindowFocus: false,
+refetchOnMount: false,
+retry: 1,
+```
+Replaces existing 60s/300s defaults.
 
-- **Rule 1 + 2 (background bleed-through, fixed)**: 
-  - `body::before` already fixed; change `z-index: -1` → `z-index: 0` and add `body { background: transparent; }` after the `html, body { background-color: #fff }` line so the orbs sit above an empty body but below content. Add `#root { position: relative; z-index: 1; background: transparent; min-height: 100vh; }` so all React content stacks above the orbs.
-  - Add safety: `main, aside, section { background-color: transparent; }` is too aggressive — instead add a targeted rule: `[data-app-shell], [data-app-main] { background: transparent !important; }` and tag the shells with those data attrs.
+**2. `src/index.css` — shimmer keyframes + `.skeleton` utility**
+Adds the spec'd `@keyframes shimmer` and `.skeleton` class for use anywhere.
 
-- **Rule 9 (scrollbar)**: Add global rules:
-  ```css
-  * { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.15) transparent; }
-  *::-webkit-scrollbar { width: 6px; height: 6px; }
-  *::-webkit-scrollbar-track { background: transparent; }
-  *::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
-  *::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
-  ```
+**3. `src/components/ui/skeleton.tsx` — already exists**
+Extend with two presets used by list pages:
+- `<SkeletonCard />` — mirrors a list-row card (avatar + 2 text lines + badge).
+- `<SkeletonStatGrid count={4} />` — for dashboard metric tiles.
 
-- **Rule 6 (typography defaults)**: Add base typography hints inside `@layer base`:
-  ```css
-  h1 { @apply text-[26px] font-semibold text-foreground tracking-tight; }
-  h2 { @apply text-xl font-semibold text-foreground; }
-  h3 { @apply text-base font-semibold text-foreground; }
-  ```
-  (Conservative — won't break existing utility-class overrides since utilities have higher specificity.)
+**4. Replace `LogoLoader` with skeletons on the 6 highest-traffic list pages**
+Just swap the loading branch — no other changes:
+- `RegulatorTenants.tsx`, `RegulatorLandlords.tsx`, `RegulatorProperties.tsx`, `RegulatorComplaints.tsx`, `RegulatorAgreements.tsx`, `landlord/Agreements.tsx`.
+Show 5 `<SkeletonCard />` rows during initial load.
 
-**2. Four layout shells — `RegulatorLayout.tsx`, `LandlordLayout.tsx`, `TenantLayout.tsx`, `NugsLayout.tsx`**
+**5. Sidebar hover prefetch — `RegulatorLayout.tsx` only**
+Wire `onMouseEnter` on the 6 nav items (Overview, Tenants, Complaints, Agreements, Properties, Escrow) to call `queryClient.prefetchQuery` for a lightweight count/list query keyed `['prefetch', '<route>']`. This warms the connection + caches the first 25 rows. (Other layouts skipped — regulator portal is the heaviest.)
 
-For each:
-- Add `data-app-shell` to the outer `<div className="min-h-screen flex">` and **remove any opaque background** (none of them currently set one — confirmed). 
-- Tag `<main>` with `data-app-main`, change className to add: `bg-transparent` + responsive padding `px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8` (mapping the 16/20 → 24/28 → 32/40 spec) and a max-width wrapper: wrap `<Outlet />` in `<div className="mx-auto w-full max-w-[1400px]">`.
-- Footer already uses `bg-card` solid — change to `bg-transparent border-t border-white/30` so the gradient bleeds through.
+**6. Column selection — top 4 regulator list pages only**
+Replace `select('*')` with explicit column lists on:
+- `RegulatorTenants.tsx`
+- `RegulatorLandlords.tsx`
+- `RegulatorComplaints.tsx`
+- `RegulatorAgreements.tsx`
+Only columns the row actually renders. Detail/expand views keep their existing fetches (already separate).
 
-**3. NOT touched**
+**7. Pagination — same 4 pages**
+Add `.range(0, 24)` + a "Load more" button that increments by 25. Cached in component state. Search/filter resets to page 0.
 
-- Routes, navigation items, data, queries, RLS, Paystack, Supabase, Engine Room, feature flags.
-- Per-page card layouts, button variants, empty states, badges — those are already governed by primitives (`Card`, `Button`, `Badge`) that received glass styling in the previous batch. Rules 3/4/5/7/8/10 are mostly enforced by existing components + the new shell padding/max-width; we don't refactor 100+ pages.
+**8. DB indexes — one migration**
+Run the spec'd `CREATE INDEX IF NOT EXISTS` statements. Skips ones whose tables don't exist (`tenancy_agreements` may be `agreements` — I'll verify against the schema before generating the migration and adapt names). All `IF NOT EXISTS` so safe.
 
-### Build sequence (one parallel batch)
-1. `src/index.css` — z-index fix, scrollbar, typography base, shell-transparency rule
-2. `src/components/RegulatorLayout.tsx`, `LandlordLayout.tsx`, `TenantLayout.tsx`, `NugsLayout.tsx` — `data-app-shell` / `data-app-main`, transparent footer, content max-width wrapper, responsive padding
+### Out of scope (intentionally)
+- Refactoring all 57 `select('*')` usages — high risk, low payoff vs the top 4.
+- Pagination on every list page — same reason.
+- Real-time subscriptions on complaints/escrow stay untouched (per brief).
+- No changes to RLS, auth, Paystack, Engine Room, routes, or UI layout.
+
+### Build sequence
+1. Migration: DB indexes (after verifying real table names).
+2. `src/App.tsx` — QueryClient defaults.
+3. `src/index.css` + `src/components/ui/skeleton.tsx` — shimmer + presets.
+4. 6 list pages — skeleton swap.
+5. 4 regulator pages — column lists + pagination.
+6. `RegulatorLayout.tsx` — hover prefetch on 6 nav items.
 
 ### Verification
-- Mesh orbs visible behind every page through the glass cards.
-- Scroll a long list — background stays put.
-- Content centred max 1400px on wide screens.
-- Padding consistent at `32/40` (lg), `24/28` (md), `16/20` (sm).
-- Scrollbars thin and subtle.
-- Zero data, route, or logic regressions.
+- Cold load of Regulator Tenants: skeleton appears instantly, real rows replace within ~500ms.
+- Click between Tenants → Complaints → Tenants: second visit instant (cache hit, no Supabase call).
+- Hover Tenants in sidebar then click: data already there.
+- Network tab shows smaller payloads on the 4 refactored pages.
+- All existing functionality unchanged.
 
