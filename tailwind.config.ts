@@ -72,6 +72,12 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        featureCard: {
+          primary: "hsl(var(--feature-card-primary))",
+          teal: "hsl(var(--feature-card-teal))",
+          dark: "hsl(var(--feature-card-dark))",
+          amber: "hsl(var(--feature-card-amber))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
