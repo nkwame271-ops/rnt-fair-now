@@ -35,7 +35,7 @@ const NugsComplaints = () => {
       // RLS automatically scopes to student complaints for NUGS admins
       const { data: complaints } = await supabase
         .from("complaints")
-        .select("id, complaint_code, complaint_type, description, status, property_address, region, created_at, tenant_user_id")
+        .select("id, complaint_code, ticket_number, complaint_type, description, status, payment_status, property_address, region, created_at, tenant_user_id")
         .order("created_at", { ascending: false });
 
       const userIds = [...new Set((complaints || []).map((c: any) => c.tenant_user_id))];
@@ -99,14 +99,20 @@ const NugsComplaints = () => {
       </div>
 
       <div className="space-y-3">
-        {filtered.map((c) => (
+        {filtered.map((c: any) => (
           <div key={c.id} className="bg-card rounded-xl border border-border p-5 hover:shadow-elevated transition-shadow">
             <div className="flex items-start justify-between gap-4 mb-2">
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-xs text-muted-foreground">{c.complaint_code}</span>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="font-mono text-xs font-bold text-primary">{c.complaint_code}</span>
+                  {c.ticket_number && (
+                    <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{c.ticket_number}</span>
+                  )}
                   <Badge variant="outline" className="text-xs">{c.complaint_type}</Badge>
                   <Badge className={`text-xs border ${statusColor(c.status)}`}>{c.status.replace(/_/g, " ")}</Badge>
+                  {c.payment_status === "paid" && (
+                    <Badge className="text-xs bg-success/10 text-success border-success/30">Paid</Badge>
+                  )}
                 </div>
                 <p className="font-semibold text-foreground">{c.studentName || "Unknown student"}</p>
                 <p className="text-xs text-muted-foreground">{c.school || "—"} • {c.region}</p>
