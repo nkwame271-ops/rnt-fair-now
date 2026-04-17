@@ -224,79 +224,79 @@ const RegulatorAgreements = () => {
         {filtered.length === 0 ? (
           <div className="bg-card rounded-xl p-12 text-center text-muted-foreground border border-border">No agreements found</div>
         ) : filtered.map((a) => (
-          <div key={a.id} className="bg-card rounded-xl border border-border shadow-card p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-center">
-                <div>
-                  <div className="font-mono text-sm font-bold text-primary">{a.registration_code}</div>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColors[a.status] || ""}`}>{a.status}</span>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Tenant</div>
-                  <Link to={`/regulator/tenants?search=${encodeURIComponent(a._tenantName)}`} className="text-sm font-medium text-primary hover:underline">{a._tenantName}</Link>
-                  <div className="text-xs text-muted-foreground">{a._tenantPhone}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Landlord</div>
-                  <Link to={`/regulator/landlords?search=${encodeURIComponent(a._landlordName)}`} className="text-sm font-medium text-primary hover:underline">{a._landlordName}</Link>
-                  <div className="text-xs text-muted-foreground">{a._landlordPhone}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Property</div>
-                  <Link to={a._propertyId ? `/regulator/properties?id=${a._propertyId}` : "#"} className="text-sm text-primary hover:underline">{a._propertyName} • {a._unitName}</Link>
-                  <div className="text-xs text-muted-foreground">{a._propertyAddress}</div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground"><Calendar className="h-3 w-3" /> {new Date(a.start_date).toLocaleDateString()} — {new Date(a.end_date).toLocaleDateString()}</div>
-                  <div className="flex items-center gap-1 text-sm font-semibold text-foreground mt-0.5"><DollarSign className="h-3 w-3" /> GH₵ {a.agreed_rent?.toLocaleString()}/mo</div>
-                  <div className="text-xs text-muted-foreground">{a.advance_months} months advance</div>
-                </div>
+          <div key={a.id} className="bg-card rounded-xl border border-border shadow-card p-4 space-y-3">
+            {/* Header row: code + status + actions */}
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <span className="font-mono text-sm font-bold text-primary truncate">{a.registration_code}</span>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColors[a.status] || ""}`}>{a.status}</span>
+                {a.tenancy_type === "existing_migration" && (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    a.tax_compliance_status === "verified" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                  }`}>
+                    Tax: {a.tax_compliance_status === "verified" ? "Verified" : "Pending"}
+                  </span>
+                )}
               </div>
-               <div className="flex gap-2 shrink-0 flex-wrap">
-                 {a.agreement_pdf_url && (
-                   <a href={a.agreement_pdf_url} target="_blank" rel="noopener noreferrer">
-                     <Button size="sm" variant="outline">
-                       <Download className="h-3.5 w-3.5 mr-1" /> Draft Agreement
-                     </Button>
-                   </a>
-                 )}
-                 {a.final_agreement_pdf_url && (
-                   <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
-                     <Button size="sm" variant="default">
-                       <Download className="h-3.5 w-3.5 mr-1" /> Final Signed
-                     </Button>
-                   </a>
-                 )}
-                 {a.existing_agreement_url && (
-                   <a href={a.existing_agreement_url} target="_blank" rel="noopener noreferrer">
-                     <Button size="sm" variant="secondary">
-                       <Download className="h-3.5 w-3.5 mr-1" /> Uploaded Agreement
-                     </Button>
-                   </a>
-                 )}
-                 <Button size="sm" variant="outline" onClick={() => downloadPdf(a)}>
-                   <Download className="h-3.5 w-3.5 mr-1" /> {a.tenancy_type === "existing_migration" ? "Existing Tenancy Details" : "PDF"}
-                 </Button>
-                 {profile?.isMainAdmin && (
-                   <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingId(a.id)}>
-                     <Trash2 className="h-3.5 w-3.5" />
-                   </Button>
-                 )}
-               </div>
-             </div>
-             <div className="mt-2 flex gap-4 text-xs text-muted-foreground flex-wrap">
-               <span>Tenant accepted: <span className={a.tenant_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.tenant_accepted ? "Yes" : "No"}</span></span>
-               <span>Landlord accepted: <span className={a.landlord_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.landlord_accepted ? "Yes" : "No"}</span></span>
-               <span>Region: {a._region}</span>
-               {a.tenancy_type === "existing_migration" && (
-                 <span className={`font-semibold px-2 py-0.5 rounded-full ${
-                   a.tax_compliance_status === "verified" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
-                 }`}>
-                   Tax: {a.tax_compliance_status === "verified" ? "Verified" : "Pending"}
-                 </span>
-               )}
-             </div>
-           </div>
+              <div className="flex gap-1.5 flex-wrap shrink-0">
+                {a.agreement_pdf_url && (
+                  <a href={a.agreement_pdf_url} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline"><Download className="h-3.5 w-3.5 mr-1" /> Draft</Button>
+                  </a>
+                )}
+                {a.final_agreement_pdf_url && (
+                  <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="default"><Download className="h-3.5 w-3.5 mr-1" /> Final Signed</Button>
+                  </a>
+                )}
+                {a.existing_agreement_url && (
+                  <a href={a.existing_agreement_url} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="secondary"><Download className="h-3.5 w-3.5 mr-1" /> Uploaded</Button>
+                  </a>
+                )}
+                <Button size="sm" variant="outline" onClick={() => downloadPdf(a)}>
+                  <Download className="h-3.5 w-3.5 mr-1" /> {a.tenancy_type === "existing_migration" ? "Details" : "PDF"}
+                </Button>
+                {profile?.isMainAdmin && (
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingId(a.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Detail grid: 1 col mobile, 2 col tablet, 4 col desktop */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3 pt-2 border-t border-border/60">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Tenant</div>
+                <Link to={`/regulator/tenants?search=${encodeURIComponent(a._tenantName)}`} className="text-sm font-medium text-primary hover:underline block truncate">{a._tenantName}</Link>
+                <div className="text-xs text-muted-foreground truncate">{a._tenantPhone}</div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Landlord</div>
+                <Link to={`/regulator/landlords?search=${encodeURIComponent(a._landlordName)}`} className="text-sm font-medium text-primary hover:underline block truncate">{a._landlordName}</Link>
+                <div className="text-xs text-muted-foreground truncate">{a._landlordPhone}</div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Property</div>
+                <Link to={a._propertyId ? `/regulator/properties?id=${a._propertyId}` : "#"} className="text-sm text-primary hover:underline block truncate">{a._propertyName} • {a._unitName}</Link>
+                <div className="text-xs text-muted-foreground truncate">{a._propertyAddress}</div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Term &amp; Rent</div>
+                <div className="flex items-center gap-1 text-sm font-semibold text-foreground"><DollarSign className="h-3 w-3 shrink-0" /> GH₵ {a.agreed_rent?.toLocaleString()}/mo</div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground"><Calendar className="h-3 w-3 shrink-0" /> {new Date(a.start_date).toLocaleDateString()} — {new Date(a.end_date).toLocaleDateString()}</div>
+                <div className="text-xs text-muted-foreground">{a.advance_months} months advance</div>
+              </div>
+            </div>
+
+            {/* Footer meta */}
+            <div className="flex gap-x-4 gap-y-1 text-xs text-muted-foreground flex-wrap pt-2 border-t border-border/60">
+              <span>Tenant accepted: <span className={a.tenant_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.tenant_accepted ? "Yes" : "No"}</span></span>
+              <span>Landlord accepted: <span className={a.landlord_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.landlord_accepted ? "Yes" : "No"}</span></span>
+              <span>Region: {a._region}</span>
+            </div>
+          </div>
         ))}
       </div>
 
