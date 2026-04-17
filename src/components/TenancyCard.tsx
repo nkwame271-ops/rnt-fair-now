@@ -73,7 +73,12 @@ const TenancyCard = ({ data }: { data: TenancyCardData }) => {
             <p className="text-xs text-muted-foreground">Tenancy ID</p>
             <p className="font-mono font-bold text-primary text-sm">{data.registrationCode}</p>
           </div>
-          <Badge className={statusColor(data.status)}>{statusLabel(data.status)}</Badge>
+          <div className="flex flex-col items-end gap-1">
+            <Badge className={statusColor(data.status)}>{statusLabel(data.status)}</Badge>
+            {data.status === "expired" && data.terminatedAt && (
+              <p className="text-[10px] text-destructive font-medium">Expired on {format(new Date(data.terminatedAt), "dd MMM yyyy")}</p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-sm">
