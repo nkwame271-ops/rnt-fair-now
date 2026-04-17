@@ -277,6 +277,7 @@ const RegulatorComplaints = () => {
   const filtered = complaints.filter((c) => {
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (categoryFilter === "student" && !c._tenantRecord?.is_student) return false;
+    if (officeFilter !== "all" && c.office_id !== officeFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return c.complaint_code?.toLowerCase().includes(s) || c.landlord_name?.toLowerCase().includes(s) || c.complaint_type?.toLowerCase().includes(s) || c._tenantProfile?.full_name?.toLowerCase().includes(s);
@@ -404,6 +405,15 @@ const RegulatorComplaints = () => {
               <SelectContent>
                 <SelectItem value="all">All Complaints</SelectItem>
                 <SelectItem value="student">Student ({studentComplaintCount})</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={officeFilter} onValueChange={setOfficeFilter} disabled={!isUnscoped}>
+              <SelectTrigger className="w-52"><SelectValue placeholder="Office" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Offices</SelectItem>
+                {allOffices.map(o => (
+                  <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
