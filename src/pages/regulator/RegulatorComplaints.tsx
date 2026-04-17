@@ -554,6 +554,17 @@ const RegulatorComplaints = () => {
                           <Clock className="h-3 w-3" />
                           {Math.ceil((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24))} days since filed
                         </div>
+                        {c.payment_status !== "paid" && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="ml-2"
+                            onClick={() => setRequestPaymentFor({ id: c.id, table: "complaints", rent: c._activeTenancy?.agreed_rent ?? null, propertyId: c.linked_property_id })}
+                          >
+                            <CreditCard className="h-3.5 w-3.5 mr-1" />
+                            {c.payment_status === "pending" ? "Update Type / Fee" : "Set Type & Request Payment"}
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
