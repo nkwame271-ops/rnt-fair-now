@@ -17,6 +17,9 @@ interface TenantFull {
   registration_date: string | null;
   expiry_date: string | null;
   registration_fee_paid: boolean;
+  is_student?: boolean;
+  school?: string | null;
+  hostel_or_hall?: string | null;
   profile?: {
     full_name: string;
     phone: string;
@@ -70,7 +73,7 @@ const RegulatorTenants = () => {
     const fetchData = async () => {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid")
+        .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, is_student, school, hostel_or_hall")
         .order("created_at", { ascending: false });
 
       if (!tenantData || tenantData.length === 0) { setLoading(false); return; }
@@ -193,13 +196,14 @@ const RegulatorTenants = () => {
           <Input placeholder="Search by name, ID, phone, or email..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="expired">Expired</SelectItem>
             <SelectItem value="deactivated">Deactivated</SelectItem>
             <SelectItem value="archived">Archived</SelectItem>
+            <SelectItem value="students">Students ({studentCount})</SelectItem>
           </SelectContent>
         </Select>
       </div>
