@@ -1599,6 +1599,7 @@ export type Database = {
           residence_permit_no: string | null
           updated_at: string
           user_id: string
+          user_type: string
           work_address: string | null
         }
         Insert: {
@@ -1620,6 +1621,7 @@ export type Database = {
           residence_permit_no?: string | null
           updated_at?: string
           user_id: string
+          user_type?: string
           work_address?: string | null
         }
         Update: {
@@ -1641,6 +1643,7 @@ export type Database = {
           residence_permit_no?: string | null
           updated_at?: string
           user_id?: string
+          user_type?: string
           work_address?: string | null
         }
         Relationships: []

@@ -17,6 +17,9 @@ interface TenantFull {
   registration_date: string | null;
   expiry_date: string | null;
   registration_fee_paid: boolean;
+  is_student?: boolean;
+  school?: string | null;
+  hostel_or_hall?: string | null;
   profile?: {
     full_name: string;
     phone: string;
@@ -70,7 +73,7 @@ const RegulatorTenants = () => {
     const fetchData = async () => {
       const { data: tenantData } = await supabase
         .from("tenants")
-        .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid")
+        .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, is_student, school, hostel_or_hall")
         .order("created_at", { ascending: false });
 
       if (!tenantData || tenantData.length === 0) { setLoading(false); return; }
@@ -146,7 +149,8 @@ const RegulatorTenants = () => {
   const filtered = tenants.filter((t) => {
     if (statusFilter === "deactivated" && t.account_status !== "deactivated") return false;
     else if (statusFilter === "archived" && t.account_status !== "archived") return false;
-    else if (statusFilter !== "all" && statusFilter !== "deactivated" && statusFilter !== "archived" && t.status !== statusFilter) return false;
+    else if (statusFilter === "students" && !t.is_student) return false;
+    else if (statusFilter !== "all" && statusFilter !== "deactivated" && statusFilter !== "archived" && statusFilter !== "students" && t.status !== statusFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -156,6 +160,8 @@ const RegulatorTenants = () => {
       t.profile?.email?.toLowerCase().includes(s)
     );
   });
+
+  const studentCount = tenants.filter(t => t.is_student).length;
 
   const exportCSV = () => {
     const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Status", "Account Status", "Active Tenancies", "Complaints", "Registered", "Expires"];
@@ -193,13 +199,14 @@ const RegulatorTenants = () => {
           <Input placeholder="Search by name, ID, phone, or email..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="expired">Expired</SelectItem>
             <SelectItem value="deactivated">Deactivated</SelectItem>
             <SelectItem value="archived">Archived</SelectItem>
+            <SelectItem value="students">Students ({studentCount})</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -220,10 +227,15 @@ const RegulatorTenants = () => {
               >
                 <div className="flex-1 grid grid-cols-2 sm:grid-cols-7 gap-2 items-center text-sm">
                   <div className="font-mono font-bold text-primary">{t.tenant_id}</div>
-                  <div className="font-medium text-foreground">{t.profile?.full_name || "—"}</div>
+                  <div className="font-medium text-foreground flex items-center gap-1.5">
+                    {t.profile?.full_name || "—"}
+                    {t.is_student && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-info/10 text-info">STUDENT</span>
+                    )}
+                  </div>
                   <div className="text-muted-foreground">{t.profile?.phone || "—"}</div>
                   <div className="text-muted-foreground">{t.profile?.is_citizen ? "🇬🇭 Citizen" : "Permit"}</div>
-                  <div className="text-muted-foreground">{t.profile?.occupation || "—"}</div>
+                  <div className="text-muted-foreground">{t.is_student && t.school ? t.school : (t.profile?.occupation || "—")}</div>
                   <div className="flex flex-wrap gap-1">
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${t.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{t.status}</span>
                     {t.account_status !== "active" && (

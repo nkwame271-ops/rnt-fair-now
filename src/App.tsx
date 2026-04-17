@@ -213,7 +213,7 @@ const App = () => (
               </Route>
 
               {/* NUGS Admin Routes — hidden monitoring portal */}
-              <Route path="/nugs" element={<ProtectedRoute requiredRole="nugs_admin"><NugsLayout /></ProtectedRoute>}>
+              <Route path="/nugs" element={<ProtectedRoute requiredRole="nugs_admin" allowStudent><NugsLayout /></ProtectedRoute>}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<NugsDashboard />} />
                 <Route path="students" element={<NugsStudents />} />

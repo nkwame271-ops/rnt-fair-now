@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Building2, Users, ArrowRight, Shield, Scale, Phone, MapPin, Code2, Database, FileJson, Send, Search } from "lucide-react";
+import { Building2, Users, ArrowRight, Shield, Scale, Phone, MapPin, Code2, Database, FileJson, Send, Search, GraduationCap } from "lucide-react";
 import { GHANA_REGIONS_OFFICES } from "@/hooks/useAdminProfile";
 import LiveChatWidget from "@/components/LiveChatWidget";
 import { useAuth } from "@/hooks/useAuth";
@@ -177,11 +177,16 @@ const RoleSelect = () => {
   // Redirect authenticated users to their dashboard
   useEffect(() => {
     if (loading) return;
-    if (user && role) {
-      if (role === "tenant") navigate("/tenant/dashboard", { replace: true });
-      else if (role === "landlord") navigate("/landlord/dashboard", { replace: true });
-      else if (role === "regulator") navigate("/regulator/dashboard", { replace: true });
-      else if (role === "nugs_admin") navigate("/nugs/dashboard", { replace: true });
+    if (!user || !role) return;
+    if (role === "regulator") { navigate("/regulator/dashboard", { replace: true }); return; }
+    if (role === "nugs_admin") { navigate("/nugs/dashboard", { replace: true }); return; }
+    if (role === "landlord") { navigate("/landlord/dashboard", { replace: true }); return; }
+    if (role === "tenant") {
+      // Branch student vs regular tenant
+      supabase.from("tenants").select("is_student").eq("user_id", user.id).maybeSingle().then(({ data }) => {
+        if ((data as any)?.is_student) navigate("/nugs/dashboard", { replace: true });
+        else navigate("/tenant/dashboard", { replace: true });
+      });
     }
   }, [user, role, loading, navigate]);
 
@@ -199,6 +204,13 @@ const RoleSelect = () => {
       icon: Building2,
       path: "/login?role=landlord",
       color: "from-amber-500 to-orange-600",
+    },
+    {
+      title: "Student",
+      description: "Find hostels and halls, file complaints, and access NUGS-supported student housing services.",
+      icon: GraduationCap,
+      path: "/register/tenant?student=1",
+      color: "from-sky-500 to-indigo-600",
     },
   ];
 
@@ -381,7 +393,7 @@ const RoleSelect = () => {
             <p className="text-muted-foreground text-sm">Select your role to continue</p>
           </motion.div>
 
-          <div className="grid sm:grid-cols-2 gap-8 max-w-3xl mx-auto">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {roles.map((role, i) => (
               <motion.button
                 key={role.title}

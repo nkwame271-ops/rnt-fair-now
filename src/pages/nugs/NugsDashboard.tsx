@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { GraduationCap, AlertTriangle, CheckCircle2, Clock, Building2, Loader2 } from "lucide-react";
+import { GraduationCap, AlertTriangle, CheckCircle2, Clock, Building2, Loader2, Store, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import PageTransition from "@/components/PageTransition";
 import StaggeredGrid, { StaggeredItem } from "@/components/StaggeredGrid";
 import AnimatedCounter from "@/components/AnimatedCounter";
+import { Button } from "@/components/ui/button";
 
-const NugsDashboard = () => {
+const AdminView = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalStudents: 0,
@@ -63,29 +66,176 @@ const NugsDashboard = () => {
   ];
 
   return (
-    <PageTransition>
-      <div className="max-w-6xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">NUGS Monitoring Overview</h1>
-          <p className="text-muted-foreground mt-1">
-            Read-only visibility into student tenants and their complaints across the platform
-          </p>
-        </div>
-
-        <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          {cards.map((stat) => (
-            <StaggeredItem key={stat.label}>
-              <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
-                <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
-                <div className="text-3xl font-bold text-card-foreground">
-                  <AnimatedCounter value={stat.value} />
-                </div>
-                <div className="text-xs text-muted-foreground">{stat.label}</div>
-              </div>
-            </StaggeredItem>
-          ))}
-        </StaggeredGrid>
+    <div className="max-w-6xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">NUGS Monitoring Overview</h1>
+        <p className="text-muted-foreground mt-1">
+          Read-only visibility into student tenants and their complaints across the platform
+        </p>
       </div>
+
+      <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        {cards.map((stat) => (
+          <StaggeredItem key={stat.label}>
+            <div className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
+              <stat.icon className={`h-5 w-5 ${stat.color} mb-2`} />
+              <div className="text-3xl font-bold text-card-foreground">
+                <AnimatedCounter value={stat.value} />
+              </div>
+              <div className="text-xs text-muted-foreground">{stat.label}</div>
+            </div>
+          </StaggeredItem>
+        ))}
+      </StaggeredGrid>
+    </div>
+  );
+};
+
+const StudentView = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<any>(null);
+  const [tenant, setTenant] = useState<any>(null);
+  const [complaints, setComplaints] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      const [profRes, tenRes, compRes] = await Promise.all([
+        supabase.from("profiles").select("full_name, phone, email").eq("user_id", user.id).maybeSingle(),
+        supabase.from("tenants").select("tenant_id, school, hostel_or_hall, room_or_bed_space, status").eq("user_id", user.id).maybeSingle(),
+        supabase.from("complaints").select("id, complaint_code, complaint_type, status, created_at").eq("tenant_user_id", user.id).order("created_at", { ascending: false }),
+      ]);
+      setProfile(profRes.data);
+      setTenant(tenRes.data);
+      setComplaints(compRes.data || []);
+      setLoading(false);
+    };
+    load();
+  }, [user]);
+
+  if (loading)
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+
+  const pendingCount = complaints.filter(c => ["submitted", "under_review", "in_progress"].includes(c.status)).length;
+  const resolvedCount = complaints.filter(c => ["resolved", "closed"].includes(c.status)).length;
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+          <GraduationCap className="h-7 w-7 text-primary" />
+          Welcome, {profile?.full_name?.split(" ")[0] || "Student"}
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          Your NUGS-supported student housing dashboard
+        </p>
+      </div>
+
+      {/* Student info card */}
+      <div className="bg-card rounded-xl p-6 border border-border shadow-card">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Student ID</p>
+            <p className="font-mono font-bold text-primary">{tenant?.tenant_id || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Institution</p>
+            <p className="font-medium text-foreground">{tenant?.school || "Not set"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Hostel / Hall</p>
+            <p className="font-medium text-foreground">{tenant?.hostel_or_hall || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Room / Bed</p>
+            <p className="font-medium text-foreground">{tenant?.room_or_bed_space || "—"}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick stats */}
+      <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <StaggeredItem>
+          <div className="bg-card rounded-xl p-5 shadow-card border border-border">
+            <AlertTriangle className="h-5 w-5 text-warning mb-2" />
+            <div className="text-3xl font-bold text-card-foreground"><AnimatedCounter value={complaints.length} /></div>
+            <div className="text-xs text-muted-foreground">My Complaints</div>
+          </div>
+        </StaggeredItem>
+        <StaggeredItem>
+          <div className="bg-card rounded-xl p-5 shadow-card border border-border">
+            <Clock className="h-5 w-5 text-info mb-2" />
+            <div className="text-3xl font-bold text-card-foreground"><AnimatedCounter value={pendingCount} /></div>
+            <div className="text-xs text-muted-foreground">Pending</div>
+          </div>
+        </StaggeredItem>
+        <StaggeredItem>
+          <div className="bg-card rounded-xl p-5 shadow-card border border-border">
+            <CheckCircle2 className="h-5 w-5 text-success mb-2" />
+            <div className="text-3xl font-bold text-card-foreground"><AnimatedCounter value={resolvedCount} /></div>
+            <div className="text-xs text-muted-foreground">Resolved</div>
+          </div>
+        </StaggeredItem>
+      </StaggeredGrid>
+
+      {/* Quick actions */}
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Button onClick={() => navigate("/tenant/marketplace")} className="h-auto py-5 flex flex-col items-start gap-2 text-left">
+          <Store className="h-5 w-5" />
+          <div>
+            <p className="font-semibold">Browse Hostel Listings</p>
+            <p className="text-xs opacity-80 font-normal">Find approved student accommodation</p>
+          </div>
+        </Button>
+        <Button onClick={() => navigate("/tenant/file-complaint")} variant="outline" className="h-auto py-5 flex flex-col items-start gap-2 text-left">
+          <AlertTriangle className="h-5 w-5" />
+          <div>
+            <p className="font-semibold">File a Complaint</p>
+            <p className="text-xs opacity-80 font-normal">Report issues with your hostel or landlord</p>
+          </div>
+        </Button>
+      </div>
+
+      {/* Recent complaints */}
+      {complaints.length > 0 && (
+        <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+            <h2 className="font-semibold text-foreground flex items-center gap-2"><FileText className="h-4 w-4" /> My Recent Complaints</h2>
+            <Button size="sm" variant="ghost" onClick={() => navigate("/tenant/my-cases")}>View all</Button>
+          </div>
+          <div className="divide-y divide-border">
+            {complaints.slice(0, 5).map((c) => (
+              <div key={c.id} className="px-5 py-3 flex items-center justify-between text-sm">
+                <div>
+                  <p className="font-mono font-bold text-primary">{c.complaint_code}</p>
+                  <p className="text-muted-foreground capitalize">{c.complaint_type?.replace(/_/g, " ")}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-semibold px-2 py-1 rounded-full bg-muted text-foreground capitalize">
+                    {c.status?.replace(/_/g, " ")}
+                  </span>
+                  <p className="text-xs text-muted-foreground mt-1">{new Date(c.created_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const NugsDashboard = () => {
+  const { role } = useAuth();
+  return (
+    <PageTransition>
+      {role === "nugs_admin" ? <AdminView /> : <StudentView />}
     </PageTransition>
   );
 };

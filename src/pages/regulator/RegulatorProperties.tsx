@@ -179,13 +179,17 @@ const RegulatorProperties = () => {
   };
 
   const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "student_housing">("all");
 
   const filtered = properties.filter((p) => {
     if (statusFilter !== "all" && (p.property_status || "pending_assessment") !== statusFilter) return false;
+    if (categoryFilter === "student_housing" && p.property_category !== "student_housing") return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return p.property_name?.toLowerCase().includes(s) || p.address?.toLowerCase().includes(s) || p.region?.toLowerCase().includes(s) || p.property_code?.toLowerCase().includes(s);
   });
+
+  const studentHousingCount = properties.filter(p => p.property_category === "student_housing").length;
 
   const mapMarkers: MapMarker[] = filtered
     .map((p) => {
@@ -374,6 +378,15 @@ const RegulatorProperties = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search by name, code, or region..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as "all" | "student_housing")}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="All Categories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            <SelectItem value="student_housing">Student Housing ({studentHousingCount})</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All Statuses" />
