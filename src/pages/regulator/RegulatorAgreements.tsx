@@ -37,7 +37,10 @@ const RegulatorAgreements = () => {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!tenancies || tenancies.length === 0) { setLoading(false); return; }
+      if (!tenancies || tenancies.length === 0) {
+        setLoading(false);
+        return;
+      }
 
       const userIds = [...new Set([
         ...tenancies.map(t => t.tenant_user_id),
@@ -55,7 +58,6 @@ const RegulatorAgreements = () => {
         ? await supabase.from("properties").select("id, property_name, address, region, area, gps_location, ghana_post_gps, property_condition, room_count, bathroom_count").in("id", propertyIds)
         : { data: [] };
 
-      // Get tenant IDs
       const tenantUserIds = [...new Set(tenancies.map(t => t.tenant_user_id))];
       const { data: tenantRecords } = await supabase.from("tenants").select("user_id, tenant_id").in("user_id", tenantUserIds);
 
@@ -113,7 +115,6 @@ const RegulatorAgreements = () => {
 
   const downloadPdf = async (a: any) => {
     const isExisting = a.tenancy_type === "existing_migration";
-    // If the tenancy has a system-generated agreement_pdf_url, it was a "Buy Agreement" flow — use full template
     const useExistingFormat = isExisting && !(a as any).agreement_pdf_url;
     const data: AgreementPdfData = {
       tenancyId: a.id,
@@ -156,7 +157,63 @@ const RegulatorAgreements = () => {
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const el = document.createElement("a"); el.href = url; el.download = "agreements_export.csv"; el.click();
+    const el = document.createElement("a");
+    el.href = url;
+    el.download = "agreements_export.csv";
+    el.click();
+  };
+
+  const renderTaxBadge = (a: any) => {
+    if (a.tenancy_type !== "existing_migration") return null;
+
+    return (
+      <span
+        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
+          a.tax_compliance_status === "verified" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+        }`}
+      >
+        Tax: {a.tax_compliance_status === "verified" ? "Verified" : "Pending"}
+      </span>
+    );
+  };
+
+  const renderActionButtons = (a: any, widthClass: string) => {
+    const compactButtonClass = "h-7 px-1.5 text-[9px] whitespace-nowrap shrink-0";
+
+    return (
+      <div className={`${widthClass} shrink-0 overflow-x-auto pb-1`}>
+        <div className="ml-auto flex w-max items-center justify-end gap-2 flex-nowrap">
+          {a.agreement_pdf_url && (
+            <a href={a.agreement_pdf_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
+              <Button size="sm" variant="outline" className={compactButtonClass}>Draft</Button>
+            </a>
+          )}
+          {a.final_agreement_pdf_url && (
+            <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
+              <Button size="sm" variant="default" className={compactButtonClass}>Final</Button>
+            </a>
+          )}
+          {a.existing_agreement_url && (
+            <a href={a.existing_agreement_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
+              <Button size="sm" variant="secondary" className={compactButtonClass}>Uploaded</Button>
+            </a>
+          )}
+          <Button size="sm" variant="outline" className={compactButtonClass} onClick={() => downloadPdf(a)}>
+            {a.tenancy_type === "existing_migration" ? "Details" : "PDF"}
+          </Button>
+          {profile?.isMainAdmin && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 text-destructive hover:text-destructive shrink-0"
+              onClick={() => setDeletingId(a.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (loading) return (
@@ -186,7 +243,6 @@ const RegulatorAgreements = () => {
         <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {["active", "pending", "expired", "terminated"].map(s => {
           const count = agreements.filter(a => a.status === s).length;
@@ -224,77 +280,133 @@ const RegulatorAgreements = () => {
         {filtered.length === 0 ? (
           <div className="bg-card rounded-xl p-12 text-center text-muted-foreground border border-border">No agreements found</div>
         ) : filtered.map((a) => (
-          <div key={a.id} className="bg-card rounded-xl border border-border shadow-card p-4 space-y-3">
-            {/* Header row: code + status + actions */}
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap min-w-0">
-                <span className="font-mono text-sm font-bold text-primary truncate">{a.registration_code}</span>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColors[a.status] || ""}`}>{a.status}</span>
-                {a.tenancy_type === "existing_migration" && (
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                    a.tax_compliance_status === "verified" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
-                  }`}>
-                    Tax: {a.tax_compliance_status === "verified" ? "Verified" : "Pending"}
-                  </span>
-                )}
+          <div key={a.id} className="bg-card rounded-xl border border-border shadow-card p-4 space-y-3 overflow-hidden">
+            <div className="hidden min-[1100px]:grid min-[1100px]:grid-cols-[160px_160px_160px_200px_minmax(0,1fr)_220px] items-start gap-4 w-full">
+              <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
+                <span className="font-mono text-sm font-bold text-primary max-w-[150px] overflow-hidden whitespace-nowrap">{a.registration_code}</span>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full w-fit whitespace-nowrap ${statusColors[a.status] || ""}`}>{a.status}</span>
               </div>
-              <div className="flex gap-1.5 flex-wrap shrink-0">
-                {a.agreement_pdf_url && (
-                  <a href={a.agreement_pdf_url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline"><Download className="h-3.5 w-3.5 mr-1" /> Draft</Button>
-                  </a>
-                )}
-                {a.final_agreement_pdf_url && (
-                  <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="default"><Download className="h-3.5 w-3.5 mr-1" /> Final Signed</Button>
-                  </a>
-                )}
-                {a.existing_agreement_url && (
-                  <a href={a.existing_agreement_url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="secondary"><Download className="h-3.5 w-3.5 mr-1" /> Uploaded</Button>
-                  </a>
-                )}
-                <Button size="sm" variant="outline" onClick={() => downloadPdf(a)}>
-                  <Download className="h-3.5 w-3.5 mr-1" /> {a.tenancy_type === "existing_migration" ? "Details" : "PDF"}
-                </Button>
-                {profile?.isMainAdmin && (
-                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeletingId(a.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-            </div>
 
-            {/* Detail grid: 1 col mobile, 2 col tablet, 4 col desktop */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3 pt-2 border-t border-border/60">
-              <div className="min-w-0">
+              <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Tenant</div>
-                <Link to={`/regulator/tenants?search=${encodeURIComponent(a._tenantName)}`} className="text-sm font-medium text-primary hover:underline block truncate">{a._tenantName}</Link>
-                <div className="text-xs text-muted-foreground truncate">{a._tenantPhone}</div>
+                <Link to={`/regulator/tenants?search=${encodeURIComponent(a._tenantName)}`} className="block max-w-[140px] truncate text-sm font-medium text-primary hover:underline">{a._tenantName}</Link>
+                <span className="block max-w-full truncate text-xs text-muted-foreground">{a._tenantPhone}</span>
               </div>
-              <div className="min-w-0">
+
+              <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Landlord</div>
-                <Link to={`/regulator/landlords?search=${encodeURIComponent(a._landlordName)}`} className="text-sm font-medium text-primary hover:underline block truncate">{a._landlordName}</Link>
-                <div className="text-xs text-muted-foreground truncate">{a._landlordPhone}</div>
+                <Link to={`/regulator/landlords?search=${encodeURIComponent(a._landlordName)}`} className="block max-w-[140px] truncate text-sm font-medium text-primary hover:underline">{a._landlordName}</Link>
+                <span className="block max-w-full truncate text-xs text-muted-foreground">{a._landlordPhone}</span>
               </div>
-              <div className="min-w-0">
+
+              <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Property</div>
-                <Link to={a._propertyId ? `/regulator/properties?id=${a._propertyId}` : "#"} className="text-sm text-primary hover:underline block truncate">{a._propertyName} • {a._unitName}</Link>
-                <div className="text-xs text-muted-foreground truncate">{a._propertyAddress}</div>
+                <Link to={a._propertyId ? `/regulator/properties?id=${a._propertyId}` : "#"} className="block max-w-[180px] truncate text-sm text-primary hover:underline">{a._propertyName} • {a._unitName}</Link>
+                <span className="block max-w-[180px] truncate text-xs text-muted-foreground">{a._propertyAddress}</span>
               </div>
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Term &amp; Rent</div>
-                <div className="flex items-center gap-1 text-sm font-semibold text-foreground"><DollarSign className="h-3 w-3 shrink-0" /> GH₵ {a.agreed_rent?.toLocaleString()}/mo</div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground"><Calendar className="h-3 w-3 shrink-0" /> {new Date(a.start_date).toLocaleDateString()} — {new Date(a.end_date).toLocaleDateString()}</div>
-                <div className="text-xs text-muted-foreground">{a.advance_months} months advance</div>
+
+              <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Term & Rent</div>
+                <div className="flex items-center gap-1 text-sm font-semibold text-foreground min-w-0">
+                  <DollarSign className="h-3 w-3 shrink-0" />
+                  <span className="block max-w-full truncate">GH₵ {a.agreed_rent?.toLocaleString()}/mo</span>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                  <Calendar className="h-3 w-3 shrink-0" />
+                  <span className="block max-w-full truncate">{new Date(a.start_date).toLocaleDateString()} — {new Date(a.end_date).toLocaleDateString()}</span>
+                </div>
+                <span className="block max-w-full truncate text-xs text-muted-foreground">{a.advance_months} months advance</span>
+              </div>
+
+              {renderActionButtons(a, "w-[220px] min-w-[220px]")}
+            </div>
+
+            <div className="hidden min-[900px]:max-[1099px]:grid grid-cols-[140px_140px_minmax(0,1fr)_180px] items-start gap-4 w-full">
+              <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
+                <span className="font-mono text-sm font-bold text-primary max-w-[130px] overflow-hidden whitespace-nowrap">{a.registration_code}</span>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full w-fit whitespace-nowrap ${statusColors[a.status] || ""}`}>{a.status}</span>
+              </div>
+
+              <div className="min-w-0 overflow-hidden flex flex-col gap-1">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Parties</div>
+                <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
+                  <Link to={`/regulator/tenants?search=${encodeURIComponent(a._tenantName)}`} className="block max-w-[120px] truncate text-sm font-medium text-primary hover:underline">{a._tenantName}</Link>
+                  <span className="block max-w-full truncate text-xs text-muted-foreground">{a._tenantPhone}</span>
+                </div>
+                <div className="min-w-0 overflow-hidden flex flex-col gap-0.5 pt-1">
+                  <Link to={`/regulator/landlords?search=${encodeURIComponent(a._landlordName)}`} className="block max-w-[120px] truncate text-sm font-medium text-primary hover:underline">{a._landlordName}</Link>
+                </div>
+              </div>
+
+              <div className="min-w-0 overflow-hidden flex flex-col gap-1">
+                <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Property</div>
+                  <Link to={a._propertyId ? `/regulator/properties?id=${a._propertyId}` : "#"} className="block max-w-[180px] truncate text-sm text-primary hover:underline">{a._propertyName} • {a._unitName}</Link>
+                  <span className="block max-w-[180px] truncate text-xs text-muted-foreground">{a._propertyAddress}</span>
+                </div>
+                <div className="min-w-0 overflow-hidden flex flex-col gap-0.5 pt-1">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Term & Rent</div>
+                  <div className="flex items-center gap-1 text-sm font-semibold text-foreground min-w-0">
+                    <DollarSign className="h-3 w-3 shrink-0" />
+                    <span className="block max-w-full truncate">GH₵ {a.agreed_rent?.toLocaleString()}/mo</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                    <Calendar className="h-3 w-3 shrink-0" />
+                    <span className="block max-w-full truncate">{new Date(a.start_date).toLocaleDateString()} — {new Date(a.end_date).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {renderActionButtons(a, "w-[180px] min-w-[180px]")}
+            </div>
+
+            <div className="space-y-3 min-[900px]:hidden">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
+                  <span className="font-mono text-sm font-bold text-primary max-w-[150px] overflow-hidden whitespace-nowrap">{a.registration_code}</span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full w-fit whitespace-nowrap ${statusColors[a.status] || ""}`}>{a.status}</span>
+                </div>
+                <div className="min-w-0 overflow-hidden flex flex-col items-end gap-1 shrink-0">
+                  <div className="flex items-center gap-1 text-sm font-semibold text-foreground">
+                    <DollarSign className="h-3 w-3 shrink-0" />
+                    <span className="whitespace-nowrap">GH₵ {a.agreed_rent?.toLocaleString()}/mo</span>
+                  </div>
+                  {renderTaxBadge(a)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/60">
+                <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Tenant</div>
+                  <Link to={`/regulator/tenants?search=${encodeURIComponent(a._tenantName)}`} className="block max-w-full truncate text-sm font-medium text-primary hover:underline">{a._tenantName}</Link>
+                  <span className="block max-w-full truncate text-xs text-muted-foreground">{a._tenantPhone}</span>
+                </div>
+                <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Landlord</div>
+                  <Link to={`/regulator/landlords?search=${encodeURIComponent(a._landlordName)}`} className="block max-w-full truncate text-sm font-medium text-primary hover:underline">{a._landlordName}</Link>
+                  <span className="block max-w-full truncate text-xs text-muted-foreground">{a._landlordPhone}</span>
+                </div>
+                <div className="min-w-0 overflow-hidden flex flex-col gap-0.5">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Property</div>
+                  <Link to={a._propertyId ? `/regulator/properties?id=${a._propertyId}` : "#"} className="block max-w-full truncate text-sm text-primary hover:underline">{a._propertyName} • {a._unitName}</Link>
+                  <span className="block max-w-full truncate text-xs text-muted-foreground">{a._propertyAddress}</span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-border/60">
+                {renderActionButtons(a, "w-full min-w-0")}
               </div>
             </div>
 
-            {/* Footer meta */}
-            <div className="flex gap-x-4 gap-y-1 text-xs text-muted-foreground flex-wrap pt-2 border-t border-border/60">
-              <span>Tenant accepted: <span className={a.tenant_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.tenant_accepted ? "Yes" : "No"}</span></span>
-              <span>Landlord accepted: <span className={a.landlord_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.landlord_accepted ? "Yes" : "No"}</span></span>
-              <span>Region: {a._region}</span>
+            <div className="pt-2.5 border-t border-border/60 flex flex-col gap-2 min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-between min-[900px]:gap-4">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-4 min-[900px]:flex-nowrap min-w-0 shrink-0">
+                <span className="whitespace-nowrap text-xs text-muted-foreground">Tenant accepted: <span className={a.tenant_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.tenant_accepted ? "Yes" : "No"}</span></span>
+                <span className="whitespace-nowrap text-xs text-muted-foreground">Landlord accepted: <span className={a.landlord_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.landlord_accepted ? "Yes" : "No"}</span></span>
+                <span className="whitespace-nowrap text-xs text-muted-foreground">Region: {a._region}</span>
+              </div>
+              <div className="shrink-0 min-[900px]:ml-auto self-start min-[900px]:self-auto">
+                {renderTaxBadge(a)}
+              </div>
             </div>
           </div>
         ))}
