@@ -395,17 +395,20 @@ const RegulatorComplaints = () => {
         <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
       </div>
 
-      {/* Tab switcher */}
-      <div className="flex bg-muted rounded-lg p-0.5 w-fit">
-        <button onClick={() => setActiveTab("tenant")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "tenant" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-          Tenant Complaints ({complaints.length})
-        </button>
+      {/* Tab switcher: Landlord / Tenant / Student */}
+      <div className="flex bg-muted rounded-lg p-0.5 w-fit flex-wrap">
         <button onClick={() => setActiveTab("landlord")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "landlord" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           Landlord Complaints ({landlordComplaints.length})
         </button>
+        <button onClick={() => setActiveTab("tenant")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "tenant" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          Tenant Complaints ({tenantComplaintCount})
+        </button>
+        <button onClick={() => setActiveTab("student")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "student" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          Student Complaints ({studentComplaintCount})
+        </button>
       </div>
 
-      {activeTab === "tenant" && (
+      {(activeTab === "tenant" || activeTab === "student") && (
         <>
           {/* Status summary cards */}
           <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
@@ -428,13 +431,7 @@ const RegulatorComplaints = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search by code, name, landlord, type..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as "all" | "student")}>
-              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Complaints</SelectItem>
-                <SelectItem value="student">Student ({studentComplaintCount})</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Category split is now driven by the top-level Tenant / Student tabs */}
             <Select value={officeFilter} onValueChange={setOfficeFilter} disabled={!isUnscoped}>
               <SelectTrigger className="w-52"><SelectValue placeholder="Office" /></SelectTrigger>
               <SelectContent>
