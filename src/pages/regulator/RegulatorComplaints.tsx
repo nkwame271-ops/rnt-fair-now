@@ -664,6 +664,16 @@ const RegulatorComplaints = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {c.payment_status !== "paid" && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setRequestPaymentFor({ id: c.id, table: "landlord_complaints", rent: null, propertyId: c.linked_property_id })}
+                  >
+                    <CreditCard className="h-3.5 w-3.5 mr-1" />
+                    {c.payment_status === "pending" ? "Update Type / Fee" : "Set Type & Request Payment"}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
