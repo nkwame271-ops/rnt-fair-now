@@ -420,6 +420,11 @@ const RegulatorComplaints = () => {
                     <div className="flex-1 grid grid-cols-1 sm:grid-cols-6 gap-2 items-center">
                       <div>
                         <span className="font-mono text-sm font-bold text-primary">{c.complaint_code}</span>
+                        {c.ticket_number && (
+                          <div className="text-xs text-muted-foreground mt-0.5 font-mono flex items-center gap-1">
+                            <Hash className="h-3 w-3" />{c.ticket_number}
+                          </div>
+                        )}
                         <div className="text-xs text-muted-foreground mt-0.5">{new Date(c.created_at).toLocaleDateString()}</div>
                       </div>
                       <div>
@@ -428,10 +433,20 @@ const RegulatorComplaints = () => {
                       </div>
                       <div className="text-sm text-foreground">{c.complaint_type}</div>
                       <div className="text-sm text-foreground">{c.landlord_name}</div>
-                      <div>
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusColors[c.status] || ""}`}>
-                          {c.status.replace("_", " ")}
+                      <div className="space-y-1">
+                        <span className={`text-xs font-semibold px-2 py-1 rounded-full inline-block ${statusColors[c.status] || ""}`}>
+                          {c.status.replace(/_/g, " ")}
                         </span>
+                        {c.payment_status === "paid" && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-success/10 text-success inline-flex items-center gap-1 ml-1">
+                            <Receipt className="h-3 w-3" /> Paid
+                          </span>
+                        )}
+                        {c.payment_status === "pending" && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/10 text-warning inline-flex items-center gap-1 ml-1">
+                            <CreditCard className="h-3 w-3" /> Awaiting payer
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground">{c.region}</div>
                     </div>
