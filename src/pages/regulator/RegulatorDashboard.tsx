@@ -8,9 +8,11 @@ import AnimatedCounter from "@/components/AnimatedCounter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { FeatureCard, type FeatureCardVariant } from "@/components/FeatureCard";
+import { useMouseParallax } from "@/hooks/useMouseParallax";
 
 const RegulatorDashboard = () => {
   const { profile } = useAdminProfile();
+  const { ref: parallaxRef, styleFor } = useMouseParallax<HTMLDivElement>();
   const [stats, setStats] = useState({
     totalTenants: 0, totalLandlords: 0, totalProperties: 0,
     totalComplaints: 0, activeTenancies: 0, pendingComplaints: 0,
@@ -93,7 +95,9 @@ const RegulatorDashboard = () => {
 
   return (
     <PageTransition>
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div ref={parallaxRef} className="max-w-6xl mx-auto space-y-8 relative">
+        <div aria-hidden className="pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full bg-primary/15 blur-3xl -z-10" style={styleFor("bg")} />
+        <div aria-hidden className="pointer-events-none absolute top-40 -right-24 w-96 h-96 rounded-full bg-secondary/20 blur-3xl -z-10" style={styleFor("bg")} />
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
@@ -128,7 +132,7 @@ const RegulatorDashboard = () => {
           <LogoLoader message="Loading stats..." />
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div data-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative" style={styleFor("fg")}>
               {[
                 { variant: "primary" as FeatureCardVariant, eyebrow: "This week", title: "Active tenancies under management", value: stats.activeTenancies, icon: <FileText className="h-5 w-5" /> },
                 { variant: "teal" as FeatureCardVariant, eyebrow: "Live", title: "Open complaints awaiting review", value: stats.pendingComplaints, icon: <AlertTriangle className="h-5 w-5" /> },
@@ -139,23 +143,21 @@ const RegulatorDashboard = () => {
               ))}
             </div>
 
-            <StaggeredGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div data-stagger className="grid grid-cols-2 lg:grid-cols-4 gap-4 relative" style={styleFor("mid")}>
               {statCards.map((stat) => (
-                <StaggeredItem key={stat.label}>
-                  <div className="bg-card rounded-xl p-5 border border-border">
-                    <div className="flex items-center gap-3">
-                      <stat.icon className={`h-5 w-5 ${stat.color}`} />
-                      <div>
-                        <div className="text-3xl font-bold text-card-foreground leading-none">
-                          <AnimatedCounter value={stat.value} />
-                        </div>
-                        <div className="text-[11px] text-muted-foreground mt-1">{stat.label}</div>
+                <div key={stat.label} className="bg-card rounded-xl p-5 border border-border">
+                  <div className="flex items-center gap-3">
+                    <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                    <div>
+                      <div className="text-3xl font-bold text-card-foreground leading-none">
+                        <AnimatedCounter value={stat.value} />
                       </div>
+                      <div className="text-[11px] text-muted-foreground mt-1">{stat.label}</div>
                     </div>
                   </div>
-                </StaggeredItem>
+                </div>
               ))}
-            </StaggeredGrid>
+            </div>
 
             <div className="bg-card rounded-xl p-6 border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
