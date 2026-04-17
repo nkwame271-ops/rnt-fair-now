@@ -3381,6 +3381,45 @@ export type Database = {
         }
         Relationships: []
       }
+      student_residence_history: {
+        Row: {
+          change_reason: string | null
+          changed_by: string | null
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          hostel_or_hall: string | null
+          id: string
+          room_or_bed_space: string | null
+          school: string | null
+          tenant_user_id: string
+        }
+        Insert: {
+          change_reason?: string | null
+          changed_by?: string | null
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          hostel_or_hall?: string | null
+          id?: string
+          room_or_bed_space?: string | null
+          school?: string | null
+          tenant_user_id: string
+        }
+        Update: {
+          change_reason?: string | null
+          changed_by?: string | null
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          hostel_or_hall?: string | null
+          id?: string
+          room_or_bed_space?: string | null
+          school?: string | null
+          tenant_user_id?: string
+        }
+        Relationships: []
+      }
       support_conversations: {
         Row: {
           created_at: string

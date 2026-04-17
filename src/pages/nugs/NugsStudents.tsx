@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Search, GraduationCap } from "lucide-react";
+import { Loader2, Search, GraduationCap, ChevronDown, ChevronUp, History } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import StudentResidenceTrail from "@/components/student/StudentResidenceTrail";
 
 interface StudentRow {
   user_id: string;
@@ -17,6 +18,7 @@ const NugsStudents = () => {
   const [rows, setRows] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -90,21 +92,43 @@ const NugsStudents = () => {
                 <th className="px-4 py-3 text-left">School</th>
                 <th className="px-4 py-3 text-left">Hostel / Hall</th>
                 <th className="px-4 py-3 text-left">Room / Bed</th>
+                <th className="px-4 py-3 text-left">History</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
-                <tr key={r.user_id} className="border-t border-border hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs">{r.tenant_id}</td>
-                  <td className="px-4 py-3">{r.full_name || "—"}</td>
-                  <td className="px-4 py-3">{r.school || "—"}</td>
-                  <td className="px-4 py-3">{r.hostel_or_hall || "—"}</td>
-                  <td className="px-4 py-3">{r.room_or_bed_space || "—"}</td>
-                </tr>
-              ))}
+              {filtered.map((r) => {
+                const open = expandedId === r.user_id;
+                return (
+                  <>
+                    <tr key={r.user_id} className="border-t border-border hover:bg-muted/30">
+                      <td className="px-4 py-3 font-mono text-xs">{r.tenant_id}</td>
+                      <td className="px-4 py-3">{r.full_name || "—"}</td>
+                      <td className="px-4 py-3">{r.school || "—"}</td>
+                      <td className="px-4 py-3">{r.hostel_or_hall || "—"}</td>
+                      <td className="px-4 py-3">{r.room_or_bed_space || "—"}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => setExpandedId(open ? null : r.user_id)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                        >
+                          <History className="h-3.5 w-3.5" /> Trail
+                          {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </button>
+                      </td>
+                    </tr>
+                    {open && (
+                      <tr className="bg-muted/20">
+                        <td colSpan={6} className="px-6 py-4">
+                          <StudentResidenceTrail tenantUserId={r.user_id} compact />
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No students found.</td>
+                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No students found.</td>
                 </tr>
               )}
             </tbody>

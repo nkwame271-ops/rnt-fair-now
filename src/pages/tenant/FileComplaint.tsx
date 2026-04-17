@@ -76,6 +76,46 @@ const FileComplaint = () => {
 
   const officesInRegion = form.region ? offices.filter((o) => o.region === form.region) : [];
 
+  // Student residence history (defaults complaints to current residence; allows picking a previous one)
+  const [residences, setResidences] = useState<{ id: string; school: string | null; hostel_or_hall: string | null; room_or_bed_space: string | null; effective_from: string; effective_to: string | null }[]>([]);
+  const [selectedResidenceId, setSelectedResidenceId] = useState<string>("");
+  const [isStudent, setIsStudent] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: t } = await supabase.from("tenants").select("is_student").eq("user_id", user.id).maybeSingle();
+      if (!t?.is_student) return;
+      setIsStudent(true);
+      const { data: hist } = await (supabase.from("student_residence_history") as any)
+        .select("id, school, hostel_or_hall, room_or_bed_space, effective_from, effective_to")
+        .eq("tenant_user_id", user.id)
+        .order("effective_from", { ascending: false });
+      const rows = (hist || []) as any[];
+      setResidences(rows);
+      const current = rows.find((r) => r.effective_to == null) || rows[0];
+      if (current) {
+        setSelectedResidenceId(current.id);
+        setForm((prev) => ({
+          ...prev,
+          propertyType: prev.propertyType || "hostel",
+          propertyName: prev.propertyName || current.hostel_or_hall || "",
+          unitDescription: prev.unitDescription || current.room_or_bed_space || "",
+        }));
+      }
+    })();
+  }, [user]);
+
+  const applyResidence = (id: string) => {
+    setSelectedResidenceId(id);
+    const r = residences.find((x) => x.id === id);
+    if (!r) return;
+    setForm((prev) => ({
+      ...prev,
+      propertyName: r.hostel_or_hall || "",
+      unitDescription: r.room_or_bed_space || "",
+    }));
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -386,6 +426,28 @@ const FileComplaint = () => {
 
         {step === 2 && (
           <div className="space-y-4">
+            {isStudent && residences.length > 0 && (
+              <div className="bg-info/5 border border-info/20 rounded-lg p-3 space-y-2">
+                <Label className="flex items-center gap-1.5 text-xs font-semibold text-info uppercase tracking-wide">
+                  <Building2 className="h-3.5 w-3.5" /> File complaint about which residence?
+                </Label>
+                <Select value={selectedResidenceId} onValueChange={applyResidence}>
+                  <SelectTrigger><SelectValue placeholder="Select residence" /></SelectTrigger>
+                  <SelectContent>
+                    {residences.map((r) => {
+                      const current = r.effective_to == null;
+                      const dates = `${new Date(r.effective_from).toLocaleDateString("en-GB", { month: "short", year: "numeric" })} – ${r.effective_to ? new Date(r.effective_to).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "Present"}`;
+                      return (
+                        <SelectItem key={r.id} value={r.id}>
+                          {(r.hostel_or_hall || "Unnamed")}{r.room_or_bed_space ? ` · ${r.room_or_bed_space}` : ""} {current ? "(Current)" : `(${dates})`}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Defaults to your current residence. Pick a previous one if the complaint relates to where you used to live.</p>
+              </div>
+            )}
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Landlord / Agent Name <span className="text-destructive">*</span></Label>
