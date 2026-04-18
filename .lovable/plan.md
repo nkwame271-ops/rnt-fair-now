@@ -1,47 +1,52 @@
 
 
-## Plan — Student portal navigation + profile/ID uploads
+## Plan — Iridescent / Aurora Border Effect (CSS-only)
 
-### Issue 1 — Student dashboard "vanishes" when clicking nav items
+Pure CSS additions to `src/index.css`. No component edits, no logic changes, no route changes. Targets existing class hooks already used app-wide.
 
-**Root cause**: `NugsLayout` student nav points to `/tenant/marketplace`, `/tenant/file-complaint`, `/nugs/my-complaints`, `/tenant/profile`. The `/tenant/*` paths render under `TenantLayout`, so the NUGS sidebar disappears and the student loses access to "Update Residence" (which lives on the NUGS dashboard).
+### Approach
 
-**Fix**: Mount the student-facing tenant pages *under* the `/nugs` shell so the sidebar stays put.
+Cards in this project already share two stable selectors:
+- `.glass-card` (used by `Card` component + applied to `.bg-card` surfaces)
+- `[class*="bg-card"][class*="rounded-*"]` (raw card divs)
 
-In `src/App.tsx`, inside the existing `/nugs` route block, add child routes that reuse the existing tenant page components:
-- `/nugs/marketplace` → `<Marketplace />`
-- `/nugs/file-complaint` → `<KycGate><FileComplaint /></KycGate>`
-- `/nugs/profile` → `<ProfilePage />`
+Sidebars use `.glass-sidebar`. Modals/dialogs use `.glass-modal`. Coloured feature cards are inside `src/components/FeatureCard.tsx` and use `bg-[hsl(var(--feature-card-*)/...)]` — I'll target them via `[class*="feature-card-"]`.
 
-Update `NugsLayout.tsx` `studentNav` to point at these `/nugs/*` paths instead of `/tenant/*`. The dashboard's quick-action buttons in `NugsDashboard.tsx` get the same swap.
+So we can ship the entire effect via `::before` (aurora border) and `::after` (shimmer sweep) pseudo-elements on those existing selectors — zero React/component changes.
 
-This automatically solves the "Hostels marketplace not visible" report — `Marketplace.tsx` already filters to `property_category = 'hostel'` when `is_student = true` (line 95). The student just couldn't see it because they were being kicked out of their portal.
+### Edits — `src/index.css` only
 
-### Issue 2 — Profile picture (all roles) + Student ID upload (students)
+1. **Aurora keyframes** — add `auroraShift` and `shimmerSweep` to the existing `@layer utilities`.
 
-**DB migration** — add to `public.profiles`:
-- `avatar_url text`
-- `student_id_url text` (students only, but the column lives on profiles for simplicity)
+2. **Default card border** — apply to `.glass-card` and `[class*="bg-card"][class*="rounded-{lg,xl,2xl}"]`:
+   - `position: relative; overflow: hidden;` (already true for most)
+   - `::before` = 1.5px gradient ring with mask-composite trick → animated 5s
+   - `::after` = diagonal shimmer sweep → 4s ease-in-out infinite
+   - Inherit `border-radius` so the ring follows existing rounding (16/12/8px)
 
-**Storage**:
-- Create public bucket `avatars` (file size 2 MB, image/* only). RLS: anyone can read; users can insert/update/delete only objects under `auth.uid()/...`.
-- Reuse the existing private `identity-documents` bucket for the Student ID upload (same access pattern as Ghana Card). New folder convention: `{user_id}/student-id.{ext}`.
+3. **Sidebar** — `.glass-sidebar::before` with dimmer palette + 1px padding + 6s animation. No shimmer sweep on sidebar (too busy against nav items).
 
-**UI in `src/pages/shared/ProfilePage.tsx`** (one component, all roles):
-- New "Profile Picture" card at the top of Personal Information: shows current avatar (or initials), an Upload button using the standard input/file flow → `supabase.storage.from('avatars').upload(...)` → updates `profiles.avatar_url`. Visible to **all roles** (tenant, landlord, regulator, student).
-- New "Student Verification" card, shown only when `tenant.is_student === true`: upload Student ID image/PDF to `identity-documents/{user_id}/student-id.{ext}`, save signed URL to `profiles.student_id_url`. Shows current document name + replace button. Sets `tenants.student_id_verified_at = now()` (new nullable timestamp column) once admin reviews.
-- Header avatars (sidebars / nav) read `profiles.avatar_url`. Out of scope for this plan unless requested — just persisting it correctly is enough for now.
+4. **Modals** — `.glass-modal::before` with 2px padding + 4s animation (hero moment).
 
-**Validation**: max 2 MB for avatars, 5 MB for Student ID, MIME-type checked client-side and rejected with a toast on failure.
+5. **Coloured feature cards** — `[class*="feature-card-"]::before` (matches `bg-[hsl(var(--feature-card-primary)/...)]` etc.) with `opacity: 0.7`, `padding: 1px`, warmer-tinted gradient so card colour still leads.
 
-### Files to change
-- `src/App.tsx` — add 3 student child routes under `/nugs`
-- `src/components/NugsLayout.tsx` — repoint `studentNav` to `/nugs/*`
-- `src/pages/nugs/NugsDashboard.tsx` — quick-action buttons use `/nugs/*`
-- `src/pages/shared/ProfilePage.tsx` — add Avatar + Student-ID upload cards
-- New migration — `profiles.avatar_url`, `profiles.student_id_url`, `tenants.student_id_verified_at`, `avatars` bucket + RLS
+6. **Performance / a11y**:
+   - `@media (prefers-reduced-motion: reduce)` → disable both animations
+   - `@media (prefers-reduced-transparency: reduce)` → also hide `::before`/`::after` (matches existing fallback pattern)
+   - `@supports not (mask-composite: exclude)` → graceful no-op (older browsers just see the existing border)
 
-### Out of scope
-- Showing the avatar in sidebars/nav headers (separate pass).
-- An admin "Verify Student ID" workflow on the NUGS portal (can be added next; for now the URL is captured and visible to NUGS admins from the existing student detail view).
+7. **Z-index hygiene** — pseudo-elements get `z-index: 0` and `pointer-events: none`; card content stays above via existing layout (most card children are flex/block at default z).
+
+### What this does NOT touch
+- No changes to `Card`, `FeatureCard`, `NugsLayout`, `TenantLayout`, `LandlordLayout`, `RegulatorLayout`, dialog/sheet primitives.
+- No changes to data, routes, RLS, Paystack, Engine Room, auth.
+- No new dependencies.
+
+### Files to edit
+- `src/index.css` — append aurora keyframes + pseudo-element rules in `@layer utilities`
+
+### Risk notes
+- The `mask-composite` trick for the gradient ring is well-supported in all evergreen browsers; falls back to no border on very old Safari (acceptable — they still see the existing 1px white/55 border).
+- Sidebar `overflow-hidden` is already set on `<aside>` in all 5 layouts → ring will be clipped cleanly.
+- Modals: Radix Dialog content uses `overflow-hidden` by default → fine.
 
