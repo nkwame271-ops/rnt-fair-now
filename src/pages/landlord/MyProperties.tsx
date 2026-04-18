@@ -237,8 +237,16 @@ const MyProperties = () => {
       if (property.units.length === 0) {
         complianceErrors.push("At least one unit must be registered");
       }
-      if (!["approved", "off_market", "live"].includes(property.property_status)) {
+      if (property.property_status === "pending_assessment") {
+        complianceErrors.push("Property is awaiting Rent Control assessment. Listing will be available after approval.");
+      } else if (property.property_status === "pending_identity_review") {
+        complianceErrors.push("Identity review is pending. Listing will be available after approval.");
+      } else if (!["approved", "off_market", "live"].includes(property.property_status)) {
         complianceErrors.push("Property must be approved before listing");
+      }
+      const hasVacantUnit = property.units.some(u => u.status === "vacant");
+      if (property.units.length > 0 && !hasVacantUnit) {
+        complianceErrors.push("At least one unit must be vacant to list on the marketplace");
       }
 
       // Check if KYC is verified for this landlord
@@ -288,6 +296,7 @@ const MyProperties = () => {
           body: { type: "listing_fee", propertyId: property.id },
         });
         if (error) throw new Error(error.message);
+        if (data?.ok === false) throw new Error(data.error || "Listing payment failed");
         if (data?.error) throw new Error(data.error);
 
         if (data?.skipped) {
@@ -409,7 +418,13 @@ const MyProperties = () => {
                   <Button
                     size="sm" variant="secondary"
                     onClick={() => handleToggleListing(p)}
-                    disabled={listingId === p.id || (!["approved", "off_market", "live"].includes(p.property_status) && !p.listed_on_marketplace)}
+                    disabled={
+                      listingId === p.id ||
+                      (!p.listed_on_marketplace && (
+                        ["pending_assessment", "pending_identity_review"].includes(p.property_status) ||
+                        !["approved", "off_market", "live"].includes(p.property_status)
+                      ))
+                    }
                     className="text-xs"
                   >
                     <Store className="h-3 w-3 mr-1" />
