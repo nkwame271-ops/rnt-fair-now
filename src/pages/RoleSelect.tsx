@@ -209,7 +209,7 @@ const RoleSelect = () => {
       title: "Student",
       description: "Find hostels and halls, file complaints, and access NUGS-supported student housing services.",
       icon: GraduationCap,
-      path: "/register/tenant?student=1",
+      path: "/login?role=student",
       color: "from-sky-500 to-indigo-600",
     },
   ];

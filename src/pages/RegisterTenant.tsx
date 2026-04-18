@@ -14,6 +14,8 @@ import { formatPhone, isValidPhone } from "@/lib/formatters";
 import { regions } from "@/data/dummyData";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Switch } from "@/components/ui/switch";
+import InstitutionCombobox from "@/components/InstitutionCombobox";
+import { normalizeInstitutionName } from "@/data/ghanaInstitutions";
 
 const steps = ["Account", "Contact", "Your ID"];
 
@@ -219,7 +221,7 @@ const RegisterTenant = () => {
         tenant_id: tenantId,
         registration_fee_paid: !regFeeEnabled,
         is_student: isStudent,
-        school: isStudent ? (school.trim() || null) : null,
+        school: isStudent ? (normalizeInstitutionName(school) || null) : null,
         hostel_or_hall: isStudent ? (hostelOrHall.trim() || null) : null,
         room_or_bed_space: isStudent ? (roomOrBedSpace.trim() || null) : null,
         ...(!regFeeEnabled ? {
@@ -358,8 +360,8 @@ const RegisterTenant = () => {
                           <p className="text-sm font-medium text-foreground">Student Details</p>
                         </div>
                         <div className="space-y-3">
-                          <FormField label="School / Institution" valid={school.length > 1}>
-                            <Input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="e.g. University of Ghana" />
+                          <FormField label="School / Institution" valid={school.length > 1} hint="Pick from the list, or type your school's name if not listed.">
+                            <InstitutionCombobox value={school} onChange={setSchool} placeholder="Select your university or college" />
                           </FormField>
                           <FormField label="Hostel or Hall" optional>
                             <Input value={hostelOrHall} onChange={(e) => setHostelOrHall(e.target.value)} placeholder="e.g. Commonwealth Hall" />
@@ -380,8 +382,8 @@ const RegisterTenant = () => {
                         </div>
                         {isStudent && (
                           <div className="space-y-3 pt-2 border-t border-border">
-                            <FormField label="School / Institution" valid={school.length > 1}>
-                              <Input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="e.g. University of Ghana" />
+                            <FormField label="School / Institution" valid={school.length > 1} hint="Pick from the list, or type your school's name if not listed.">
+                              <InstitutionCombobox value={school} onChange={setSchool} placeholder="Select your university or college" />
                             </FormField>
                             <FormField label="Hostel or Hall" optional>
                               <Input value={hostelOrHall} onChange={(e) => setHostelOrHall(e.target.value)} placeholder="e.g. Commonwealth Hall" />
