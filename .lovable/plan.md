@@ -1,54 +1,47 @@
 
 
-## Plan — Fix Property Map race + Hostel "List on Marketplace" error
+## Plan — Student portal navigation + profile/ID uploads
 
-### Issue 1: Property location map fails until reload
+### Issue 1 — Student dashboard "vanishes" when clicking nav items
 
-**Root cause**: `useJsApiLoader` from `@react-google-maps/api` shares a singleton across mounts. When `PropertyLocationPicker` mounts before the API finishes loading (or when navigated to from a page that didn't preload it), `google.maps.places` can briefly be undefined. Our current guard treats this as a permanent failure and shows the amber "could not load" fallback instead of waiting.
+**Root cause**: `NugsLayout` student nav points to `/tenant/marketplace`, `/tenant/file-complaint`, `/nugs/my-complaints`, `/tenant/profile`. The `/tenant/*` paths render under `TenantLayout`, so the NUGS sidebar disappears and the student loses access to "Update Residence" (which lives on the NUGS dashboard).
 
-**Fix in `src/components/PropertyLocationPicker.tsx`**:
-- Replace the synchronous `mapLoadError` check with a state flag that polls `window.google?.maps?.places` for up to ~5 s after `isLoaded` becomes `true`.
-- Show "Loading map…" while polling instead of jumping to the error fallback.
-- Only show the amber "could not load" fallback if `loadError` is truthy OR the poll times out.
-- Same pattern applied to `<Autocomplete>` so it never renders before `places` is ready.
+**Fix**: Mount the student-facing tenant pages *under* the `/nugs` shell so the sidebar stays put.
 
-### Issue 2: Hostel "List on Marketplace" → "Edge function returned a non-2xx status code"
+In `src/App.tsx`, inside the existing `/nugs` route block, add child routes that reuse the existing tenant page components:
+- `/nugs/marketplace` → `<Marketplace />`
+- `/nugs/file-complaint` → `<KycGate><FileComplaint /></KycGate>`
+- `/nugs/profile` → `<ProfilePage />`
 
-**Root cause** — two compounding problems:
+Update `NugsLayout.tsx` `studentNav` to point at these `/nugs/*` paths instead of `/tenant/*`. The dashboard's quick-action buttons in `NugsDashboard.tsx` get the same swap.
 
-1. `paystack-checkout/index.ts` returns **HTTP 400** on any throw (line 970). The Supabase JS client converts non-2xx into the generic *"Edge function returned a non-2xx status code"*, hiding the real error (e.g. `Property not found`, `Unauthorized`, `Already listed`, missing rent_band, missing PAYSTACK key). The user sees no actionable info.
-2. For hostels the property is created with `property_status = 'pending_assessment'`, but the listing button only checks `["approved", "off_market", "live"]` for the **label**; it does still fire the click handler via the inner compliance check, which then attempts payment and fails on the server side.
+This automatically solves the "Hostels marketplace not visible" report — `Marketplace.tsx` already filters to `property_category = 'hostel'` when `is_student = true` (line 95). The student just couldn't see it because they were being kicked out of their portal.
 
-**Fixes**:
+### Issue 2 — Profile picture (all roles) + Student ID upload (students)
 
-**A. `supabase/functions/paystack-checkout/index.ts`** — return errors as HTTP **200** with `{ ok: false, error }` so the client always reads the body:
-```ts
-} catch (error: any) {
-  console.error("Checkout error:", error.message);
-  return new Response(JSON.stringify({ ok: false, error: error.message }), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-```
-Update success responses to also include `ok: true` for consistency. (Same pattern already used by `compute-rent-benchmark`, per project memory.)
+**DB migration** — add to `public.profiles`:
+- `avatar_url text`
+- `student_id_url text` (students only, but the column lives on profiles for simplicity)
 
-**B. `src/pages/landlord/MyProperties.tsx`** — read `data.error` and stop on `ok === false`:
-```ts
-if (data?.ok === false) throw new Error(data.error);
-```
+**Storage**:
+- Create public bucket `avatars` (file size 2 MB, image/* only). RLS: anyone can read; users can insert/update/delete only objects under `auth.uid()/...`.
+- Reuse the existing private `identity-documents` bucket for the Student ID upload (same access pattern as Ghana Card). New folder convention: `{user_id}/student-id.{ext}`.
 
-**C. Add an explicit hostel/pending-status pre-check** in the same `handleToggleListing` block so the user gets a clear message *before* hitting the edge function:
-- If `property_status === 'pending_assessment'`, push `"Property is awaiting Rent Control assessment. Listing will be available after approval."` into `complianceErrors`.
-- Disable the button entirely (not just relabel it) when status is `pending_assessment` / `pending_identity_review`, so the click handler can't fire.
+**UI in `src/pages/shared/ProfilePage.tsx`** (one component, all roles):
+- New "Profile Picture" card at the top of Personal Information: shows current avatar (or initials), an Upload button using the standard input/file flow → `supabase.storage.from('avatars').upload(...)` → updates `profiles.avatar_url`. Visible to **all roles** (tenant, landlord, regulator, student).
+- New "Student Verification" card, shown only when `tenant.is_student === true`: upload Student ID image/PDF to `identity-documents/{user_id}/student-id.{ext}`, save signed URL to `profiles.student_id_url`. Shows current document name + replace button. Sets `tenants.student_id_verified_at = now()` (new nullable timestamp column) once admin reviews.
+- Header avatars (sidebars / nav) read `profiles.avatar_url`. Out of scope for this plan unless requested — just persisting it correctly is enough for now.
 
-**D. Hostel-specific compliance** — current code requires `property.units.length === 0` to fail; for hostels this works (bed-space units exist). No change needed, but add a defensive check that at least one unit has `status === 'vacant'` for marketplace listing eligibility.
+**Validation**: max 2 MB for avatars, 5 MB for Student ID, MIME-type checked client-side and rejected with a toast on failure.
 
-### Files to edit
-- `src/components/PropertyLocationPicker.tsx` — places-ready polling
-- `supabase/functions/paystack-checkout/index.ts` — return errors as 200/{ok:false,error}
-- `src/pages/landlord/MyProperties.tsx` — handle `ok:false`, harden pending-status guard, disable button when not approved
+### Files to change
+- `src/App.tsx` — add 3 student child routes under `/nugs`
+- `src/components/NugsLayout.tsx` — repoint `studentNav` to `/nugs/*`
+- `src/pages/nugs/NugsDashboard.tsx` — quick-action buttons use `/nugs/*`
+- `src/pages/shared/ProfilePage.tsx` — add Avatar + Student-ID upload cards
+- New migration — `profiles.avatar_url`, `profiles.student_id_url`, `tenants.student_id_verified_at`, `avatars` bucket + RLS
 
 ### Out of scope
-No DB migration. No changes to fee/split logic. No changes to `PropertyMap.tsx` (different code path — only edit if user reports the same race there).
+- Showing the avatar in sidebars/nav headers (separate pass).
+- An admin "Verify Student ID" workflow on the NUGS portal (can be added next; for now the URL is captured and visible to NUGS admins from the existing student detail view).
 
