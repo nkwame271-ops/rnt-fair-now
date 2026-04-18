@@ -200,7 +200,7 @@ const RegulatorLayout = () => {
             <NotificationBell />
           </div>
         </header>
-         <main data-app-main className="flex-1 px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8 overflow-y-auto pb-16 bg-transparent">
+         <main data-app-main className="flex-1 px-3 sm:px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8 overflow-y-auto overflow-x-hidden pb-16 bg-transparent">
           <div className="mx-auto w-full max-w-[1400px]">
             <AnimatedOutlet />
           </div>
