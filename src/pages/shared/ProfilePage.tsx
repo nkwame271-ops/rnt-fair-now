@@ -239,6 +239,73 @@ const ProfilePage = () => {
     }
   };
 
+  const handleUploadAvatar = async (file: File) => {
+    if (!user) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Avatar must be 2 MB or smaller");
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/avatar.${ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, {
+        upsert: true,
+        contentType: file.type,
+      });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+      const publicUrl = `${pub.publicUrl}?t=${Date.now()}`;
+      const { error: updErr } = await supabase.from("profiles").update({ avatar_url: publicUrl } as any).eq("user_id", user.id);
+      if (updErr) throw updErr;
+      setAvatarUrl(publicUrl);
+      toast.success("Profile picture updated");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload avatar");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleUploadStudentId = async (file: File) => {
+    if (!user) return;
+    const okType = file.type.startsWith("image/") || file.type === "application/pdf";
+    if (!okType) {
+      toast.error("Student ID must be an image or PDF");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Student ID must be 5 MB or smaller");
+      return;
+    }
+    setUploadingStudentId(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/student-id.${ext}`;
+      const { error: upErr } = await supabase.storage.from("identity-documents").upload(path, file, {
+        upsert: true,
+        contentType: file.type,
+      });
+      if (upErr) throw upErr;
+      const { error: updErr } = await supabase.from("profiles").update({ student_id_url: path } as any).eq("user_id", user.id);
+      if (updErr) throw updErr;
+      const { data: signed } = await supabase.storage.from("identity-documents").createSignedUrl(path, 3600);
+      setStudentIdUrl(path);
+      if (signed?.signedUrl) setStudentIdSignedUrl(signed.signedUrl);
+      toast.success("Student ID uploaded — pending verification");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload Student ID");
+    } finally {
+      setUploadingStudentId(false);
+    }
+  };
+
+  const initials = (fullName || email || "U").split(" ").map((s) => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+
   const baseUrl = window.location.origin;
   const qrData = `${baseUrl}/verify/${role}/${registrationId}`;
 
