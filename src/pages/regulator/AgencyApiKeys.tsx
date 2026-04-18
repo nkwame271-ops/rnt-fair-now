@@ -202,6 +202,7 @@ const AgencyApiKeys = () => {
               <p className="text-muted-foreground text-sm">No API keys created yet</p>
             </div>
           ) : (
+            <div className="responsive-table">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -258,6 +259,7 @@ const AgencyApiKeys = () => {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

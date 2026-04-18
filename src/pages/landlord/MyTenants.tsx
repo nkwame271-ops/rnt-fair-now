@@ -195,6 +195,7 @@ const MyTenants = () => {
       </div>
 
       <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
+        <div className="responsive-table">
         <Table>
           <TableHeader>
             <TableRow>
@@ -259,6 +260,7 @@ const MyTenants = () => {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
     </div>
   );

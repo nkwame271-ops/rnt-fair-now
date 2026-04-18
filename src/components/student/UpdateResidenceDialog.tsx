@@ -72,7 +72,7 @@ const UpdateResidenceDialog = ({ current, onUpdated, trigger }: Props) => {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Update Residence</DialogTitle>
           <DialogDescription>

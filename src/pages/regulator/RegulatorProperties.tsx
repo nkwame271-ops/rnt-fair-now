@@ -432,6 +432,7 @@ const RegulatorProperties = () => {
         </div>
       ) : (
         <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
+          <div className="responsive-table">
           <Table>
             <TableHeader>
               <TableRow>
@@ -555,6 +556,7 @@ const RegulatorProperties = () => {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
 

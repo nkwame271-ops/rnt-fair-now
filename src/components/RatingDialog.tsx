@@ -53,7 +53,7 @@ const RatingDialog = ({ tenancyId, ratedUserId, ratedUserName, onRated }: Rating
       <DialogTrigger asChild>
         <Button variant="outline" size="sm"><Star className="h-4 w-4 mr-1" /> Rate</Button>
       </DialogTrigger>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Rate {ratedUserName}</DialogTitle>
         </DialogHeader>
