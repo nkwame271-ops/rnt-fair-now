@@ -408,6 +408,104 @@ const ProfilePage = () => {
         </Card>
       )}
 
+      {/* Profile Picture */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2"><Camera className="h-5 w-5 text-primary" /> Profile Picture</CardTitle>
+          <CardDescription>Upload a photo to personalize your account (max 2 MB)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <Avatar className="h-20 w-20 border border-border">
+              {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName} /> : null}
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-lg">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 space-y-2">
+              <input
+                id="avatar-upload"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUploadAvatar(f);
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={uploadingAvatar}
+                onClick={() => document.getElementById("avatar-upload")?.click()}
+              >
+                {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                {avatarUrl ? "Change Picture" : "Upload Picture"}
+              </Button>
+              <p className="text-xs text-muted-foreground">JPG, PNG or WebP. Square images look best.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Student Verification — only for students */}
+      {role === "tenant" && isStudent && (
+        <Card className="border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2"><GraduationCap className="h-5 w-5 text-primary" /> Student Verification</CardTitle>
+            <CardDescription>Upload your Student ID card so NUGS can verify your status (image or PDF, max 5 MB)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {studentIdUrl ? (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+                <FileCheck2 className="h-5 w-5 text-success shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {studentIdUrl.split("/").pop()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {studentIdVerifiedAt
+                      ? `Verified on ${new Date(studentIdVerifiedAt).toLocaleDateString()}`
+                      : "Pending NUGS review"}
+                  </p>
+                </div>
+                {studentIdSignedUrl && (
+                  <a
+                    href={studentIdSignedUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-medium text-primary hover:underline shrink-0"
+                  >
+                    View
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No Student ID uploaded yet.</p>
+            )}
+            <input
+              id="student-id-upload"
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUploadStudentId(f);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={uploadingStudentId}
+              onClick={() => document.getElementById("student-id-upload")?.click()}
+            >
+              {uploadingStudentId ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+              {studentIdUrl ? "Replace Student ID" : "Upload Student ID"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Personal Information */}
       <Card>
         <CardHeader>
