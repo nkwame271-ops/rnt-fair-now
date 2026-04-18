@@ -958,6 +958,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
+      ok: true,
       authorization_url: result.data.authorization_url,
       access_code: result.data.access_code,
       reference: result.data.reference,
@@ -966,8 +967,10 @@ Deno.serve(async (req) => {
     });
   } catch (error: any) {
     console.error("Checkout error:", error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
+    // Return as 200 with { ok:false, error } so the Supabase JS client doesn't
+    // mask the real message with the generic "non-2xx status code" error.
+    return new Response(JSON.stringify({ ok: false, error: error.message }), {
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
