@@ -37,7 +37,8 @@ const FloatingActionHub = () => {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="max-w-[calc(100vw-2rem)]"
+            style={{ transformOrigin: "bottom right" }}
+            className="w-fit"
           >
             <LiveChatWidget onClose={handleClose} />
           </motion.div>
@@ -48,7 +49,8 @@ const FloatingActionHub = () => {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="max-w-[calc(100vw-2rem)]"
+            style={{ transformOrigin: "bottom right" }}
+            className="w-fit"
           >
             <BetaFeedbackWidget onClose={handleClose} />
           </motion.div>
