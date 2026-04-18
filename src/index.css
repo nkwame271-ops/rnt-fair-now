@@ -389,6 +389,222 @@
   }
 }
 
+/* === Iridescent / Aurora Border Effect ===
+   Pure CSS, applied via pseudo-elements to existing class hooks.
+   No component edits required. */
+@layer utilities {
+  @keyframes auroraShift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  @keyframes shimmerSweep {
+    0%   { transform: translateX(-60%); }
+    100% { transform: translateX(320%); }
+  }
+
+  /* Default cards — glass-card + raw bg-card rounded surfaces */
+  .glass-card,
+  [class*="bg-card"][class*="rounded-xl"],
+  [class*="bg-card"][class*="rounded-2xl"],
+  [class*="bg-card"][class*="rounded-lg"] {
+    position: relative;
+  }
+  .glass-card::before,
+  [class*="bg-card"][class*="rounded-xl"]::before,
+  [class*="bg-card"][class*="rounded-2xl"]::before,
+  [class*="bg-card"][class*="rounded-lg"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(
+      135deg,
+      rgba(255,255,255,0.95),
+      rgba(180,220,255,0.80),
+      rgba(150,255,220,0.70),
+      rgba(210,180,255,0.80),
+      rgba(255,220,160,0.70),
+      rgba(180,220,255,0.90),
+      rgba(255,255,255,0.95)
+    );
+    background-size: 300% 300%;
+    animation: auroraShift 5s ease infinite;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glass-card::after,
+  [class*="bg-card"][class*="rounded-xl"]::after,
+  [class*="bg-card"][class*="rounded-2xl"]::after,
+  [class*="bg-card"][class*="rounded-lg"]::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 35%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255,255,255,0.30),
+      transparent
+    );
+    transform: translateX(-60%);
+    animation: shimmerSweep 4s ease-in-out infinite;
+    pointer-events: none;
+    border-radius: inherit;
+    z-index: 0;
+    mix-blend-mode: screen;
+  }
+
+  /* Sidebar — dimmer ring, slower, no shimmer */
+  .glass-sidebar {
+    position: relative;
+  }
+  .glass-sidebar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(255,255,255,0.45),
+      rgba(100,180,255,0.35),
+      rgba(120,255,200,0.25),
+      rgba(190,140,255,0.35),
+      rgba(255,180,100,0.25),
+      rgba(100,180,255,0.35),
+      rgba(255,255,255,0.45)
+    );
+    background-size: 300% 300%;
+    animation: auroraShift 6s ease infinite;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Modals — slightly thicker ring, faster animation */
+  .glass-modal::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(
+      135deg,
+      rgba(255,255,255,0.95),
+      rgba(180,220,255,0.85),
+      rgba(150,255,220,0.75),
+      rgba(210,180,255,0.85),
+      rgba(255,220,160,0.75),
+      rgba(180,220,255,0.95),
+      rgba(255,255,255,0.95)
+    );
+    background-size: 300% 300%;
+    animation: auroraShift 4s ease infinite;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Coloured feature cards — softer ring so card colour leads */
+  [class*="feature-card-"] {
+    position: relative;
+  }
+  [class*="feature-card-"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(255,255,255,0.85),
+      rgba(255,220,180,0.65),
+      rgba(255,200,160,0.55),
+      rgba(220,200,255,0.65),
+      rgba(255,230,180,0.60),
+      rgba(255,255,255,0.85)
+    );
+    background-size: 300% 300%;
+    animation: auroraShift 5s ease infinite;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    opacity: 0.7;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Reduced motion — disable shimmer + aurora drift */
+  @media (prefers-reduced-motion: reduce) {
+    .glass-card::before,
+    .glass-card::after,
+    [class*="bg-card"][class*="rounded-xl"]::before,
+    [class*="bg-card"][class*="rounded-xl"]::after,
+    [class*="bg-card"][class*="rounded-2xl"]::before,
+    [class*="bg-card"][class*="rounded-2xl"]::after,
+    [class*="bg-card"][class*="rounded-lg"]::before,
+    [class*="bg-card"][class*="rounded-lg"]::after,
+    .glass-sidebar::before,
+    .glass-modal::before,
+    [class*="feature-card-"]::before {
+      animation: none !important;
+    }
+  }
+
+  /* Reduced transparency — hide pseudo decorations to match solid fallback */
+  @media (prefers-reduced-transparency: reduce) {
+    .glass-card::before,
+    .glass-card::after,
+    [class*="bg-card"][class*="rounded-xl"]::before,
+    [class*="bg-card"][class*="rounded-xl"]::after,
+    [class*="bg-card"][class*="rounded-2xl"]::before,
+    [class*="bg-card"][class*="rounded-2xl"]::after,
+    [class*="bg-card"][class*="rounded-lg"]::before,
+    [class*="bg-card"][class*="rounded-lg"]::after,
+    .glass-sidebar::before,
+    .glass-modal::before,
+    [class*="feature-card-"]::before {
+      display: none !important;
+    }
+  }
+
+  /* Browsers without mask-composite — graceful no-op */
+  @supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+    .glass-card::before,
+    .glass-card::after,
+    [class*="bg-card"][class*="rounded-xl"]::before,
+    [class*="bg-card"][class*="rounded-xl"]::after,
+    [class*="bg-card"][class*="rounded-2xl"]::before,
+    [class*="bg-card"][class*="rounded-2xl"]::after,
+    [class*="bg-card"][class*="rounded-lg"]::before,
+    [class*="bg-card"][class*="rounded-lg"]::after,
+    .glass-sidebar::before,
+    .glass-modal::before,
+    [class*="feature-card-"]::before {
+      display: none;
+    }
+  }
+}
+
 @media print {
   nav, aside, header, footer,
   .sidebar, .print\:hidden,
