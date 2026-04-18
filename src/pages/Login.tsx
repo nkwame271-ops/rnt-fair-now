@@ -13,6 +13,10 @@ const Login = () => {
   const [searchParams] = useSearchParams();
   const role = searchParams.get("role") || "tenant";
   const navigate = useNavigate();
+  const isStudent = role === "student";
+  const registerPath = isStudent
+    ? "/register/tenant?student=1"
+    : `/register/${role}`;
 
   const [loginMode, setLoginMode] = useState<"phone" | "email">("phone");
   const [phone, setPhone] = useState("");
@@ -102,10 +106,12 @@ const Login = () => {
         <div className="text-primary-foreground max-w-md">
           <Shield className="h-12 w-12 text-secondary mb-6" />
           <h2 className="text-3xl font-bold mb-4">
-            {role === "tenant" ? "Know Your Rights" : "Stay Compliant"}
+            {isStudent ? "Welcome, Student" : role === "tenant" ? "Know Your Rights" : "Stay Compliant"}
           </h2>
           <p className="text-primary-foreground/80 text-lg">
-            {role === "tenant"
+            {isStudent
+              ? "Sign in to access NUGS-supported hostel listings, file complaints, and manage your accommodation."
+              : role === "tenant"
               ? "Access fair rent prices, file complaints, and get legal guidance — all in one place."
               : "Register properties, manage tenants, and ensure all agreements meet legal requirements."}
           </p>
@@ -213,7 +219,7 @@ const Login = () => {
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             Don't have an account?{" "}
-            <button onClick={() => navigate(`/register/${role}`)} className="text-primary font-semibold hover:underline">
+            <button onClick={() => navigate(registerPath)} className="text-primary font-semibold hover:underline">
               Register
             </button>
           </p>
