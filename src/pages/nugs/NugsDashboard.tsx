@@ -227,14 +227,14 @@ const StudentView = () => {
 
       {/* Quick actions */}
       <div className="grid sm:grid-cols-2 gap-4">
-        <Button onClick={() => navigate("/tenant/marketplace")} className="h-auto py-5 flex flex-col items-start gap-2 text-left">
+        <Button onClick={() => navigate("/nugs/marketplace")} className="h-auto py-5 flex flex-col items-start gap-2 text-left">
           <Store className="h-5 w-5" />
           <div>
             <p className="font-semibold">Browse Hostel Listings</p>
             <p className="text-xs opacity-80 font-normal">Find approved student accommodation</p>
           </div>
         </Button>
-        <Button onClick={() => navigate("/tenant/file-complaint")} variant="outline" className="h-auto py-5 flex flex-col items-start gap-2 text-left">
+        <Button onClick={() => navigate("/nugs/file-complaint")} variant="outline" className="h-auto py-5 flex flex-col items-start gap-2 text-left">
           <AlertTriangle className="h-5 w-5" />
           <div>
             <p className="font-semibold">File a Complaint</p>
@@ -248,7 +248,7 @@ const StudentView = () => {
         <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
           <div className="px-5 py-3 border-b border-border flex items-center justify-between">
             <h2 className="font-semibold text-foreground flex items-center gap-2"><FileText className="h-4 w-4" /> My Recent Complaints</h2>
-            <Button size="sm" variant="ghost" onClick={() => navigate("/tenant/my-cases")}>View all</Button>
+            <Button size="sm" variant="ghost" onClick={() => navigate("/nugs/my-complaints")}>View all</Button>
           </div>
           <div className="divide-y divide-border">
             {complaints.slice(0, 5).map((c) => (
