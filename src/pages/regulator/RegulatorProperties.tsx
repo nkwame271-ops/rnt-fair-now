@@ -355,7 +355,7 @@ const RegulatorProperties = () => {
   if (loading) return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><Building2 className="h-7 w-7 text-primary" /> Property Database</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2"><Building2 className="h-7 w-7 text-primary" /> Property Database</h1>
         <p className="text-muted-foreground mt-1">Loading properties…</p>
       </div>
       <SkeletonCardList count={5} />
@@ -364,12 +364,12 @@ const RegulatorProperties = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><Building2 className="h-7 w-7 text-primary" /> Property Database</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2"><Building2 className="h-7 w-7 text-primary" /> Property Database</h1>
           <p className="text-muted-foreground mt-1">{filtered.length} registered properties{mapMarkers.length > 0 && ` • ${mapMarkers.length} with GPS`}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <div className="flex bg-muted rounded-lg p-0.5">
             <Button variant={view === "table" ? "default" : "ghost"} size="sm" onClick={() => setView("table")} className="gap-1.5">
               <List className="h-4 w-4" /> List
@@ -382,8 +382,8 @@ const RegulatorProperties = () => {
         </div>
       </div>
 
-      <div className="flex gap-3 items-center flex-wrap">
-        <div className="relative max-w-md flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
+        <div className="relative w-full sm:max-w-md sm:flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search by name, code, or region..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>

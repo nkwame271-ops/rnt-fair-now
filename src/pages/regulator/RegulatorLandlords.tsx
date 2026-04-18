@@ -180,7 +180,7 @@ const RegulatorLandlords = () => {
   if (loading) return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><Building2 className="h-7 w-7 text-primary" /> Landlord Database</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2"><Building2 className="h-7 w-7 text-primary" /> Landlord Database</h1>
         <p className="text-muted-foreground mt-1">Loading landlords…</p>
       </div>
       <SkeletonCardList count={5} />
@@ -189,15 +189,15 @@ const RegulatorLandlords = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-2"><Building2 className="h-7 w-7 text-primary" /> Landlord Database</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2"><Building2 className="h-7 w-7 text-primary" /> Landlord Database</h1>
           <p className="text-muted-foreground mt-1">{filtered.length} registered landlords</p>
         </div>
-        <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
+        <Button variant="outline" onClick={exportCSV} className="w-full sm:w-auto"><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
       </div>
 
-      <div className="relative max-w-md">
+      <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input placeholder="Search by name, ID, or phone..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
@@ -217,7 +217,7 @@ const RegulatorLandlords = () => {
                 onClick={() => setExpandedId(isExpanded ? null : l.landlord_id)}
                 className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/30 transition-colors"
               >
-                <div className="flex-1 grid grid-cols-2 sm:grid-cols-6 gap-2 items-center text-sm">
+                <div className="flex-1 flex flex-col gap-1.5 sm:grid sm:grid-cols-6 sm:gap-2 sm:items-center text-sm">
                   <div className="font-mono font-bold text-primary">{l.landlord_id}</div>
                   <div className="font-medium text-foreground">{l.profile?.full_name || "—"}</div>
                   <div className="text-muted-foreground">{l.profile?.phone || "—"}</div>

@@ -71,13 +71,13 @@ const NugsStudents = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
           <GraduationCap className="h-7 w-7 text-primary" /> Registered Students
         </h1>
         <p className="text-muted-foreground mt-1">{filtered.length} students on the platform</p>
       </div>
 
-      <div className="relative max-w-md">
+      <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input placeholder="Search by name, school, hostel..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>

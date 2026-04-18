@@ -145,7 +145,7 @@ const MyTenants = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
           <Users className="h-7 w-7 text-primary" /> My Tenants
         </h1>
         <p className="text-muted-foreground mt-1">

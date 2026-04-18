@@ -350,17 +350,17 @@ const MyProperties = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">My Properties</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">My Properties</h1>
           <p className="text-muted-foreground mt-1">Overview of all registered properties</p>
         </div>
-        <div className="flex gap-2">
-          <Link to="/landlord/rent-increase-request">
-            <Button variant="outline" size="sm"><TrendingUp className="h-4 w-4 mr-1" /> Rent Increase</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Link to="/landlord/rent-increase-request" className="flex-1 sm:flex-none">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto"><TrendingUp className="h-4 w-4 mr-1" /> Rent Increase</Button>
           </Link>
-          <Link to="/landlord/add-tenant">
-            <Button><UserPlus className="h-4 w-4 mr-1" /> Add Tenant</Button>
+          <Link to="/landlord/add-tenant" className="flex-1 sm:flex-none">
+            <Button className="w-full sm:w-auto"><UserPlus className="h-4 w-4 mr-1" /> Add Tenant</Button>
           </Link>
         </div>
       </div>

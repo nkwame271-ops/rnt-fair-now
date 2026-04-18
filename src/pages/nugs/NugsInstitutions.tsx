@@ -47,7 +47,7 @@ const NugsInstitutions = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
           <Building2 className="h-7 w-7 text-primary" /> Institutions Represented
         </h1>
         <p className="text-muted-foreground mt-1">{rows.length} institutions on the platform</p>

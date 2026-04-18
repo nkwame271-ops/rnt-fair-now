@@ -83,7 +83,7 @@ const NugsLayout = () => {
           </button>
           <span className="font-bold text-sm">{isAdmin ? "NUGS Monitoring Portal" : "NUGS Student Portal"}</span>
         </header>
-        <main data-app-main className="flex-1 px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8 overflow-y-auto bg-transparent">
+        <main data-app-main className="flex-1 px-3 sm:px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8 overflow-y-auto overflow-x-hidden bg-transparent">
           <div className="mx-auto w-full max-w-[1400px]">
             <AnimatedOutlet />
           </div>
