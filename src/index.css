@@ -605,6 +605,39 @@
   }
 }
 
+@layer utilities {
+  /* Wrap wide tables — adds horizontal scroll on small screens, neutral on desktop */
+  .responsive-table {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .responsive-table > table {
+    min-width: 640px;
+  }
+
+  /* Stat grid — 2-up on phone/tablet, 4-up on desktop */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  @media (min-width: 1024px) {
+    .stat-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+    }
+  }
+
+  /* Horizontal-scroll tabs list (long Tabs that overflow) */
+  .scroll-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .scroll-tabs::-webkit-scrollbar { display: none; }
+}
+
 @media print {
   nav, aside, header, footer,
   .sidebar, .print\:hidden,
