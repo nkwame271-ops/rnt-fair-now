@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode, Star, Download, Pencil } from "lucide-react";
+import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode, Star, Download, Pencil, Camera, GraduationCap, Upload, FileCheck2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import KycVerificationCard from "@/components/KycVerificationCard";
 import UserRatings from "@/components/UserRatings";
@@ -37,6 +38,15 @@ const ProfilePage = () => {
   const [registrationFeePaid, setRegistrationFeePaid] = useState(false);
   const [registrationDate, setRegistrationDate] = useState<string | null>(null);
   const [expiryDate, setExpiryDate] = useState<string | null>(null);
+
+  // Avatar + Student ID
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [isStudent, setIsStudent] = useState(false);
+  const [studentIdUrl, setStudentIdUrl] = useState<string | null>(null);
+  const [studentIdSignedUrl, setStudentIdSignedUrl] = useState<string | null>(null);
+  const [uploadingStudentId, setUploadingStudentId] = useState(false);
+  const [studentIdVerifiedAt, setStudentIdVerifiedAt] = useState<string | null>(null);
 
   // Password
   const [newPassword, setNewPassword] = useState("");
@@ -73,6 +83,8 @@ const ProfilePage = () => {
         setNationality(profile.nationality || "");
         setEmergencyContactName(profile.emergency_contact_name || "");
         setEmergencyContactPhone(profile.emergency_contact_phone || "");
+        setAvatarUrl((profile as any).avatar_url || null);
+        setStudentIdUrl((profile as any).student_id_url || null);
       }
 
       if (role === "tenant") {
@@ -82,6 +94,8 @@ const ProfilePage = () => {
           setRegistrationFeePaid(tenant.registration_fee_paid);
           setRegistrationDate(tenant.registration_date);
           setExpiryDate(tenant.expiry_date);
+          setIsStudent(!!(tenant as any).is_student);
+          setStudentIdVerifiedAt((tenant as any).student_id_verified_at || null);
         }
       } else if (role === "landlord") {
         const { data: landlord } = await supabase.from("landlords").select("*").eq("user_id", user.id).maybeSingle();
@@ -91,6 +105,13 @@ const ProfilePage = () => {
           setRegistrationDate(landlord.registration_date);
           setExpiryDate(landlord.expiry_date);
         }
+      }
+
+      // Generate signed URL for existing student ID if any
+      if ((profile as any)?.student_id_url) {
+        const path = (profile as any).student_id_url as string;
+        const { data: signed } = await supabase.storage.from("identity-documents").createSignedUrl(path, 3600);
+        if (signed?.signedUrl) setStudentIdSignedUrl(signed.signedUrl);
       }
 
       setLoading(false);
@@ -218,6 +239,73 @@ const ProfilePage = () => {
     }
   };
 
+  const handleUploadAvatar = async (file: File) => {
+    if (!user) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Avatar must be 2 MB or smaller");
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/avatar.${ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, {
+        upsert: true,
+        contentType: file.type,
+      });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+      const publicUrl = `${pub.publicUrl}?t=${Date.now()}`;
+      const { error: updErr } = await supabase.from("profiles").update({ avatar_url: publicUrl } as any).eq("user_id", user.id);
+      if (updErr) throw updErr;
+      setAvatarUrl(publicUrl);
+      toast.success("Profile picture updated");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload avatar");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleUploadStudentId = async (file: File) => {
+    if (!user) return;
+    const okType = file.type.startsWith("image/") || file.type === "application/pdf";
+    if (!okType) {
+      toast.error("Student ID must be an image or PDF");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Student ID must be 5 MB or smaller");
+      return;
+    }
+    setUploadingStudentId(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/student-id.${ext}`;
+      const { error: upErr } = await supabase.storage.from("identity-documents").upload(path, file, {
+        upsert: true,
+        contentType: file.type,
+      });
+      if (upErr) throw upErr;
+      const { error: updErr } = await supabase.from("profiles").update({ student_id_url: path } as any).eq("user_id", user.id);
+      if (updErr) throw updErr;
+      const { data: signed } = await supabase.storage.from("identity-documents").createSignedUrl(path, 3600);
+      setStudentIdUrl(path);
+      if (signed?.signedUrl) setStudentIdSignedUrl(signed.signedUrl);
+      toast.success("Student ID uploaded — pending verification");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload Student ID");
+    } finally {
+      setUploadingStudentId(false);
+    }
+  };
+
+  const initials = (fullName || email || "U").split(" ").map((s) => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+
   const baseUrl = window.location.origin;
   const qrData = `${baseUrl}/verify/${role}/${registrationId}`;
 
@@ -316,6 +404,104 @@ const ProfilePage = () => {
           </CardHeader>
           <CardContent>
             <UserRatings userId={user.id} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Profile Picture */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2"><Camera className="h-5 w-5 text-primary" /> Profile Picture</CardTitle>
+          <CardDescription>Upload a photo to personalize your account (max 2 MB)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <Avatar className="h-20 w-20 border border-border">
+              {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName} /> : null}
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-lg">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 space-y-2">
+              <input
+                id="avatar-upload"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUploadAvatar(f);
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={uploadingAvatar}
+                onClick={() => document.getElementById("avatar-upload")?.click()}
+              >
+                {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                {avatarUrl ? "Change Picture" : "Upload Picture"}
+              </Button>
+              <p className="text-xs text-muted-foreground">JPG, PNG or WebP. Square images look best.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Student Verification — only for students */}
+      {role === "tenant" && isStudent && (
+        <Card className="border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2"><GraduationCap className="h-5 w-5 text-primary" /> Student Verification</CardTitle>
+            <CardDescription>Upload your Student ID card so NUGS can verify your status (image or PDF, max 5 MB)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {studentIdUrl ? (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+                <FileCheck2 className="h-5 w-5 text-success shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {studentIdUrl.split("/").pop()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {studentIdVerifiedAt
+                      ? `Verified on ${new Date(studentIdVerifiedAt).toLocaleDateString()}`
+                      : "Pending NUGS review"}
+                  </p>
+                </div>
+                {studentIdSignedUrl && (
+                  <a
+                    href={studentIdSignedUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-medium text-primary hover:underline shrink-0"
+                  >
+                    View
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No Student ID uploaded yet.</p>
+            )}
+            <input
+              id="student-id-upload"
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUploadStudentId(f);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={uploadingStudentId}
+              onClick={() => document.getElementById("student-id-upload")?.click()}
+            >
+              {uploadingStudentId ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+              {studentIdUrl ? "Replace Student ID" : "Upload Student ID"}
+            </Button>
           </CardContent>
         </Card>
       )}

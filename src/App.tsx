@@ -226,6 +226,9 @@ const App = () => (
                 <Route path="complaints" element={<NugsComplaints />} />
                 <Route path="institutions" element={<NugsInstitutions />} />
                 <Route path="my-complaints" element={<NugsMyComplaints />} />
+                <Route path="marketplace" element={<Marketplace />} />
+                <Route path="file-complaint" element={<KycGate action="file a complaint"><FileComplaint /></KycGate>} />
+                <Route path="profile" element={<ProfilePage />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

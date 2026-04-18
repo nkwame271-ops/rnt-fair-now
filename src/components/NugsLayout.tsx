@@ -14,10 +14,10 @@ const adminNav = [
 
 const studentNav = [
   { to: "/nugs/dashboard", label: "My Dashboard", icon: LayoutDashboard },
-  { to: "/tenant/marketplace", label: "Hostel Listings", icon: Store },
-  { to: "/tenant/file-complaint", label: "File a Complaint", icon: AlertTriangle },
+  { to: "/nugs/marketplace", label: "Hostel Listings", icon: Store },
+  { to: "/nugs/file-complaint", label: "File a Complaint", icon: AlertTriangle },
   { to: "/nugs/my-complaints", label: "My Complaints", icon: Inbox },
-  { to: "/tenant/profile", label: "My Profile", icon: UserCircle },
+  { to: "/nugs/profile", label: "My Profile", icon: UserCircle },
 ];
 
 const NugsLayout = () => {
