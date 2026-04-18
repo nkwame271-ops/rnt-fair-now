@@ -556,6 +556,7 @@ const RegulatorProperties = () => {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
 

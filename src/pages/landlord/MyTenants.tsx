@@ -260,6 +260,7 @@ const MyTenants = () => {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
     </div>
   );

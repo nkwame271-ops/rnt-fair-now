@@ -183,6 +183,7 @@ const RegulatorRentReviews = () => {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       {/* Review Dialog */}
