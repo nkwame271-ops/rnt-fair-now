@@ -1,52 +1,47 @@
 
 
-## Plan — Iridescent / Aurora Border Effect (CSS-only)
+## Plan — Multi-screen adaptive (phone / tablet / desktop)
 
-Pure CSS additions to `src/index.css`. No component edits, no logic changes, no route changes. Targets existing class hooks already used app-wide.
+Make every portal page render cleanly on phone (≤640px), tablet (641–1024px), and desktop (≥1025px). CSS/layout class changes only — no data, route, RLS, or logic changes.
 
-### Approach
+### What's broken on small screens
+1. **Dashboards** — fixed `grid-cols-4` stat grids overflow on phones.
+2. **Tables** — wide admin tables (Tenants, Landlords, Properties, Complaints, Rent Cards, Receipts) overflow with no scroll wrapper.
+3. **Modals** — several dialogs use fixed widths that clip on phones.
+4. **Forms** — multi-column form grids don't collapse on small screens.
+5. **Headers** — title + multiple action buttons wrap awkwardly.
+6. **Tabs** — long Tabs lists overflow on Profile, Engine Room, Rent Cards.
+7. **Tablet gap (768–1024px)** — sidebar takes full width on tablet; main content needs `lg:` breakpoint instead of `md:`.
 
-Cards in this project already share two stable selectors:
-- `.glass-card` (used by `Card` component + applied to `.bg-card` surfaces)
-- `[class*="bg-card"][class*="rounded-*"]` (raw card divs)
+### Approach — 3 passes
 
-Sidebars use `.glass-sidebar`. Modals/dialogs use `.glass-modal`. Coloured feature cards are inside `src/components/FeatureCard.tsx` and use `bg-[hsl(var(--feature-card-*)/...)]` — I'll target them via `[class*="feature-card-"]`.
+**Pass 1 — Shared utilities & layouts**
+- Add `.responsive-table` (overflow-x wrapper) and `.stat-grid` (`grid-cols-2 lg:grid-cols-4`) to `src/index.css`.
+- Verify sidebar Sheet trigger visible at ≤1024px in all 4 portal layouts; main content padding `lg:pl-60`.
 
-So we can ship the entire effect via `::before` (aurora border) and `::after` (shimmer sweep) pseudo-elements on those existing selectors — zero React/component changes.
+**Pass 2 — Dashboards & high-traffic pages**
+- 5 dashboards → swap fixed grids to `.stat-grid`, stack header actions `flex-col sm:flex-row`.
+- Profile page tabs → horizontal scroll wrapper.
+- Marketplace, MyProperties, MyTenants → `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`.
 
-### Edits — `src/index.css` only
+**Pass 3 — Forms, modals, long tables**
+- Forms collapse `grid-cols-2` → `grid-cols-1 sm:grid-cols-2` (Register/Edit Property, AddTenant, FileComplaint, RentIncrease, Termination, Renewal, RegisterLandlord/Tenant).
+- Dialogs → `w-[calc(100vw-2rem)] sm:max-w-lg` on Rating, DigitalSignature, AppointmentSlot, ScheduleComplainant, RequestComplaintPayment, UpdateResidence.
+- Long tables wrapped in `.responsive-table`; secondary columns `hidden sm:table-cell`.
 
-1. **Aurora keyframes** — add `auroraShift` and `shimmerSweep` to the existing `@layer utilities`.
+### Breakpoints (locked)
+- Phone (default, ≤640px) — single column, full-width buttons
+- Tablet (`sm:` 640+, `md:` 768+) — 2-column, sidebar still as Sheet
+- Desktop (`lg:` 1024+) — fixed sidebar, 3–4 column grids
 
-2. **Default card border** — apply to `.glass-card` and `[class*="bg-card"][class*="rounded-{lg,xl,2xl}"]`:
-   - `position: relative; overflow: hidden;` (already true for most)
-   - `::before` = 1.5px gradient ring with mask-composite trick → animated 5s
-   - `::after` = diagonal shimmer sweep → 4s ease-in-out infinite
-   - Inherit `border-radius` so the ring follows existing rounding (16/12/8px)
+### Files touched (~30, class edits only)
+- `src/index.css` — new utilities
+- 4 portal layouts
+- 5 dashboards
+- ~10 form pages
+- ~8 admin table pages
+- ~6 dialog components
 
-3. **Sidebar** — `.glass-sidebar::before` with dimmer palette + 1px padding + 6s animation. No shimmer sweep on sidebar (too busy against nav items).
-
-4. **Modals** — `.glass-modal::before` with 2px padding + 4s animation (hero moment).
-
-5. **Coloured feature cards** — `[class*="feature-card-"]::before` (matches `bg-[hsl(var(--feature-card-primary)/...)]` etc.) with `opacity: 0.7`, `padding: 1px`, warmer-tinted gradient so card colour still leads.
-
-6. **Performance / a11y**:
-   - `@media (prefers-reduced-motion: reduce)` → disable both animations
-   - `@media (prefers-reduced-transparency: reduce)` → also hide `::before`/`::after` (matches existing fallback pattern)
-   - `@supports not (mask-composite: exclude)` → graceful no-op (older browsers just see the existing border)
-
-7. **Z-index hygiene** — pseudo-elements get `z-index: 0` and `pointer-events: none`; card content stays above via existing layout (most card children are flex/block at default z).
-
-### What this does NOT touch
-- No changes to `Card`, `FeatureCard`, `NugsLayout`, `TenantLayout`, `LandlordLayout`, `RegulatorLayout`, dialog/sheet primitives.
-- No changes to data, routes, RLS, Paystack, Engine Room, auth.
-- No new dependencies.
-
-### Files to edit
-- `src/index.css` — append aurora keyframes + pseudo-element rules in `@layer utilities`
-
-### Risk notes
-- The `mask-composite` trick for the gradient ring is well-supported in all evergreen browsers; falls back to no border on very old Safari (acceptable — they still see the existing 1px white/55 border).
-- Sidebar `overflow-hidden` is already set on `<aside>` in all 5 layouts → ring will be clipped cleanly.
-- Modals: Radix Dialog content uses `overflow-hidden` by default → fine.
+### Out of scope
+Design tokens, new components, data/RLS/logic, gestures (swipe/pull-to-refresh).
 
