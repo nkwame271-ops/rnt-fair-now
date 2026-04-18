@@ -47,9 +47,33 @@ const PropertyLocationPicker = ({
   const [manualLng, setManualLng] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
   const [resolvedAddress, setResolvedAddress] = useState("");
+  const [placesReady, setPlacesReady] = useState(false);
+  const [placesTimedOut, setPlacesTimedOut] = useState(false);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
+
+  // Poll for google.maps.places after the JS API loads — avoids a race where
+  // useJsApiLoader resolves isLoaded=true before the places library is attached.
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (typeof google !== "undefined" && (google as any)?.maps?.places) {
+      setPlacesReady(true);
+      return;
+    }
+    let elapsed = 0;
+    const interval = window.setInterval(() => {
+      elapsed += 200;
+      if (typeof google !== "undefined" && (google as any)?.maps?.places) {
+        setPlacesReady(true);
+        window.clearInterval(interval);
+      } else if (elapsed >= 5000) {
+        setPlacesTimedOut(true);
+        window.clearInterval(interval);
+      }
+    }, 200);
+    return () => window.clearInterval(interval);
+  }, [isLoaded]);
 
   // Parse initial value
   useEffect(() => {
@@ -154,7 +178,9 @@ const PropertyLocationPicker = ({
     mapRef.current?.setZoom(15);
   };
 
-  if (!isLoaded) {
+  // Show a loading state while either the JS API or the places library is still initializing
+  // (the places library can briefly be undefined even after isLoaded flips true).
+  if (!isLoaded || (!placesReady && !placesTimedOut && !loadError)) {
     return (
       <div className="space-y-3">
         <Label className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Property Location</Label>
@@ -163,13 +189,8 @@ const PropertyLocationPicker = ({
     );
   }
 
-  // Check for Google Maps load errors. We must verify google.maps.places exists too,
-  // because <Autocomplete> reads from it and will throw "Cannot read properties of undefined" if missing.
-  const mapLoadError =
-    !!loadError ||
-    typeof google === "undefined" ||
-    !(google as any)?.maps ||
-    !(google as any)?.maps?.places;
+  // Only treat as a load error if the JS loader itself failed OR our places-ready poll timed out.
+  const mapLoadError = !!loadError || placesTimedOut || typeof google === "undefined" || !(google as any)?.maps;
 
   if (mapLoadError) {
     return (
