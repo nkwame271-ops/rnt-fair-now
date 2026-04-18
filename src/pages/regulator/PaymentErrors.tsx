@@ -161,6 +161,7 @@ const PaymentErrors = () => {
                 })}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
