@@ -605,7 +605,52 @@
   }
 }
 
+@layer base {
+  /* Global mobile overflow guard — prevents any rogue wide child from forcing horizontal scroll */
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+  }
+  /* Prevent flex/grid children from overflowing their containers */
+  *, *::before, *::after {
+    min-width: 0;
+  }
+  /* Prevent iOS auto-zoom on input focus (font-size must be ≥16px on mobile) */
+  @media (max-width: 640px) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+  }
+  /* Reduce expensive aurora animations on mobile for smoother scrolling */
+  @media (max-width: 640px) {
+    .glass-card::after,
+    [class*="feature-card-"]::after {
+      animation: none !important;
+    }
+  }
+}
+
 @layer utilities {
+  /* Truncate single-line text with ellipsis */
+  .truncate-ellipsis {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  /* IDs/codes — never wrap */
+  .id-pill {
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    flex-shrink: 0;
+  }
+  /* Badges — never compress or wrap */
+  .badge-nowrap {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
   /* Wrap wide tables — adds horizontal scroll on small screens, neutral on desktop */
   .responsive-table {
     width: 100%;
