@@ -226,10 +226,10 @@
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
   }
   .glass-sidebar {
-    background-color: rgba(15, 20, 40, 0.78);
+    background-color: hsla(152, 55%, 22%, 0.92);
     -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid hsla(152, 55%, 40%, 0.25);
   }
   .glass-header {
     background-color: rgba(255, 255, 255, 0.45);
