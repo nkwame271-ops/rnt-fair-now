@@ -1,47 +1,46 @@
 
 
-## Plan — Multi-screen adaptive (phone / tablet / desktop)
+## Mobile Responsive Pass 2
 
-Make every portal page render cleanly on phone (≤640px), tablet (641–1024px), and desktop (≥1025px). CSS/layout class changes only — no data, route, RLS, or logic changes.
+The mobile layout is broken because page headers, filter rows, and card grids assume desktop width. The screenshot shows content compressed because something inside is forcing horizontal overflow (likely `flex justify-between` headers + non-wrapping filter bars), and the tenant row grid `grid-cols-2 sm:grid-cols-7` packs 7 fields awkwardly.
 
-### What's broken on small screens
-1. **Dashboards** — fixed `grid-cols-4` stat grids overflow on phones.
-2. **Tables** — wide admin tables (Tenants, Landlords, Properties, Complaints, Rent Cards, Receipts) overflow with no scroll wrapper.
-3. **Modals** — several dialogs use fixed widths that clip on phones.
-4. **Forms** — multi-column form grids don't collapse on small screens.
-5. **Headers** — title + multiple action buttons wrap awkwardly.
-6. **Tabs** — long Tabs lists overflow on Profile, Engine Room, Rent Cards.
-7. **Tablet gap (768–1024px)** — sidebar takes full width on tablet; main content needs `lg:` breakpoint instead of `md:`.
+### Fixes (CSS class changes only — no logic)
 
-### Approach — 3 passes
+**1. Page headers across all admin tables** — wrap on mobile
+- `flex items-center justify-between` → `flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3`
+- Action buttons (Export CSV, etc.) → add `w-full sm:w-auto`
+- Apply to: RegulatorTenants, RegulatorLandlords, RegulatorProperties, RegulatorComplaints, RegulatorAgreements, RegulatorReceipts, RegulatorRentReviews, RegulatorTerminations, RegulatorApplications, ManageRentCards, NugsStudents, NugsInstitutions, MyTenants, MyProperties.
 
-**Pass 1 — Shared utilities & layouts**
-- Add `.responsive-table` (overflow-x wrapper) and `.stat-grid` (`grid-cols-2 lg:grid-cols-4`) to `src/index.css`.
-- Verify sidebar Sheet trigger visible at ≤1024px in all 4 portal layouts; main content padding `lg:pl-60`.
+**2. Filter rows** — stack on mobile
+- `flex gap-3` (search + select) → `flex flex-col sm:flex-row gap-3`
+- Search wrapper `max-w-md` → `flex-1 sm:max-w-md w-full`
+- Select trigger `w-44` → `w-full sm:w-44`
 
-**Pass 2 — Dashboards & high-traffic pages**
-- 5 dashboards → swap fixed grids to `.stat-grid`, stack header actions `flex-col sm:flex-row`.
-- Profile page tabs → horizontal scroll wrapper.
-- Marketplace, MyProperties, MyTenants → `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`.
+**3. Tenant/Landlord/Property card rows** — readable on mobile
+- The 7-field `grid grid-cols-2 sm:grid-cols-7` shows 4 wrapping rows of tiny half-cells on phone. Switch to a clean stacked layout:
+  - Mobile: `flex flex-col gap-1` showing ID + name on row 1, phone + status badges on row 2, dates on row 3
+  - Desktop (`sm:`): keep the 7-column grid
+- Apply same pattern to RegulatorLandlords and RegulatorProperties row layouts.
 
-**Pass 3 — Forms, modals, long tables**
-- Forms collapse `grid-cols-2` → `grid-cols-1 sm:grid-cols-2` (Register/Edit Property, AddTenant, FileComplaint, RentIncrease, Termination, Renewal, RegisterLandlord/Tenant).
-- Dialogs → `w-[calc(100vw-2rem)] sm:max-w-lg` on Rating, DigitalSignature, AppointmentSlot, ScheduleComplainant, RequestComplaintPayment, UpdateResidence.
-- Long tables wrapped in `.responsive-table`; secondary columns `hidden sm:table-cell`.
+**4. Title sizes** — shrink on mobile
+- `text-3xl font-bold` page titles → `text-2xl sm:text-3xl font-bold`
+- Long titles like "Tenant Database" with icon won't push viewport wider than 430px.
 
-### Breakpoints (locked)
-- Phone (default, ≤640px) — single column, full-width buttons
-- Tablet (`sm:` 640+, `md:` 768+) — 2-column, sidebar still as Sheet
-- Desktop (`lg:` 1024+) — fixed sidebar, 3–4 column grids
+**5. Page container padding** — tighten on phone
+- In the 4 portal layouts, `<main>` already uses `px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8` — fine, but on very narrow phones (≤390px) drop to `px-3`. Update to `px-3 sm:px-5 md:px-7 lg:px-10`.
 
-### Files touched (~30, class edits only)
-- `src/index.css` — new utilities
-- 4 portal layouts
-- 5 dashboards
-- ~10 form pages
-- ~8 admin table pages
-- ~6 dialog components
+**6. Overflow guard** — prevent horizontal scroll bleed
+- Add `overflow-x-hidden` to the `<main>` element in all 4 layouts (currently only `overflow-y-auto`). This ensures any rogue wide child clips instead of pushing the layout.
+
+### Files touched (~16, class edits only)
+
+- `src/components/{LandlordLayout,TenantLayout,RegulatorLayout,NugsLayout}.tsx` — main padding + overflow-x-hidden
+- `src/pages/regulator/{RegulatorTenants,RegulatorLandlords,RegulatorProperties,RegulatorComplaints,RegulatorAgreements,RegulatorReceipts,RegulatorRentReviews,RegulatorTerminations,RegulatorApplications}.tsx` — header/filter/title fixes
+- `src/pages/landlord/{ManageRentCards,MyTenants,MyProperties}.tsx` — header/filter fixes
+- `src/pages/nugs/{NugsStudents,NugsInstitutions}.tsx` — header/filter fixes
 
 ### Out of scope
-Design tokens, new components, data/RLS/logic, gestures (swipe/pull-to-refresh).
+- Sidebar behaviour (already collapses correctly via Sheet)
+- Data, RLS, routes, logic
+- Design tokens, colours, animations
 
