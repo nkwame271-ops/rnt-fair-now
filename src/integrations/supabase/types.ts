@@ -2089,6 +2089,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           delivery_address: string | null
           delivery_area: string | null
@@ -2105,12 +2106,14 @@ export type Database = {
           occupation: string | null
           phone: string
           residence_permit_no: string | null
+          student_id_url: string | null
           updated_at: string
           user_id: string
           user_type: string
           work_address: string | null
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           delivery_address?: string | null
           delivery_area?: string | null
@@ -2127,12 +2130,14 @@ export type Database = {
           occupation?: string | null
           phone: string
           residence_permit_no?: string | null
+          student_id_url?: string | null
           updated_at?: string
           user_id: string
           user_type?: string
           work_address?: string | null
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           delivery_address?: string | null
           delivery_area?: string | null
@@ -2149,6 +2154,7 @@ export type Database = {
           occupation?: string | null
           phone?: string
           residence_permit_no?: string | null
+          student_id_url?: string | null
           updated_at?: string
           user_id?: string
           user_type?: string
@@ -3777,6 +3783,7 @@ export type Database = {
           room_or_bed_space: string | null
           school: string | null
           status: string
+          student_id_verified_at: string | null
           tenant_id: string
           user_id: string
         }
@@ -3792,6 +3799,7 @@ export type Database = {
           room_or_bed_space?: string | null
           school?: string | null
           status?: string
+          student_id_verified_at?: string | null
           tenant_id: string
           user_id: string
         }
@@ -3807,6 +3815,7 @@ export type Database = {
           room_or_bed_space?: string | null
           school?: string | null
           status?: string
+          student_id_verified_at?: string | null
           tenant_id?: string
           user_id?: string
         }
