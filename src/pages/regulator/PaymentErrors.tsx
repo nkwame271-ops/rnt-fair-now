@@ -113,6 +113,7 @@ const PaymentErrors = () => {
               <p className="text-muted-foreground">No errors found</p>
             </div>
           ) : (
+            <div className="responsive-table">
             <Table>
               <TableHeader>
                 <TableRow>
