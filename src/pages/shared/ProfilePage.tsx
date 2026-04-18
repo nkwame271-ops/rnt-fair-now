@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode, Star, Download, Pencil } from "lucide-react";
+import { Loader2, Save, KeyRound, Shield, User, Phone, Mail, MapPin, Briefcase, QrCode, Star, Download, Pencil, Camera, GraduationCap, Upload, FileCheck2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import KycVerificationCard from "@/components/KycVerificationCard";
 import UserRatings from "@/components/UserRatings";
@@ -37,6 +38,15 @@ const ProfilePage = () => {
   const [registrationFeePaid, setRegistrationFeePaid] = useState(false);
   const [registrationDate, setRegistrationDate] = useState<string | null>(null);
   const [expiryDate, setExpiryDate] = useState<string | null>(null);
+
+  // Avatar + Student ID
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [isStudent, setIsStudent] = useState(false);
+  const [studentIdUrl, setStudentIdUrl] = useState<string | null>(null);
+  const [studentIdSignedUrl, setStudentIdSignedUrl] = useState<string | null>(null);
+  const [uploadingStudentId, setUploadingStudentId] = useState(false);
+  const [studentIdVerifiedAt, setStudentIdVerifiedAt] = useState<string | null>(null);
 
   // Password
   const [newPassword, setNewPassword] = useState("");
@@ -73,6 +83,8 @@ const ProfilePage = () => {
         setNationality(profile.nationality || "");
         setEmergencyContactName(profile.emergency_contact_name || "");
         setEmergencyContactPhone(profile.emergency_contact_phone || "");
+        setAvatarUrl((profile as any).avatar_url || null);
+        setStudentIdUrl((profile as any).student_id_url || null);
       }
 
       if (role === "tenant") {
@@ -82,6 +94,8 @@ const ProfilePage = () => {
           setRegistrationFeePaid(tenant.registration_fee_paid);
           setRegistrationDate(tenant.registration_date);
           setExpiryDate(tenant.expiry_date);
+          setIsStudent(!!(tenant as any).is_student);
+          setStudentIdVerifiedAt((tenant as any).student_id_verified_at || null);
         }
       } else if (role === "landlord") {
         const { data: landlord } = await supabase.from("landlords").select("*").eq("user_id", user.id).maybeSingle();
@@ -91,6 +105,13 @@ const ProfilePage = () => {
           setRegistrationDate(landlord.registration_date);
           setExpiryDate(landlord.expiry_date);
         }
+      }
+
+      // Generate signed URL for existing student ID if any
+      if ((profile as any)?.student_id_url) {
+        const path = (profile as any).student_id_url as string;
+        const { data: signed } = await supabase.storage.from("identity-documents").createSignedUrl(path, 3600);
+        if (signed?.signedUrl) setStudentIdSignedUrl(signed.signedUrl);
       }
 
       setLoading(false);
