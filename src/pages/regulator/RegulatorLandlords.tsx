@@ -75,11 +75,13 @@ const RegulatorLandlords = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: landlordData } = await supabase
+      try {
+      const { data: landlordData, error: landlordErr } = await supabase
         .from("landlords")
-        .select("landlord_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid")
+        .select("landlord_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, created_at")
         .order("created_at", { ascending: false });
 
+      if (landlordErr) { console.error("Landlords fetch error:", landlordErr); toast.error("Failed to load landlords: " + landlordErr.message); setLoading(false); return; }
       if (!landlordData || landlordData.length === 0) { setLoading(false); return; }
 
       const userIds = landlordData.map(l => l.user_id);
