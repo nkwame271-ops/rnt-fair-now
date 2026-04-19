@@ -155,6 +155,11 @@ const RegulatorLandlords = () => {
         tenancies: tenanciesByLandlord.get(l.user_id) || [],
       })));
       setLoading(false);
+      } catch (e: any) {
+        console.error("RegulatorLandlords fetch failed:", e);
+        toast.error("Failed to load landlords");
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
