@@ -76,7 +76,7 @@ const NugsLayout = () => {
         <div className="fixed inset-0 z-40 bg-foreground/30 md:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 ml-0 w-full">
         <header className="h-14 glass-header flex items-center px-3 sm:px-4 gap-2">
           <button onClick={() => setMobileOpen(true)} className="md:hidden shrink-0">
             <Menu className="h-5 w-5" />
