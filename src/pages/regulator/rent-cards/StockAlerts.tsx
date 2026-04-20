@@ -31,32 +31,16 @@ const StockAlerts = ({ refreshKey, threshold }: Props) => {
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
-      // Only query office-level stock
-      const { data } = await supabase
-        .from("rent_card_serial_stock" as any)
-        .select("office_name, status, stock_type, region, pair_index");
+      // Server-side aggregated counts (was: full-table scan of 261K rows)
+      const { data } = await supabase.rpc("rcss_office_summary" as any);
 
-      const items = (data || []) as any[];
+      const summary = (data || []) as Array<{ office_name: string; available_pairs: number }>;
+      const countByOffice = new Map<string, number>();
+      summary.forEach(s => countByOffice.set(s.office_name, Number(s.available_pairs) || 0));
 
       const regionGroups: RegionGroup[] = GHANA_REGIONS_OFFICES.map(r => {
-        const officeMap = new Map<string, number>();
-        r.offices.forEach(o => officeMap.set(o.name, 0));
-
-        items.forEach(item => {
-          if (
-            item.stock_type === "office" &&
-            item.status === "available" &&
-            (item.pair_index === 1 || !item.pair_index)
-          ) {
-            const matchedOffice = r.offices.find(o => o.name === item.office_name);
-            if (matchedOffice) {
-              officeMap.set(matchedOffice.name, (officeMap.get(matchedOffice.name) || 0) + 1);
-            }
-          }
-        });
-
-        const offices = Array.from(officeMap.entries())
-          .map(([officeName, available]) => ({ officeName, available }))
+        const offices = r.offices
+          .map(o => ({ officeName: o.name, available: countByOffice.get(o.name) || 0 }))
           .sort((a, b) => a.available - b.available);
 
         return {
