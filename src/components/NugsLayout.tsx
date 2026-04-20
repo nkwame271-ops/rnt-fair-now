@@ -37,9 +37,9 @@ const NugsLayout = () => {
   return (
     <div data-app-shell className="min-h-screen flex bg-transparent">
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-60 glass-sidebar text-sidebar-foreground flex flex-col transition-transform lg:translate-x-0 lg:m-3 lg:rounded-2xl lg:inset-y-auto lg:h-[calc(100vh-1.5rem)] ${
+        className={`fixed inset-y-0 left-0 z-50 w-60 glass-sidebar text-sidebar-foreground flex flex-col transition-transform md:translate-x-0 md:m-3 md:rounded-2xl md:inset-y-auto md:h-[calc(100vh-1.5rem)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:relative lg:translate-x-0 overflow-hidden`}
+        } md:relative md:translate-x-0 overflow-hidden`}
       >
         <div className="p-4 flex items-center gap-2 border-b border-sidebar-border/50">
           <Shield className="h-5 w-5 text-sidebar-primary" />
@@ -73,15 +73,15 @@ const NugsLayout = () => {
       </aside>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-foreground/30 lg:hidden" onClick={() => setMobileOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-foreground/30 md:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 glass-header flex items-center px-4 gap-4">
-          <button onClick={() => setMobileOpen(true)} className="lg:hidden">
+        <header className="h-14 glass-header flex items-center px-3 sm:px-4 gap-2">
+          <button onClick={() => setMobileOpen(true)} className="md:hidden shrink-0">
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-bold text-sm">{isAdmin ? "NUGS Monitoring Portal" : "NUGS Student Portal"}</span>
+          <span className="font-bold text-sm truncate">{isAdmin ? "NUGS Monitoring" : "NUGS Student"}</span>
         </header>
         <main data-app-main className="flex-1 px-3 sm:px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8 overflow-y-auto overflow-x-hidden bg-transparent">
           <div className="mx-auto w-full max-w-[1400px]">

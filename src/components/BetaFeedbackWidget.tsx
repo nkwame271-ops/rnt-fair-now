@@ -55,7 +55,7 @@ const BetaFeedbackWidget = ({ onClose }: BetaFeedbackWidgetProps) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
             style={{ contain: "layout", maxHeight: "calc(100dvh - 6rem)" }}
-            className={`fixed ${onClose ? 'bottom-20 right-4' : 'bottom-20 right-5'} z-[9999] w-[min(320px,calc(100vw-2rem))] rounded-2xl border border-border bg-card shadow-elevated p-4`}
+            className={`fixed z-[9999] border border-border bg-card shadow-elevated p-4 max-sm:inset-x-0 max-sm:bottom-0 max-sm:w-screen max-sm:rounded-t-2xl max-sm:rounded-b-none sm:rounded-2xl sm:w-[min(320px,calc(100vw-2rem))] ${onClose ? 'sm:bottom-20 sm:right-4' : 'sm:bottom-20 sm:right-5'}`}
           >
             <div className="flex items-center justify-between mb-3">
               <div>
