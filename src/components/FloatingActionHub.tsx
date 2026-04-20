@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { MessageCircle, MessageSquare, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import BetaFeedbackWidget from "@/components/BetaFeedbackWidget";
@@ -27,74 +28,80 @@ const FloatingActionHub = () => {
     }
   };
 
+  const panelPortal =
+    typeof document !== "undefined"
+      ? createPortal(
+          <AnimatePresence>
+            {activePanel === "chat" && (
+              <motion.div
+                key="chat-panel"
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                style={{ transformOrigin: "bottom right" }}
+              >
+                <LiveChatWidget onClose={handleClose} />
+              </motion.div>
+            )}
+            {activePanel === "feedback" && (
+              <motion.div
+                key="feedback-panel"
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                style={{ transformOrigin: "bottom right" }}
+              >
+                <BetaFeedbackWidget onClose={handleClose} />
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )
+      : null;
+
   return (
-    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end gap-2">
-      {/* Active panel widget */}
-      <AnimatePresence>
-        {activePanel === "chat" && (
-          <motion.div
-            key="chat-panel"
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            style={{ transformOrigin: "bottom right" }}
-            className="w-fit"
-          >
-            <LiveChatWidget onClose={handleClose} />
-          </motion.div>
-        )}
-        {activePanel === "feedback" && (
-          <motion.div
-            key="feedback-panel"
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            style={{ transformOrigin: "bottom right" }}
-            className="w-fit"
-          >
-            <BetaFeedbackWidget onClose={handleClose} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <>
+      {panelPortal}
+      <div className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end gap-2">
+        {/* Menu options */}
+        <AnimatePresence>
+          {menuOpen && !activePanel && (
+            <>
+              <motion.button
+                initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.8 }}
+                transition={{ delay: 0.05 }}
+                onClick={() => handleSelect("chat")}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-card border border-border shadow-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
+              >
+                <MessageCircle className="h-4 w-4 text-primary" />
+                Chat Support
+              </motion.button>
+              <motion.button
+                initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.8 }}
+                onClick={() => handleSelect("feedback")}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-card border border-border shadow-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
+              >
+                <MessageSquare className="h-4 w-4 text-primary" />
+                Beta Feedback
+              </motion.button>
+            </>
+          )}
+        </AnimatePresence>
 
-      {/* Menu options */}
-      <AnimatePresence>
-        {menuOpen && !activePanel && (
-          <>
-            <motion.button
-              initial={{ opacity: 0, y: 10, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.8 }}
-              transition={{ delay: 0.05 }}
-              onClick={() => handleSelect("chat")}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-card border border-border shadow-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
-            >
-              <MessageCircle className="h-4 w-4 text-primary" />
-              Chat Support
-            </motion.button>
-            <motion.button
-              initial={{ opacity: 0, y: 10, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.8 }}
-              onClick={() => handleSelect("feedback")}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-card border border-border shadow-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
-            >
-              <MessageSquare className="h-4 w-4 text-primary" />
-              Beta Feedback
-            </motion.button>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* FAB button - always visible */}
-      <button
-        onClick={handleFabClick}
-        className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all active:scale-95"
-        aria-label="Help & Feedback"
-      >
-        {activePanel || menuOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />}
-      </button>
-    </div>
+        {/* FAB button */}
+        <button
+          onClick={handleFabClick}
+          className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all active:scale-95"
+          aria-label="Help & Feedback"
+        >
+          {activePanel || menuOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />}
+        </button>
+      </div>
+    </>
   );
 };
 
