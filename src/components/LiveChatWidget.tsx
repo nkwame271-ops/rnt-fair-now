@@ -228,7 +228,7 @@ const LiveChatWidget = ({ onClose }: LiveChatWidgetProps) => {
       {open && (
         <div
           style={{ contain: "layout" }}
-          className={`fixed ${onClose ? 'bottom-20 right-4' : 'bottom-6 right-6'} z-[9999] w-[min(370px,calc(100vw-2rem))] h-[min(520px,calc(100dvh-7rem))] bg-card border border-border rounded-2xl shadow-elevated flex flex-col overflow-hidden`}
+          className={`fixed z-[9999] bg-card border border-border shadow-elevated flex flex-col overflow-hidden max-sm:inset-x-0 max-sm:bottom-0 max-sm:w-screen max-sm:max-w-none max-sm:h-[75dvh] max-sm:rounded-t-2xl sm:w-[min(370px,calc(100vw-2rem))] sm:h-[min(520px,calc(100dvh-7rem))] sm:rounded-2xl ${onClose ? 'sm:bottom-20 sm:right-4' : 'sm:bottom-6 sm:right-6'}`}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-primary text-primary-foreground rounded-t-2xl">

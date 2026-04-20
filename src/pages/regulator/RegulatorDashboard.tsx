@@ -101,15 +101,15 @@ const RegulatorDashboard = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <Shield className="h-6 w-6 text-primary" />
-              <h1 className="text-3xl font-bold text-foreground">Rent Control Office</h1>
+              <Shield className="h-6 w-6 text-primary shrink-0" />
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">Rent Control Office</h1>
             </div>
-            <p className="text-muted-foreground">System overview and compliance monitoring</p>
+            <p className="text-muted-foreground text-sm sm:text-base truncate">System overview and compliance monitoring</p>
           </div>
 
           {profile?.isMainAdmin && (
             <Select value={selectedOffice} onValueChange={setSelectedOffice}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="w-full sm:w-64">
                 <SelectValue placeholder="All Offices (National)" />
               </SelectTrigger>
               <SelectContent>
@@ -122,7 +122,7 @@ const RegulatorDashboard = () => {
           )}
 
           {profile && !profile.isMainAdmin && profile.officeName && (
-            <div className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-lg border border-border">
+            <div className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-lg border border-border truncate max-w-full whitespace-nowrap overflow-hidden text-ellipsis">
               📍 {profile.officeName}
             </div>
           )}
@@ -149,7 +149,7 @@ const RegulatorDashboard = () => {
                   <div className="flex items-center gap-3">
                     <stat.icon className={`h-5 w-5 ${stat.color}`} />
                     <div>
-                      <div className="text-3xl font-bold text-card-foreground leading-none">
+                      <div className="text-2xl sm:text-3xl font-bold text-card-foreground leading-none">
                         <AnimatedCounter value={stat.value} />
                       </div>
                       <div className="text-[11px] text-muted-foreground mt-1">{stat.label}</div>
