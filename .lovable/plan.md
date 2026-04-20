@@ -1,35 +1,44 @@
 
 
-## Fix — Chat widget pushing layout / creating empty space
+## Mobile Layout Pass 3 — Targeted Fixes
 
-### Root cause
-The chat panel inside `FloatingActionHub` and the standalone `LiveChatWidget` on the landing page rely on a parent `fixed` wrapper. In some mounting contexts (RoleSelect's React fragment, layouts with `transform`/`overflow` ancestors), `position: fixed` can be neutralized or the inner panel's `min-h`/`h-[520px]` can interact with the document flow on mobile, producing extra bottom space.
+The shell sidebar already collapses correctly at `lg:` (1024px) with hamburger + backdrop. Global `overflow-x: hidden` and `min-width: 0` are in place. What still breaks at 375–430px (per screenshots):
 
-### Fix (CSS + portal — no logic change)
+### Concrete fixes
 
-**1. Render `FloatingActionHub` panels in a React Portal to `document.body`**
-Use `createPortal` so the chat/feedback panels are appended to `<body>` directly — guaranteed out of flow regardless of where the layout mounts the hub. The FAB stays where it is.
+**1. RegulatorDashboard header (`src/pages/regulator/RegulatorDashboard.tsx`)**
+- Title `text-3xl` → `text-2xl sm:text-3xl` and remove the `whitespace-normal` wrap by truncating subtitle.
+- Office selector `SelectTrigger w-64` → `w-full sm:w-64` so it stops blowing the row.
+- Office name pill `📍` add `truncate max-w-full` and `whitespace-nowrap overflow-hidden text-ellipsis`.
+- Bottom stat grid `grid-cols-2 lg:grid-cols-4` is fine; reduce inner number `text-3xl` → `text-2xl sm:text-3xl` so values like long counts don't overflow the half-column card.
 
-**2. Make `LiveChatWidget` always `fixed` when open (kill the conditional)**
-Currently line 229: `${onClose ? '' : 'fixed bottom-6 right-6 z-50'}`. When mounted inside FloatingActionHub the wrapper relies on the parent. Change so the panel is `position: fixed` always — anchored `bottom-20 right-4` (above the FAB) when used as a hub child, or `bottom-6 right-6` standalone. Pass an `anchored` prop or simply always fix the panel and remove the parent flex stacking.
+**2. Layout headers (4 files)**
+`TenantLayout`, `LandlordLayout`, `RegulatorLayout`, `NugsLayout`:
+- `<header>` currently packs hamburger + brand text + CommandSearch + bell into 56px on a 375px screen — CommandSearch is centered with `max-w-md` and squeezes everything.
+- Change header to `gap-2`, hide brand text on `<sm`, wrap CommandSearch in `flex-1 min-w-0` (no centering on mobile), and make the search trigger full-width inside.
 
-**3. Same fix for `BetaFeedbackWidget`** — apply the identical positioning rule.
+**3. Sidebar breakpoint**
+Currently desktop sidebar shows at `lg:` (1024px). Tablets 768–1023px get the broken cramped layout shown in earlier screenshots. Switch the four layouts from `lg:` → `md:` for sidebar visibility classes (`lg:translate-x-0 lg:relative lg:m-3 lg:rounded-2xl lg:inset-y-auto lg:h-[calc(100vh-1.5rem)]` → `md:` equivalents, plus `lg:hidden` on hamburger → `md:hidden`).
 
-**4. Defensive containment**
-Add to the panel root: `contain: layout` and explicit `max-height: calc(100dvh - 6rem)` (use `dvh` not `vh` so the iOS dynamic viewport doesn't push content). This eliminates the bottom whitespace artifact on iOS Safari when the URL bar collapses.
+**4. FloatingActionHub on mobile**
+Chat panel already portaled & sized `w-[min(370px,calc(100vw-2rem))]`. On <640px upgrade to true bottom sheet:
+- `w-screen max-w-none left-0 right-0 bottom-0 rounded-b-none rounded-t-2xl h-[75dvh]`
+- Apply only at `max-sm:` so desktop floating panel is unchanged.
+- Same for BetaFeedbackWidget.
 
-**5. Restructure `FloatingActionHub`**
-- FAB stays in a small `fixed bottom-4 right-4` wrapper
-- Menu pills stay in that wrapper (they are small)
-- Panels (chat / feedback) move out to a portal, each as its own `fixed bottom-20 right-4` element, sized `w-[min(370px,calc(100vw-2rem))] h-[min(520px,calc(100dvh-7rem))]`
-- No more `flex flex-col items-end` stacking the giant panel with the FAB
+**5. NugsLayout overflow guard**
+NugsLayout `<main>` is missing `overflow-x-hidden` (only has `overflow-y-auto`). Add it for parity with the other 3 layouts.
 
-### Files touched (3, surgical)
+### Files touched (~7)
 
-- `src/components/FloatingActionHub.tsx` — add portal, split FAB wrapper from panel rendering
-- `src/components/LiveChatWidget.tsx` — always-fixed panel, `dvh` height, `contain: layout`
-- `src/components/BetaFeedbackWidget.tsx` — same treatment
+- `src/pages/regulator/RegulatorDashboard.tsx`
+- `src/components/TenantLayout.tsx`
+- `src/components/LandlordLayout.tsx`
+- `src/components/RegulatorLayout.tsx`
+- `src/components/NugsLayout.tsx`
+- `src/components/LiveChatWidget.tsx`
+- `src/components/BetaFeedbackWidget.tsx`
 
 ### Out of scope
-Data, routes, auth, Paystack, RLS, panel content, animations. Visual size/look unchanged.
+Data, queries, RLS, routes, auth, Paystack, animations, desktop layout (≥1024px stays identical except sidebar starts at 768px instead).
 
