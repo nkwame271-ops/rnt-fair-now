@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronRight, ChevronLeft, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ export interface TourStep {
   title: string;
   /** Description of the step */
   description: string;
+  /** Optional mobile-specific description (shown when viewport < md) */
+  mobileDescription?: string;
   /** Which side to show the tooltip */
   placement?: "top" | "bottom" | "left" | "right";
 }
@@ -25,7 +27,16 @@ const TourGuide = ({ steps, storageKey, onComplete }: TourGuideProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [showButton, setShowButton] = useState(false);
-  const rafRef = useRef<number>();
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < 768 : false
+  );
+
+  // Track viewport for mobile/desktop switch
+  useEffect(() => {
+    const handle = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handle);
+    return () => window.removeEventListener("resize", handle);
+  }, []);
 
   // Check if tour was already completed
   useEffect(() => {
@@ -40,20 +51,20 @@ const TourGuide = ({ steps, storageKey, onComplete }: TourGuideProps) => {
   }, [storageKey]);
 
   const updateTargetRect = useCallback(() => {
-    if (!active || !steps[currentStep]) return;
+    if (!active || !steps[currentStep] || isMobile) return;
     const el = document.querySelector(steps[currentStep].target);
     if (el) {
       const rect = el.getBoundingClientRect();
       setTargetRect(rect);
-      // Scroll element into view if needed
       el.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } else {
       setTargetRect(null);
     }
-  }, [active, currentStep, steps]);
+  }, [active, currentStep, steps, isMobile]);
 
   useEffect(() => {
     updateTargetRect();
+    if (isMobile) return;
     const handleResize = () => updateTargetRect();
     window.addEventListener("resize", handleResize);
     window.addEventListener("scroll", handleResize, true);
@@ -61,7 +72,7 @@ const TourGuide = ({ steps, storageKey, onComplete }: TourGuideProps) => {
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("scroll", handleResize, true);
     };
-  }, [updateTargetRect]);
+  }, [updateTargetRect, isMobile]);
 
   const finish = useCallback(() => {
     setActive(false);
@@ -91,7 +102,7 @@ const TourGuide = ({ steps, storageKey, onComplete }: TourGuideProps) => {
   const step = steps[currentStep];
   const placement = step?.placement || "bottom";
 
-  // Calculate tooltip position
+  // Calculate tooltip position (desktop only)
   const getTooltipStyle = (): React.CSSProperties => {
     if (!targetRect) return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
     const pad = 16;
@@ -109,13 +120,17 @@ const TourGuide = ({ steps, storageKey, onComplete }: TourGuideProps) => {
     }
   };
 
+  const helpButtonClass = isMobile
+    ? "fixed bottom-24 right-4 z-[60] bg-primary text-primary-foreground rounded-full p-3 shadow-lg hover:bg-primary/90 transition-colors"
+    : "fixed bottom-6 right-6 z-[60] bg-primary text-primary-foreground rounded-full p-3 shadow-lg hover:bg-primary/90 transition-colors";
+
   return (
     <>
       {/* Help button to restart tour */}
       {showButton && !active && (
         <button
           onClick={restart}
-          className="fixed bottom-6 right-6 z-[60] bg-primary text-primary-foreground rounded-full p-3 shadow-lg hover:bg-primary/90 transition-colors"
+          className={helpButtonClass}
           title="Start guided tour"
         >
           <HelpCircle className="h-5 w-5" />
@@ -123,7 +138,71 @@ const TourGuide = ({ steps, storageKey, onComplete }: TourGuideProps) => {
       )}
 
       <AnimatePresence>
-        {active && (
+        {active && isMobile && (
+          <>
+            {/* Mobile backdrop */}
+            <motion.div
+              key="mobile-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[998] bg-foreground/45"
+              onClick={finish}
+            />
+
+            {/* Mobile bottom sheet */}
+            <motion.div
+              key="mobile-sheet"
+              initial={{ y: "100%", opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed bottom-0 left-0 right-0 z-[999] bg-card text-card-foreground px-5 pt-6 pb-10 max-h-[60vh] overflow-y-auto"
+              style={{
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                boxShadow: "0 -8px 40px rgba(0,0,0,0.15)",
+              }}
+            >
+              <button
+                onClick={finish}
+                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1"
+                aria-label="Close tour"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {/* Drag handle */}
+              <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-muted" />
+
+              <p className="text-xs text-muted-foreground">
+                Step {currentStep + 1} of {steps.length}
+              </p>
+              <h3 className="mt-2 text-lg font-semibold">{step?.title}</h3>
+              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                {step?.mobileDescription || step?.description}
+              </p>
+
+              <div className="mt-6 flex gap-3">
+                <Button
+                  variant="ghost"
+                  className="flex-1"
+                  onClick={prev}
+                  disabled={currentStep === 0}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Back
+                </Button>
+                <Button className="flex-1" onClick={next}>
+                  {currentStep === steps.length - 1 ? "Finish" : "Next"}
+                  {currentStep < steps.length - 1 && <ChevronRight className="h-4 w-4 ml-1" />}
+                </Button>
+              </div>
+            </motion.div>
+          </>
+        )}
+
+        {active && !isMobile && (
           <>
             {/* Overlay with cutout */}
             <motion.div
