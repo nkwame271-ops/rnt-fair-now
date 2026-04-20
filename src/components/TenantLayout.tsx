@@ -110,7 +110,7 @@ const TenantLayout = () => {
         />
       )}
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 ml-0 w-full">
         <header className="h-14 glass-header flex items-center px-3 sm:px-4 gap-2">
           <button onClick={() => setMobileOpen(true)} className="md:hidden shrink-0">
             <Menu className="h-5 w-5" />
