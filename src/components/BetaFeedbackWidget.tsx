@@ -47,14 +47,15 @@ const BetaFeedbackWidget = ({ onClose }: BetaFeedbackWidgetProps) => {
   };
 
   return (
-    <div className={onClose ? "" : "fixed bottom-5 right-5 z-[9999]"}>
+    <>
       <AnimatePresence>
         {open && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="mb-3 w-80 rounded-2xl border border-border bg-card shadow-elevated p-4"
+            style={{ contain: "layout", maxHeight: "calc(100dvh - 6rem)" }}
+            className={`fixed ${onClose ? 'bottom-20 right-4' : 'bottom-20 right-5'} z-[9999] w-[min(320px,calc(100vw-2rem))] rounded-2xl border border-border bg-card shadow-elevated p-4`}
           >
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -104,17 +105,17 @@ const BetaFeedbackWidget = ({ onClose }: BetaFeedbackWidgetProps) => {
         )}
       </AnimatePresence>
 
-      {!onClose && (
+      {!onClose && !open && (
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => setOpen(!open)}
-          className="h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+          onClick={() => setOpen(true)}
+          className="fixed bottom-5 right-5 z-[9999] h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
         >
-          {open ? <X className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
+          <MessageSquare className="h-5 w-5" />
         </motion.button>
       )}
-    </div>
+    </>
   );
 };
 
