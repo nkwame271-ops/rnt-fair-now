@@ -62,7 +62,7 @@ const FloatingActionHub = () => {
   return (
     <>
       {panelPortal}
-      <div className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end gap-2">
+      <div className="fixed bottom-20 right-4 sm:bottom-4 sm:right-4 z-[9999] flex flex-col items-end gap-2">
         {/* Menu options */}
         <AnimatePresence>
           {menuOpen && !activePanel && (
