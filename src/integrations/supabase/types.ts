@@ -4099,6 +4099,14 @@ export type Database = {
       }
       is_main_admin: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      rcss_office_summary: {
+        Args: never
+        Returns: {
+          available_pairs: number
+          office_name: string
+          region: string
+        }[]
+      }
       recalculate_compliance_score: {
         Args: { p_landlord_user_id: string }
         Returns: undefined
