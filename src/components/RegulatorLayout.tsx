@@ -142,8 +142,8 @@ const RegulatorLayout = () => {
   return (
     <div data-app-shell className="min-h-screen flex bg-transparent">
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-60 md:w-60 glass-sidebar text-sidebar-foreground flex flex-col transition-transform md:translate-x-0 md:m-3 md:rounded-2xl md:inset-y-auto md:h-[calc(100vh-1.5rem)] ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-50 w-60 md:w-60 glass-sidebar text-sidebar-foreground flex flex-col transition-transform md:translate-x-0 md:m-3 md:rounded-2xl md:inset-y-auto md:h-[calc(100vh-1.5rem)] max-md:w-0 max-md:overflow-hidden ${
+          mobileOpen ? "max-md:!w-60 max-md:!overflow-visible translate-x-0" : "-translate-x-full"
         } md:relative md:translate-x-0 overflow-hidden`}
       >
         <div className="p-4 flex items-center gap-2 border-b border-sidebar-border/50">
@@ -188,7 +188,7 @@ const RegulatorLayout = () => {
         <div className="fixed inset-0 z-40 bg-foreground/30 md:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 ml-0 w-full">
         <header className="h-14 glass-header flex items-center px-3 sm:px-4 gap-2">
           <button onClick={() => setMobileOpen(true)} className="md:hidden shrink-0">
             <Menu className="h-5 w-5" />
