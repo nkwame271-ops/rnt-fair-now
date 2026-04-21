@@ -819,8 +819,18 @@ Deno.serve(async (req) => {
 
     } else if (type === "existing_tenancy_bundle") {
       // Composite fee for Declare Existing Tenancy: register_tenant_fee + filing_fee + optional agreement_sale
-      const { monthlyRent: bodyMonthlyRent, propertyId: bodyPropertyId, agreementChoice: bodyAgreementChoice } = body;
-      if (!bodyMonthlyRent || Number(bodyMonthlyRent) <= 0) throw new Error("Monthly rent is required");
+      // Supports either a single tenancy (monthlyRent + agreementChoice) or a batch (items[] of { monthlyRent, agreementChoice }).
+      const { monthlyRent: bodyMonthlyRent, propertyId: bodyPropertyId, agreementChoice: bodyAgreementChoice, items: bodyItems } = body;
+
+      const items: { monthlyRent: number; agreementChoice: string }[] =
+        Array.isArray(bodyItems) && bodyItems.length > 0
+          ? bodyItems.map((it: any) => ({ monthlyRent: Number(it.monthlyRent) || 0, agreementChoice: it.agreementChoice || "upload" }))
+          : (bodyMonthlyRent && Number(bodyMonthlyRent) > 0
+              ? [{ monthlyRent: Number(bodyMonthlyRent), agreementChoice: bodyAgreementChoice || "upload" }]
+              : []);
+
+      if (items.length === 0) throw new Error("Monthly rent is required");
+      if (items.some(it => it.monthlyRent <= 0)) throw new Error("Each item must have a positive monthly rent");
 
       if (bodyPropertyId) {
         officeId = await resolveOffice(supabaseAdmin, { propertyId: bodyPropertyId });
@@ -830,48 +840,64 @@ Deno.serve(async (req) => {
       }
       caseType = "tenancy";
 
-      // Look up existing_tenancy band
-      const mr = Number(bodyMonthlyRent);
+      // Load all existing_tenancy bands once
       const { data: bands } = await supabaseAdmin
         .from("rent_bands")
         .select("id, min_rent, max_rent, register_fee, filing_fee, agreement_fee")
         .eq("band_type", "existing_tenancy")
         .order("min_rent", { ascending: true });
 
-      let matchedBand: any = null;
-      if (bands) {
-        for (const band of bands) {
+      const matchBand = (mr: number) => {
+        if (!bands) return null;
+        for (const band of bands as any[]) {
           const min = Number(band.min_rent);
           const max = band.max_rent !== null ? Number(band.max_rent) : Infinity;
-          if (mr >= min && mr <= max) { matchedBand = band; break; }
+          if (mr >= min && mr <= max) return band;
         }
-      }
-      if (!matchedBand) throw new Error(`No existing tenancy rent band configured for monthly rent of GH₵ ${mr}`);
+        return null;
+      };
 
-      const regFee = Number(matchedBand.register_fee ?? 0);
-      const filFee = Number(matchedBand.filing_fee ?? 0);
-      const agrFee = bodyAgreementChoice === "buy" ? Number(matchedBand.agreement_fee ?? 0) : 0;
-      totalAmount = regFee + filFee + agrFee;
+      // Aggregate component totals across all items
+      let totalReg = 0, totalFil = 0, totalAgr = 0;
+      let firstBandId: string | null = null;
+      const itemBreakdown: any[] = [];
+
+      for (const it of items) {
+        const band = matchBand(it.monthlyRent);
+        if (!band) throw new Error(`No existing tenancy rent band configured for monthly rent of GH₵ ${it.monthlyRent}`);
+        if (!firstBandId) firstBandId = band.id;
+        const r = Number(band.register_fee ?? 0);
+        const f = Number(band.filing_fee ?? 0);
+        const a = it.agreementChoice === "buy" ? Number(band.agreement_fee ?? 0) : 0;
+        totalReg += r;
+        totalFil += f;
+        totalAgr += a;
+        itemBreakdown.push({ monthlyRent: it.monthlyRent, agreementChoice: it.agreementChoice, bandId: band.id, register_fee: r, filing_fee: f, agreement_fee: a });
+      }
+
+      totalReg = Math.round(totalReg * 100) / 100;
+      totalFil = Math.round(totalFil * 100) / 100;
+      totalAgr = Math.round(totalAgr * 100) / 100;
+      totalAmount = totalReg + totalFil + totalAgr;
 
       if (totalAmount <= 0) {
         return new Response(JSON.stringify({ skipped: true, message: "Existing tenancy fees are currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // Build split plan from each fee's band allocations
       const feeComponents: { type: string; amount: number; allocations?: SplitItem[] }[] = [];
-      if (regFee > 0) feeComponents.push({ type: "register_tenant_fee", amount: regFee });
-      if (filFee > 0) feeComponents.push({ type: "filing_fee", amount: filFee });
-      if (agrFee > 0) feeComponents.push({ type: "agreement_sale", amount: agrFee });
+      if (totalReg > 0) feeComponents.push({ type: "register_tenant_fee", amount: totalReg });
+      if (totalFil > 0) feeComponents.push({ type: "filing_fee", amount: totalFil });
+      if (totalAgr > 0) feeComponents.push({ type: "agreement_sale", amount: totalAgr });
 
       splitPlan = [];
       for (const fc of feeComponents) {
         if (fc.amount <= 0) continue;
-        const alloc = await loadAllocation(supabaseAdmin, fc.type, fc.amount, matchedBand.id);
+        const alloc = await loadAllocation(supabaseAdmin, fc.type, fc.amount, firstBandId);
         fc.allocations = alloc;
         splitPlan.push(...alloc.map(a => ({ ...a, description: `${a.description || a.recipient} (${fc.type})` })));
       }
 
-      description = `Existing Tenancy Registration (GH₵ ${totalAmount})`;
+      description = `Existing Tenancy Registration (${items.length} unit${items.length > 1 ? "s" : ""} — GH₵ ${totalAmount})`;
       reference = `extbundle_${userId}_${Date.now()}`;
       callbackPath = body.callbackPath || "/landlord/declare-existing-tenancy?status=fee_paid";
       metadata = { agreementChoice: bodyAgreementChoice, bandId: matchedBand.id, fee_components: feeComponents };
