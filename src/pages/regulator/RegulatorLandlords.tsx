@@ -86,23 +86,55 @@ const RegulatorLandlords = () => {
 
       const userIds = landlordData.map(l => l.user_id);
 
-      const [profilesRes, propertiesRes, tenanciesRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, full_name, phone, email, nationality, ghana_card_no, occupation").in("user_id", userIds),
-        supabase.from("properties").select("id, landlord_user_id, property_code, property_name, address, region, area, gps_location, ghana_post_gps, property_condition, room_count, bathroom_count").in("landlord_user_id", userIds),
-        supabase.from("tenancies").select("id, landlord_user_id, tenant_user_id, status, agreed_rent, start_date, end_date, registration_code, unit_id").in("landlord_user_id", userIds).order("start_date", { ascending: false }),
+      // Chunked .in() helper — Supabase/PostgREST GETs hit URL length limits
+      // around ~150 UUIDs. Batch into chunks of 100 and merge.
+      const chunkedIn = async <T,>(
+        ids: string[],
+        column: string,
+        runner: (batch: string[]) => PromiseLike<{ data: T[] | null; error: any }>,
+      ): Promise<T[]> => {
+        const out: T[] = [];
+        const size = 100;
+        for (let i = 0; i < ids.length; i += size) {
+          const batch = ids.slice(i, i + size);
+          const { data, error } = await runner(batch);
+          if (error) { console.error(`chunkedIn ${column} error:`, error); continue; }
+          if (data) out.push(...data);
+        }
+        return out;
+      };
+
+      const [profiles, properties, tenancies] = await Promise.all([
+        chunkedIn<any>(userIds, "user_id", (batch) =>
+          supabase.from("profiles").select("user_id, full_name, phone, email, nationality, ghana_card_no, occupation").in("user_id", batch)
+        ),
+        chunkedIn<any>(userIds, "landlord_user_id", (batch) =>
+          supabase.from("properties").select("id, landlord_user_id, property_code, property_name, address, region, area, gps_location, ghana_post_gps, property_condition, room_count, bathroom_count").in("landlord_user_id", batch)
+        ),
+        chunkedIn<any>(userIds, "landlord_user_id", (batch) =>
+          supabase.from("tenancies").select("id, landlord_user_id, tenant_user_id, status, agreed_rent, start_date, end_date, registration_code, unit_id").in("landlord_user_id", batch).order("start_date", { ascending: false })
+        ),
       ]);
 
+      const profilesRes = { data: profiles };
+      const propertiesRes = { data: properties };
+      const tenanciesRes = { data: tenancies };
+
       // Get units for properties with facilities
-      const propertyIds = (propertiesRes.data || []).map(p => p.id);
-      const { data: units } = propertyIds.length > 0
-        ? await supabase.from("units").select("id, property_id, unit_name, unit_type, monthly_rent, status, has_toilet_bathroom, has_kitchen, water_available, electricity_available, has_borehole, has_polytank, amenities").in("property_id", propertyIds)
-        : { data: [] };
+      const propertyIds = (propertiesRes.data || []).map((p: any) => p.id);
+      const units = propertyIds.length > 0
+        ? await chunkedIn<any>(propertyIds, "property_id", (batch) =>
+            supabase.from("units").select("id, property_id, unit_name, unit_type, monthly_rent, status, has_toilet_bathroom, has_kitchen, water_available, electricity_available, has_borehole, has_polytank, amenities").in("property_id", batch)
+          )
+        : [];
 
       // Get tenant names and phones for tenancies
-      const tenantUserIds = [...new Set((tenanciesRes.data || []).map(t => t.tenant_user_id))];
-      const { data: tenantProfiles } = tenantUserIds.length > 0
-        ? await supabase.from("profiles").select("user_id, full_name, phone").in("user_id", tenantUserIds)
-        : { data: [] };
+      const tenantUserIds = [...new Set((tenanciesRes.data || []).map((t: any) => t.tenant_user_id))].filter(Boolean) as string[];
+      const tenantProfiles = tenantUserIds.length > 0
+        ? await chunkedIn<any>(tenantUserIds, "user_id", (batch) =>
+            supabase.from("profiles").select("user_id, full_name, phone").in("user_id", batch)
+          )
+        : [];
 
       const profileMap = new Map((profilesRes.data || []).map(p => [p.user_id, p]));
       const tenantMap = new Map((tenantProfiles || []).map(p => [p.user_id, p]));
