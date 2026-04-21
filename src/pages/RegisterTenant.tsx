@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { sendNotification } from "@/lib/notificationService";
 import FormField from "@/components/FormField";
 import { formatPhone, isValidPhone } from "@/lib/formatters";
-import { regions } from "@/data/staticData";
+import { regions } from "@/data/dummyData";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Switch } from "@/components/ui/switch";
 import InstitutionCombobox from "@/components/InstitutionCombobox";

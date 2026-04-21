@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { regions } from "@/data/staticData";
+import { regions } from "@/data/dummyData";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { sendNotification } from "@/lib/notificationService";
