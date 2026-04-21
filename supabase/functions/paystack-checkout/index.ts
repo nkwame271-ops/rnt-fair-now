@@ -900,7 +900,7 @@ Deno.serve(async (req) => {
       description = `Existing Tenancy Registration (${items.length} unit${items.length > 1 ? "s" : ""} — GH₵ ${totalAmount})`;
       reference = `extbundle_${userId}_${Date.now()}`;
       callbackPath = body.callbackPath || "/landlord/declare-existing-tenancy?status=fee_paid";
-      metadata = { agreementChoice: bodyAgreementChoice, bandId: matchedBand.id, fee_components: feeComponents };
+      metadata = { items: itemBreakdown, fee_components: feeComponents, quantity: items.length };
 
     } else {
       throw new Error("Invalid payment type");
