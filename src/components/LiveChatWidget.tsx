@@ -27,6 +27,7 @@ interface LiveChatWidgetProps {
 
 const LiveChatWidget = ({ onClose }: LiveChatWidgetProps) => {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(true); // always start open
   const [mode, setMode] = useState<"ai" | "agent">("ai");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
