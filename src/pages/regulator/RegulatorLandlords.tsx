@@ -91,7 +91,7 @@ const RegulatorLandlords = () => {
       const chunkedIn = async <T,>(
         ids: string[],
         column: string,
-        runner: (batch: string[]) => Promise<{ data: T[] | null; error: any }>,
+        runner: (batch: string[]) => PromiseLike<{ data: T[] | null; error: any }>,
       ): Promise<T[]> => {
         const out: T[] = [];
         const size = 100;
