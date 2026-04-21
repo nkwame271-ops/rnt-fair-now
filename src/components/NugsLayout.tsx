@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import AnimatedNavLink from "@/components/AnimatedNavLink";
 import AnimatedOutlet from "@/components/AnimatedOutlet";
-import { LayoutDashboard, AlertTriangle, Users, GraduationCap, LogOut, Menu, Shield, Store, FileText, UserCircle, Inbox } from "lucide-react";
-import { useState } from "react";
+import { LayoutDashboard, AlertTriangle, Users, GraduationCap, LogOut, Menu, Shield, Store, FileText, UserCircle, Inbox, Building2, Home } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const adminNav = [
   { to: "/nugs/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -22,12 +23,25 @@ const studentNav = [
 
 const NugsLayout = () => {
   const navigate = useNavigate();
-  const { signOut, role } = useAuth();
+  const { signOut, role, user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [studentCtx, setStudentCtx] = useState<{ school: string | null; hostel: string | null } | null>(null);
 
   // Tenants who land here are students; nugs_admin gets the monitoring portal
   const isAdmin = role === "nugs_admin";
   const navItems = isAdmin ? adminNav : studentNav;
+
+  useEffect(() => {
+    if (isAdmin || !user) return;
+    supabase
+      .from("tenants")
+      .select("school, hostel_or_hall")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setStudentCtx({ school: (data as any).school, hostel: (data as any).hostel_or_hall });
+      });
+  }, [user, isAdmin]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -82,6 +96,23 @@ const NugsLayout = () => {
             <Menu className="h-5 w-5" />
           </button>
           <span className="font-bold text-sm truncate">{isAdmin ? "NUGS Monitoring" : "NUGS Student"}</span>
+          {!isAdmin && studentCtx && (studentCtx.school || studentCtx.hostel) && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 ml-2 px-2 py-1 rounded-full bg-primary/10 text-primary text-[11px] font-medium truncate max-w-[60vw]">
+              {studentCtx.school && (
+                <span className="inline-flex items-center gap-1 truncate">
+                  <Building2 className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{studentCtx.school}</span>
+                </span>
+              )}
+              {studentCtx.school && studentCtx.hostel && <span className="opacity-50">·</span>}
+              {studentCtx.hostel && (
+                <span className="inline-flex items-center gap-1 truncate">
+                  <Home className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{studentCtx.hostel}</span>
+                </span>
+              )}
+            </span>
+          )}
         </header>
         <main data-app-main className="flex-1 px-3 sm:px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8 overflow-y-auto overflow-x-hidden bg-transparent">
           <div className="mx-auto w-full max-w-[1400px]">

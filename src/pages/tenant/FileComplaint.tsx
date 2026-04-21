@@ -340,7 +340,8 @@ const FileComplaint = () => {
       }
 
       toast.success("Complaint submitted! An officer will review and contact you regarding any required fee.");
-      navigate("/tenant/my-cases");
+      const inNugs = window.location.pathname.startsWith("/nugs");
+      navigate(inNugs ? "/nugs/my-complaints" : "/tenant/my-cases");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit complaint");
     } finally {
