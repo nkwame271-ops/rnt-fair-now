@@ -700,7 +700,9 @@ Deno.serve(async (req) => {
     } else if (type === "add_tenant_fee") {
       // Band-based fee: uses rent bands when monthlyRent is provided
       // Now splits into individual fee components like existing_tenancy_bundle
-      const { monthlyRent: bodyMonthlyRent } = body;
+      // Supports `quantity` for multi-unit batches (multiplies amounts and splits).
+      const { monthlyRent: bodyMonthlyRent, quantity: bodyQty, unitIds: bodyUnitIds } = body;
+      const qty = Math.max(1, Number(bodyQty) || 1);
 
       officeId = await resolveOffice(supabaseAdmin, { userId });
       caseType = "tenancy";
