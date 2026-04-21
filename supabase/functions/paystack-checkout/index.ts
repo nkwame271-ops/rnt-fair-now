@@ -732,16 +732,17 @@ Deno.serve(async (req) => {
         const regFee = Number(matchedBand.register_fee ?? 0);
         const filFee = Number(matchedBand.filing_fee ?? 0);
         const agrFee = Number(matchedBand.agreement_fee ?? 0);
-        totalAmount = regFee + filFee + agrFee;
+        const perUnitTotal = regFee + filFee + agrFee;
+        totalAmount = Math.round(perUnitTotal * qty * 100) / 100;
 
         if (totalAmount <= 0) {
           return new Response(JSON.stringify({ skipped: true, message: "Add tenant fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
         const feeComponents: { type: string; amount: number; allocations?: SplitItem[] }[] = [];
-        if (regFee > 0) feeComponents.push({ type: "register_tenant_fee", amount: regFee });
-        if (filFee > 0) feeComponents.push({ type: "filing_fee", amount: filFee });
-        if (agrFee > 0) feeComponents.push({ type: "agreement_sale", amount: agrFee });
+        if (regFee > 0) feeComponents.push({ type: "register_tenant_fee", amount: Math.round(regFee * qty * 100) / 100 });
+        if (filFee > 0) feeComponents.push({ type: "filing_fee", amount: Math.round(filFee * qty * 100) / 100 });
+        if (agrFee > 0) feeComponents.push({ type: "agreement_sale", amount: Math.round(agrFee * qty * 100) / 100 });
 
         splitPlan = [];
         for (const fc of feeComponents) {
@@ -750,16 +751,18 @@ Deno.serve(async (req) => {
           splitPlan.push(...alloc.map(a => ({ ...a, description: `${a.description || a.recipient} (${fc.type})` })));
         }
 
-        metadata = { bandId: matchedBand.id, fee_components: feeComponents };
+        metadata = { bandId: matchedBand.id, fee_components: feeComponents, quantity: qty, unitIds: bodyUnitIds || [] };
       } else {
         // Fallback: use old flat fee approach
         const fee = await determineFee(supabaseAdmin, "add_tenant_fee", mr);
         if (!fee.enabled) return new Response(JSON.stringify({ skipped: true, message: "Add tenant fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        totalAmount = fee.amount;
-        splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+        totalAmount = Math.round(fee.amount * qty * 100) / 100;
+        const baseAlloc = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+        splitPlan = baseAlloc.map(s => ({ ...s, amount: Math.round(s.amount * qty * 100) / 100 }));
+        metadata = { quantity: qty, unitIds: bodyUnitIds || [] };
       }
 
-      description = `Add Tenant Fee (GH₵ ${totalAmount})`;
+      description = `Add Tenant Fee (${qty} unit${qty > 1 ? "s" : ""} — GH₵ ${totalAmount})`;
       reference = `addten_${userId}_${Date.now()}`;
       callbackPath = "/landlord/add-tenant?status=fee_paid";
 
