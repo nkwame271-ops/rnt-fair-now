@@ -43,29 +43,42 @@ const TenantMessages = () => {
       .channel('tenant-messages')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'marketplace_messages', filter: `receiver_user_id=eq.${user.id}` }, (payload) => {
         const msg = payload.new as any;
-        if (msg.receiver_user_id === user.id || msg.sender_user_id === user.id) {
-          fetchConversations();
-          if (activeConvo && msg.unit_id === activeConvo.unit_id) {
-            setMessages(prev => [...prev, msg]);
-          }
+        if (activeConvo && msg.unit_id === activeConvo.unit_id) {
+          setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg]);
         }
+        setConversations(prev => {
+          const otherId = msg.sender_user_id === user.id ? msg.receiver_user_id : msg.sender_user_id;
+          const key = `${msg.unit_id}_${otherId}`;
+          const existing = prev.find(c => `${c.unit_id}_${c.other_user_id}` === key);
+          const isUnread = msg.receiver_user_id === user.id && (!activeConvo || activeConvo.unit_id !== msg.unit_id);
+          if (existing) {
+            return prev
+              .map(c => c === existing
+                ? { ...c, last_message: msg.message, last_at: msg.created_at, unread: c.unread + (isUnread ? 1 : 0) }
+                : c)
+              .sort((a, b) => new Date(b.last_at).getTime() - new Date(a.last_at).getTime());
+          }
+          fetchConversations();
+          return prev;
+        });
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, activeConvo]);
 
   const fetchConversations = async () => {
     if (!user) return;
     const { data } = await supabase
       .from("marketplace_messages")
-      .select("*")
+      .select("id, unit_id, sender_user_id, receiver_user_id, message, created_at, read")
       .or(`sender_user_id.eq.${user.id},receiver_user_id.eq.${user.id}`)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(200);
 
     if (!data || data.length === 0) { setConversations([]); setLoading(false); return; }
 
-    // Group by unit_id + other_user
     const convMap = new Map<string, { unit_id: string; other_user_id: string; messages: any[] }>();
     data.forEach(m => {
       const otherId = m.sender_user_id === user.id ? m.receiver_user_id : m.sender_user_id;
@@ -86,15 +99,15 @@ const TenantMessages = () => {
     const unitMap = new Map((units || []).map(u => [u.id, u.unit_name]));
 
     const convos: Conversation[] = [...convMap.values()].map(c => {
-      const sorted = c.messages.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const newest = c.messages[0];
       return {
         unit_id: c.unit_id,
         other_user_id: c.other_user_id,
         other_user_name: nameMap.get(c.other_user_id) || "Unknown",
         unit_name: unitMap.get(c.unit_id) || "Property",
-        last_message: sorted[0].message,
-        last_at: sorted[0].created_at,
-        unread: sorted.filter((m: any) => m.receiver_user_id === user.id && !m.read).length,
+        last_message: newest.message,
+        last_at: newest.created_at,
+        unread: c.messages.filter((m: any) => m.receiver_user_id === user.id && !m.read).length,
       };
     }).sort((a, b) => new Date(b.last_at).getTime() - new Date(a.last_at).getTime());
 
