@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import KycGate from "@/components/KycGate";
 import LogoLoader from "@/components/LogoLoader";
 
 // Layouts loaded eagerly (used on every authenticated page)
@@ -145,7 +144,7 @@ const App = () => (
                 <Route path="dashboard" element={<TenantDashboard />} />
                 <Route path="marketplace" element={<Marketplace />} />
                 <Route path="rent-checker" element={<RentChecker />} />
-                <Route path="file-complaint" element={<KycGate action="file a complaint"><FileComplaint /></KycGate>} />
+                <Route path="file-complaint" element={<FileComplaint />} />
                 <Route path="my-cases" element={<MyCases />} />
                 <Route path="payments" element={<Payments />} />
                 <Route path="my-agreements" element={<MyAgreements />} />
@@ -169,8 +168,8 @@ const App = () => (
                 <Route path="register-property" element={<ErrorBoundary section="Register Property Page"><RegisterProperty /></ErrorBoundary>} />
                 <Route path="edit-property/:id" element={<EditProperty />} />
                 <Route path="agreements" element={<Agreements />} />
-                <Route path="add-tenant" element={<KycGate action="add a tenant"><AddTenant /></KycGate>} />
-                <Route path="declare-existing-tenancy" element={<KycGate action="declare an existing tenancy"><DeclareExistingTenancy /></KycGate>} />
+                <Route path="add-tenant" element={<AddTenant />} />
+                <Route path="declare-existing-tenancy" element={<DeclareExistingTenancy />} />
                 <Route path="viewing-requests" element={<LandlordViewingRequests />} />
                 <Route path="messages" element={<LandlordMessages />} />
                 <Route path="rental-applications" element={<RentalApplications />} />
@@ -227,7 +226,7 @@ const App = () => (
                 <Route path="institutions" element={<NugsInstitutions />} />
                 <Route path="my-complaints" element={<NugsMyComplaints />} />
                 <Route path="marketplace" element={<Marketplace />} />
-                <Route path="file-complaint" element={<KycGate action="file a complaint"><FileComplaint /></KycGate>} />
+                <Route path="file-complaint" element={<FileComplaint />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 

@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import KycGate from "@/components/KycGate";
 import PropertyLocationPicker from "@/components/PropertyLocationPicker";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Badge } from "@/components/ui/badge";
@@ -401,14 +400,13 @@ const RegisterProperty = () => {
   };
 
   return (
-    <KycGate action="register a property">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Register Property</h1>
-          <p className="text-muted-foreground mt-1">Add a new property with its units</p>
-        </div>
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">Register Property</h1>
+        <p className="text-muted-foreground mt-1">Add a new property with its units</p>
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
           {/* ── Property Details ── */}
           <ErrorBoundary section="Property Details">
             <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
@@ -801,12 +799,11 @@ const RegisterProperty = () => {
           </ErrorBoundary>
           )}
 
-          <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting}>
-            {submitting ? "Registering..." : "Register Property"}
-          </Button>
-        </form>
-      </div>
-    </KycGate>
+        <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting}>
+          {submitting ? "Registering..." : "Register Property"}
+        </Button>
+      </form>
+    </div>
   );
 };
 
