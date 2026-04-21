@@ -1,43 +1,50 @@
 
-## Marketplace price visibility + Remove KYC gating
+## Keep students inside the NUGS portal + split residence updater out of overview
 
-### 1. Marketplace card — price always visible
+### Problem
+Students log into `/nugs/*` (NUGS portal with student-themed sidebar, header, and identity). But several actions silently kick them back into the regular `/tenant/*` portal, which loads `TenantLayout` and the generic Tenant Dashboard — wiping the student framing (Student ID, school, hostel/hall, room).
 
-In `src/pages/tenant/Marketplace.tsx` (the listing card around lines 401–420), the price chip is currently floated inside the image as an `absolute bottom-3 right-3` overlay, so on smaller card widths and certain images it gets visually buried (image overlap) and clipped on narrow screens.
+Also: the "Update Residence" dialog is currently embedded inside the student info overview card, which mixes a write action into a read-only summary.
 
-Fix: move the price OUT of the image container into the card body so it can never be obscured.
+### Fix 1 — Stop kicking students back to the tenant portal
 
-- Remove the `absolute bottom-3 right-3` price chip from the image overlay.
-- Render the price as a dedicated row at the top of the text block (`p-4` section), e.g. a flex row with the property title on the left and a bold price pill on the right that wraps cleanly:
-  - `GH₵ {monthly_rent}/mo` — `text-base font-bold text-primary`, with `whitespace-nowrap` and its own line so it never collapses behind the title.
-- Keep the Registered badge, Available Soon badge, and watchlist heart on the image. No other card content changes.
+`src/pages/tenant/FileComplaint.tsx` (line ~343): after a successful complaint submission, hard-redirects to `/tenant/my-cases`. When a student lands here via `/nugs/file-complaint`, they get bounced into the tenant portal.
 
-Result: price renders in the solid card body with full contrast — never covered by image, gradient, or other badges, on any viewport.
+Change: detect the current portal from the URL and redirect within the same portal:
+```ts
+const inNugs = window.location.pathname.startsWith("/nugs");
+navigate(inNugs ? "/nugs/my-complaints" : "/tenant/my-cases");
+```
 
-### 2. Remove mandatory KYC gating from workflows
+No other tenant pages currently link out of `/nugs` — `Marketplace.tsx` keeps the user on whatever route they came in on (no cross-portal navigation), so it stays as-is, matching your note.
 
-The `KycGate` wrapper currently blocks several core actions until Ghana Card is verified. Per request, KYC must NOT be a precondition for these workflows.
+### Fix 2 — Make the student dashboard identity persistent in headers
 
-Edits in `src/App.tsx`:
-- Tenant route: `file-complaint` — unwrap from `<KycGate>`, render `<FileComplaint />` directly.
-- Landlord routes: `add-tenant`, `declare-existing-tenancy` — unwrap both.
-- NUGS route: `file-complaint` — unwrap.
+`src/components/NugsLayout.tsx` header currently shows just `"NUGS Student"`. To reinforce student identity across every page (not only the dashboard), show the student's school + hostel chip in the top header for student users.
 
-Edits in `src/pages/landlord/RegisterProperty.tsx`:
-- Remove the `<KycGate action="register a property">` wrapper around the page; keep the inner JSX as-is. Also drop the now-unused `KycGate` import.
+- Fetch `tenants.school` and `tenants.hostel_or_hall` once at the layout level for student users.
+- Render next to the title in the header as a small chip: e.g. `University of Ghana · Volta Hall`. Hidden on very small screens, visible from `sm:` up.
 
-Edit in `src/pages/tenant/Marketplace.tsx`:
-- In `handleRequestViewing`, remove the `if (!kycVerified) { toast.error(...); return; }` block (lines ~283–286) so viewing applications no longer require Ghana Card verification.
-- Drop the now-unused `useKycStatus` import and `kycVerified` destructure.
+This way, even when a student opens File Complaint, My Complaints, Profile, or Hostel Listings, the header still confirms they're in the student portal with their context attached.
 
-### What is NOT changing
+### Fix 3 — Split "Update Hostel Accommodation" out of the overview card
 
-- KYC submission flow itself (`KycVerificationCard`, `useKycStatus`, `verify-ghana-card` edge function, profile pages) stays intact — landlords/tenants/students can still verify voluntarily; it just isn't a hard gate anymore.
-- `KycGate.tsx` file remains in the repo (no longer referenced) in case you want to re-enable gating later.
-- No backend, RLS, or schema changes.
-- Marketplace filtering, modal, viewing-fee payment flow, watchlist, and all other card content unchanged.
+`src/pages/nugs/NugsDashboard.tsx` `<StudentView>`:
+
+- Remove `<UpdateResidenceDialog>` from the student info card. Also remove the inline "View residence history" collapsible from inside that card.
+- The student info card becomes purely read-only: Student ID, Institution, Hostel/Hall, Room/Bed.
+- Add a new dedicated section directly below it titled **"Hostel Accommodation"** with its own card:
+  - Heading + brief description ("Update your school, hostel, or room. Previous records are kept in your residence history.")
+  - The `<UpdateResidenceDialog>` trigger button (primary action).
+  - A "View residence history" collapsible showing `<StudentResidenceTrail>`.
 
 ### Files touched
-- `src/pages/tenant/Marketplace.tsx`
-- `src/App.tsx`
-- `src/pages/landlord/RegisterProperty.tsx`
+- `src/pages/tenant/FileComplaint.tsx` — portal-aware redirect after submit.
+- `src/components/NugsLayout.tsx` — fetch + display student context chip in header.
+- `src/pages/nugs/NugsDashboard.tsx` — extract Update Residence + history into its own section below the overview card.
+
+### Out of scope (unchanged)
+- Marketplace (works correctly as you noted).
+- Admin (`nugs_admin`) view.
+- Routing config in `App.tsx` — `/nugs/file-complaint` and `/nugs/marketplace` already render under `NugsLayout`.
+- KYC, payments, RLS, schema.
