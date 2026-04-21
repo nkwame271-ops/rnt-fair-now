@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { regions, areasByRegion, rentPrices } from "@/data/dummyData";
+import { regions, areasByRegion, rentPrices } from "@/data/staticData";
 
 const propertySubTypes = {
   residential: ["Apartment", "Detached House", "Semi-Detached", "Hostel", "Compound House"],
