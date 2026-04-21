@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, ArrowLeft, Save, Lock, AlertTriangle, Building2 } from "lucide-react";
-import { regions, areasByRegion } from "@/data/dummyData";
+import { regions, areasByRegion } from "@/data/staticData";
 
 const unitTypePresets = [
   "Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom",
