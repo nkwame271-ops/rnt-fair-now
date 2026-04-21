@@ -149,12 +149,14 @@ const MyAgreements = () => {
     const pendingRef = sessionStorage.getItem("pendingPaymentReference");
     if (pendingRef) {
       try {
+        console.log("[verifyPayment] Calling verify-payment with reference:", pendingRef);
         const { data: vData, error: fnError } = await supabase.functions.invoke("verify-payment", {
           body: { reference: pendingRef },
         });
         if (fnError) {
           console.error("[verifyPayment] Edge function error:", fnError);
         } else if (vData?.verified) {
+          console.log("[verifyPayment] Server confirmed payment for ref:", pendingRef);
           sessionStorage.removeItem("pendingPaymentReference");
           return true;
         } else {

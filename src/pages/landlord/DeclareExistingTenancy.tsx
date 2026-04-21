@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, CheckCircle2, Loader2, AlertCircle, ChevronDown, ChevronUp, FileText, Phone, Search, Upload } from "lucide-react";
+import { ArrowLeft, Search, CheckCircle2, Upload, Loader2, FileText, AlertCircle, Phone, UserPlus, ChevronDown, ChevronUp } from "lucide-react";
 import { generateAgreementPdf } from "@/lib/generateAgreementPdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,9 +11,6 @@ import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { SelectUnitsStep } from "./declare-existing/SelectUnitsStep";
-import { TenantDetailsStep } from "./declare-existing/TenantDetailsStep";
-import { ReviewStep } from "./declare-existing/ReviewStep";
 
 type Step = "select-units" | "tenant-details" | "review" | "done";
 
