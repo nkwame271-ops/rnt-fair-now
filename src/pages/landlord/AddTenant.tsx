@@ -289,13 +289,12 @@ const AddTenant = () => {
     if (!user) return;
     sessionStorage.setItem("addTenantFormData", JSON.stringify({ selectedPropertyId, drafts }));
     try {
-      // Use highest rent for band determination if mixed (server multiplies by quantity)
-      const avgRent = drafts.reduce((s, d) => s + (parseFloat(d.rent) || 0), 0) / drafts.length;
+      // Send per-unit items so the server compounds fees strictly per unit (each unit's own band)
+      const items = drafts.map(d => ({ monthlyRent: parseFloat(d.rent) || 0, unitId: d.unitId }));
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
         body: {
           type: "add_tenant_fee",
-          monthlyRent: avgRent,
-          quantity: drafts.length,
+          items,
           unitIds: drafts.map(d => d.unitId),
         },
       });
