@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { regions } from "@/data/dummyData";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useKycStatus } from "@/hooks/useKycStatus";
 import { toast } from "sonner";
 // Viewing requests are in-app only per notification spec — no SMS/email import needed
 import { format, addDays } from "date-fns";
@@ -52,7 +51,6 @@ interface MarketUnit {
 
 const Marketplace = () => {
   const { user } = useAuth();
-  const { isVerified: kycVerified } = useKycStatus();
   const viewingFeeConfig = useFeeConfig("viewing_fee");
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -280,10 +278,6 @@ const Marketplace = () => {
 
   const handleRequestViewing = async () => {
     if (!user || !selectedUnit) return;
-    if (!kycVerified) {
-      toast.error("You must verify your Ghana Card before applying for a viewing. Go to your Profile to complete verification.");
-      return;
-    }
     setSubmittingRequest(true);
     try {
       const { data: vr, error } = await supabase.from("viewing_requests").insert({
@@ -414,12 +408,12 @@ const Marketplace = () => {
                   >
                     <Heart className={`h-4 w-4 ${watchlist.has(unit.id) ? "fill-destructive text-destructive" : "text-muted-foreground"}`} />
                   </button>
-                  <div className="absolute bottom-3 right-3 bg-card/90 backdrop-blur px-2.5 py-1 rounded-lg text-sm font-bold text-card-foreground">
-                    GH₵ {unit.monthly_rent.toLocaleString()}/mo
-                  </div>
                 </div>
                 <div className="p-4">
-                  <h3 className="font-semibold text-card-foreground text-sm line-clamp-1">{unit.property.property_name || unit.unit_name}</h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-card-foreground text-sm line-clamp-1 flex-1">{unit.property.property_name || unit.unit_name}</h3>
+                    <span className="text-base font-bold text-primary whitespace-nowrap">GH₵ {unit.monthly_rent.toLocaleString()}/mo</span>
+                  </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                     <MapPin className="h-3 w-3" /> {unit.property.area}, {unit.property.region}
                   </div>
