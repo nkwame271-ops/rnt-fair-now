@@ -1,61 +1,106 @@
 
 
-## Diagnosis
+## Multi-Unit Tenant Registration
 
-**Main Regulator Dashboard itself is NOT slow** — it only runs 8 small `count(*)` queries on tables with ≤623 rows.
+Convert **Add Tenant** and **Declare Existing Tenancy** from single-unit flows into multi-unit flows, so a landlord can register many tenancies at once under one property in a single pass.
 
-**The real bottleneck:** any rent-card admin page hitting `rent_card_serial_stock` (**261,300 rows, zero filter indexes**).
+---
 
-Evidence from `pg_stat_user_indexes`:
-- `rent_card_serial_stock_serial_pair_unique` — 15,083 scans returning **386,721,903 tuples** (~25K rows per query → near-full scans)
-- No index exists on `office_name`, `region`, `status`, `pair_index`, `stock_type`, `batch_label`, `unassigned_at`, `stock_source`, `assigned_at`
+### New flow (both pages)
 
-**Affected pages** (all under `/regulator/rent-cards/*`):
-StockAlerts, OfficeSerialStock, OfficeAllocation, OfficeReconciliation, PendingPurchases, AdminActions, DailyReport, SerialBatchUpload.
-
-Several of these also paginate `select(...)` in `while(true)` loops fetching the entire dataset client-side.
-
-## Fix Plan
-
-### 1. Add composite indexes on `rent_card_serial_stock` (migration)
-The high-impact index set covering all observed query shapes:
-
-```sql
-CREATE INDEX IF NOT EXISTS idx_rcss_office_status_pair
-  ON rent_card_serial_stock (office_name, status, pair_index);
-CREATE INDEX IF NOT EXISTS idx_rcss_region_status_pair
-  ON rent_card_serial_stock (region, status, pair_index);
-CREATE INDEX IF NOT EXISTS idx_rcss_serial
-  ON rent_card_serial_stock (serial_number);
-CREATE INDEX IF NOT EXISTS idx_rcss_batch_label
-  ON rent_card_serial_stock (batch_label) WHERE batch_label IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_rcss_unassigned_at
-  ON rent_card_serial_stock (unassigned_at) WHERE unassigned_at IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_rcss_stock_type
-  ON rent_card_serial_stock (stock_type, office_name);
-```
-Plus add the missing FIFO ordering helper:
-```sql
-CREATE INDEX IF NOT EXISTS idx_rcss_fifo
-  ON rent_card_serial_stock (office_name, status, pair_index, stock_source, created_at);
+```text
+Step 1  Select Property
+Step 2  Select Units              ← multi-select checkboxes (vacant only)
+Step 3  Per-Unit Tenant Details   ← one card per unit
+Step 4  Per-Unit Terms            ← rent / advance / dates per unit
+Step 5  Per-Unit Rent Cards       ← 2 cards per unit (landlord + tenant copy)
+Step 6  Review (table of all)
+Step 7  Pay combined fee → Submit (transactional, all-or-nothing)
 ```
 
-### 2. Replace client-side full-table pagination with server-side aggregation
-- **StockAlerts.tsx**: drop the unfiltered `select("office_name, status, stock_type, region, pair_index")` (pulls all 261K rows). Replace with a SQL view/RPC `rcss_office_summary` returning pre-aggregated counts per office.
-- **DailyReport.tsx, OfficeReconciliation.tsx, PendingPurchases.tsx**: replace `while(true)` paged scans with `.select(..., { count: "exact", head: true })` filtered queries, or a single RPC.
+### UI per selected unit (Step 3 onward)
 
-### 3. Lightweight RPC for dashboard stat blocks (optional polish)
-Single function `get_office_dashboard_stats(office_id)` returning all 8 counts in one round trip instead of 8 parallel queries.
+Each selected unit gets its own collapsible card showing:
 
-### Expected impact
-- StockAlerts/OfficeAllocation/Reconciliation: **5-30s → <300ms**
-- Tuples read on stock table queries: **386M → <50K**
-- No frontend behaviour changes; same data, same UI.
+- Unit name + type + suggested rent (prefilled from unit)
+- **Tenant Details**
+  - Full name (text)
+  - Phone (text, with “Find existing tenant” lookup button — same logic that exists today: matches profile by phone, otherwise creates a `pending_tenants` invite)
+- **Terms** (Add Tenant only — Declare Existing keeps its own fields: existing start date, advance paid, etc.)
+  - Monthly rent
+  - Advance months
+  - Lease duration
+  - Start date (end date auto-computed)
+- **Rent Cards**
+  - Landlord copy (Card 1) — dropdown of available cards
+  - Tenant copy (Card 2) — dropdown, excludes cards picked anywhere else in the form
+- Per-unit validation badge (✓ complete / ⚠ missing fields)
+
+A global "Apply same rent / dates to all units" helper sits above the cards to speed up bulk entry.
+
+### Rent card pool
+
+- One shared pool of `availableRentCards` is fetched once.
+- A computed `usedCardIds` set excludes cards already chosen by any other unit row, so the same card cannot be picked twice across the whole form.
+- Validation blocks submit if `selectedUnits.length × 2 > availableRentCards.length`, with a link to buy more cards.
+
+### Fee calculation
+
+- Per-unit fee is computed using the existing rent-band logic (`add_tenant_fee` for Add Tenant, `existing_tenancy` band for Declare Existing).
+- Total fee = sum of per-unit fees.
+- Single Paystack checkout with `quantity = selectedUnits.length` and a metadata array of unit IDs so `verify-payment` / `finalize-office-attribution` can attribute correctly.
+
+### Submission (atomic batch)
+
+For each selected unit, the existing single-unit submit logic runs in sequence inside one try/catch:
+
+1. Insert tenancy (with retry on registration_code collision — already implemented)
+2. Insert tenancy_signatures row
+3. Activate the 2 rent cards (landlord_copy + tenant_copy)
+4. Generate rent_payments schedule
+5. Mark unit `occupied`
+6. Insert property_event
+7. Send notifications to tenant + landlord
+
+If any unit fails midway, completed units stay (each is independently valid) and the user sees a clear summary: "5 of 7 tenancies created. 2 failed: …" with a Retry button for the failed rows. This is safer than a full rollback because each tenancy is self-contained and partial success is still useful.
+
+The property’s `property_status` is set to `occupied` once at the end (only if all its units are now occupied).
+
+### Session storage / payment redirect
+
+The current `addTenantFormData` / `declare_existing_tenancy_form` payloads grow to:
+
+```ts
+{
+  selectedPropertyId: string,
+  units: Array<{
+    unitId, tenantName, tenantPhone, matchedTenantUserId?,
+    rent, advanceMonths, leaseDurationMonths, startDate,
+    rentCardId1, rentCardId2,
+    customFieldValues
+  }>
+}
+```
+
+Auto-resume after Paystack callback iterates the array and submits each.
 
 ### Files to edit
-- New migration: indexes + summary view/RPC
-- `src/pages/regulator/rent-cards/StockAlerts.tsx`
-- `src/pages/regulator/rent-cards/OfficeReconciliation.tsx`
-- `src/pages/regulator/rent-cards/PendingPurchases.tsx`
-- `src/pages/regulator/rent-cards/DailyReport.tsx`
+
+- `src/pages/landlord/AddTenant.tsx` — refactor state from flat fields to `units: UnitDraft[]`; rebuild Steps 1, 2 & 3 UI; loop submit; loop fee calc.
+- `src/pages/landlord/DeclareExistingTenancy.tsx` — same refactor, keeping its agreement-upload / agreement-buy choice (the choice applies per unit so each tenancy gets its own PDF).
+- `supabase/functions/paystack-checkout/index.ts` — accept `quantity` and `unit_ids[]` metadata so a single transaction covers N units.
+- `supabase/functions/finalize-office-attribution/index.ts` — already keyed by escrow_transaction_id; no schema change, just confirm it can attribute one transaction covering N tenancies (one office, all units belong to one property).
+
+### Out of scope (unchanged)
+
+- Rent card schema, RLS, tenancy schema, notification templates, agreement PDF generator.
+- Single-unit flows from other entry points (Rental Applications → accept) keep working — they just call a single-unit slice of the new logic.
+- No database migrations required.
+
+### Validation rules
+
+- ≥1 unit must be selected.
+- Each unit row must have: tenant name, valid Ghana phone (10 digits starting with 0), rent > 0, advance ≤ 6 months (Act 220), 2 distinct rent cards, dates valid.
+- No rent card may appear in more than one row.
+- Submit button disabled until every row passes validation.
 
