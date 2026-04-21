@@ -1,11 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { UserPlus, Search, CheckCircle2, FileText, ArrowLeft, Loader2, AlertTriangle, CreditCard, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle2, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TemplateConfig, CustomFieldDef } from "@/lib/generateAgreementPdf";
 import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
@@ -13,6 +9,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { sendNotification } from "@/lib/notificationService";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
+import { SelectUnitsStep } from "./add-tenant/SelectUnitsStep";
+import { TenantDetailsStep } from "./add-tenant/TenantDetailsStep";
+import { ReviewStep } from "./add-tenant/ReviewStep";
 
 type Step = "select-units" | "tenant-details" | "review" | "done";
 
