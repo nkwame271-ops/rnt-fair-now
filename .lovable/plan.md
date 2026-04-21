@@ -1,35 +1,43 @@
 
-## Fix LiveChatWidget desktop positioning
+## Marketplace price visibility + Remove KYC gating
 
-The chat widget currently renders bottom-left and too wide on desktop because its outer container uses `max-sm:inset-x-0` (which leaks `left: 0` / `right: 0` at desktop sizes through Tailwind's responsive cascade is not the issue — the real issue is the widget is rendered inside `FloatingActionHub`'s `motion.div` wrapper, which is portaled to `document.body` but inherits no positioning, AND the widget's own `sm:` classes set `sm:bottom-20 sm:right-4` only when `onClose` is passed). The widget needs explicit, isolated fixed positioning that ignores its parent wrapper.
+### 1. Marketplace card — price always visible
 
-### Change — `src/components/LiveChatWidget.tsx` only
+In `src/pages/tenant/Marketplace.tsx` (the listing card around lines 401–420), the price chip is currently floated inside the image as an `absolute bottom-3 right-3` overlay, so on smaller card widths and certain images it gets visually buried (image overlap) and clipped on narrow screens.
 
-Replace the outer container's className/style on the floating panel (the `<div>` with `style={{ contain: "layout" }}`) so it uses the exact spec values:
+Fix: move the price OUT of the image container into the card body so it can never be obscured.
 
-**Desktop (≥768px):**
-- `position: fixed`
-- `bottom: 24px`, `right: 24px`
-- `width: 360px`, `max-width: calc(100vw - 48px)`
-- `height: 520px`, `max-height: calc(100vh - 120px)`
-- `border-radius: 16px`
-- `box-shadow: 0 24px 64px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.10)`
-- `overflow: hidden`
-- `z-index: 9999`
+- Remove the `absolute bottom-3 right-3` price chip from the image overlay.
+- Render the price as a dedicated row at the top of the text block (`p-4` section), e.g. a flex row with the property title on the left and a bold price pill on the right that wraps cleanly:
+  - `GH₵ {monthly_rent}/mo` — `text-base font-bold text-primary`, with `whitespace-nowrap` and its own line so it never collapses behind the title.
+- Keep the Registered badge, Available Soon badge, and watchlist heart on the image. No other card content changes.
 
-**Mobile (<768px):**
-- `position: fixed`
-- `bottom: 0`, `left: 0`, `right: 0`
-- `width: 100vw`, `height: 70vh`
-- `border-radius: 20px 20px 0 0`
+Result: price renders in the solid card body with full contrast — never covered by image, gradient, or other badges, on any viewport.
 
-Implementation: use a `useIsMobile()` check (already exists at `src/hooks/use-mobile.tsx`) to switch the inline style object between desktop and mobile specs. Inline `style` overrides any inherited Tailwind classes from the parent `motion.div` wrapper in `FloatingActionHub`, guaranteeing the widget floats correctly regardless of where it's mounted.
+### 2. Remove mandatory KYC gating from workflows
 
-Also drop the conditional `sm:bottom-20 sm:right-4` offset tied to `onClose` — the spec wants a fixed 24px offset always.
+The `KycGate` wrapper currently blocks several core actions until Ghana Card is verified. Per request, KYC must NOT be a precondition for these workflows.
+
+Edits in `src/App.tsx`:
+- Tenant route: `file-complaint` — unwrap from `<KycGate>`, render `<FileComplaint />` directly.
+- Landlord routes: `add-tenant`, `declare-existing-tenancy` — unwrap both.
+- NUGS route: `file-complaint` — unwrap.
+
+Edits in `src/pages/landlord/RegisterProperty.tsx`:
+- Remove the `<KycGate action="register a property">` wrapper around the page; keep the inner JSX as-is. Also drop the now-unused `KycGate` import.
+
+Edit in `src/pages/tenant/Marketplace.tsx`:
+- In `handleRequestViewing`, remove the `if (!kycVerified) { toast.error(...); return; }` block (lines ~283–286) so viewing applications no longer require Ghana Card verification.
+- Drop the now-unused `useKycStatus` import and `kycVerified` destructure.
 
 ### What is NOT changing
 
-- No changes to `FloatingActionHub.tsx` (the portal + AnimatePresence wrapper stays).
-- No changes to chat logic, AI calls, realtime subscriptions, message rendering, FAQ chips, escalation, or input handling.
-- Header, messages area, and input bar internal layout untouched.
-- No other files modified.
+- KYC submission flow itself (`KycVerificationCard`, `useKycStatus`, `verify-ghana-card` edge function, profile pages) stays intact — landlords/tenants/students can still verify voluntarily; it just isn't a hard gate anymore.
+- `KycGate.tsx` file remains in the repo (no longer referenced) in case you want to re-enable gating later.
+- No backend, RLS, or schema changes.
+- Marketplace filtering, modal, viewing-fee payment flow, watchlist, and all other card content unchanged.
+
+### Files touched
+- `src/pages/tenant/Marketplace.tsx`
+- `src/App.tsx`
+- `src/pages/landlord/RegisterProperty.tsx`
