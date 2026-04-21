@@ -521,6 +521,14 @@ const AddTenant = () => {
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
+  const selectedUnitIds = useMemo(() => new Set(drafts.map(d => d.unitId)), [drafts]);
+  const toggleUnitExpand = (unitId: string) =>
+    setExpandedUnits(prev => {
+      const n = new Set(prev);
+      if (n.has(unitId)) n.delete(unitId); else n.add(unitId);
+      return n;
+    });
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
@@ -550,291 +558,64 @@ const AddTenant = () => {
         })}
       </div>
 
-      {/* Step 1: Select property + multi-unit checkboxes */}
       {step === "select-units" && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-6 shadow-card border border-border space-y-5">
-          <h2 className="text-lg font-semibold text-card-foreground">Select Property & Units</h2>
-          {properties.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No properties registered yet. <Link to="/landlord/register-property" className="text-primary underline">Register one first</Link>.</p>
-          ) : (
-            <>
-              <div className="space-y-3">
-                <Label>Property</Label>
-                <Select value={selectedPropertyId} onValueChange={(v) => { setSelectedPropertyId(v); setDrafts([]); }}>
-                  <SelectTrigger><SelectValue placeholder="Choose a property" /></SelectTrigger>
-                  <SelectContent>
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.property_name || "Unnamed"} — {p.address}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {property && (
-                <div className="space-y-3">
-                  <Label>Vacant Units (select one or more)</Label>
-                  {vacantUnits.length === 0 ? (
-                    <p className="text-sm text-warning">No vacant units in this property.</p>
-                  ) : (
-                    <div className="grid sm:grid-cols-2 gap-2">
-                      {vacantUnits.map((u) => {
-                        const checked = drafts.some(d => d.unitId === u.id);
-                        return (
-                          <label key={u.id} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${checked ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"}`}>
-                            <Checkbox checked={checked} onCheckedChange={() => toggleUnitSelected(u)} className="mt-0.5" />
-                            <div className="flex-1">
-                              <div className="text-sm font-semibold text-card-foreground">{u.unit_name}</div>
-                              <div className="text-xs text-muted-foreground">{u.unit_type} · GH₵ {u.monthly_rent.toLocaleString()}/mo</div>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {drafts.length > 0 && (
-                <div className="bg-muted/30 rounded-lg p-3 text-sm flex items-center justify-between">
-                  <span className="text-muted-foreground">{drafts.length} unit(s) selected · {cardsNeeded} rent card(s) required</span>
-                  <span className={`font-semibold ${enoughCards ? "text-success" : "text-destructive"}`}>{availableRentCards.length} available</span>
-                </div>
-              )}
-
-              {drafts.length > 0 && !enoughCards && (
-                <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-sm text-card-foreground">Not Enough Rent Cards</p>
-                    <p className="text-xs text-muted-foreground mt-1">You need {cardsNeeded} cards (2 per unit). You have {availableRentCards.length}.</p>
-                    <Link to="/landlord/manage-rent-cards"><Button size="sm" variant="outline" className="mt-2">Buy Rent Cards</Button></Link>
-                  </div>
-                </div>
-              )}
-
-              <Button disabled={drafts.length === 0 || !enoughCards} onClick={() => setStep("tenant-details")}>
-                Next: Tenant Details ({drafts.length})
-              </Button>
-            </>
-          )}
-        </motion.div>
+        <SelectUnitsStep
+          properties={properties}
+          selectedPropertyId={selectedPropertyId}
+          onSelectProperty={(v) => { setSelectedPropertyId(v); setDrafts([]); }}
+          property={property}
+          vacantUnits={vacantUnits}
+          selectedUnitIds={selectedUnitIds}
+          onToggleUnit={toggleUnitSelected}
+          draftsCount={drafts.length}
+          cardsNeeded={cardsNeeded}
+          availableCardsCount={availableRentCards.length}
+          enoughCards={enoughCards}
+          onNext={() => setStep("tenant-details")}
+        />
       )}
 
-      {/* Step 2: Per-unit tenant + terms + cards */}
       {step === "tenant-details" && property && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-          {/* Bulk-apply helper */}
-          <div className="bg-card rounded-xl p-4 border border-border space-y-3">
-            <p className="text-sm font-semibold text-card-foreground">Bulk apply to all units (optional)</p>
-            <div className="grid sm:grid-cols-3 gap-3">
-              <Input type="number" placeholder="Rent (GH₵)" value={bulkRent} onChange={(e) => setBulkRent(e.target.value)} />
-              <Input type="date" value={bulkStartDate} onChange={(e) => setBulkStartDate(e.target.value)} />
-              <Button variant="outline" onClick={applyBulkToAll} disabled={!bulkRent && !bulkStartDate}>Apply to all</Button>
-            </div>
-          </div>
-
-          {selectedUnits.map((unit) => {
-            const draft = drafts.find(d => d.unitId === unit.id)!;
-            const err = validateDraft(draft);
-            const expanded = expandedUnits.has(unit.id) || drafts.length === 1;
-            const endDate = computeEndDate(draft.startDate, draft.leaseDurationMonths);
-            const monthlyRent = parseFloat(draft.rent) || 0;
-            return (
-              <div key={unit.id} className="bg-card rounded-xl border border-border overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (drafts.length === 1) return;
-                    setExpandedUnits(prev => {
-                      const n = new Set(prev);
-                      if (n.has(unit.id)) n.delete(unit.id); else n.add(unit.id);
-                      return n;
-                    });
-                  }}
-                  className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    {err ? (
-                      <AlertTriangle className="h-4 w-4 text-warning" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4 text-success" />
-                    )}
-                    <div className="text-left">
-                      <div className="font-semibold text-card-foreground text-sm">{unit.unit_name}</div>
-                      <div className="text-xs text-muted-foreground">{err || `${draft.foundTenant?.name || "—"} · GH₵ ${monthlyRent.toLocaleString()}/mo`}</div>
-                    </div>
-                  </div>
-                  {drafts.length > 1 && (expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />)}
-                </button>
-
-                {expanded && (
-                  <div className="p-4 pt-0 space-y-4 border-t border-border">
-                    {/* Tenant search */}
-                    <div className="space-y-2">
-                      <Label>Tenant ID or Name</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="e.g. TN-2026-0001 or Kwame Mensah"
-                          value={draft.tenantSearch}
-                          onChange={(e) => updateDraft(unit.id, { tenantSearch: e.target.value, foundTenant: null })}
-                        />
-                        <Button variant="outline" onClick={() => handleSearchTenant(draft)} disabled={!draft.tenantSearch.trim() || draft.searching}>
-                          <Search className="h-4 w-4 mr-1" />{draft.searching ? "..." : "Search"}
-                        </Button>
-                      </div>
-                      {draft.foundTenant && (
-                        <div className="bg-success/5 border border-success/20 rounded p-2 text-xs flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-success" />
-                          <span className="font-semibold">{draft.foundTenant.name}</span>
-                          <span className="text-muted-foreground">({draft.foundTenant.tenantIdCode})</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Terms */}
-                    <div className="grid sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Monthly Rent (GH₵)</Label>
-                        <Input type="number" value={draft.rent} onChange={(e) => updateDraft(unit.id, { rent: e.target.value })} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Advance (months)</Label>
-                        <Select value={draft.advanceMonths} onValueChange={(v) => updateDraft(unit.id, { advanceMonths: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: maxAdvance }, (_, i) => i + 1).map((m) => (
-                              <SelectItem key={m} value={m.toString()}>{m} month{m > 1 ? "s" : ""}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Lease Duration</Label>
-                        <Select value={draft.leaseDurationMonths} onValueChange={(v) => updateDraft(unit.id, { leaseDurationMonths: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: maxLease }, (_, i) => i + 1).filter(m => m >= minLease).map((m) => (
-                              <SelectItem key={m} value={m.toString()}>{m} month{m > 1 ? "s" : ""}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Start Date</Label>
-                        <Input type="date" value={draft.startDate} onChange={(e) => updateDraft(unit.id, { startDate: e.target.value })} />
-                      </div>
-                      <div className="space-y-1 sm:col-span-2">
-                        <Label className="text-xs">End Date</Label>
-                        <Input type="date" value={endDate} readOnly className="bg-muted" />
-                      </div>
-                    </div>
-
-                    {/* Custom fields */}
-                    {customFields.length > 0 && (
-                      <div className="grid sm:grid-cols-2 gap-3">
-                        {customFields.map((f) => (
-                          <div key={f.label} className="space-y-1">
-                            <Label className="text-xs">{f.label}{f.required && <span className="text-destructive ml-1">*</span>}</Label>
-                            <Input
-                              type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
-                              value={draft.customFieldValues[f.label] || ""}
-                              onChange={(e) => updateDraft(unit.id, { customFieldValues: { ...draft.customFieldValues, [f.label]: e.target.value } })}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Rent cards */}
-                    <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-border">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Landlord Copy</Label>
-                        <Select value={draft.rentCardId1} onValueChange={(v) => updateDraft(unit.id, { rentCardId1: v })}>
-                          <SelectTrigger><SelectValue placeholder="Select card" /></SelectTrigger>
-                          <SelectContent>
-                            {cardsAvailableFor(draft, 1).map(rc => (
-                              <SelectItem key={rc.id} value={rc.id}>{rc.serial_number}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Tenant Copy</Label>
-                        <Select value={draft.rentCardId2} onValueChange={(v) => updateDraft(unit.id, { rentCardId2: v })}>
-                          <SelectTrigger><SelectValue placeholder="Select card" /></SelectTrigger>
-                          <SelectContent>
-                            {cardsAvailableFor(draft, 2).map(rc => (
-                              <SelectItem key={rc.id} value={rc.id}>{rc.serial_number}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {parseInt(draft.advanceMonths) > 6 && (
-                      <div className="bg-destructive/10 border border-destructive/20 rounded p-2 text-destructive text-xs font-semibold">
-                        ⚠ Advance exceeds 6-month legal limit (Act 220)
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setStep("select-units")}>Back</Button>
-            <Button disabled={!allValid} onClick={() => setStep("review")}>Next: Review</Button>
-          </div>
-        </motion.div>
+        <TenantDetailsStep
+          selectedUnits={selectedUnits}
+          drafts={drafts}
+          expandedUnits={expandedUnits}
+          onToggleExpand={toggleUnitExpand}
+          customFields={customFields}
+          maxAdvance={maxAdvance}
+          maxLease={maxLease}
+          minLease={minLease}
+          bulkRent={bulkRent}
+          bulkStartDate={bulkStartDate}
+          setBulkRent={setBulkRent}
+          setBulkStartDate={setBulkStartDate}
+          onApplyBulk={applyBulkToAll}
+          updateDraft={updateDraft}
+          onSearchTenant={handleSearchTenant}
+          validateDraft={validateDraft}
+          computeEndDate={computeEndDate}
+          cardsAvailableFor={cardsAvailableFor}
+          allValid={allValid}
+          onBack={() => setStep("select-units")}
+          onNext={() => setStep("review")}
+        />
       )}
 
-      {/* Step 3: Review */}
       {step === "review" && property && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-          <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
-            <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" /> Review {drafts.length} Tenanc{drafts.length === 1 ? "y" : "ies"}
-            </h2>
-            <div className="text-sm text-muted-foreground">Property: <span className="font-semibold text-card-foreground">{property.property_name || property.address}</span></div>
-            <div className="space-y-3">
-              {drafts.map((d) => {
-                const unit = property.units.find(u => u.id === d.unitId)!;
-                const fee = bandFeeFor(parseFloat(d.rent) || 0);
-                return (
-                  <div key={d.unitId} className="border border-border rounded-lg p-3 text-sm grid sm:grid-cols-5 gap-2">
-                    <div><div className="text-xs text-muted-foreground">Unit</div><div className="font-semibold">{unit.unit_name}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Tenant</div><div className="font-semibold">{d.foundTenant?.name}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Rent / Adv</div><div className="font-semibold">GH₵ {(parseFloat(d.rent)||0).toLocaleString()} / {d.advanceMonths}m</div></div>
-                    <div><div className="text-xs text-muted-foreground">Cards</div><div className="text-xs font-semibold">{availableRentCards.find(c => c.id === d.rentCardId1)?.serial_number} + {availableRentCards.find(c => c.id === d.rentCardId2)?.serial_number}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Fee</div><div className="font-semibold">GH₵ {fee.toFixed(2)}</div></div>
-                  </div>
-                );
-              })}
-            </div>
-            {feeConfig.enabled && totalFee > 0 && (
-              <div className="bg-muted/30 rounded-lg p-3 flex justify-between font-bold border-t border-border pt-3">
-                <span>Total Registration Fee</span>
-                <span>GH₵ {totalFee.toFixed(2)}</span>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button variant="outline" onClick={() => setStep("tenant-details")}>Back</Button>
-            {feeConfig.enabled && totalFee > 0 ? (
-              <Button onClick={handlePayFee} disabled={submitting}>
-                <CreditCard className="h-4 w-4 mr-1" /> {submitting ? "Processing..." : `Pay GH₵ ${totalFee.toFixed(2)} & Submit`}
-              </Button>
-            ) : (
-              <Button onClick={handleSubmitBatch} disabled={submitting}>
-                <UserPlus className="h-4 w-4 mr-1" /> {submitting ? "Creating..." : `Create ${drafts.length} Tenanc${drafts.length === 1 ? "y" : "ies"}`}
-              </Button>
-            )}
-          </div>
-        </motion.div>
+        <ReviewStep
+          property={property}
+          drafts={drafts}
+          availableRentCards={availableRentCards}
+          feeEnabled={feeConfig.enabled}
+          totalFee={totalFee}
+          bandFeeFor={bandFeeFor}
+          submitting={submitting}
+          onBack={() => setStep("tenant-details")}
+          onPay={handlePayFee}
+          onSubmitFree={handleSubmitBatch}
+        />
       )}
 
-      {/* Done */}
       {step === "done" && batchResult && (
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-card rounded-xl p-8 shadow-elevated border border-success/30 text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto">
