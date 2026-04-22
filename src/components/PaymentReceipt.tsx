@@ -1,12 +1,23 @@
+import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 import { formatGHSDecimal } from "@/lib/formatters";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Split {
   recipient: string;
   amount: number;
+}
+
+interface BasketLine {
+  label: string;
+  kind: string;
+  amount: number;
+  igf_pct: number;
+  admin_pct: number;
+  platform_pct: number;
 }
 
 interface ReceiptProps {
@@ -20,6 +31,9 @@ interface ReceiptProps {
   status: string;
   qrCodeData: string;
   showSplits?: boolean;
+  /** When provided for complaint_fee receipts, shows the full charge breakdown */
+  complaintId?: string | null;
+  complaintTable?: "complaints" | "landlord_complaints" | null;
 }
 
 const recipientLabels: Record<string, string> = {
@@ -29,12 +43,25 @@ const recipientLabels: Record<string, string> = {
   landlord: "Landlord",
 };
 
-const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentType, description, splits, status, qrCodeData, showSplits = true }: ReceiptProps) => {
+const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentType, description, splits, status, qrCodeData, showSplits = true, complaintId, complaintTable }: ReceiptProps) => {
+  const [basket, setBasket] = useState<BasketLine[] | null>(null);
+
+  useEffect(() => {
+    if (paymentType !== "complaint_fee" || !complaintId || !complaintTable) { setBasket(null); return; }
+    (async () => {
+      const { data } = await (supabase.from("complaint_basket_items") as any)
+        .select("label, kind, amount, igf_pct, admin_pct, platform_pct")
+        .eq("complaint_id", complaintId)
+        .eq("complaint_table", complaintTable)
+        .order("created_at");
+      setBasket((data as BasketLine[]) || []);
+    })();
+  }, [complaintId, complaintTable, paymentType]);
+
   const handlePrint = () => {
     const el = document.getElementById(`receipt-${receiptNumber}`);
     if (!el) return;
 
-    // Clone the receipt into a hidden iframe for isolated printing
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
     iframe.style.left = "-9999px";
@@ -46,7 +73,6 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
     if (!doc) { document.body.removeChild(iframe); return; }
 
-    // Copy stylesheets for consistent rendering
     const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
       .map(s => s.outerHTML)
       .join("\n");
@@ -58,7 +84,6 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
     </style></head><body>${el.outerHTML}</body></html>`);
     doc.close();
 
-    // Wait for styles to load then print
     iframe.onload = () => {
       setTimeout(() => {
         iframe.contentWindow?.print();
@@ -66,7 +91,6 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
       }, 300);
     };
 
-    // Fallback if onload doesn't fire (already loaded)
     setTimeout(() => {
       if (document.body.contains(iframe)) {
         iframe.contentWindow?.print();
@@ -104,7 +128,31 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
         </div>
       </div>
 
-      {/* Split breakdown */}
+      {/* Charges billed (complaint receipts) */}
+      {basket && basket.length > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <div className="bg-muted px-4 py-2 text-xs font-semibold text-muted-foreground flex justify-between">
+            <span>Charges Billed</span>
+            <span>Amount</span>
+          </div>
+          {basket.map((b, i) => (
+            <div key={i} className="px-4 py-2.5 border-t border-border">
+              <div className="flex justify-between text-sm">
+                <span className="text-card-foreground font-medium">
+                  {b.label}
+                  {b.kind === "manual_adjustment" && <span className="ml-2 text-[10px] uppercase font-semibold text-warning bg-warning/10 px-1.5 py-0.5 rounded">Manual</span>}
+                </span>
+                <span className="font-semibold text-card-foreground">{formatGHSDecimal(b.amount)}</span>
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                IGF {b.igf_pct}% · Admin {b.admin_pct}% · Platform {b.platform_pct}%
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recipient split breakdown */}
       {showSplits ? (
         <div className="border border-border rounded-lg overflow-hidden">
           <div className="bg-muted px-4 py-2 text-xs font-semibold text-muted-foreground flex justify-between">
