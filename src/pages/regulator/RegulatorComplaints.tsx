@@ -892,12 +892,17 @@ const RegulatorComplaints = () => {
               {c.evidence_urls?.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {c.evidence_urls.map((url: string, i: number) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt={`Evidence ${i + 1}`} className="w-16 h-16 rounded-lg object-cover border border-border hover:opacity-80" />
-                    </a>
+                    <SignedImage
+                      key={i}
+                      src={url}
+                      alt={`Evidence ${i + 1}`}
+                      className="w-16 h-16 rounded-lg object-cover border border-border hover:opacity-80 cursor-pointer"
+                      onClick={() => window.open(url, "_blank")}
+                    />
                   ))}
                 </div>
               )}
+              <ComplaintAssignmentControl complaintId={c.id} complaintTable="landlord_complaints" />
               <div className="flex items-center gap-3 pt-2 border-t border-border">
                 <span className="text-sm font-medium text-muted-foreground">Status:</span>
                 <Select value={c.status} onValueChange={(v) => {
