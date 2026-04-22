@@ -319,16 +319,99 @@ const RegulatorComplaints = () => {
   const tenantComplaintCount = complaints.filter((c) => !isStudentRow(c)).length;
 
   const exportCSV = () => {
-    const headers = ["Code", "Tenant", "Phone", "Type", "Landlord", "Address", "Region", "Status", "Filed", "Description"];
+    const headers = ["Code", "Tenant", "Phone", "Type", "Landlord", "Address", "Region", "Status", "Payment Status", "Assigned Staff", "Filed", "Description"];
     const rows = filtered.map((c: any) => [
       c.complaint_code, c._tenantProfile?.full_name || "", c._tenantProfile?.phone || "",
       c.complaint_type, c.landlord_name, c.property_address, c.region, c.status,
+      c.payment_status || "—",
+      assignmentMap[c.id] ? `${assignmentMap[c.id].name}${assignmentMap[c.id].office ? " · " + assignmentMap[c.id].office : ""}` : "Unassigned",
       new Date(c.created_at).toLocaleDateString(), `"${(c.description || "").replace(/"/g, '""')}"`,
     ]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "complaints_export.csv"; a.click();
+  };
+
+  // Build & download a full complaint PDF record
+  const downloadComplaintRecord = async (c: any, table: "complaints" | "landlord_complaints") => {
+    setDownloadingComplaintId(c.id);
+    try {
+      const isTenant = table === "complaints";
+      const complainantUserId = isTenant ? c.tenant_user_id : c.landlord_user_id;
+      const complainantProfile = isTenant ? c._tenantProfile : c._landlordProfile;
+
+      const [basketRes, assignRes] = await Promise.all([
+        (supabase.from("complaint_basket_items") as any)
+          .select("label, kind, amount, igf_pct, admin_pct, platform_pct")
+          .eq("complaint_id", c.id),
+        (supabase.from("complaint_assignments") as any)
+          .select("assigned_to, assigned_by, assigned_at, unassigned_at")
+          .eq("complaint_id", c.id)
+          .eq("complaint_table", table)
+          .order("assigned_at", { ascending: false }),
+      ]);
+      const basket = basketRes.data || [];
+      const assigns = assignRes.data || [];
+      const userIds = [...new Set(assigns.flatMap((a: any) => [a.assigned_to, a.assigned_by]).filter(Boolean))] as string[];
+      const { data: profs } = userIds.length
+        ? await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds)
+        : { data: [] as any[] };
+      const nameMap = new Map((profs || []).map((p: any) => [p.user_id, p.full_name]));
+      const current = assigns.find((a: any) => !a.unassigned_at);
+
+      const sched = scheduleMap[c.id];
+      const appointment = sched?.status === "confirmed" && sched?.selected_slot ? {
+        date: sched.selected_slot.date,
+        timeStart: sched.selected_slot.time_start,
+        timeEnd: sched.selected_slot.time_end,
+        status: sched.status,
+      } : null;
+
+      const basketTotal = basket.reduce((sum: number, b: any) => sum + Number(b.amount || 0), 0);
+
+      generateComplaintPdf({
+        complaintCode: c.complaint_code,
+        ticketNumber: c.ticket_number,
+        filedAt: c.created_at,
+        status: c.status,
+        paymentStatus: c.payment_status || "unpaid",
+        type: c.complaint_type,
+        description: c.description || "",
+        region: c.region || "—",
+        propertyAddress: c.property_address || "—",
+        gpsLocation: c.gps_location || null,
+        complainant: {
+          name: complainantProfile?.full_name || "—",
+          phone: complainantProfile?.phone,
+          email: complainantProfile?.email,
+          role: isTenant ? "tenant" : "landlord",
+        },
+        respondentName: isTenant ? (c.landlord_name || "—") : (c.tenant_name || "—"),
+        evidenceUrls: c.evidence_urls || [],
+        audioUrl: c.audio_url || null,
+        basket,
+        basketTotal,
+        assignedStaff: current ? {
+          name: nameMap.get(current.assigned_to) || "Staff",
+          office: assignmentMap[c.id]?.office || null,
+          assignedAt: current.assigned_at,
+        } : null,
+        assignmentHistory: assigns.map((a: any) => ({
+          name: nameMap.get(a.assigned_to) || "Staff",
+          assignedAt: a.assigned_at,
+          unassignedAt: a.unassigned_at,
+          assignedBy: nameMap.get(a.assigned_by) || null,
+        })),
+        appointment,
+        officeName: officeMap[c.office_id] || null,
+      });
+      toast.success("Complaint record downloaded");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate PDF");
+    } finally {
+      setDownloadingComplaintId(null);
+    }
   };
 
   // (activeTab is declared above with URL-param sync)
