@@ -301,6 +301,14 @@ const RegulatorComplaints = () => {
   const isStudentRow = (c: any) => !!(c._tenantRecord?.is_student || c._tenantRecord?.school);
   const isSubAdmin = !!profile && !profile.isMainAdmin && !profile.isSuperAdmin;
 
+  // Force non-super admins off the Student tab
+  useEffect(() => {
+    if (profile && !profile.isSuperAdmin && activeTab === "student") {
+      setActiveTab("tenant");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.adminType, activeTab]);
+
   const passesAssignmentScope = (c: any) =>
     !isSubAdmin || (assignedComplaintIds !== null && assignedComplaintIds.has(c.id));
 
