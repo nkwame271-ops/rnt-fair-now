@@ -283,6 +283,39 @@ export type Database = {
           },
         ]
       }
+      complaint_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string
+          assigned_to: string
+          complaint_id: string
+          complaint_table: string
+          id: string
+          reason: string | null
+          unassigned_at: string | null
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by: string
+          assigned_to: string
+          complaint_id: string
+          complaint_table: string
+          id?: string
+          reason?: string | null
+          unassigned_at?: string | null
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string
+          assigned_to?: string
+          complaint_id?: string
+          complaint_table?: string
+          id?: string
+          reason?: string | null
+          unassigned_at?: string | null
+        }
+        Relationships: []
+      }
       complaint_basket_items: {
         Row: {
           admin_pct: number
