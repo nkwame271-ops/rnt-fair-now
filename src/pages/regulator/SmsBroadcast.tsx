@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Send, Wifi, WifiOff, Clock, AlertTriangle, Phone, RefreshCw } from "lucide-react";
+import { Send, Wifi, WifiOff, Clock, AlertTriangle, RefreshCw, Search, X, Loader2, Users } from "lucide-react";
 
 const SMS_TEMPLATES = [
   {
@@ -45,16 +46,34 @@ const SMS_TEMPLATES = [
   },
 ];
 
+type FoundUser = {
+  user_id: string;
+  full_name: string;
+  phone: string;
+  email: string;
+  role: string | null;
+};
+
+const MAX_SELECTED = 50;
+
 const SmsBroadcast = () => {
   const [balance, setBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [message, setMessage] = useState("");
+  const [targetingMode, setTargetingMode] = useState<"audience" | "specific">("audience");
   const [recipientFilter, setRecipientFilter] = useState("all");
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [sending, setSending] = useState(false);
+
+  // User search
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<FoundUser[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<FoundUser[]>([]);
+  const debounceRef = useRef<number | null>(null);
 
   const fetchBalance = async () => {
     setBalanceLoading(true);
@@ -63,6 +82,7 @@ const SmsBroadcast = () => {
         body: { action: "check-balance" },
       });
       if (error) throw error;
+      if (data && data.ok === false) throw new Error(data.error || "Failed");
       setBalance(data?.balance ?? null);
     } catch (err: any) {
       console.error("Balance check failed:", err);
@@ -76,10 +96,56 @@ const SmsBroadcast = () => {
     fetchBalance();
   }, []);
 
+  // Debounced user search
+  useEffect(() => {
+    if (targetingMode !== "specific") return;
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    const term = searchTerm.trim();
+    if (term.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    debounceRef.current = window.setTimeout(async () => {
+      setSearching(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("admin-sms-broadcast", {
+          body: { action: "search-users", q: term, limit: 25 },
+        });
+        if (error) throw error;
+        if (data?.ok === false) throw new Error(data.error || "Search failed");
+        setSearchResults(data?.users || []);
+      } catch (err: any) {
+        console.error("User search failed:", err);
+        toast.error("Search failed: " + (err.message || "Unknown error"));
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    };
+  }, [searchTerm, targetingMode]);
+
   const handleTemplateSelect = (key: string) => {
     setSelectedTemplate(key);
     const tpl = SMS_TEMPLATES.find((t) => t.key === key);
     if (tpl) setMessage(tpl.template);
+  };
+
+  const toggleSelectUser = (u: FoundUser) => {
+    setSelectedUsers((prev) => {
+      const exists = prev.find((p) => p.user_id === u.user_id);
+      if (exists) return prev.filter((p) => p.user_id !== u.user_id);
+      if (prev.length >= MAX_SELECTED) {
+        toast.error(`You can select at most ${MAX_SELECTED} users at once.`);
+        return prev;
+      }
+      return [...prev, u];
+    });
+  };
+
+  const removeSelected = (id: string) => {
+    setSelectedUsers((prev) => prev.filter((p) => p.user_id !== id));
   };
 
   const getBalanceColor = () => {
@@ -101,6 +167,10 @@ const SmsBroadcast = () => {
       toast.error("Please enter a message");
       return;
     }
+    if (targetingMode === "specific" && selectedUsers.length === 0) {
+      toast.error("Pick at least one user to message");
+      return;
+    }
 
     let schedule: string | undefined;
     if (scheduleEnabled) {
@@ -108,7 +178,6 @@ const SmsBroadcast = () => {
         toast.error("Please set both date and time for scheduled send");
         return;
       }
-      // Format: YYYY-MM-DD HH:MM AM/PM
       const [hours, minutes] = scheduleTime.split(":");
       const h = parseInt(hours);
       const ampm = h >= 12 ? "PM" : "AM";
@@ -118,18 +187,37 @@ const SmsBroadcast = () => {
 
     setSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke("admin-sms-broadcast", {
-        body: {
-          action: "send-broadcast",
-          message: message.trim(),
-          recipientFilter,
-          schedule,
-        },
-      });
+      const payload: Record<string, unknown> = {
+        action: "send-broadcast",
+        message: message.trim(),
+        schedule,
+      };
+      if (targetingMode === "specific") {
+        payload.userIds = selectedUsers.map((u) => u.user_id);
+      } else {
+        payload.recipientFilter = recipientFilter;
+      }
+
+      const { data, error } = await supabase.functions.invoke("admin-sms-broadcast", { body: payload });
       if (error) throw error;
-      toast.success(
-        `SMS ${scheduleEnabled ? "scheduled" : "sent"}: ${data.sent} delivered, ${data.failed} failed out of ${data.total} recipients`
-      );
+      if (data?.ok === false) throw new Error(data.error || "Broadcast failed");
+
+      const sent = data?.sent ?? 0;
+      const failed = data?.failed ?? 0;
+      const total = data?.total ?? 0;
+      const failures: Array<{ phone: string; reason: string }> = data?.failures || [];
+
+      if (total === 0) {
+        toast.warning("No valid phone numbers found for the selected recipients.");
+      } else if (failed === 0) {
+        toast.success(`SMS ${scheduleEnabled ? "scheduled" : "sent"} to ${sent} recipient${sent === 1 ? "" : "s"}.`);
+      } else {
+        toast.warning(`Delivered ${sent}/${total} — ${failed} failed.`, {
+          description: failures.length
+            ? `e.g. ${failures[0].phone}: ${failures[0].reason}`
+            : undefined,
+        });
+      }
       fetchBalance();
     } catch (err: any) {
       console.error("Send failed:", err);
@@ -139,11 +227,20 @@ const SmsBroadcast = () => {
     }
   };
 
+  const recipientCountLabel =
+    targetingMode === "specific"
+      ? `${selectedUsers.length} selected user${selectedUsers.length === 1 ? "" : "s"}`
+      : recipientFilter === "all"
+        ? "All users"
+        : recipientFilter === "tenants"
+          ? "All tenants"
+          : "All landlords";
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">SMS Broadcast Center</h1>
-        <p className="text-muted-foreground text-sm">Send system announcements to tenants, landlords, or all users</p>
+        <p className="text-muted-foreground text-sm">Send system announcements to a broad audience or to specific users</p>
       </div>
 
       {/* Balance Widget */}
@@ -217,7 +314,7 @@ const SmsBroadcast = () => {
                 className="resize-none"
               />
               <p className="text-xs text-muted-foreground">
-                {message.length} characters · ~{Math.ceil(message.length / 160)} SMS segment{Math.ceil(message.length / 160) !== 1 ? "s" : ""} per recipient
+                {message.length} characters · ~{Math.ceil(message.length / 160)} SMS segment{Math.ceil(message.length / 160) !== 1 ? "s" : ""} per recipient · Target: <span className="font-medium text-foreground">{recipientCountLabel}</span>
               </p>
             </div>
           </CardContent>
@@ -231,17 +328,105 @@ const SmsBroadcast = () => {
           <CardContent className="space-y-5">
             <div className="space-y-2">
               <Label>Recipients</Label>
-              <Select value={recipientFilter} onValueChange={setRecipientFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Users</SelectItem>
-                  <SelectItem value="tenants">Tenants Only</SelectItem>
-                  <SelectItem value="landlords">Landlords Only</SelectItem>
-                </SelectContent>
-              </Select>
+              <ToggleGroup
+                type="single"
+                value={targetingMode}
+                onValueChange={(v) => v && setTargetingMode(v as "audience" | "specific")}
+                className="grid grid-cols-2 gap-1 w-full"
+              >
+                <ToggleGroupItem value="audience" className="text-xs gap-1">
+                  <Users className="h-3.5 w-3.5" /> Audience
+                </ToggleGroupItem>
+                <ToggleGroupItem value="specific" className="text-xs gap-1">
+                  <Search className="h-3.5 w-3.5" /> Specific users
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
+
+            {targetingMode === "audience" ? (
+              <div className="space-y-2">
+                <Label className="text-xs">Audience</Label>
+                <Select value={recipientFilter} onValueChange={setRecipientFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    <SelectItem value="tenants">Tenants Only</SelectItem>
+                    <SelectItem value="landlords">Landlords Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-xs">Search users</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Name, phone, email or user ID…"
+                    className="pl-8"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  {searching && (
+                    <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground animate-spin" />
+                  )}
+                </div>
+
+                {selectedUsers.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {selectedUsers.map((u) => (
+                      <Badge
+                        key={u.user_id}
+                        variant="secondary"
+                        className="text-[11px] gap-1 pr-1"
+                      >
+                        <span className="truncate max-w-[120px]">{u.full_name || u.phone}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeSelected(u.user_id)}
+                          className="hover:text-destructive"
+                          aria-label={`Remove ${u.full_name}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {searchTerm.trim().length >= 2 && (
+                  <div className="border rounded-md max-h-56 overflow-y-auto divide-y bg-card">
+                    {searchResults.length === 0 && !searching && (
+                      <div className="text-xs text-muted-foreground p-3 text-center">No users found</div>
+                    )}
+                    {searchResults.map((u) => {
+                      const picked = !!selectedUsers.find((s) => s.user_id === u.user_id);
+                      return (
+                        <button
+                          key={u.user_id}
+                          type="button"
+                          onClick={() => toggleSelectUser(u)}
+                          className={`w-full text-left px-2.5 py-2 text-xs hover:bg-accent transition-colors flex items-start justify-between gap-2 ${picked ? "bg-primary/5" : ""}`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium truncate">{u.full_name || "(unnamed)"}</p>
+                            <p className="text-muted-foreground truncate">{u.phone}{u.email ? ` · ${u.email}` : ""}</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {u.role && <Badge variant="outline" className="text-[9px] px-1 py-0">{u.role}</Badge>}
+                            {picked && <Badge variant="default" className="text-[9px] px-1 py-0">Picked</Badge>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                  {selectedUsers.length}/{MAX_SELECTED} selected
+                </p>
+              </div>
+            )}
 
             <div className="flex items-center gap-3">
               <Switch checked={scheduleEnabled} onCheckedChange={setScheduleEnabled} id="schedule-toggle" />
@@ -267,7 +452,7 @@ const SmsBroadcast = () => {
             <Button
               className="w-full"
               onClick={handleSend}
-              disabled={sending || !message.trim()}
+              disabled={sending || !message.trim() || (targetingMode === "specific" && selectedUsers.length === 0)}
             >
               {sending ? (
                 <>
