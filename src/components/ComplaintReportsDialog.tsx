@@ -59,7 +59,7 @@ const ComplaintReportsDialog = ({ open, onOpenChange }: Props) => {
           .in("complaint_id", allIds)
           .is("unassigned_at", null)
       : { data: [] as any[] };
-    const assigneeIds = [...new Set((assigns || []).map((a: any) => a.assigned_to))];
+    const assigneeIds = [...new Set((assigns || []).map((a: any) => a.assigned_to as string))] as string[];
     const { data: aProfs } = assigneeIds.length
       ? await supabase.from("profiles").select("user_id, full_name").in("user_id", assigneeIds)
       : { data: [] as any[] };
@@ -124,7 +124,7 @@ const ComplaintReportsDialog = ({ open, onOpenChange }: Props) => {
     (lRes.data || []).forEach((c: any) => compMap.set(`landlord_complaints:${c.id}`, c));
     const staffMap = new Map((staffRes.data || []).map((s: any) => [s.user_id, s.office_name]));
 
-    const staffIds = [...new Set(all.map((a) => a.assigned_to))];
+    const staffIds = [...new Set(all.map((a) => a.assigned_to as string))] as string[];
     const { data: profs } = staffIds.length
       ? await supabase.from("profiles").select("user_id, full_name").in("user_id", staffIds)
       : { data: [] as any[] };
