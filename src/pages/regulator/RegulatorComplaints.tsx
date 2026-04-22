@@ -772,7 +772,8 @@ const RegulatorComplaints = () => {
                           )}
                         </div>
                       )}
-                      <div className="flex items-center gap-3 pt-3 border-t border-border">
+                      <ComplaintAssignmentControl complaintId={c.id} complaintTable="complaints" onChanged={() => { /* assignment map refresh handled by realtime/effects */ }} />
+                      <div className="flex items-center gap-3 pt-3 border-t border-border flex-wrap">
                         <span className="text-sm font-medium text-muted-foreground">Update status:</span>
                         <Select value={c.status} onValueChange={(v) => {
                           if (v === "schedule_complainant") {
