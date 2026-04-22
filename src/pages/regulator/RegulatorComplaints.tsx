@@ -866,9 +866,7 @@ const RegulatorComplaints = () => {
               {c.audio_url && (
                 <div>
                   <div className="text-xs font-semibold text-muted-foreground mb-1">Audio Recording</div>
-                  <audio controls className="w-full h-10" src={c.audio_url} preload="metadata">
-                    Your browser does not support audio playback.
-                  </audio>
+                  <SignedAudio src={c.audio_url} />
                 </div>
               )}
               {c.tenant_name && <div className="text-sm text-muted-foreground">Regarding tenant: <strong className="text-foreground">{c.tenant_name}</strong></div>}
