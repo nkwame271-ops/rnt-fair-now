@@ -685,7 +685,16 @@ const RegulatorComplaints = () => {
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-muted-foreground">{c.region}</div>
+                      <div className="text-sm text-muted-foreground">
+                        <div>{c.region}</div>
+                        <div className="text-[10px] mt-1">
+                          {assignmentMap[c.id] ? (
+                            <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded">@{assignmentMap[c.id].name}{assignmentMap[c.id].office ? ` · ${assignmentMap[c.id].office}` : ""}</span>
+                          ) : (
+                            <span className="text-muted-foreground italic">Unassigned</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
                   </button>
