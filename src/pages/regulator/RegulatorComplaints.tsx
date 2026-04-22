@@ -1010,7 +1010,8 @@ const RegulatorComplaints = () => {
           linkedPropertyId={requestPaymentFor.propertyId ?? null}
           onRequested={() => { setRequestPaymentFor(null); fetchComplaints(); fetchLandlordComplaints(); }}
         />
-      )}
+
+      <ComplaintReportsDialog open={reportsOpen} onOpenChange={setReportsOpen} />
     </div>
   );
 };
