@@ -106,19 +106,54 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
     })();
   }, [open, complaintId, complaintTable]);
 
-  // If a property is linked, fetch its monthly rent (from cheapest active unit)
+  // Resolve monthly rent for band lookup, with multi-source fallback
+  const [rentSource, setRentSource] = useState<string | null>(null);
+  const [manualRent, setManualRent] = useState<string>("");
+
   useEffect(() => {
-    if (!open || !linkedPropertyId || monthlyRentProp != null) return;
+    if (!open) return;
+    if (monthlyRentProp != null) {
+      setPropertyRent(monthlyRentProp);
+      setRentSource("registered tenancy / linked property");
+      return;
+    }
     (async () => {
-      const { data: units } = await supabase
-        .from("units")
-        .select("monthly_rent")
-        .eq("property_id", linkedPropertyId)
-        .order("monthly_rent", { ascending: true })
-        .limit(1);
-      if (units && units.length > 0) setPropertyRent(Number(units[0].monthly_rent));
+      // 1) Try linked unit
+      if (linkedPropertyId) {
+        const { data: units } = await supabase
+          .from("units")
+          .select("monthly_rent")
+          .eq("property_id", linkedPropertyId)
+          .order("monthly_rent", { ascending: true })
+          .limit(1);
+        if (units && units.length > 0) {
+          setPropertyRent(Number(units[0].monthly_rent));
+          setRentSource("linked property");
+          return;
+        }
+      }
+      // 2) Try complaint snapshot via parent complaint row
+      const { data: complaintRow } = await (supabase.from(complaintTable) as any)
+        .select("complaint_property_id")
+        .eq("id", complaintId)
+        .maybeSingle();
+      const cpId = complaintRow?.complaint_property_id;
+      if (cpId) {
+        const { data: cp } = await supabase
+          .from("complaint_properties")
+          .select("monthly_rent")
+          .eq("id", cpId)
+          .maybeSingle();
+        if (cp?.monthly_rent != null) {
+          setPropertyRent(Number(cp.monthly_rent));
+          setRentSource("complaint snapshot");
+          return;
+        }
+      }
+      setPropertyRent(null);
+      setRentSource(null);
     })();
-  }, [open, linkedPropertyId, monthlyRentProp]);
+  }, [open, linkedPropertyId, monthlyRentProp, complaintId, complaintTable]);
 
   const picked = types.find((t) => t.id === pickedTypeId) || null;
 
