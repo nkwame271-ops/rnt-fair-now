@@ -204,7 +204,8 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         admin_pct: pickedComputation.splits.admin,
         platform_pct: pickedComputation.splits.platform,
         computation_meta: {
-          rentUsed: propertyRent,
+          rentUsed: effectiveRent,
+          rentSource: propertyRent != null ? rentSource : (manualRent !== "" ? "manual override" : null),
           bandLabel: pickedComputation.bandLabel ?? null,
           claimAmount: claimAmount === "" ? null : Number(claimAmount),
           feeStructure: picked.fee_structure,
