@@ -903,7 +903,7 @@ const RegulatorComplaints = () => {
                 </div>
               )}
               <ComplaintAssignmentControl complaintId={c.id} complaintTable="landlord_complaints" />
-              <div className="flex items-center gap-3 pt-2 border-t border-border">
+              <div className="flex items-center gap-3 pt-2 border-t border-border flex-wrap">
                 <span className="text-sm font-medium text-muted-foreground">Status:</span>
                 <Select value={c.status} onValueChange={(v) => {
                   if (v === "schedule_complainant") {
