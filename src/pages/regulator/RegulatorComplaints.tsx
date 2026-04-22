@@ -301,6 +301,14 @@ const RegulatorComplaints = () => {
   const isStudentRow = (c: any) => !!(c._tenantRecord?.is_student || c._tenantRecord?.school);
   const isSubAdmin = !!profile && !profile.isMainAdmin && !profile.isSuperAdmin;
 
+  // Force non-super admins off the Student tab
+  useEffect(() => {
+    if (profile && !profile.isSuperAdmin && activeTab === "student") {
+      setActiveTab("tenant");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.adminType, activeTab]);
+
   const passesAssignmentScope = (c: any) =>
     !isSubAdmin || (assignedComplaintIds !== null && assignedComplaintIds.has(c.id));
 
@@ -319,16 +327,99 @@ const RegulatorComplaints = () => {
   const tenantComplaintCount = complaints.filter((c) => !isStudentRow(c)).length;
 
   const exportCSV = () => {
-    const headers = ["Code", "Tenant", "Phone", "Type", "Landlord", "Address", "Region", "Status", "Filed", "Description"];
+    const headers = ["Code", "Tenant", "Phone", "Type", "Landlord", "Address", "Region", "Status", "Payment Status", "Assigned Staff", "Filed", "Description"];
     const rows = filtered.map((c: any) => [
       c.complaint_code, c._tenantProfile?.full_name || "", c._tenantProfile?.phone || "",
       c.complaint_type, c.landlord_name, c.property_address, c.region, c.status,
+      c.payment_status || "—",
+      assignmentMap[c.id] ? `${assignmentMap[c.id].name}${assignmentMap[c.id].office ? " · " + assignmentMap[c.id].office : ""}` : "Unassigned",
       new Date(c.created_at).toLocaleDateString(), `"${(c.description || "").replace(/"/g, '""')}"`,
     ]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "complaints_export.csv"; a.click();
+  };
+
+  // Build & download a full complaint PDF record
+  const downloadComplaintRecord = async (c: any, table: "complaints" | "landlord_complaints") => {
+    setDownloadingComplaintId(c.id);
+    try {
+      const isTenant = table === "complaints";
+      const complainantUserId = isTenant ? c.tenant_user_id : c.landlord_user_id;
+      const complainantProfile = isTenant ? c._tenantProfile : c._landlordProfile;
+
+      const [basketRes, assignRes] = await Promise.all([
+        (supabase.from("complaint_basket_items") as any)
+          .select("label, kind, amount, igf_pct, admin_pct, platform_pct")
+          .eq("complaint_id", c.id),
+        (supabase.from("complaint_assignments") as any)
+          .select("assigned_to, assigned_by, assigned_at, unassigned_at")
+          .eq("complaint_id", c.id)
+          .eq("complaint_table", table)
+          .order("assigned_at", { ascending: false }),
+      ]);
+      const basket = basketRes.data || [];
+      const assigns = assignRes.data || [];
+      const userIds = [...new Set(assigns.flatMap((a: any) => [a.assigned_to, a.assigned_by]).filter(Boolean))] as string[];
+      const { data: profs } = userIds.length
+        ? await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds)
+        : { data: [] as any[] };
+      const nameMap = new Map((profs || []).map((p: any) => [p.user_id, p.full_name]));
+      const current = assigns.find((a: any) => !a.unassigned_at);
+
+      const sched = scheduleMap[c.id];
+      const appointment = sched?.status === "confirmed" && sched?.selected_slot ? {
+        date: sched.selected_slot.date,
+        timeStart: sched.selected_slot.time_start,
+        timeEnd: sched.selected_slot.time_end,
+        status: sched.status,
+      } : null;
+
+      const basketTotal = basket.reduce((sum: number, b: any) => sum + Number(b.amount || 0), 0);
+
+      generateComplaintPdf({
+        complaintCode: c.complaint_code,
+        ticketNumber: c.ticket_number,
+        filedAt: c.created_at,
+        status: c.status,
+        paymentStatus: c.payment_status || "unpaid",
+        type: c.complaint_type,
+        description: c.description || "",
+        region: c.region || "—",
+        propertyAddress: c.property_address || "—",
+        gpsLocation: c.gps_location || null,
+        complainant: {
+          name: complainantProfile?.full_name || "—",
+          phone: complainantProfile?.phone,
+          email: complainantProfile?.email,
+          role: isTenant ? "tenant" : "landlord",
+        },
+        respondentName: isTenant ? (c.landlord_name || "—") : (c.tenant_name || "—"),
+        evidenceUrls: c.evidence_urls || [],
+        audioUrl: c.audio_url || null,
+        basket,
+        basketTotal,
+        assignedStaff: current ? {
+          name: nameMap.get(current.assigned_to) || "Staff",
+          office: assignmentMap[c.id]?.office || null,
+          assignedAt: current.assigned_at,
+        } : null,
+        assignmentHistory: assigns.map((a: any) => ({
+          name: nameMap.get(a.assigned_to) || "Staff",
+          assignedAt: a.assigned_at,
+          unassignedAt: a.unassigned_at,
+          assignedBy: nameMap.get(a.assigned_by) || null,
+        })),
+        appointment,
+        officeName: officeMap[c.office_id] || null,
+      });
+      toast.success("Complaint record downloaded");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate PDF");
+    } finally {
+      setDownloadingComplaintId(null);
+    }
   };
 
   // (activeTab is declared above with URL-param sync)
@@ -361,6 +452,46 @@ const RegulatorComplaints = () => {
   };
 
   useEffect(() => { fetchLandlordComplaints(); }, []);
+
+  // Active assignments for summary chip + sub-admin scoping
+  useEffect(() => {
+    (async () => {
+      const allIds = [
+        ...complaints.map((c: any) => c.id),
+        ...landlordComplaints.map((c: any) => c.id),
+      ].filter(Boolean);
+      if (allIds.length === 0) {
+        setAssignmentMap({});
+        if (isSubAdmin) setAssignedComplaintIds(new Set());
+        else setAssignedComplaintIds(null);
+        return;
+      }
+      const { data: rows } = await (supabase.from("complaint_assignments") as any)
+        .select("complaint_id, assigned_to")
+        .in("complaint_id", allIds)
+        .is("unassigned_at", null);
+      const assignedIds = new Set<string>((rows || []).map((r: any) => r.complaint_id));
+      const userIds = [...new Set((rows || []).map((r: any) => String(r.assigned_to)))] as string[];
+      const { data: profs } = userIds.length
+        ? await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds)
+        : { data: [] as any[] };
+      const { data: staffRows } = userIds.length
+        ? await (supabase.from("admin_staff") as any).select("user_id, office_name").in("user_id", userIds)
+        : { data: [] as any[] };
+      const nameMap = new Map((profs || []).map((p: any) => [p.user_id, p.full_name]));
+      const officeM = new Map((staffRows || []).map((s: any) => [s.user_id, s.office_name]));
+      const map: Record<string, { name: string; office: string | null }> = {};
+      (rows || []).forEach((r: any) => {
+        map[r.complaint_id] = {
+          name: (nameMap.get(r.assigned_to) as string) || "Staff",
+          office: (officeM.get(r.assigned_to) as string) || null,
+        };
+      });
+      setAssignmentMap(map);
+      setAssignedComplaintIds(isSubAdmin ? assignedIds : null);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [complaints.length, landlordComplaints.length, profile?.adminType]);
 
   // Track which complaints have an admin-confirmed receipt (gates scheduling)
   const [confirmedComplaintIds, setConfirmedComplaintIds] = useState<Set<string>>(new Set());
@@ -437,7 +568,14 @@ const RegulatorComplaints = () => {
           </h1>
           <p className="text-muted-foreground mt-1">{filtered.length} tenant complaints • {landlordComplaints.length} landlord complaints</p>
         </div>
-        <Button variant="outline" onClick={exportCSV} className="w-full sm:w-auto"><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {(profile?.isMainAdmin || profile?.isSuperAdmin) && (
+            <Button variant="outline" onClick={() => setReportsOpen(true)}>
+              <BarChart3 className="h-4 w-4 mr-2" /> Reports
+            </Button>
+          )}
+          <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
+        </div>
       </div>
 
       {/* Tab switcher: Landlord / Tenant / Student */}
@@ -448,9 +586,11 @@ const RegulatorComplaints = () => {
         <button onClick={() => setActiveTab("tenant")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "tenant" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           Tenant Complaints ({tenantComplaintCount})
         </button>
-        <button onClick={() => setActiveTab("student")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "student" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-          Student Complaints ({studentComplaintCount})
-        </button>
+        {profile?.isSuperAdmin && (
+          <button onClick={() => setActiveTab("student")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "student" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            Student Complaints ({studentComplaintCount})
+          </button>
+        )}
       </div>
 
       {(activeTab === "tenant" || activeTab === "student") && (
@@ -545,7 +685,16 @@ const RegulatorComplaints = () => {
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-muted-foreground">{c.region}</div>
+                      <div className="text-sm text-muted-foreground">
+                        <div>{c.region}</div>
+                        <div className="text-[10px] mt-1">
+                          {assignmentMap[c.id] ? (
+                            <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded">@{assignmentMap[c.id].name}{assignmentMap[c.id].office ? ` · ${assignmentMap[c.id].office}` : ""}</span>
+                          ) : (
+                            <span className="text-muted-foreground italic">Unassigned</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
                   </button>
@@ -572,9 +721,7 @@ const RegulatorComplaints = () => {
                           {c.audio_url && (
                             <div className="pt-2">
                               <div className="text-xs font-semibold text-muted-foreground mb-1">AUDIO RECORDING</div>
-                              <audio controls className="w-full h-10" src={c.audio_url} preload="metadata">
-                                Your browser does not support audio playback.
-                              </audio>
+                              <SignedAudio src={c.audio_url} />
                             </div>
                           )}
                         </div>
@@ -634,7 +781,8 @@ const RegulatorComplaints = () => {
                           )}
                         </div>
                       )}
-                      <div className="flex items-center gap-3 pt-3 border-t border-border">
+                      <ComplaintAssignmentControl complaintId={c.id} complaintTable="complaints" onChanged={() => { /* assignment map refresh handled by realtime/effects */ }} />
+                      <div className="flex items-center gap-3 pt-3 border-t border-border flex-wrap">
                         <span className="text-sm font-medium text-muted-foreground">Update status:</span>
                         <Select value={c.status} onValueChange={(v) => {
                           if (v === "schedule_complainant") {
@@ -679,6 +827,15 @@ const RegulatorComplaints = () => {
                           <FileDown className="h-3.5 w-3.5 mr-1" />
                           {downloadingProfile === c.tenant_user_id ? "Generating..." : "Download Profile"}
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={downloadingComplaintId === c.id}
+                          onClick={() => downloadComplaintRecord(c, "complaints")}
+                        >
+                          <FileDown className="h-3.5 w-3.5 mr-1" />
+                          {downloadingComplaintId === c.id ? "Generating..." : "Download Complaint"}
+                        </Button>
                         {profile?.isMainAdmin && (
                           <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive ml-2" onClick={() => setDeletingId({ id: c.id, type: "tenant" })}>
                             <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
@@ -718,9 +875,7 @@ const RegulatorComplaints = () => {
               {c.audio_url && (
                 <div>
                   <div className="text-xs font-semibold text-muted-foreground mb-1">Audio Recording</div>
-                  <audio controls className="w-full h-10" src={c.audio_url} preload="metadata">
-                    Your browser does not support audio playback.
-                  </audio>
+                  <SignedAudio src={c.audio_url} />
                 </div>
               )}
               {c.tenant_name && <div className="text-sm text-muted-foreground">Regarding tenant: <strong className="text-foreground">{c.tenant_name}</strong></div>}
@@ -746,13 +901,18 @@ const RegulatorComplaints = () => {
               {c.evidence_urls?.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {c.evidence_urls.map((url: string, i: number) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt={`Evidence ${i + 1}`} className="w-16 h-16 rounded-lg object-cover border border-border hover:opacity-80" />
-                    </a>
+                    <SignedImage
+                      key={i}
+                      src={url}
+                      alt={`Evidence ${i + 1}`}
+                      className="w-16 h-16 rounded-lg object-cover border border-border hover:opacity-80 cursor-pointer"
+                      onClick={() => window.open(url, "_blank")}
+                    />
                   ))}
                 </div>
               )}
-              <div className="flex items-center gap-3 pt-2 border-t border-border">
+              <ComplaintAssignmentControl complaintId={c.id} complaintTable="landlord_complaints" />
+              <div className="flex items-center gap-3 pt-2 border-t border-border flex-wrap">
                 <span className="text-sm font-medium text-muted-foreground">Status:</span>
                 <Select value={c.status} onValueChange={(v) => {
                   if (v === "schedule_complainant") {
@@ -790,6 +950,15 @@ const RegulatorComplaints = () => {
                 >
                   <FileDown className="h-3.5 w-3.5 mr-1" />
                   {downloadingProfile === c.landlord_user_id ? "Generating..." : "Download Profile"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={downloadingComplaintId === c.id}
+                  onClick={() => downloadComplaintRecord(c, "landlord_complaints")}
+                >
+                  <FileDown className="h-3.5 w-3.5 mr-1" />
+                  {downloadingComplaintId === c.id ? "Generating..." : "Download Complaint"}
                 </Button>
                 {profile?.isMainAdmin && (
                   <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeletingId({ id: c.id, type: "landlord" })}>
@@ -842,6 +1011,8 @@ const RegulatorComplaints = () => {
           onRequested={() => { setRequestPaymentFor(null); fetchComplaints(); fetchLandlordComplaints(); }}
         />
       )}
+
+      <ComplaintReportsDialog open={reportsOpen} onOpenChange={setReportsOpen} />
     </div>
   );
 };
