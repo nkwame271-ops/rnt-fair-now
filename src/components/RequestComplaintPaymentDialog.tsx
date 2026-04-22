@@ -406,17 +406,40 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
               <div className="text-xs space-y-1 bg-background border border-border rounded p-2">
                 <div className="flex justify-between"><span className="text-muted-foreground">Structure</span><span className="text-foreground">{FEE_STRUCTURE_LABELS[picked.fee_structure]}</span></div>
                 {picked.requires_property_link && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">Linked rent</span><span className="text-foreground">{propertyRent != null ? `GH₵ ${propertyRent.toLocaleString()}` : "—"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Linked rent</span><span className="text-foreground">{effectiveRent != null ? `GH₵ ${effectiveRent.toLocaleString()}` : "—"}</span></div>
                 )}
                 {pickedComputation?.bandLabel && (
                   <div className="flex justify-between"><span className="text-muted-foreground">Band</span><span className="text-foreground">{pickedComputation.bandLabel}</span></div>
                 )}
                 <div className="flex justify-between"><span className="text-muted-foreground">Computed fee</span><span className="font-semibold text-foreground">{pickedComputation?.ok ? `GH₵ ${pickedComputation.amount.toFixed(2)}` : "—"}</span></div>
+                {effectiveRent != null && (picked.fee_structure === "rent_band" || picked.fee_structure === "percentage") && (
+                  <div className="text-[10px] text-muted-foreground italic pt-0.5">
+                    Rent used: GH₵ {effectiveRent.toLocaleString()} ({propertyRent != null ? rentSource ?? "auto-resolved" : "manual override"})
+                  </div>
+                )}
                 {pickedComputation && !pickedComputation.ok && (
                   <div className="flex items-start gap-1.5 text-destructive mt-1">
                     <AlertTriangle className="h-3 w-3 mt-0.5" /> <span>{pickedComputation.error}</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Manual rent override for rent_band when no rent is auto-resolved */}
+            {picked?.fee_structure === "rent_band" && propertyRent == null && (
+              <div className="space-y-1">
+                <Label className="text-xs">Monthly rent for band lookup (GHS) *</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={manualRent}
+                  onChange={(e) => setManualRent(e.target.value)}
+                  placeholder="e.g. 1500"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  No rent could be auto-resolved from a registered tenancy, linked property, or complaint snapshot. Enter the monthly rent to determine the band.
+                </p>
               </div>
             )}
 
