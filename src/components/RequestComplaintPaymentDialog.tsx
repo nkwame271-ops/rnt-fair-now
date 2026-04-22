@@ -157,6 +157,8 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
 
   const picked = types.find((t) => t.id === pickedTypeId) || null;
 
+  const effectiveRent = propertyRent ?? (manualRent !== "" && Number.isFinite(Number(manualRent)) ? Number(manualRent) : null);
+
   const pickedComputation = useMemo(() => {
     if (!picked) return null;
     if (picked.fee_structure === "fixed") {
@@ -166,12 +168,12 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
     }
     if (picked.fee_structure === "rent_band") {
       const bs = bandsMap[picked.id] || [];
-      return computeBand(bs, propertyRent);
+      return computeBand(bs, effectiveRent);
     }
     const r = percentMap[picked.id];
     if (!r) return { ok: false, amount: 0, splits: { igf: 0, admin: 0, platform: 0 }, error: "Percentage rule not configured" };
-    return computePercentage(r, { monthlyRent: propertyRent, claimAmount: claimAmount === "" ? null : Number(claimAmount) });
-  }, [picked, fixedMap, bandsMap, percentMap, propertyRent, claimAmount]);
+    return computePercentage(r, { monthlyRent: effectiveRent, claimAmount: claimAmount === "" ? null : Number(claimAmount) });
+  }, [picked, fixedMap, bandsMap, percentMap, effectiveRent, claimAmount]);
 
   const needsClaim = picked?.fee_structure === "percentage" && percentMap[picked.id]?.base_source === "claim_amount";
 
