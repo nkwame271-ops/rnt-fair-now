@@ -560,7 +560,14 @@ const RegulatorComplaints = () => {
           </h1>
           <p className="text-muted-foreground mt-1">{filtered.length} tenant complaints • {landlordComplaints.length} landlord complaints</p>
         </div>
-        <Button variant="outline" onClick={exportCSV} className="w-full sm:w-auto"><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {(profile?.isMainAdmin || profile?.isSuperAdmin) && (
+            <Button variant="outline" onClick={() => setReportsOpen(true)}>
+              <BarChart3 className="h-4 w-4 mr-2" /> Reports
+            </Button>
+          )}
+          <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
+        </div>
       </div>
 
       {/* Tab switcher: Landlord / Tenant / Student */}
