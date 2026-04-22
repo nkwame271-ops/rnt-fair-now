@@ -53,6 +53,10 @@ const RegulatorComplaints = () => {
   const [schedulingComplaint, setSchedulingComplaint] = useState<SchedulingTarget | null>(null);
   const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
   const [deletingId, setDeletingId] = useState<{ id: string; type: "tenant" | "landlord" } | null>(null);
+  const [reportsOpen, setReportsOpen] = useState(false);
+  const [assignmentMap, setAssignmentMap] = useState<Record<string, { name: string; office: string | null }>>({});
+  const [assignedComplaintIds, setAssignedComplaintIds] = useState<Set<string> | null>(null); // null = no scoping
+  const [downloadingComplaintId, setDownloadingComplaintId] = useState<string | null>(null);
   const [officeMap, setOfficeMap] = useState<Record<string, string>>({});
   const [downloadingProfile, setDownloadingProfile] = useState<string | null>(null);
 
