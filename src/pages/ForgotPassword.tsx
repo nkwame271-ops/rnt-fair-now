@@ -135,7 +135,13 @@ const ForgotPassword = () => {
         body: { phone: normalizedPhone, new_password: password },
       });
 
-      if (error || data?.error) {
+      if (error) {
+        toast.error(error.message || "Failed to reset password. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      if (!data?.ok) {
         toast.error(data?.error || "Failed to reset password. Please try again.");
         setLoading(false);
         return;
@@ -143,8 +149,8 @@ const ForgotPassword = () => {
 
       toast.success("Password reset successfully! You can now sign in.");
       navigate("/login");
-    } catch {
-      toast.error("Something went wrong. Please try again.");
+    } catch (err: any) {
+      toast.error(err?.message || "Something went wrong. Please try again.");
     }
     setLoading(false);
   };

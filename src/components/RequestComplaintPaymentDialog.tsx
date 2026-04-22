@@ -103,24 +103,62 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
       setShowManual(false);
       setManualLabel(""); setManualAmount(""); setManualReason("");
       setManualIgf("0"); setManualAdmin("100"); setManualPlatform("0");
+      setManualRent("");
     })();
   }, [open, complaintId, complaintTable]);
 
-  // If a property is linked, fetch its monthly rent (from cheapest active unit)
+  // Resolve monthly rent for band lookup, with multi-source fallback
+  const [rentSource, setRentSource] = useState<string | null>(null);
+  const [manualRent, setManualRent] = useState<string>("");
+
   useEffect(() => {
-    if (!open || !linkedPropertyId || monthlyRentProp != null) return;
+    if (!open) return;
+    if (monthlyRentProp != null) {
+      setPropertyRent(monthlyRentProp);
+      setRentSource("registered tenancy / linked property");
+      return;
+    }
     (async () => {
-      const { data: units } = await supabase
-        .from("units")
-        .select("monthly_rent")
-        .eq("property_id", linkedPropertyId)
-        .order("monthly_rent", { ascending: true })
-        .limit(1);
-      if (units && units.length > 0) setPropertyRent(Number(units[0].monthly_rent));
+      // 1) Try linked unit
+      if (linkedPropertyId) {
+        const { data: units } = await supabase
+          .from("units")
+          .select("monthly_rent")
+          .eq("property_id", linkedPropertyId)
+          .order("monthly_rent", { ascending: true })
+          .limit(1);
+        if (units && units.length > 0) {
+          setPropertyRent(Number(units[0].monthly_rent));
+          setRentSource("linked property");
+          return;
+        }
+      }
+      // 2) Try complaint snapshot via parent complaint row
+      const { data: complaintRow } = await (supabase.from(complaintTable) as any)
+        .select("complaint_property_id")
+        .eq("id", complaintId)
+        .maybeSingle();
+      const cpId = complaintRow?.complaint_property_id;
+      if (cpId) {
+        const { data: cp } = await supabase
+          .from("complaint_properties")
+          .select("monthly_rent")
+          .eq("id", cpId)
+          .maybeSingle();
+        if (cp?.monthly_rent != null) {
+          setPropertyRent(Number(cp.monthly_rent));
+          setRentSource("complaint snapshot");
+          return;
+        }
+      }
+      setPropertyRent(null);
+      setRentSource(null);
     })();
-  }, [open, linkedPropertyId, monthlyRentProp]);
+  }, [open, linkedPropertyId, monthlyRentProp, complaintId, complaintTable]);
 
   const picked = types.find((t) => t.id === pickedTypeId) || null;
+
+  const effectiveRent = propertyRent ?? (manualRent !== "" && Number.isFinite(Number(manualRent)) ? Number(manualRent) : null);
 
   const pickedComputation = useMemo(() => {
     if (!picked) return null;
@@ -131,12 +169,12 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
     }
     if (picked.fee_structure === "rent_band") {
       const bs = bandsMap[picked.id] || [];
-      return computeBand(bs, propertyRent);
+      return computeBand(bs, effectiveRent);
     }
     const r = percentMap[picked.id];
     if (!r) return { ok: false, amount: 0, splits: { igf: 0, admin: 0, platform: 0 }, error: "Percentage rule not configured" };
-    return computePercentage(r, { monthlyRent: propertyRent, claimAmount: claimAmount === "" ? null : Number(claimAmount) });
-  }, [picked, fixedMap, bandsMap, percentMap, propertyRent, claimAmount]);
+    return computePercentage(r, { monthlyRent: effectiveRent, claimAmount: claimAmount === "" ? null : Number(claimAmount) });
+  }, [picked, fixedMap, bandsMap, percentMap, effectiveRent, claimAmount]);
 
   const needsClaim = picked?.fee_structure === "percentage" && percentMap[picked.id]?.base_source === "claim_amount";
 
@@ -167,7 +205,8 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         admin_pct: pickedComputation.splits.admin,
         platform_pct: pickedComputation.splits.platform,
         computation_meta: {
-          rentUsed: propertyRent,
+          rentUsed: effectiveRent,
+          rentSource: propertyRent != null ? rentSource : (manualRent !== "" ? "manual override" : null),
           bandLabel: pickedComputation.bandLabel ?? null,
           claimAmount: claimAmount === "" ? null : Number(claimAmount),
           feeStructure: picked.fee_structure,
@@ -368,17 +407,40 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
               <div className="text-xs space-y-1 bg-background border border-border rounded p-2">
                 <div className="flex justify-between"><span className="text-muted-foreground">Structure</span><span className="text-foreground">{FEE_STRUCTURE_LABELS[picked.fee_structure]}</span></div>
                 {picked.requires_property_link && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">Linked rent</span><span className="text-foreground">{propertyRent != null ? `GH₵ ${propertyRent.toLocaleString()}` : "—"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Linked rent</span><span className="text-foreground">{effectiveRent != null ? `GH₵ ${effectiveRent.toLocaleString()}` : "—"}</span></div>
                 )}
                 {pickedComputation?.bandLabel && (
                   <div className="flex justify-between"><span className="text-muted-foreground">Band</span><span className="text-foreground">{pickedComputation.bandLabel}</span></div>
                 )}
                 <div className="flex justify-between"><span className="text-muted-foreground">Computed fee</span><span className="font-semibold text-foreground">{pickedComputation?.ok ? `GH₵ ${pickedComputation.amount.toFixed(2)}` : "—"}</span></div>
+                {effectiveRent != null && (picked.fee_structure === "rent_band" || picked.fee_structure === "percentage") && (
+                  <div className="text-[10px] text-muted-foreground italic pt-0.5">
+                    Rent used: GH₵ {effectiveRent.toLocaleString()} ({propertyRent != null ? rentSource ?? "auto-resolved" : "manual override"})
+                  </div>
+                )}
                 {pickedComputation && !pickedComputation.ok && (
                   <div className="flex items-start gap-1.5 text-destructive mt-1">
                     <AlertTriangle className="h-3 w-3 mt-0.5" /> <span>{pickedComputation.error}</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Manual rent override for rent_band when no rent is auto-resolved */}
+            {picked?.fee_structure === "rent_band" && propertyRent == null && (
+              <div className="space-y-1">
+                <Label className="text-xs">Monthly rent for band lookup (GHS) *</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={manualRent}
+                  onChange={(e) => setManualRent(e.target.value)}
+                  placeholder="e.g. 1500"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  No rent could be auto-resolved from a registered tenancy, linked property, or complaint snapshot. Enter the monthly rent to determine the band.
+                </p>
               </div>
             )}
 

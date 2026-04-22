@@ -206,7 +206,7 @@ const RegulatorComplaints = () => {
   const fetchComplaints = async () => {
     const { data } = await supabase
       .from("complaints")
-      .select("*")
+      .select("*, complaint_property:complaint_properties(id, monthly_rent)")
       .order("created_at", { ascending: false });
 
     if (data && data.length > 0) {
@@ -445,7 +445,26 @@ const RegulatorComplaints = () => {
       const landlordIds = [...new Set(data.map((c: any) => c.landlord_user_id))];
       const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, phone, email").in("user_id", landlordIds);
       const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
-      setLandlordComplaints(data.map((c: any) => ({ ...c, _landlordProfile: profileMap.get(c.landlord_user_id) })));
+
+      // Fetch cheapest active unit rent for each linked property
+      const propIds = [...new Set(data.map((c: any) => c.linked_property_id).filter(Boolean))] as string[];
+      const rentByProp = new Map<string, number>();
+      if (propIds.length > 0) {
+        const { data: units } = await supabase
+          .from("units")
+          .select("property_id, monthly_rent")
+          .in("property_id", propIds)
+          .order("monthly_rent", { ascending: true });
+        (units || []).forEach((u: any) => {
+          if (!rentByProp.has(u.property_id)) rentByProp.set(u.property_id, Number(u.monthly_rent));
+        });
+      }
+
+      setLandlordComplaints(data.map((c: any) => ({
+        ...c,
+        _landlordProfile: profileMap.get(c.landlord_user_id),
+        _linkedPropertyRent: c.linked_property_id ? rentByProp.get(c.linked_property_id) ?? null : null,
+      })));
     } else {
       setLandlordComplaints([]);
     }
@@ -811,7 +830,7 @@ const RegulatorComplaints = () => {
                             variant="default"
                             size="sm"
                             className="ml-2"
-                            onClick={() => setRequestPaymentFor({ id: c.id, table: "complaints", rent: c._activeTenancy?.agreed_rent ?? null, propertyId: c.linked_property_id })}
+                            onClick={() => setRequestPaymentFor({ id: c.id, table: "complaints", rent: c._activeTenancy?.agreed_rent ?? c.complaint_property?.monthly_rent ?? null, propertyId: c.linked_property_id ?? c.complaint_property_id ?? null })}
                           >
                             <CreditCard className="h-3.5 w-3.5 mr-1" />
                             {c.payment_status === "pending" ? "Update Type / Fee" : "Set Type & Request Payment"}
@@ -936,7 +955,7 @@ const RegulatorComplaints = () => {
                   <Button
                     variant="default"
                     size="sm"
-                    onClick={() => setRequestPaymentFor({ id: c.id, table: "landlord_complaints", rent: null, propertyId: c.linked_property_id })}
+                    onClick={() => setRequestPaymentFor({ id: c.id, table: "landlord_complaints", rent: c._linkedPropertyRent ?? null, propertyId: c.linked_property_id })}
                   >
                     <CreditCard className="h-3.5 w-3.5 mr-1" />
                     {c.payment_status === "pending" ? "Update Type / Fee" : "Set Type & Request Payment"}
