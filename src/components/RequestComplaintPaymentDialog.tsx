@@ -103,6 +103,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
       setShowManual(false);
       setManualLabel(""); setManualAmount(""); setManualReason("");
       setManualIgf("0"); setManualAdmin("100"); setManualPlatform("0");
+      setManualRent("");
     })();
   }, [open, complaintId, complaintTable]);
 
