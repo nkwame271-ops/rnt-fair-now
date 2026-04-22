@@ -1,54 +1,64 @@
 
 
-## SMS Broadcast — fix non-2xx errors + add per-user targeting
+## Fix: Complaints rent-band lookup + Password recovery final step
 
-### 1. Root cause of "non-2xx status code"
+### Issue 1 — "This complaint type requires a linked property to determine the rent band"
 
-`admin-sms-broadcast` sends SMS in a sequential `for` loop with one HTTP `fetch` to Arkesel per recipient. With even ~100 phone numbers this routinely exceeds the edge function wall-clock limit, the runtime kills the function, and the client sees a generic non-2xx error with no body.
+**Root cause.** The "Set Type & Request Payment" dialog computes the rent band from a single source: `linkedPropertyId → units.monthly_rent`. But complaints store the rent in different places depending on who filed:
 
-A second contributor: when anything throws (missing `ARKESEL_API_KEY`, audit-log insert fails, claims check fails), the response is a bare `500` with `{ error: "..." }` — the supabase-js client treats that as "Edge function returned a non-2xx status code" and the actual `error` message never reaches the toast.
+| Filer | Where the rent lives |
+|---|---|
+| Tenant (Rent Control file complaint) | `complaint_properties.monthly_rent` (linked via `complaints.complaint_property_id`) — captured from the tenant's input |
+| Tenant with active registered tenancy | `tenancies.agreed_rent` (only this case is currently passed in) |
+| Landlord (files vs tenant) | The landlord picks one of their properties → `units.monthly_rent` for that property |
 
-### 2. Edge function rewrite (`admin-sms-broadcast/index.ts`)
+`RegulatorComplaints.tsx` only passes `linked_property_id` + (sometimes) `_activeTenancy.agreed_rent`. For most tenant complaints `linked_property_id` is `null` and there's no active tenancy, so the dialog has no rent → band lookup fails with the message above. The landlord side passes `linked_property_id` but never the agreed_rent it could derive from `units`, and silently gets `null` if the units fetch returns nothing.
 
-- **Always return `200`** with `{ ok: boolean, error?: string, sent, failed, total, failures? }`. Frontend reads `ok` to decide success vs. error toast — matches the structured-response pattern from the troubleshooting docs.
-- **Batch + parallelize sends**: chunk recipients in groups of 25, `Promise.allSettled` per chunk, hard cap of 1,500 recipients per invocation. Returns within seconds even for full-platform broadcasts.
-- **Per-recipient failure tracking**: collect up to 10 failure samples (`{ phone, reason }`) so the UI can surface concrete error reasons (invalid number, Arkesel rejection, etc.).
-- **New action `search-users`**: payload `{ action: "search-users", q: string, limit?: number }`. Server does a single query against `profiles` joined to `user_roles`, matching `q` (case-insensitive) on `full_name`, `phone`, `email`, or exact `user_id`. Returns `[{ user_id, full_name, phone, email, role }]`, capped at 25. Phone presence is required.
-- **New action `send-broadcast` payload extension**: optional `userIds: string[]` (max 200). When present, the recipient list is restricted to those users (intersected with any role filter). When absent, behaviour is unchanged (all users / tenants / landlords).
-- **Audit log entry** records the targeting mode (`all`, `tenants`, `landlords`, or `selected:N`) so super-admin oversight stays intact.
-- Keep `verify_jwt = false` (already set in `config.toml`) and continue validating with `getClaims` + `user_roles.role = 'regulator'` server-side.
+**Fix.** Make the dialog accept and prefer an explicit rent, and fall back through every available source.
 
-### 3. Frontend updates (`src/pages/regulator/SmsBroadcast.tsx`)
+1. **In `RegulatorComplaints.tsx`** — when opening the dialog:
+   - For tenant rows: pass `propertyId: c.linked_property_id ?? c.complaint_property_id ?? null` and `rent: c._activeTenancy?.agreed_rent ?? c.complaint_property?.monthly_rent ?? null`. (The complaint_property is already available — extend `fetchComplaints` to join it via `complaint_property:complaint_properties(id, monthly_rent)`.)
+   - For landlord rows: pass `rent: c.linked_property?.monthly_rent ?? null` (extend `fetchLandlordComplaints` to join the cheapest active unit's rent), keep `propertyId: c.linked_property_id`.
 
-Add a new **"Send Settings → Recipients"** mode switcher with three options:
+2. **In `RequestComplaintPaymentDialog.tsx`** — extend the rent-resolution effect:
+   - If `monthlyRentProp` is provided, use it.
+   - Else if `linkedPropertyId` is provided, fetch `units.monthly_rent` (existing).
+   - Else if a `complaint_property_id` exists on the complaint row, fetch `complaint_properties.monthly_rent`.
+   - Show a small helper line under the rent_band picker: "Rent used: GH₵ X (from registered tenancy / linked property / complaint snapshot)".
+   - When `rent_band` is selected and rent is still unknown, render an inline numeric input "Monthly rent for band lookup (GHS)" so the admin can enter it manually instead of hitting a dead end. The entered value flows into `computeBand` and is captured in `computation_meta.rentUsed` for audit.
 
-```text
-( ) Audience      — All / Tenants / Landlords         (existing)
-( ) Specific users — search & pick individuals         (new)
-```
+3. **Improve the error itself** — `computeBand` already returns a clear message; leave it as the *last-resort* state, only after the manual input is empty.
 
-When **Specific users** is selected:
+No schema change. No RLS change.
 
-- Search input (`Search by name, phone, email, or user ID…`) with 250 ms debounce calls `admin-sms-broadcast` action `search-users`.
-- Results render as a list of selectable rows showing name · phone · role badge.
-- Picked users appear as removable chips above the search box. Hard cap: 50 selected users (UI-enforced, server enforces 200).
-- Counter line updates: `Sending to 7 selected user(s) · ~7 SMS segments`.
-- The existing audience dropdown is hidden in this mode.
+### Issue 2 — "Failed to create new password. Try again later"
 
-When sending:
+**Root causes in `supabase/functions/reset-password-otp/index.ts`.**
 
-- If specific users are picked, call edge function with `{ action: "send-broadcast", message, userIds: [...] }`.
-- Otherwise call as before with `recipientFilter`.
-- Read `data.ok` and show `data.error` (or per-recipient `failures[]` summary in a follow-up toast) when the broadcast partially or wholly fails — no more opaque "non-2xx" message.
+a. **Phone normalisation mismatch.** `verify-otp` stores OTP rows under `233XXXXXXXXX` (digits-only). `reset-password-otp` normalises with `phone.replace(/\s/g, "").replace(/^0/, "233")`, which leaves a leading `+` (e.g. `+233244...`). The OTP row lookup misses → 403 "No verified OTP found" → frontend shows the generic "Failed to create new password" because the function returned a non-2xx status.
 
-The Schedule-for-later toggle and template picker continue to work in both modes.
+b. **Non-2xx responses for business errors.** Every error path returns `400/403/404/500`. `supabase.functions.invoke` then surfaces only `error.message = "Edge function returned a non-2xx status code"` and `data` is null, so the toast never displays the real reason (`data?.error`).
 
-### 4. Files touched
+c. **`expires_at` window logic is misleading.** It works in practice because OTPs default to `now() + 5 min`, but it's fragile — should be based on `created_at` instead.
 
-- `supabase/functions/admin-sms-broadcast/index.ts` — structured 200 responses, batched parallel sends, `search-users` action, `userIds` targeting, failure samples.
-- `src/pages/regulator/SmsBroadcast.tsx` — recipient mode switcher, debounced user search, selected-user chips, structured-error handling.
+**Fix in `reset-password-otp/index.ts`.**
+- Replace the normaliser with the same `normalizePhone()` used by `verify-otp` (digits-only → ensure `233` prefix).
+- Always return HTTP `200` with `{ ok: boolean, error?: string }`. Frontend reads `data.ok`.
+- Change OTP lookup to: `verified = true` AND `created_at >= now() - INTERVAL '15 minutes'`. Drop the `expires_at` filter.
+- Look up the user by querying both `profiles.phone = normalized` and as a fallback `auth.admin.listUsers` filtered by phone, in case the profile row has a legacy format.
 
-### Out of scope / unchanged
-- `send-sms`, `bulk-welcome-sms`, `useAuth`, SMS templates, Arkesel credentials, audit-log schema, RLS.
-- Region-based filtering (still a future enhancement — the search-users path covers the practical "I want to message a specific landlord" need).
+**Fix in `src/pages/ForgotPassword.tsx` (`handleResetPassword`).**
+- Read `data.ok`; if false, surface `data.error`.
+- Catch block: surface `error.message` instead of the bland "Something went wrong".
+
+### Files touched
+- `supabase/functions/reset-password-otp/index.ts` — phone normaliser, 200-only responses, `created_at` window.
+- `src/pages/ForgotPassword.tsx` — read structured response.
+- `src/components/RequestComplaintPaymentDialog.tsx` — multi-source rent resolution + manual rent override input for `rent_band`.
+- `src/pages/regulator/RegulatorComplaints.tsx` — pass `complaint_property_id` and snapshot rent for tenant complaints; pass linked property's cheapest unit rent for landlord complaints (extend the two `fetch…` queries).
+
+### Out of scope
+- `verify-otp`, `send-otp`, OTP table schema, RLS.
+- Complaint fee rule data, fee structures, basket persistence.
+- Audio/media, assignment, reports — unchanged from the prior wiring.
 
