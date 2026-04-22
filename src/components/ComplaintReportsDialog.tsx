@@ -158,7 +158,7 @@ const ComplaintReportsDialog = ({ open, onOpenChange }: Props) => {
 
       rows.push({
         staffName: nameMap.get(staffId) || "Staff",
-        office: staffMap.get(staffId) || "—",
+        office: (staffMap.get(staffId) as string | undefined) || "—",
         totalAssigned: total,
         active,
         resolved,
