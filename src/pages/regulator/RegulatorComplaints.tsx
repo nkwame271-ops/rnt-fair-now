@@ -445,6 +445,46 @@ const RegulatorComplaints = () => {
 
   useEffect(() => { fetchLandlordComplaints(); }, []);
 
+  // Active assignments for summary chip + sub-admin scoping
+  useEffect(() => {
+    (async () => {
+      const allIds = [
+        ...complaints.map((c: any) => c.id),
+        ...landlordComplaints.map((c: any) => c.id),
+      ].filter(Boolean);
+      if (allIds.length === 0) {
+        setAssignmentMap({});
+        if (isSubAdmin) setAssignedComplaintIds(new Set());
+        else setAssignedComplaintIds(null);
+        return;
+      }
+      const { data: rows } = await (supabase.from("complaint_assignments") as any)
+        .select("complaint_id, assigned_to")
+        .in("complaint_id", allIds)
+        .is("unassigned_at", null);
+      const assignedIds = new Set<string>((rows || []).map((r: any) => r.complaint_id));
+      const userIds = [...new Set((rows || []).map((r: any) => String(r.assigned_to)))] as string[];
+      const { data: profs } = userIds.length
+        ? await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds)
+        : { data: [] as any[] };
+      const { data: staffRows } = userIds.length
+        ? await (supabase.from("admin_staff") as any).select("user_id, office_name").in("user_id", userIds)
+        : { data: [] as any[] };
+      const nameMap = new Map((profs || []).map((p: any) => [p.user_id, p.full_name]));
+      const officeM = new Map((staffRows || []).map((s: any) => [s.user_id, s.office_name]));
+      const map: Record<string, { name: string; office: string | null }> = {};
+      (rows || []).forEach((r: any) => {
+        map[r.complaint_id] = {
+          name: nameMap.get(r.assigned_to) || "Staff",
+          office: officeM.get(r.assigned_to) || null,
+        };
+      });
+      setAssignmentMap(map);
+      setAssignedComplaintIds(isSubAdmin ? assignedIds : null);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [complaints.length, landlordComplaints.length, profile?.adminType]);
+
   // Track which complaints have an admin-confirmed receipt (gates scheduling)
   const [confirmedComplaintIds, setConfirmedComplaintIds] = useState<Set<string>>(new Set());
   useEffect(() => {
