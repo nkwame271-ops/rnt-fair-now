@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2, FileDown, GraduationCap } from "lucide-react";
+import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2, FileDown, GraduationCap, BarChart3 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +20,10 @@ import RequestComplaintPaymentDialog from "@/components/RequestComplaintPaymentD
 import { CreditCard, Receipt, Hash } from "lucide-react";
 import { ComplaintSimilarityPanel } from "@/components/PropertySimilarityMatches";
 import { SkeletonCardList } from "@/components/ui/skeleton";
+import { SignedAudio, SignedImage } from "@/components/SignedMedia";
+import ComplaintAssignmentControl from "@/components/ComplaintAssignmentControl";
+import ComplaintReportsDialog from "@/components/ComplaintReportsDialog";
+import { generateComplaintPdf } from "@/lib/generateComplaintPdf";
 
 type TabKey = "landlord" | "tenant" | "student";
 
