@@ -578,9 +578,11 @@ const RegulatorComplaints = () => {
         <button onClick={() => setActiveTab("tenant")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "tenant" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           Tenant Complaints ({tenantComplaintCount})
         </button>
-        <button onClick={() => setActiveTab("student")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "student" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-          Student Complaints ({studentComplaintCount})
-        </button>
+        {profile?.isSuperAdmin && (
+          <button onClick={() => setActiveTab("student")} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "student" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            Student Complaints ({studentComplaintCount})
+          </button>
+        )}
       </div>
 
       {(activeTab === "tenant" || activeTab === "student") && (
