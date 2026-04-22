@@ -295,7 +295,7 @@ const RegulatorComplaints = () => {
       .in("complaint_id", allIds)
       .is("unassigned_at", null);
     const assignedIds = new Set<string>((rows || []).map((r: any) => r.complaint_id));
-    const userIds = [...new Set((rows || []).map((r: any) => r.assigned_to))];
+    const userIds = [...new Set((rows || []).map((r: any) => String(r.assigned_to)))] as string[];
     const { data: profs } = userIds.length
       ? await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds)
       : { data: [] as any[] };
