@@ -475,8 +475,8 @@ const RegulatorComplaints = () => {
       const map: Record<string, { name: string; office: string | null }> = {};
       (rows || []).forEach((r: any) => {
         map[r.complaint_id] = {
-          name: nameMap.get(r.assigned_to) || "Staff",
-          office: officeM.get(r.assigned_to) || null,
+          name: (nameMap.get(r.assigned_to) as string) || "Staff",
+          office: (officeM.get(r.assigned_to) as string) || null,
         };
       });
       setAssignmentMap(map);
