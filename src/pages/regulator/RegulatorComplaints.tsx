@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2, FileDown, GraduationCap } from "lucide-react";
+import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2, FileDown, GraduationCap, BarChart3 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +20,10 @@ import RequestComplaintPaymentDialog from "@/components/RequestComplaintPaymentD
 import { CreditCard, Receipt, Hash } from "lucide-react";
 import { ComplaintSimilarityPanel } from "@/components/PropertySimilarityMatches";
 import { SkeletonCardList } from "@/components/ui/skeleton";
+import { SignedAudio, SignedImage } from "@/components/SignedMedia";
+import ComplaintAssignmentControl from "@/components/ComplaintAssignmentControl";
+import ComplaintReportsDialog from "@/components/ComplaintReportsDialog";
+import { generateComplaintPdf } from "@/lib/generateComplaintPdf";
 
 type TabKey = "landlord" | "tenant" | "student";
 
@@ -49,6 +53,10 @@ const RegulatorComplaints = () => {
   const [schedulingComplaint, setSchedulingComplaint] = useState<SchedulingTarget | null>(null);
   const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
   const [deletingId, setDeletingId] = useState<{ id: string; type: "tenant" | "landlord" } | null>(null);
+  const [reportsOpen, setReportsOpen] = useState(false);
+  const [assignmentMap, setAssignmentMap] = useState<Record<string, { name: string; office: string | null }>>({});
+  const [assignedComplaintIds, setAssignedComplaintIds] = useState<Set<string> | null>(null); // null = no scoping
+  const [downloadingComplaintId, setDownloadingComplaintId] = useState<string | null>(null);
   const [officeMap, setOfficeMap] = useState<Record<string, string>>({});
   const [downloadingProfile, setDownloadingProfile] = useState<string | null>(null);
 
@@ -291,12 +299,17 @@ const RegulatorComplaints = () => {
   }, [activeTab]);
 
   const isStudentRow = (c: any) => !!(c._tenantRecord?.is_student || c._tenantRecord?.school);
+  const isSubAdmin = !!profile && !profile.isMainAdmin && !profile.isSuperAdmin;
+
+  const passesAssignmentScope = (c: any) =>
+    !isSubAdmin || (assignedComplaintIds !== null && assignedComplaintIds.has(c.id));
 
   const filtered = complaints.filter((c) => {
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (activeTab === "student" && !isStudentRow(c)) return false;
     if (activeTab === "tenant" && isStudentRow(c)) return false;
     if (officeFilter !== "all" && c.office_id !== officeFilter) return false;
+    if (!passesAssignmentScope(c)) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return c.complaint_code?.toLowerCase().includes(s) || c.landlord_name?.toLowerCase().includes(s) || c.complaint_type?.toLowerCase().includes(s) || c._tenantProfile?.full_name?.toLowerCase().includes(s);
