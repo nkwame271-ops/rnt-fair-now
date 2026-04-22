@@ -299,12 +299,17 @@ const RegulatorComplaints = () => {
   }, [activeTab]);
 
   const isStudentRow = (c: any) => !!(c._tenantRecord?.is_student || c._tenantRecord?.school);
+  const isSubAdmin = !!profile && !profile.isMainAdmin && !profile.isSuperAdmin;
+
+  const passesAssignmentScope = (c: any) =>
+    !isSubAdmin || (assignedComplaintIds !== null && assignedComplaintIds.has(c.id));
 
   const filtered = complaints.filter((c) => {
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (activeTab === "student" && !isStudentRow(c)) return false;
     if (activeTab === "tenant" && isStudentRow(c)) return false;
     if (officeFilter !== "all" && c.office_id !== officeFilter) return false;
+    if (!passesAssignmentScope(c)) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return c.complaint_code?.toLowerCase().includes(s) || c.landlord_name?.toLowerCase().includes(s) || c.complaint_type?.toLowerCase().includes(s) || c._tenantProfile?.full_name?.toLowerCase().includes(s);
