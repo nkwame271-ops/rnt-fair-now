@@ -17,32 +17,32 @@ const SMS_TEMPLATES = [
   {
     key: "maintenance",
     label: "Scheduled Maintenance",
-    template: "RentGhana: The platform will undergo scheduled maintenance on {date} from {start_time} to {end_time}. Some services may be temporarily unavailable. We apologize for any inconvenience.",
+    template: "RentControl: The platform will undergo scheduled maintenance on {date} from {start_time} to {end_time}. Some services may be temporarily unavailable. We apologize for any inconvenience.",
   },
   {
     key: "emergency",
     label: "Emergency Downtime",
-    template: "RentGhana: URGENT — The platform is currently experiencing downtime. Our team is working to restore services. We will notify you when resolved.",
+    template: "RentControl: URGENT — The platform is currently experiencing downtime. Our team is working to restore services. We will notify you when resolved.",
   },
   {
     key: "restored",
     label: "Service Restored",
-    template: "RentGhana: The platform has been restored and all services are now available. Thank you for your patience.",
+    template: "RentControl: The platform has been restored and all services are now available. Thank you for your patience.",
   },
   {
     key: "policy",
     label: "Policy Update",
-    template: "RentGhana: Important policy update regarding {topic}. Please log in to www.rentcontrolghana.com for details.",
+    template: "RentControl: Important policy update regarding {topic}. Please log in to www.rentcontrolghana.com for details.",
   },
   {
     key: "rent_card",
     label: "Rent Card Reminder",
-    template: "RentGhana: Reminder — Please ensure your Rent Card is up to date. Visit www.rentcontrolghana.com or your nearest Rent Control office.",
+    template: "RentControl: Reminder — Please ensure your Rent Card is up to date. Visit www.rentcontrolghana.com or your nearest Rent Control office.",
   },
   {
     key: "general",
     label: "General Announcement",
-    template: "RentGhana: {message}",
+    template: "RentControl: {message}",
   },
 ];
 
@@ -473,7 +473,7 @@ const SmsBroadcast = () => {
             </Button>
 
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Messages are sent by Center for Financial Literacy, E-Commerce and Digitalization via unique API. Sender ID: "RentGhana". Each SMS segment is up to 160 characters.
+              Messages are sent by Center for Financial Literacy, E-Commerce and Digitalization via unique API. Sender ID: "RentControl". Each SMS segment is up to 160 characters.
             </p>
           </CardContent>
         </Card>

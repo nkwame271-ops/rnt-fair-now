@@ -39,7 +39,7 @@ async function sendOne(
     action: "send-sms",
     api_key: apiKey,
     to: phone,
-    from: "RentGhana",
+    from: "RentControl",
     sms: message,
   };
   if (schedule) params.schedule = schedule;

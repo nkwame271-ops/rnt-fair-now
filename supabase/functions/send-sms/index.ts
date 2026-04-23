@@ -56,7 +56,7 @@ serve(async (req) => {
     let normalizedPhone = phone.replace(/\s/g, "").replace(/^0/, "233");
     if (!normalizedPhone.startsWith("233")) normalizedPhone = "233" + normalizedPhone;
 
-    const senderID = sender || "RentGhana";
+    const senderID = sender || "RentControl";
 
     // Try V2 first, fallback to V1 on network/DNS error
     try {

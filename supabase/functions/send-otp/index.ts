@@ -73,14 +73,14 @@ Deno.serve(async (req) => {
       const v2Res = await fetch("https://api.arkesel.com/api/v2/sms/send", {
         method: "POST",
         headers: { "api-key": apiKey!, "Content-Type": "application/json" },
-        body: JSON.stringify({ sender: "RentGhana", message, recipients: [normalized] }),
+        body: JSON.stringify({ sender: "RentControl", message, recipients: [normalized] }),
       });
       if (v2Res.ok) smsSent = true;
     } catch { /* fallback */ }
 
     if (!smsSent) {
       try {
-        const v1Url = `https://sms.arkesel.com/sms/api?action=send-sms&api_key=${apiKey}&to=${normalized}&from=RentGhana&sms=${encodeURIComponent(message)}`;
+        const v1Url = `https://sms.arkesel.com/sms/api?action=send-sms&api_key=${apiKey}&to=${normalized}&from=RentControl&sms=${encodeURIComponent(message)}`;
         await fetch(v1Url);
         smsSent = true;
       } catch { /* log */ }

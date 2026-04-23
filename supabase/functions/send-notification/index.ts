@@ -57,9 +57,9 @@ const SMS_TEMPLATES: Record<string, (d: Record<string, string>) => string> = {
   login_alert: () =>
     `A new login to your RentControlGhana account was detected. If this was not you, change your password immediately.`,
   tenancy_expiry_reminder: (d) =>
-    `RentGhana: Your tenancy${d.property ? " at " + d.property : ""} expires in ${d.days_left} days. Request a renewal or plan your exit.`,
+    `RentControl: Your tenancy${d.property ? " at " + d.property : ""} expires in ${d.days_left} days. Request a renewal or plan your exit.`,
   complaint_reminder: (d) =>
-    `RentGhana: Your complaint (${d.code}) is still pending review. We will update you on progress.`,
+    `RentControl: Your complaint (${d.code}) is still pending review. We will update you on progress.`,
 };
 
 // ── Email Templates ──
@@ -252,7 +252,7 @@ async function sendSms(phone: string, message: string): Promise<{ ok: boolean; v
     const res = await fetch("https://api.arkesel.com/api/v2/sms/send", {
       method: "POST",
       headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ sender: "RentGhana", message, recipients: [normalized] }),
+      body: JSON.stringify({ sender: "RentControl", message, recipients: [normalized] }),
     });
     const data = await res.json();
     if (data.status !== "success") throw new Error(data.message || "V2 SMS failed");
@@ -268,7 +268,7 @@ async function sendSms(phone: string, message: string): Promise<{ ok: boolean; v
       action: "send-sms",
       api_key: ARKESEL_API_KEY,
       to: normalized,
-      from: "RentGhana",
+      from: "RentControl",
       sms: message,
     });
     const res = await fetch(`https://sms.arkesel.com/sms/api?${params.toString()}`);

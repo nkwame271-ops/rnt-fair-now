@@ -76,7 +76,7 @@ serve(async (req) => {
       if (!phone.startsWith("233")) phone = "233" + phone;
 
       try {
-        const result = await sendSms(ARKESEL_API_KEY, phone, WELCOME_MESSAGE, "RentGhana");
+        const result = await sendSms(ARKESEL_API_KEY, phone, WELCOME_MESSAGE, "RentControl");
         results.sent++;
         results.details.push(`✓ ${phone} (${profile.full_name}) via ${result.via}`);
         console.log(`✓ Sent to ${phone} (${profile.full_name}) via ${result.via}`);
