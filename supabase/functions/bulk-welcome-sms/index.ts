@@ -55,11 +55,26 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { data: profiles, error } = await supabase
+    // Optional: filter by registration window (e.g., last 24h)
+    const url = new URL(req.url);
+    const sinceHoursParam = url.searchParams.get("since_hours");
+    let body: any = {};
+    try { body = await req.json(); } catch { /* no body */ }
+    const sinceHours = Number(body.since_hours ?? sinceHoursParam ?? 0);
+
+    let query = supabase
       .from("profiles")
-      .select("phone, full_name")
+      .select("phone, full_name, created_at")
       .not("phone", "is", null)
       .neq("phone", "");
+
+    if (sinceHours > 0) {
+      const cutoff = new Date(Date.now() - sinceHours * 3600 * 1000).toISOString();
+      query = query.gte("created_at", cutoff);
+      console.log(`Filtering profiles created since ${cutoff}`);
+    }
+
+    const { data: profiles, error } = await query;
 
     if (error) throw new Error("Failed to fetch profiles: " + error.message);
 
