@@ -35,7 +35,7 @@ const CHANNEL_MAP: Record<string, Channel[]> = {
 // ── SMS Templates ──
 const SMS_TEMPLATES: Record<string, (d: Record<string, string>) => string> = {
   account_created: (d) =>
-    `Welcome to RentControlGhana. Your account has been created. ID: ${d.id}. Login with your phone number. Temporary password: your full phone number. Please change it after login.`,
+    `RentControlGhana: Welcome ${d.name || ""}. Your account ID is ${d.id}. Sign in to your dashboard at rentcontrolghana.com using your phone number — temporary password is your full phone number. Please change it after login. Visit the nearest rent control office for assistance.`,
   password_reset: (d) =>
     `Your password has been changed successfully. If you did not perform this action, contact support immediately.`,
   contact_changed: () =>
@@ -238,13 +238,14 @@ function normalizePhone(phone: string): string {
 }
 
 // ── SMS sender ──
-async function sendSms(phone: string, message: string): Promise<void> {
+async function sendSms(phone: string, message: string): Promise<{ ok: boolean; via?: string; error?: string }> {
   const ARKESEL_API_KEY = Deno.env.get("ARKESEL_API_KEY");
   if (!ARKESEL_API_KEY) {
     console.error("ARKESEL_API_KEY not configured, skipping SMS");
-    return;
+    return { ok: false, error: "ARKESEL_API_KEY not configured" };
   }
   const normalized = normalizePhone(phone);
+  let v2Error = "";
   // Try V2 first
   try {
     console.log("Trying Arkesel V2...");
@@ -256,10 +257,10 @@ async function sendSms(phone: string, message: string): Promise<void> {
     const data = await res.json();
     if (data.status !== "success") throw new Error(data.message || "V2 SMS failed");
     console.log("V2 SMS succeeded");
-    return;
+    return { ok: true, via: "v2" };
   } catch (v2Err) {
-    const v2Msg = v2Err instanceof Error ? v2Err.message : String(v2Err);
-    console.warn("V2 failed:", v2Msg, "— trying V1 fallback...");
+    v2Error = v2Err instanceof Error ? v2Err.message : String(v2Err);
+    console.warn("V2 failed:", v2Error, "— trying V1 fallback...");
   }
   // V1 fallback
   try {
@@ -274,9 +275,17 @@ async function sendSms(phone: string, message: string): Promise<void> {
     const text = await res.text();
     console.log("V1 fallback response:", text);
     if (!res.ok) throw new Error("V1 HTTP " + res.status + ": " + text);
+    // Arkesel V1 returns plain text; treat 'ok'/'1000' as success markers
+    const lower = text.toLowerCase();
+    if (lower.includes("error") || lower.includes("fail")) {
+      throw new Error("V1 reported failure: " + text.slice(0, 120));
+    }
     console.log("V1 SMS fallback succeeded");
+    return { ok: true, via: "v1" };
   } catch (v1Err) {
-    console.error("Both V2 and V1 SMS failed:", v1Err);
+    const v1Msg = v1Err instanceof Error ? v1Err.message : String(v1Err);
+    console.error("Both V2 and V1 SMS failed:", v1Msg);
+    return { ok: false, error: `V2: ${v2Error} | V1: ${v1Msg}` };
   }
 }
 
@@ -336,11 +345,13 @@ Deno.serve(async (req) => {
     const results: Record<string, string> = {};
 
     // SMS
+    let sms_error: string | undefined;
     if (channels.includes("sms") && phone) {
       const template = SMS_TEMPLATES[event];
       if (template) {
-        await sendSms(phone, template(d));
-        results.sms = "sent";
+        const smsResult = await sendSms(phone, template(d));
+        results.sms = smsResult.ok ? "sent" : "failed";
+        if (!smsResult.ok) sms_error = smsResult.error;
       }
     }
 
@@ -369,7 +380,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, channels: results }), {
+    return new Response(JSON.stringify({ success: true, channels: results, sms_error }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
