@@ -13,19 +13,19 @@ const SMS_TEMPLATES: Record<SmsEvent, (data: Record<string, string>) => string> 
     `RentControlGhana: Welcome ${d.name}. Your account ID is ${d.id}. Sign in to your dashboard at rentcontrolghana.com using your phone number — temporary password is your full phone number. Please change it after login. Visit the nearest rent control office for assistance.`,
 
   complaint_filed: (d) =>
-    `RentGhana: Your complaint (${d.code}) has been submitted to the Rent Control Department. We will review and update you on the progress. Reference: ${d.code}`,
+    `RentControl: Your complaint (${d.code}) has been submitted to the Rent Control Department. We will review and update you on the progress. Reference: ${d.code}`,
 
   agreement_signed: (d) =>
-    `RentGhana: A tenancy agreement (${d.code}) has been ${d.action}. Property: ${d.property}. Please log in to review the details.`,
+    `RentControl: A tenancy agreement (${d.code}) has been ${d.action}. Property: ${d.property}. Please log in to review the details.`,
 
   viewing_scheduled: (d) =>
-    `RentGhana: A property viewing has been ${d.action} for ${d.property} on ${d.date}${d.time ? " at " + d.time : ""}. Log in for details.`,
+    `RentControl: A property viewing has been ${d.action} for ${d.property} on ${d.date}${d.time ? " at " + d.time : ""}. Log in for details.`,
 
   payment_confirmed: (d) =>
-    `RentGhana: Your payment of GHS ${d.amount} for ${d.description} has been confirmed. Reference: ${d.reference}. Thank you!`,
+    `RentControl: Your payment of GHS ${d.amount} for ${d.description} has been confirmed. Reference: ${d.reference}. Thank you!`,
 
   application_updated: (d) =>
-    `RentGhana: Your application "${d.subject}" has been ${d.status}. ${d.notes ? "Notes: " + d.notes : ""}Log in for details.`,
+    `RentControl: Your application "${d.subject}" has been ${d.status}. ${d.notes ? "Notes: " + d.notes : ""}Log in for details.`,
 };
 
 export const sendSms = async (

@@ -114,7 +114,7 @@ const AppointmentSlotPicker = ({ complaintTable, userIdColumn }: Props) => {
         const dateStr = new Date(slot.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
         const codePart = complaintCode ? ` for complaint ${complaintCode}` : "";
         const officePart = officeName ? ` at ${officeName} Office, Rent Control Department` : " at the Rent Control Office";
-        const message = `RentGhana: Appointment confirmed${codePart}. Date: ${dateStr}, Time: ${slot.time_start}-${slot.time_end}${officePart}. Please arrive on time.`;
+        const message = `RentControl: Appointment confirmed${codePart}. Date: ${dateStr}, Time: ${slot.time_start}-${slot.time_end}${officePart}. Please arrive on time.`;
         sendNotification("complaint_reminder", {
           phone: profile.phone,
           user_id: user.id,

@@ -43,7 +43,7 @@ const InviteUser = ({ inviteRole, senderRole }: InviteUserProps) => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Join RentGhana as a ${roleLabel}`,
+          title: `Join RentControl as a ${roleLabel}`,
           text: `Hi${name ? ` ${name}` : ""}, I'd like you to register on Rent Control Ghana as a ${roleLabel}. Use this link:`,
           url: inviteLink,
         });

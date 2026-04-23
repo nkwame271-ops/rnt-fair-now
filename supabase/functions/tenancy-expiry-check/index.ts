@@ -103,8 +103,8 @@ Deno.serve(async (req) => {
             method: "POST",
             headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
             body: JSON.stringify({
-              sender: "RentGhana",
-              message: `RentGhana: Your tenancy at ${propertyAddress || "your property"} expires in ${daysLeft} days. Request a renewal or plan your exit.`,
+              sender: "RentControl",
+              message: `RentControl: Your tenancy at ${propertyAddress || "your property"} expires in ${daysLeft} days. Request a renewal or plan your exit.`,
               recipients: [phone],
             }),
           });

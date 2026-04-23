@@ -119,8 +119,8 @@ Deno.serve(async (req) => {
                 method: "POST",
                 headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  sender: "RentGhana",
-                  message: `RentGhana: Your payment of GH₵ ${amountFailed.toFixed(2)} for ${paymentLabel} failed. Please try again or contact support.`,
+                  sender: "RentControl",
+                  message: `RentControl: Your payment of GH₵ ${amountFailed.toFixed(2)} for ${paymentLabel} failed. Please try again or contact support.`,
                   recipients: [phone],
                 }),
               });
@@ -278,8 +278,8 @@ Deno.serve(async (req) => {
                 method: "POST",
                 headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  sender: "RentGhana",
-                  message: `RentGhana: Payment of GH₵ ${amountPaid.toFixed(2)} for ${description} confirmed. Receipt: ${receiptNo}. Thank you!`,
+                  sender: "RentControl",
+                  message: `RentControl: Payment of GH₵ ${amountPaid.toFixed(2)} for ${description} confirmed. Receipt: ${receiptNo}. Thank you!`,
                   recipients: [phone],
                 }),
               });
