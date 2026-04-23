@@ -1,75 +1,80 @@
 
+## Fix welcome SMS reliability + update welcome copy + move roles above About Us
 
-## Fix: Sub-Admin permission bypass + Receipt print/PDF empty page
+### 1. Stop welcome SMS from silently failing on new registrations
 
-### Issue 1 — Invited Sub Admins get access to every feature
+Current registration sends the welcome notice from the browser via `sendNotification("account_created", ...)`, but the flow is fragile in two ways:
+- `RegisterTenant.tsx` and `RegisterLandlord.tsx` do not await the notification call, so registration completes even if the welcome SMS request never finishes.
+- `send-notification` currently swallows SMS provider failures and still reports SMS as effectively “sent”, so the app has no reliable signal when welcome delivery actually fails.
 
-**Root cause.** Two bugs combine:
+### 2. Make the welcome SMS path explicit and reliable
 
-1. **`RegulatorLayout.tsx` (line 132)** — the nav filter has this fallback:
-   ```ts
-   if (profile.allowedFeatures.length === 0) return true; // unrestricted admin
-   ```
-   When you invite a Sub Admin and **don't tick any feature**, `allowed_features` is saved as `[]`. The layout then interprets empty as "unrestricted" and shows the entire sidebar. The same Sub Admin also passes every nav item even when you *do* tick features, because direct URLs aren't guarded at the route level.
+Update the registration flow so welcome delivery is handled as a real, inspectable step after successful account creation:
 
-2. **No route-level enforcement.** `ProtectedRoute` only checks `role` and `accountStatus`. There is nothing that maps the URL → feature key → `profile.allowedFeatures`. So a Sub Admin can type `/regulator/escrow` and load Escrow even when the nav item is hidden.
+- **`supabase/functions/send-notification/index.ts`**
+  - Refactor SMS sending to return a real success/failure result instead of swallowing both V2/V1 failures.
+  - For `account_created`, return structured channel results such as:
+    - `sms: "sent"`
+    - `sms: "failed"`
+    - `sms_error: "...reason..."`
+  - Keep HTTP `200` with a structured body so the client can react without breaking registration.
 
-3. **Main Admin vs Sub Admin semantics** — `InviteStaff.tsx` already documents the intended rule:
-   - **Main Admin**: empty list = full access (backward compatible).
-   - **Sub Admin**: empty list = nothing (must explicitly grant features).
-   
-   Only the Main Admin half of that rule is implemented today.
+- **`src/lib/notificationService.ts`**
+  - Return the edge function response instead of only logging internally, so callers can inspect whether SMS actually went out.
 
-**Fix.**
+- **`src/pages/RegisterTenant.tsx` and `src/pages/RegisterLandlord.tsx`**
+  - `await` the notification call after the tenant/landlord record is created.
+  - If SMS succeeds, continue as normal.
+  - If SMS fails, do not roll back registration, but show a visible warning toast like:
+    - “Account created, but welcome SMS could not be delivered.”
+  - This preserves account creation while making failures visible instead of silently recurring.
 
-- **`RegulatorLayout.tsx`** — change the filter so the "empty = unrestricted" shortcut only applies to **Main Admins**. For Sub Admins, an empty `allowedFeatures` array means **only Dashboard** stays visible (so they have a landing page instead of a blank app shell):
-  ```ts
-  if (profile.isMainAdmin) {
-    if (profile.allowedFeatures.length === 0) return true;
-    // explicit-allow path for Main Admins who picked specific features
-  } else {
-    // Sub Admin — must explicitly include the feature
-    const key = getFeatureKeyForRoute(item.to);
-    if (key === "dashboard") return true; // always allow landing page
-    if (!key) return false;
-    if (!profile.allowedFeatures.includes(key)) return false;
-    if (profile.mutedFeatures.includes(key)) return false;
-    return true;
-  }
-  ```
+### 3. Consolidate the welcome message copy so it stops drifting
 
-- **New route guard `<FeatureGuard>`** wrapping each Sub-Admin-restricted page (or done centrally inside `RegulatorLayout`'s `<AnimatedOutlet />` by reading the active route via `useLocation`). When a Sub Admin lands on a route whose feature key is missing from `allowedFeatures`, render an "Access Restricted — this feature isn't enabled for your account. Contact your Main Admin." card and a Back-to-Dashboard button. This blocks deep-link bypasses without touching RLS.
+Right now welcome-style copy exists in multiple places, which is why the wording keeps getting “fixed” and then diverging again.
 
-- **`CommandSearch`** — already receives the filtered `navItems`, so once the filter is fixed it stops surfacing forbidden routes.
+Standardize the welcome copy in all relevant paths so every registration-related SMS uses the same wording:
 
-- **No DB / RLS change.** Server-side enforcement remains via existing `is_main_admin()` and per-table policies; this purely closes the UI bypass.
+- **Primary live registration path**
+  - `supabase/functions/send-notification/index.ts` → `account_created` SMS template
 
-### Issue 2 — Receipt prints / exports as a blank page
+- **Secondary/manual welcome paths**
+  - `src/lib/smsService.ts` → `registration_success`
+  - `supabase/functions/bulk-welcome-sms/index.ts` → `WELCOME_MESSAGE`
 
-**Root cause.** `PaymentReceipt.handlePrint` builds an iframe, copies every `<link rel="stylesheet">` and `<style>` from the parent document, and writes the receipt's `outerHTML` into it. In production (and increasingly in the Vite preview) this fails for three reasons:
+### 4. Update the welcome SMS text with the requested wording
 
-1. **Tailwind CSS variables live on `html`/`:root`** in the parent doc. The iframe gets the stylesheet `<link>` tags but not the inline `<style>` block on `:root` that Vite injects, so every color token (`bg-card`, `text-card-foreground`, `border-border`, `text-primary`) resolves to *unset* → renders white text on white background → page looks blank.
-2. **`iframe.onload` race.** External stylesheets are fetched async; the safety-net `setTimeout(…, 1500)` often fires `print()` before the iframe has applied any styles.
-3. **`outerHTML` strips the QRCodeSVG's React-managed SVG attributes inconsistently** in some browsers.
+Use `RentControlGhana` as the heading/prefix and preserve the existing account info, while adding the requested site link and office help line.
 
-**Fix.** Replace the fragile iframe-CSS-copy approach with a **self-contained print document** that doesn't rely on Tailwind tokens at all:
+The updated welcome copy will include:
+- `RentControlGhana`
+- existing registration confirmation details
+- `Sign in to your dashboard by using rentcontrolghana.com`
+- `Visit the nearest rent control office for assistance`
 
-- Add a small dedicated print renderer inside `PaymentReceipt` that, on print, opens a new window (or uses an iframe) with **inline CSS**: hard-coded font, colors, table layout — independent of the app's CSS variables. Render the receipt fields (number, date, payer, type, description, basket lines, splits, total, QR as a data-URL) directly as plain HTML so it always renders identically regardless of the host page styles.
-- Convert the QR code to a data-URL via `qrcode` library's `toDataURL` (already used elsewhere in the codebase) instead of relying on the live `<QRCodeSVG>` element being cloned into the iframe.
-- Trigger `window.print()` only after the iframe `load` event AND a `requestAnimationFrame` to guarantee layout has run; remove the racy 1500 ms safety timer.
-- Add a second action **"Download PDF"** next to "Print" that uses `jsPDF` to produce the same content (so users get a real PDF instead of relying on the browser's "Save as PDF" print dialog). Layout matches the on-screen card: header (receipt #, date, status badge as colored chip), key-value grid, "Charges Billed" table when present, splits table, total row, QR as image, footer note.
-- Apply the same fix to all four call sites — `tenant/Receipts.tsx`, `landlord/Receipts.tsx`, `regulator/RegulatorReceipts.tsx`, and any inline use in `RequestComplaintPaymentDialog.tsx` confirmation — by keeping the API of `<PaymentReceipt />` the same; only its internal print/export logic changes.
+If needed for SMS length, the wording will be tightened slightly while preserving all requested information and the same meaning.
 
-### Files touched
+### 5. Main page layout change: move roles above About Us
 
-- `src/components/RegulatorLayout.tsx` — split Main Admin vs Sub Admin filter logic; always allow `dashboard`.
-- `src/components/ProtectedRoute.tsx` (or new `src/components/FeatureGuard.tsx`) — block direct URLs when feature isn't in `allowedFeatures` for Sub Admins.
-- `src/components/PaymentReceipt.tsx` — rewrite `handlePrint` to render a self-contained print document with inline CSS + QR data-URL; add `handleDownloadPdf` using `jsPDF`.
+On the landing page, the role cards are currently below the About Us and API sections, which delays the main call-to-action.
 
-### Out of scope / unchanged
+Update **`src/pages/RoleSelect.tsx`** so:
+- the **Role Selection / Get Started** section appears immediately below the hero
+- **About Us** comes after the roles
+- the rest of the homepage order remains intact unless spacing needs a small adjustment
 
-- `invite-staff` edge function (already stores `allowedFeatures` correctly).
-- `admin_staff` schema and RLS.
-- `useAdminProfile` (already exposes `allowedFeatures` / `mutedFeatures`).
-- The receipt's data sources, complaint-basket fetch, and on-screen layout stay identical.
+This will make Tenant / Landlord / Student access visible sooner on mobile and desktop without requiring users to scroll far down.
 
+### Files to update
+- `supabase/functions/send-notification/index.ts`
+- `src/lib/notificationService.ts`
+- `src/pages/RegisterTenant.tsx`
+- `src/pages/RegisterLandlord.tsx`
+- `src/lib/smsService.ts`
+- `supabase/functions/bulk-welcome-sms/index.ts`
+- `src/pages/RoleSelect.tsx`
+
+### Out of scope
+- OTP SMS wording
+- complaint/reminder/payment SMS templates
+- authentication email templates unless you later want the same wording mirrored in email welcome messages
