@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import QRCode from "qrcode";
+import jsPDF from "jspdf";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Printer } from "lucide-react";
+import { Printer, Download } from "lucide-react";
 import { formatGHSDecimal } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 
