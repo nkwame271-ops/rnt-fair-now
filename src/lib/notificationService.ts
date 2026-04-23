@@ -19,6 +19,13 @@ export type NotificationEvent =
   | "rent_card_copy"
   | "complaint_summary";
 
+export interface NotificationResult {
+  success: boolean;
+  channels?: { sms?: "sent" | "failed"; email?: "enqueued"; inapp?: "inserted" };
+  sms_error?: string;
+  error?: string;
+}
+
 export const sendNotification = async (
   event: NotificationEvent,
   opts: {
@@ -27,9 +34,9 @@ export const sendNotification = async (
     user_id?: string;
     data?: Record<string, string>;
   }
-) => {
+): Promise<NotificationResult> => {
   try {
-    const { error } = await supabase.functions.invoke("send-notification", {
+    const { data, error } = await supabase.functions.invoke("send-notification", {
       body: {
         event,
         phone: opts.phone,
@@ -40,9 +47,12 @@ export const sendNotification = async (
     });
     if (error) {
       console.error("Notification send error:", error.message);
+      return { success: false, error: error.message };
     }
+    return (data as NotificationResult) ?? { success: true };
   } catch (err) {
-    // Notifications are non-blocking
-    console.error("Notification send failed:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Notification send failed:", msg);
+    return { success: false, error: msg };
   }
 };

@@ -246,12 +246,15 @@ const RegisterTenant = () => {
         console.warn("Pending tenancy claim attempt:", claimErr);
       }
 
-      sendNotification("account_created", {
+      const notifyResult = await sendNotification("account_created", {
         phone: phoneDigits,
         email: email || undefined,
         user_id: userId,
         data: { name: fullName, role: "Tenant", id: tenantId, phone: phoneDigits },
       });
+      if (notifyResult.channels?.sms === "failed") {
+        toast.warning("Account created, but welcome SMS could not be delivered.");
+      }
 
       setStep(2);
     } catch (err: any) {

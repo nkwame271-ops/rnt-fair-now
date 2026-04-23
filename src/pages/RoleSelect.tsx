@@ -258,6 +258,43 @@ const RoleSelect = () => {
           </div>
         </div>
 
+        {/* Role Selection */}
+        <section className="max-w-6xl mx-auto px-4 py-12 sm:py-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Get Started</h2>
+            <p className="text-muted-foreground text-sm">Select your role to continue</p>
+          </motion.div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {roles.map((role, i) => (
+              <motion.button
+                key={role.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.4 }}
+                whileHover={{ y: -4 }}
+                onClick={() => navigate(role.path)}
+                className="group bg-card border border-border rounded-xl p-6 text-left hover:shadow-lg transition-shadow"
+              >
+                <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${role.color} flex items-center justify-center mb-4`}>
+                  <role.icon className="h-6 w-6 text-white" />
+                </div>
+                <h3 className="font-bold text-foreground text-lg mb-2">{role.title}</h3>
+                <p className="text-muted-foreground text-sm mb-4">{role.description}</p>
+                <span className="text-primary text-sm font-medium flex items-center gap-1 group-hover:gap-2 transition-all">
+                  Continue <ArrowRight className="h-4 w-4" />
+                </span>
+              </motion.button>
+            ))}
+          </div>
+        </section>
+
         {/* About Us Section */}
         <section className="max-w-6xl mx-auto px-4 py-16 sm:py-20">
           <motion.div
@@ -378,43 +415,6 @@ const RoleSelect = () => {
                 Contact the Rent Control Department to request API access for your agency.
               </p>
             </div>
-          </div>
-        </section>
-
-        {/* Role Selection */}
-        <section className="max-w-6xl mx-auto px-4 py-12 sm:py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-10"
-          >
-            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Get Started</h2>
-            <p className="text-muted-foreground text-sm">Select your role to continue</p>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {roles.map((role, i) => (
-              <motion.button
-                key={role.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.4 }}
-                whileHover={{ y: -4 }}
-                onClick={() => navigate(role.path)}
-                className="group bg-card border border-border rounded-xl p-6 text-left hover:shadow-lg transition-shadow"
-              >
-                <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${role.color} flex items-center justify-center mb-4`}>
-                  <role.icon className="h-6 w-6 text-white" />
-                </div>
-                <h3 className="font-bold text-foreground text-lg mb-2">{role.title}</h3>
-                <p className="text-muted-foreground text-sm mb-4">{role.description}</p>
-                <span className="text-primary text-sm font-medium flex items-center gap-1 group-hover:gap-2 transition-all">
-                  Continue <ArrowRight className="h-4 w-4" />
-                </span>
-              </motion.button>
-            ))}
           </div>
         </section>
 
