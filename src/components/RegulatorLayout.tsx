@@ -127,13 +127,20 @@ const RegulatorLayout = () => {
     if ((item as any).superAdminOnly && !profile?.isSuperAdmin) return false;
     // Super admin sees everything
     if (profile?.isSuperAdmin) return true;
-    // Main admin or no profile record (legacy/fallback) — show all
-    if (!profile || profile.isMainAdmin) return true;
-    if (profile.allowedFeatures.length === 0) return true; // unrestricted admin
-
-    // Sub admin — only show allowed features that aren't muted
+    // No admin profile record (legacy/fallback) — show all
+    if (!profile) return true;
+    // Main admin: empty allowed_features = full access (backward compatible)
+    if (profile.isMainAdmin) {
+      if (profile.allowedFeatures.length === 0) return true;
+      const featureKey = getFeatureKeyForRoute(item.to);
+      if (!featureKey) return true;
+      const isMuted = profile.mutedFeatures.includes(featureKey);
+      return profile.allowedFeatures.includes(featureKey) && !isMuted;
+    }
+    // Sub admin — must explicitly include the feature (dashboard always allowed)
     const featureKey = getFeatureKeyForRoute(item.to);
-    if (!featureKey) return true;
+    if (featureKey === "dashboard") return true;
+    if (!featureKey) return false;
     const isAllowed = profile.allowedFeatures.includes(featureKey);
     const isMuted = profile.mutedFeatures.includes(featureKey);
     return isAllowed && !isMuted;
