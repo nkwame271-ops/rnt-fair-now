@@ -96,6 +96,7 @@ const OfficePayoutSettings = lazy(() => import("./pages/regulator/OfficePayoutSe
 const PaymentErrors = lazy(() => import("./pages/regulator/PaymentErrors"));
 const SuperAdminDashboard = lazy(() => import("./pages/regulator/SuperAdminDashboard"));
 const StudentRevenue = lazy(() => import("./pages/regulator/StudentRevenue"));
+const EscalatedStudentComplaints = lazy(() => import("./pages/regulator/EscalatedStudentComplaints"));
 const RegulatorReceipts = lazy(() => import("./pages/regulator/RegulatorReceipts"));
 
 // NUGS pages (hidden monitoring portal)
