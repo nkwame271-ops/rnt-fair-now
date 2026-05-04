@@ -652,7 +652,7 @@ Deno.serve(async (req) => {
 
       description = `Complaint Filing Fee (GH₵ ${totalAmount.toFixed(2)})`;
       reference = `comp_${complaintId}_${Date.now()}`;
-      callbackPath = "/tenant/my-cases?status=success";
+      callbackPath = isLandlordComplaint ? "/landlord/complaints?status=success" : "/tenant/my-cases?status=success";
       metadata = { ...metadata, complaintId, isLandlordComplaint, basket_items: (basketRows || []).map((r: any) => r.id) };
 
 
