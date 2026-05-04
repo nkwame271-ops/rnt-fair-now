@@ -698,7 +698,10 @@ const RegisterProperty = () => {
           <ErrorBoundary section="Units">
             <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-card-foreground">Units ({units.length})</h2>
+                <div>
+                  <h2 className="font-semibold text-card-foreground">Units ({units.length}) <span className="text-destructive">*</span></h2>
+                  <p className="text-xs text-muted-foreground">At least one unit with name, type and rent is required to register this property.</p>
+                </div>
                 {propertyStructure === "multi_unit" && (
                   <Button type="button" variant="outline" size="sm" onClick={addUnit}>
                     <PlusCircle className="h-4 w-4 mr-1" /> Add Unit
