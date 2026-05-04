@@ -96,13 +96,17 @@ const MyCases = () => {
   // Auto-verify payment on return from Paystack
   useEffect(() => {
     if (!user) return;
-    const reference = searchParams.get("reference") || searchParams.get("trxref");
+    const reference =
+      searchParams.get("reference") ||
+      searchParams.get("trxref") ||
+      sessionStorage.getItem("pendingPaymentReference");
     if (reference) {
       const verifyPayment = async () => {
         try {
           const { data } = await supabase.functions.invoke("verify-payment", { body: { reference } });
           if (data?.verified) toast.success("Payment confirmed! Your complaint is now ready for scheduling.");
         } catch (_) {}
+        sessionStorage.removeItem("pendingPaymentReference");
         setSearchParams({}, { replace: true });
         await new Promise((r) => setTimeout(r, 1500));
         await fetchComplaints();
