@@ -637,6 +637,27 @@ const RegulatorProperties = () => {
                   )}
                 </div>
 
+                {/* Registered by — landlord details */}
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1">
+                  <h3 className="font-semibold text-card-foreground text-sm flex items-center gap-2 mb-2">
+                    <Users className="h-4 w-4 text-primary" /> Registered by
+                  </h3>
+                  {detailLandlord ? (
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{detailLandlord.full_name || "—"}</span></div>
+                      <div><span className="text-muted-foreground">Landlord ID:</span> <span className="font-mono font-medium">{detailLandlord.landlord_id || "—"}</span></div>
+                      <div><span className="text-muted-foreground">Phone:</span>{" "}
+                        {detailLandlord.phone ? <a href={`tel:${detailLandlord.phone}`} className="font-medium text-primary underline">{detailLandlord.phone}</a> : "—"}
+                      </div>
+                      <div><span className="text-muted-foreground">Email:</span>{" "}
+                        {detailLandlord.email ? <a href={`mailto:${detailLandlord.email}`} className="font-medium text-primary underline break-all">{detailLandlord.email}</a> : "—"}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Loading landlord details…</p>
+                  )}
+                </div>
+
                 <div>
                   <h3 className="font-semibold text-card-foreground mb-2">Units ({detailProperty.units?.length || 0})</h3>
                   <div className="space-y-2">
