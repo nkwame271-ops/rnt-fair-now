@@ -458,6 +458,8 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       rent_tax: { title: "Rent Tax Paid", body: `Rent tax payment of GH₵ ${amountPaid.toFixed(2)} confirmed.`, link: "/tenant/payments" },
       rent_tax_bulk: { title: "Bulk Rent Tax Paid", body: `Bulk advance rent tax of GH₵ ${amountPaid.toFixed(2)} confirmed.`, link: "/tenant/payments" },
       renewal_payment: { title: "Renewal Payment Confirmed", body: `Tenancy renewal payment of GH₵ ${amountPaid.toFixed(2)} confirmed.`, link: "/tenant/dashboard" },
+      student_registration: { title: "Student Registration Confirmed!", body: `Your student registration payment of GH₵ ${amountPaid.toFixed(2)} has been confirmed. Welcome.`, link: "/tenant/dashboard" },
+      student_complaint_fee: { title: "Student Complaint Filed", body: `Your student complaint filing fee of GH₵ ${amountPaid.toFixed(2)} has been confirmed.`, link: "/nugs/my-complaints" },
     };
     const notif = notifMap[paymentType];
     if (notif) {
