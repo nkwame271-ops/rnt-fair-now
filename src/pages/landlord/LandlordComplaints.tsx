@@ -570,6 +570,44 @@ const LandlordComplaints = () => {
               <p className="text-xs text-muted-foreground">Complaints must be tied to a registered property for proper fee calculation and routing.</p>
             </div>
 
+            {/* Unit picker — required when property has units (precision for multi-unit buildings) */}
+            {selectedPropertyId && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5" /> Specific Unit *</Label>
+                {unitsLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading units…
+                  </div>
+                ) : propertyUnits.length === 0 ? (
+                  <div className="text-xs text-warning bg-warning/10 border border-warning/30 rounded-lg p-2.5">
+                    This property has no units configured yet. Add units to the property first.
+                  </div>
+                ) : (
+                  <>
+                    <Select value={selectedUnitId} onValueChange={setSelectedUnitId}>
+                      <SelectTrigger><SelectValue placeholder="Select the unit involved in this complaint" /></SelectTrigger>
+                      <SelectContent>
+                        {propertyUnits.map(u => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.unit_name} · {u.unit_type} · GHS {Number(u.monthly_rent).toLocaleString()}/mo
+                            {u.status === "occupied" ? " (occupied)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedUnit && (
+                      <div className="text-xs bg-muted/40 border border-border rounded-lg p-2.5 flex items-start gap-2">
+                        <Info className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
+                        <span>
+                          The filing fee will be calculated from this unit's rent (<strong>GHS {Number(selectedUnit.monthly_rent).toLocaleString()}/mo</strong>) and mapped to the correct rent band automatically.
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Tenant Name (if applicable)</Label>
               <Input value={tenantName} onChange={(e) => setTenantName(e.target.value)} placeholder="Name of tenant involved" />
