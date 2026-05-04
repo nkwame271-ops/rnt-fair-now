@@ -83,8 +83,23 @@ const RegulatorProperties = () => {
 
   const openDetail = async (p: any) => {
     setDetailProperty(p);
-    const { data } = await supabase.from("property_images").select("*").eq("property_id", p.id);
-    setDetailImages(data || []);
+    setDetailLandlord(null);
+    const [imgRes, profRes, llRes] = await Promise.all([
+      supabase.from("property_images").select("*").eq("property_id", p.id),
+      p.landlord_user_id
+        ? supabase.from("profiles").select("full_name, phone, email").eq("user_id", p.landlord_user_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      p.landlord_user_id
+        ? supabase.from("landlords").select("landlord_id").eq("user_id", p.landlord_user_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    setDetailImages(imgRes.data || []);
+    setDetailLandlord({
+      full_name: (profRes.data as any)?.full_name,
+      phone: (profRes.data as any)?.phone,
+      email: (profRes.data as any)?.email,
+      landlord_id: (llRes.data as any)?.landlord_id,
+    });
   };
 
   const handleApprove = async (propertyId: string) => {
