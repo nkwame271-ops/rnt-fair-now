@@ -903,6 +903,12 @@ const RegulatorComplaints = () => {
                     By: {c._landlordProfile?.full_name || "Unknown"} ({c._landlordProfile?.phone || "—"})
                   </div>
                   <div className="text-sm text-muted-foreground">{c.property_address}, {c.region} • {new Date(c.created_at).toLocaleDateString()}</div>
+                  {(c._linkedUnitName || c._linkedPropertyRent !== null) && (
+                    <div className="text-xs text-foreground mt-1">
+                      {c._linkedUnitName && <><span className="text-muted-foreground">Unit:</span> <span className="font-medium">{c._linkedUnitName}</span> · </>}
+                      {c._linkedPropertyRent !== null && <><span className="text-muted-foreground">Rent:</span> <span className="font-medium">GHS {Number(c._linkedPropertyRent).toLocaleString()}/mo</span></>}
+                    </div>
+                  )}
                 </div>
                 <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusColors[c.status] || ""}`}>{c.status.replace("_", " ")}</span>
               </div>
