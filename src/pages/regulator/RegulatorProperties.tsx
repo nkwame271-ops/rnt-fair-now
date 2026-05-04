@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban, GitCompare, Trash2 } from "lucide-react";
+import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban, GitCompare, Trash2, User as Users } from "lucide-react";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ const RegulatorProperties = () => {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"table" | "map">("table");
   const [detailProperty, setDetailProperty] = useState<any | null>(null);
+  const [detailLandlord, setDetailLandlord] = useState<{ full_name?: string; phone?: string; email?: string; landlord_id?: string } | null>(null);
   const [detailImages, setDetailImages] = useState<any[]>([]);
   const [approving, setApproving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -82,8 +83,23 @@ const RegulatorProperties = () => {
 
   const openDetail = async (p: any) => {
     setDetailProperty(p);
-    const { data } = await supabase.from("property_images").select("*").eq("property_id", p.id);
-    setDetailImages(data || []);
+    setDetailLandlord(null);
+    const [imgRes, profRes, llRes] = await Promise.all([
+      supabase.from("property_images").select("*").eq("property_id", p.id),
+      p.landlord_user_id
+        ? supabase.from("profiles").select("full_name, phone, email").eq("user_id", p.landlord_user_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      p.landlord_user_id
+        ? supabase.from("landlords").select("landlord_id").eq("user_id", p.landlord_user_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    setDetailImages(imgRes.data || []);
+    setDetailLandlord({
+      full_name: (profRes.data as any)?.full_name,
+      phone: (profRes.data as any)?.phone,
+      email: (profRes.data as any)?.email,
+      landlord_id: (llRes.data as any)?.landlord_id,
+    });
   };
 
   const handleApprove = async (propertyId: string) => {
@@ -618,6 +634,27 @@ const RegulatorProperties = () => {
                         </div>
                       )}
                     </div>
+                  )}
+                </div>
+
+                {/* Registered by — landlord details */}
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1">
+                  <h3 className="font-semibold text-card-foreground text-sm flex items-center gap-2 mb-2">
+                    <Users className="h-4 w-4 text-primary" /> Registered by
+                  </h3>
+                  {detailLandlord ? (
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{detailLandlord.full_name || "—"}</span></div>
+                      <div><span className="text-muted-foreground">Landlord ID:</span> <span className="font-mono font-medium">{detailLandlord.landlord_id || "—"}</span></div>
+                      <div><span className="text-muted-foreground">Phone:</span>{" "}
+                        {detailLandlord.phone ? <a href={`tel:${detailLandlord.phone}`} className="font-medium text-primary underline">{detailLandlord.phone}</a> : "—"}
+                      </div>
+                      <div><span className="text-muted-foreground">Email:</span>{" "}
+                        {detailLandlord.email ? <a href={`mailto:${detailLandlord.email}`} className="font-medium text-primary underline break-all">{detailLandlord.email}</a> : "—"}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Loading landlord details…</p>
                   )}
                 </div>
 

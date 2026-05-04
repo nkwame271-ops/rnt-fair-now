@@ -167,6 +167,25 @@ const RegisterProperty = () => {
       return;
     }
 
+    // Mandatory unit validation (non-hostel branch)
+    if (!isHostel) {
+      if (units.length === 0) {
+        toast.error("You must add at least one unit before registering this property");
+        return;
+      }
+      const invalidIdx = units.findIndex(
+        (u) => !u.name?.trim() || !u.type?.trim() || !u.rent || parseFloat(u.rent) <= 0
+      );
+      if (invalidIdx !== -1) {
+        toast.error(
+          propertyStructure === "single_unit"
+            ? "Please complete the unit details (name, type and rent) before registering"
+            : `Unit ${invalidIdx + 1} is incomplete. Each unit needs a name, type and rent before registering`
+        );
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
@@ -679,7 +698,10 @@ const RegisterProperty = () => {
           <ErrorBoundary section="Units">
             <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-card-foreground">Units ({units.length})</h2>
+                <div>
+                  <h2 className="font-semibold text-card-foreground">Units ({units.length}) <span className="text-destructive">*</span></h2>
+                  <p className="text-xs text-muted-foreground">At least one unit with name, type and rent is required to register this property.</p>
+                </div>
                 {propertyStructure === "multi_unit" && (
                   <Button type="button" variant="outline" size="sm" onClick={addUnit}>
                     <PlusCircle className="h-4 w-4 mr-1" /> Add Unit
