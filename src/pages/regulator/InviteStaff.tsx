@@ -138,7 +138,7 @@ const InviteStaff = () => {
       )}
 
       {/* Admin Type Tabs */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid ${profile?.isSuperAdmin ? "grid-cols-3" : "grid-cols-2"} gap-2`}>
         <Button
           variant={adminType === "main_admin" ? "default" : "outline"}
           onClick={() => setAdminType("main_admin")}
@@ -155,15 +155,16 @@ const InviteStaff = () => {
           <Building2 className="h-4 w-4 mr-2" />
           Sub Admin
         </Button>
-        <Button
-          variant={adminType === "nugs_admin" ? "default" : "outline"}
-          onClick={() => setAdminType("nugs_admin")}
-          size="sm"
-        >
-          <GraduationCap className="h-4 w-4 mr-2" />
-          NUGS Admin
-        </Button>
-      </div>
+        {profile?.isSuperAdmin && (
+          <Button
+            variant={adminType === "nugs_admin" ? "default" : "outline"}
+            onClick={() => setAdminType("nugs_admin")}
+            size="sm"
+          >
+            <GraduationCap className="h-4 w-4 mr-2" />
+            NUGS Sub-Admin
+          </Button>
+        )}
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
