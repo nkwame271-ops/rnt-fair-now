@@ -266,6 +266,23 @@ const InviteStaff = () => {
             </>
           )}
 
+          {adminType === "nugs_admin" && (
+            <div className="space-y-2">
+              <Label>Assigned School</Label>
+              <Select value={assignedSchool} onValueChange={setAssignedSchool}>
+                <SelectTrigger><SelectValue placeholder="Select institution..." /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {GHANA_INSTITUTIONS.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                This sub-admin will only see complaints from students at this institution.
+              </p>
+            </div>
+          )}
+
           {/* Feature selection — hidden for NUGS admins */}
           {adminType !== "nugs_admin" && (
             <div className="space-y-2">
