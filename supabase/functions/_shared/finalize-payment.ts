@@ -19,7 +19,14 @@ const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
   admin_hq: "admin",   // HQ share routes to the same system admin settlement account
   platform: "platform",
   gra: "gra",
+  // Student revenue recipients — settle directly to their own system accounts.
+  igf: "igf",
+  nugs: "nugs",
+  cm: "cm",
 };
+
+// Student-only payment types — bypass office routing and secondary splits entirely.
+const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee"]);
 
 // Recipients that may have a secondary split configuration (office vs. HQ).
 // When a primary split row is for one of these recipients AND the recipient has
@@ -179,7 +186,8 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
   const userId = escrow.user_id;
   const paymentType = escrow.payment_type;
   const meta = (escrow.metadata as any) || {};
-  const officeId = escrow.office_id || meta.office_id || null;
+  const isStudentRevenue = STUDENT_PAYMENT_TYPES.has(paymentType);
+  const officeId = isStudentRevenue ? null : (escrow.office_id || meta.office_id || null);
 
   // 2. Mark completed (idempotent — only if still pending)
   if (escrow.status !== "completed") {
@@ -450,6 +458,8 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       rent_tax: { title: "Rent Tax Paid", body: `Rent tax payment of GH₵ ${amountPaid.toFixed(2)} confirmed.`, link: "/tenant/payments" },
       rent_tax_bulk: { title: "Bulk Rent Tax Paid", body: `Bulk advance rent tax of GH₵ ${amountPaid.toFixed(2)} confirmed.`, link: "/tenant/payments" },
       renewal_payment: { title: "Renewal Payment Confirmed", body: `Tenancy renewal payment of GH₵ ${amountPaid.toFixed(2)} confirmed.`, link: "/tenant/dashboard" },
+      student_registration: { title: "Student Registration Confirmed!", body: `Your student registration payment of GH₵ ${amountPaid.toFixed(2)} has been confirmed. Welcome.`, link: "/tenant/dashboard" },
+      student_complaint_fee: { title: "Student Complaint Filed", body: `Your student complaint filing fee of GH₵ ${amountPaid.toFixed(2)} has been confirmed.`, link: "/nugs/my-complaints" },
     };
     const notif = notifMap[paymentType];
     if (notif) {
@@ -642,7 +652,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
 async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string; userId: string; meta: any; escrow: any; amountPaid: number; transactionId: string }) {
   const { paymentType, userId, meta, escrow, amountPaid, transactionId } = opts;
 
-  if (paymentType === "tenant_registration") {
+  if (paymentType === "tenant_registration" || paymentType === "student_registration") {
     const { data: tenant } = await supabaseAdmin.from("tenants").select("registration_fee_paid").eq("user_id", userId).single();
     if (tenant && !tenant.registration_fee_paid) {
       await supabaseAdmin.from("tenants").update({
@@ -669,7 +679,7 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
     if (propertyId) {
       await supabaseAdmin.from("properties").update({ listed_on_marketplace: true }).eq("id", propertyId);
     }
-  } else if (paymentType === "complaint_fee") {
+  } else if (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") {
     const complaintId = meta?.complaintId || escrow.related_complaint_id;
     if (complaintId) {
       // Find the receipt we just created (by escrow_transaction_id)

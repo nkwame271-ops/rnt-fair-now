@@ -38,6 +38,8 @@ const SETTLEMENT_TYPES = [
   { key: "admin", label: "Admin" },
   { key: "platform", label: "Platform" },
   { key: "gra", label: "GRA" },
+  { key: "nugs", label: "NUGS (Student Revenue)" },
+  { key: "cm", label: "CM (Student Revenue)" },
 ];
 
 const OfficePayoutSettings = () => {

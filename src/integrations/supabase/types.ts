@@ -929,6 +929,7 @@ export type Database = {
           created_at: string
           currency: string
           id: string
+          is_student_revenue: boolean
           metadata: Json | null
           office_id: string | null
           payment_type: string
@@ -947,6 +948,7 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          is_student_revenue?: boolean
           metadata?: Json | null
           office_id?: string | null
           payment_type: string
@@ -965,6 +967,7 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          is_student_revenue?: boolean
           metadata?: Json | null
           office_id?: string | null
           payment_type?: string

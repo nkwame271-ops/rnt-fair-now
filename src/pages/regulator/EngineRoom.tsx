@@ -78,7 +78,12 @@ const PAYMENT_TYPE_LABELS: Record<string, string> = {
   rent_tax: "Tax Revenue",
   register_tenant_fee: "Register Tenant Fee",
   filing_fee: "Filing Fee",
+  student_registration: "Student Registration Fee",
+  student_complaint_fee: "Student Complaint Filing Fee",
 };
+
+const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee"]);
+const STUDENT_FEATURE_KEYS = new Set(["student_registration", "student_complaint_fee"]);
 
 const RECIPIENT_LABELS: Record<string, string> = {
   platform: "Platform",
@@ -86,6 +91,9 @@ const RECIPIENT_LABELS: Record<string, string> = {
   admin: "Admin",
   gra: "GRA",
   landlord: "Landlord",
+  igf: "IGF",
+  nugs: "NUGS",
+  cm: "CM",
 };
 
 const BAND_BASED_FEE_KEYS = new Set(["agreement_sale_fee", "add_tenant_fee"]);
@@ -529,12 +537,25 @@ const EngineRoom = () => {
   // Office payout mode flag
   const payoutModeFlag = flags.find(f => f.feature_key === "office_payout_mode");
 
-  // Group splits by payment type
-  const splitsByType = splitConfigs.reduce((acc, s) => {
-    if (!acc[s.payment_type]) acc[s.payment_type] = [];
-    acc[s.payment_type].push(s);
-    return acc;
-  }, {} as Record<string, SplitConfig[]>);
+  // Group splits by payment type — exclude student types (shown in Student Revenue section)
+  const splitsByType = splitConfigs
+    .filter(s => !STUDENT_PAYMENT_TYPES.has(s.payment_type))
+    .reduce((acc, s) => {
+      if (!acc[s.payment_type]) acc[s.payment_type] = [];
+      acc[s.payment_type].push(s);
+      return acc;
+    }, {} as Record<string, SplitConfig[]>);
+
+  // Student-only split groups for the dedicated Student Revenue card.
+  const studentSplitsByType = splitConfigs
+    .filter(s => STUDENT_PAYMENT_TYPES.has(s.payment_type))
+    .reduce((acc, s) => {
+      if (!acc[s.payment_type]) acc[s.payment_type] = [];
+      acc[s.payment_type].push(s);
+      return acc;
+    }, {} as Record<string, SplitConfig[]>);
+
+  const studentFeeFlags = visibleFlags.filter(f => STUDENT_FEATURE_KEYS.has(f.feature_key));
 
   // Group secondary splits
   const secondaryByParent = secondarySplits.reduce((acc, s) => {

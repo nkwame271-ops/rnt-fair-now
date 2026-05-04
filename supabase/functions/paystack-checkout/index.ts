@@ -22,7 +22,12 @@ const FEE_KEY_TO_PAYMENT_TYPE: Record<string, string> = {
   add_tenant_fee: "add_tenant_fee",
   termination_fee: "termination_fee",
   archive_search_fee: "archive_search_fee",
+  student_registration: "student_registration",
+  student_complaint_fee: "student_complaint_fee",
 };
+
+// Student-only payment types — fully isolated from office/HQ routing & escrow.
+const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee"]);
 
 interface DeterminedFee {
   amount: number;
@@ -520,29 +525,40 @@ Deno.serve(async (req) => {
       callbackPath = body.callbackPath || "/landlord/agreements?status=success";
       relatedTenancyId = tenancyId || null;
 
-    } else if (type === "tenant_registration") {
+    } else if (type === "tenant_registration" || type === "student_registration") {
       const { data: tenant } = await supabase
         .from("tenants")
-        .select("id, registration_fee_paid")
+        .select("id, registration_fee_paid, is_student")
         .eq("user_id", userId)
         .single();
 
       if (!tenant) throw new Error("Tenant record not found");
       if (tenant.registration_fee_paid) throw new Error("Registration fee already paid");
 
-      officeId = await resolveOffice(supabaseAdmin, { userId, region: profile?.delivery_region || undefined, area: profile?.delivery_area || undefined });
+      // Force student_registration type when tenant is flagged as a student.
+      const effectiveType = (tenant as any).is_student ? "student_registration" : "tenant_registration";
       caseType = "registration";
 
-      const fee = await determineFee(supabaseAdmin, "tenant_registration_fee");
+      if (effectiveType === "student_registration") {
+        // Student revenue: never tied to an office.
+        officeId = "accra_central";
+      } else {
+        officeId = await resolveOffice(supabaseAdmin, { userId, region: profile?.delivery_region || undefined, area: profile?.delivery_area || undefined });
+      }
+
+      const feeKey = effectiveType === "student_registration" ? "student_registration" : "tenant_registration_fee";
+      const fee = await determineFee(supabaseAdmin, feeKey);
       if (!fee.enabled || fee.amount === 0) {
         await supabaseAdmin.from("tenants").update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() }).eq("user_id", userId);
         return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       totalAmount = fee.amount;
       splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
-      description = `Tenant Registration Fee (GH₵ ${fee.amount})`;
-      reference = `treg_${userId}_${Date.now()}`;
+      description = `${effectiveType === "student_registration" ? "Student" : "Tenant"} Registration Fee (GH₵ ${fee.amount})`;
+      reference = `${effectiveType === "student_registration" ? "streg" : "treg"}_${userId}_${Date.now()}`;
       callbackPath = "/tenant/dashboard?status=success";
+      // Mutate the outer `type` so escrow_transactions.payment_type matches the actual fee.
+      (body as any).type = effectiveType;
 
     } else if (type === "landlord_registration") {
       let { data: landlord } = await supabase
@@ -614,48 +630,72 @@ Deno.serve(async (req) => {
         throw new Error("No payment amount has been set by the admin yet");
       }
 
-      officeId = complaint.office_id || await resolveOffice(supabaseAdmin, { region: complaint.region });
+      // Detect if filer is a student — switch to student_complaint_fee for isolated revenue
+      let isStudentComplaint = false;
+      if (!isLandlordComplaint) {
+        const { data: filerTenant } = await supabaseAdmin
+          .from("tenants")
+          .select("is_student")
+          .eq("user_id", ownerId)
+          .maybeSingle();
+        isStudentComplaint = !!filerTenant?.is_student;
+      }
+
+      if (isStudentComplaint) {
+        officeId = "accra_central"; // student revenue not tied to office
+      } else {
+        officeId = complaint.office_id || await resolveOffice(supabaseAdmin, { region: complaint.region });
+      }
       caseType = "complaint";
       relatedComplaintId = complaintId;
 
       // Trusted server-side amount; ignore any client-supplied figure
       totalAmount = serverAmount;
 
-      // Try basket-driven per-item split plan first; fall back to legacy single allocation.
-      const { data: basketRows } = await supabaseAdmin
-        .from("complaint_basket_items")
-        .select("id, kind, label, amount, igf_pct, admin_pct, platform_pct")
-        .eq("complaint_id", complaintId)
-        .eq("complaint_table", isLandlordComplaint ? "landlord_complaints" : "complaints")
-        .order("created_at");
-
-      if (Array.isArray(basketRows) && basketRows.length > 0) {
-        const basketSum = basketRows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
-        // Sanity: outstanding_amount must equal basket sum (within 1 pesewa)
-        if (Math.abs(basketSum - serverAmount) > 0.01) {
-          throw new Error(`Basket total (GH₵ ${basketSum.toFixed(2)}) does not match the outstanding amount (GH₵ ${serverAmount.toFixed(2)})`);
-        }
-        const perItemSplits: any[] = [];
-        for (const row of basketRows) {
-          const amt = Number(row.amount) || 0;
-          const igf = +(amt * (Number(row.igf_pct) || 0) / 100).toFixed(2);
-          const adm = +(amt * (Number(row.admin_pct) || 0) / 100).toFixed(2);
-          const plat = +(amt * (Number(row.platform_pct) || 0) / 100).toFixed(2);
-          if (igf > 0) perItemSplits.push({ recipient: "rent_control", amount: igf, description: `${row.label} (IGF)`, complaint_basket_item_id: row.id });
-          if (adm > 0) perItemSplits.push({ recipient: "admin", amount: adm, description: `${row.label} (Admin)`, complaint_basket_item_id: row.id });
-          if (plat > 0) perItemSplits.push({ recipient: "platform", amount: plat, description: `${row.label} (Platform)`, complaint_basket_item_id: row.id });
-        }
-        splitPlan = perItemSplits;
+      if (isStudentComplaint) {
+        // Student complaints use the dedicated 4-way flat split (IGF / NUGS / Platform / CM)
+        // proportionally scaled to the actual outstanding amount.
+        splitPlan = await loadAllocation(supabaseAdmin, "student_complaint_fee", totalAmount, null);
+        description = `Student Complaint Filing Fee (GH₵ ${totalAmount.toFixed(2)})`;
+        reference = `streetcomp_${complaintId}_${Date.now()}`;
+        callbackPath = "/nugs/my-complaints?status=success";
+        metadata = { ...metadata, complaintId, isStudentComplaint: true };
+        (body as any).type = "student_complaint_fee";
       } else {
-        splitPlan = await loadAllocation(supabaseAdmin, "complaint_fee", totalAmount, null);
+        // Try basket-driven per-item split plan first; fall back to legacy single allocation.
+        const { data: basketRows } = await supabaseAdmin
+          .from("complaint_basket_items")
+          .select("id, kind, label, amount, igf_pct, admin_pct, platform_pct")
+          .eq("complaint_id", complaintId)
+          .eq("complaint_table", isLandlordComplaint ? "landlord_complaints" : "complaints")
+          .order("created_at");
+
+        if (Array.isArray(basketRows) && basketRows.length > 0) {
+          const basketSum = basketRows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+          // Sanity: outstanding_amount must equal basket sum (within 1 pesewa)
+          if (Math.abs(basketSum - serverAmount) > 0.01) {
+            throw new Error(`Basket total (GH₵ ${basketSum.toFixed(2)}) does not match the outstanding amount (GH₵ ${serverAmount.toFixed(2)})`);
+          }
+          const perItemSplits: any[] = [];
+          for (const row of basketRows) {
+            const amt = Number(row.amount) || 0;
+            const igf = +(amt * (Number(row.igf_pct) || 0) / 100).toFixed(2);
+            const adm = +(amt * (Number(row.admin_pct) || 0) / 100).toFixed(2);
+            const plat = +(amt * (Number(row.platform_pct) || 0) / 100).toFixed(2);
+            if (igf > 0) perItemSplits.push({ recipient: "rent_control", amount: igf, description: `${row.label} (IGF)`, complaint_basket_item_id: row.id });
+            if (adm > 0) perItemSplits.push({ recipient: "admin", amount: adm, description: `${row.label} (Admin)`, complaint_basket_item_id: row.id });
+            if (plat > 0) perItemSplits.push({ recipient: "platform", amount: plat, description: `${row.label} (Platform)`, complaint_basket_item_id: row.id });
+          }
+          splitPlan = perItemSplits;
+        } else {
+          splitPlan = await loadAllocation(supabaseAdmin, "complaint_fee", totalAmount, null);
+        }
+
+        description = `Complaint Filing Fee (GH₵ ${totalAmount.toFixed(2)})`;
+        reference = `comp_${complaintId}_${Date.now()}`;
+        callbackPath = isLandlordComplaint ? "/landlord/complaints?status=success" : "/tenant/my-cases?status=success";
+        metadata = { ...metadata, complaintId, isLandlordComplaint, basket_items: (basketRows || []).map((r: any) => r.id) };
       }
-
-      description = `Complaint Filing Fee (GH₵ ${totalAmount.toFixed(2)})`;
-      reference = `comp_${complaintId}_${Date.now()}`;
-      callbackPath = isLandlordComplaint ? "/landlord/complaints?status=success" : "/tenant/my-cases?status=success";
-      metadata = { ...metadata, complaintId, isLandlordComplaint, basket_items: (basketRows || []).map((r: any) => r.id) };
-
-
     } else if (type === "listing_fee") {
       const { propertyId } = body;
       if (!propertyId) throw new Error("propertyId is required");
@@ -960,21 +1000,26 @@ Deno.serve(async (req) => {
       metadata: { payment_type: type, description },
     });
 
+    // Re-read type from body so it reflects any in-flight remap (e.g. tenant→student)
+    const effectivePaymentType = (body as any).type || type;
+    const isStudentRevenue = STUDENT_PAYMENT_TYPES.has(effectivePaymentType);
+
     // Create escrow transaction record with office_id and case_id
     const { error: escrowErr } = await supabaseAdmin
       .from("escrow_transactions")
       .insert({
         user_id: userId,
-        payment_type: type,
+        payment_type: effectivePaymentType,
         reference,
         total_amount: totalAmount,
         status: "pending",
         related_tenancy_id: relatedTenancyId,
         related_complaint_id: relatedComplaintId,
         related_property_id: relatedPropertyId,
-        office_id: officeId,
+        office_id: isStudentRevenue ? null : officeId,
         case_id: caseId || null,
-        metadata: { ...metadata, split_plan: splitPlan, description, case_number: caseNumber, office_id: officeId },
+        is_student_revenue: isStudentRevenue,
+        metadata: { ...metadata, split_plan: splitPlan, description, case_number: caseNumber, office_id: isStudentRevenue ? null : officeId, is_student_revenue: isStudentRevenue },
       });
 
     if (escrowErr) console.error("Escrow record creation error:", escrowErr.message);
@@ -999,7 +1044,7 @@ Deno.serve(async (req) => {
       reference,
       callback_url: callbackUrl,
       metadata: {
-        type,
+        type: effectivePaymentType,
         userId,
         caseId,
         caseNumber,
