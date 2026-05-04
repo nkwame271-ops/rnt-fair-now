@@ -58,6 +58,10 @@ const InviteStaff = () => {
       toast.error("Please select an office for the Sub Admin");
       return;
     }
+    if (adminType === "nugs_admin" && !assignedSchool) {
+      toast.error("Please assign a school for the NUGS Sub-Admin");
+      return;
+    }
     setLoading(true);
     setCreated(null);
 
@@ -70,6 +74,7 @@ const InviteStaff = () => {
           adminType,
           officeId: adminType === "sub_admin" ? officeId : null,
           officeName: adminType === "sub_admin" ? office?.name : null,
+          assignedSchool: adminType === "nugs_admin" ? assignedSchool : null,
           allowedFeatures: selectedFeatures,
         },
       });
@@ -85,6 +90,7 @@ const InviteStaff = () => {
       setPassword("");
       setSelectedRegion("");
       setOfficeId("");
+      setAssignedSchool("");
       setSelectedFeatures([]);
     } catch (err: any) {
       toast.error(err.message || "Failed to create staff account");
