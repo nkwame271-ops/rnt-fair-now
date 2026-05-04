@@ -201,7 +201,7 @@ const LandlordComplaints = () => {
   };
 
   const resetForm = () => {
-    setComplaintType(""); setTenantName(""); setSelectedPropertyId("");
+    setComplaintType(""); setTenantName(""); setSelectedPropertyId(""); setSelectedUnitId(""); setPropertyUnits([]);
     setRegion(""); setOfficeId(""); setDescription(""); setDocuments([]);
     setLocationMethod(""); setLocationLat(null); setLocationLng(null);
     setGpsCode(""); setPlaceName(""); setGpsConfirmed(false);
