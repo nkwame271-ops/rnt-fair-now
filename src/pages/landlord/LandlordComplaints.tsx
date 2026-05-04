@@ -47,10 +47,13 @@ const LandlordComplaints = () => {
   const [basketMap, setBasketMap] = useState<Record<string, any[]>>({});
   const [paying, setPaying] = useState<string | null>(null);
 
-  // Property picker
+  // Property + Unit picker
   const [properties, setProperties] = useState<any[]>([]);
   const [offices, setOffices] = useState<{ id: string; name: string; region: string }[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
+  const [propertyUnits, setPropertyUnits] = useState<any[]>([]);
+  const [selectedUnitId, setSelectedUnitId] = useState("");
+  const [unitsLoading, setUnitsLoading] = useState(false);
 
   const [complaintType, setComplaintType] = useState("");
   const [tenantName, setTenantName] = useState("");
@@ -290,17 +293,17 @@ const LandlordComplaints = () => {
   };
 
   // When property is picked, prefill region/office and try to derive location from property GPS
-  const onPickProperty = (id: string) => {
+  const onPickProperty = async (id: string) => {
     setSelectedPropertyId(id);
+    setSelectedUnitId("");
+    setPropertyUnits([]);
     const p = properties.find((x) => x.id === id);
     if (!p) return;
     if (p.region) setRegion(p.region);
-    // Auto-resolve office from property region
     if (p.region) {
       supabase.rpc("resolve_office_id", { p_region: p.region, p_area: p.area || null })
         .then(({ data }) => { if (data) setOfficeId(data); });
     }
-    // Prefill location from property if available
     if (p.gps_location && typeof p.gps_location === "string") {
       const parts = p.gps_location.split(",").map((s: string) => parseFloat(s.trim()));
       if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
@@ -310,7 +313,21 @@ const LandlordComplaints = () => {
         setPlaceName(p.address || p.property_name || "");
       }
     }
+
+    // Load units for this property
+    setUnitsLoading(true);
+    const { data: units } = await supabase
+      .from("units")
+      .select("id, unit_name, unit_type, monthly_rent, status")
+      .eq("property_id", id)
+      .order("unit_name");
+    setPropertyUnits(units || []);
+    // If only one unit, auto-select it
+    if (units && units.length === 1) setSelectedUnitId(units[0].id);
+    setUnitsLoading(false);
   };
+
+  const selectedUnit = propertyUnits.find((u) => u.id === selectedUnitId);
 
   const officesInRegion = region ? offices.filter((o) => o.region === region) : [];
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
