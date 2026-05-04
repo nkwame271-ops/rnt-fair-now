@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban, GitCompare, Trash2 } from "lucide-react";
+import { Building2, Download, Search, MapPin, Map, List, CheckCircle2, Clock, Eye, Loader2, ClipboardCheck, AlertTriangle, ShieldAlert, Ban, GitCompare, Trash2, User as Users } from "lucide-react";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import { Input } from "@/components/ui/input";
