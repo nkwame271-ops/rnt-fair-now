@@ -1000,21 +1000,26 @@ Deno.serve(async (req) => {
       metadata: { payment_type: type, description },
     });
 
+    // Re-read type from body so it reflects any in-flight remap (e.g. tenant→student)
+    const effectivePaymentType = (body as any).type || type;
+    const isStudentRevenue = STUDENT_PAYMENT_TYPES.has(effectivePaymentType);
+
     // Create escrow transaction record with office_id and case_id
     const { error: escrowErr } = await supabaseAdmin
       .from("escrow_transactions")
       .insert({
         user_id: userId,
-        payment_type: type,
+        payment_type: effectivePaymentType,
         reference,
         total_amount: totalAmount,
         status: "pending",
         related_tenancy_id: relatedTenancyId,
         related_complaint_id: relatedComplaintId,
         related_property_id: relatedPropertyId,
-        office_id: officeId,
+        office_id: isStudentRevenue ? null : officeId,
         case_id: caseId || null,
-        metadata: { ...metadata, split_plan: splitPlan, description, case_number: caseNumber, office_id: officeId },
+        is_student_revenue: isStudentRevenue,
+        metadata: { ...metadata, split_plan: splitPlan, description, case_number: caseNumber, office_id: isStudentRevenue ? null : officeId, is_student_revenue: isStudentRevenue },
       });
 
     if (escrowErr) console.error("Escrow record creation error:", escrowErr.message);
