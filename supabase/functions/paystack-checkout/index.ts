@@ -630,7 +630,22 @@ Deno.serve(async (req) => {
         throw new Error("No payment amount has been set by the admin yet");
       }
 
-      officeId = complaint.office_id || await resolveOffice(supabaseAdmin, { region: complaint.region });
+      // Detect if filer is a student — switch to student_complaint_fee for isolated revenue
+      let isStudentComplaint = false;
+      if (!isLandlordComplaint) {
+        const { data: filerTenant } = await supabaseAdmin
+          .from("tenants")
+          .select("is_student")
+          .eq("user_id", ownerId)
+          .maybeSingle();
+        isStudentComplaint = !!filerTenant?.is_student;
+      }
+
+      if (isStudentComplaint) {
+        officeId = "accra_central"; // student revenue not tied to office
+      } else {
+        officeId = complaint.office_id || await resolveOffice(supabaseAdmin, { region: complaint.region });
+      }
       caseType = "complaint";
       relatedComplaintId = complaintId;
 
