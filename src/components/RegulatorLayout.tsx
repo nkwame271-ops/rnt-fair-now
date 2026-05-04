@@ -21,6 +21,7 @@ import {
   Gavel,
   Send,
   Crown,
+  GraduationCap,
 } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -95,6 +96,7 @@ const allNavItems = [
   { to: "/regulator/office-fund-requests", label: "Office Wallet", icon: BarChart3 },
   { to: "/regulator/office-payout-settings", label: "Payout Settings", icon: Settings },
   { to: "/regulator/payment-errors", label: "Payment Errors", icon: AlertTriangle },
+  { to: "/regulator/student-revenue", label: "Student Revenue", icon: GraduationCap, superAdminOnly: true },
   { to: "/regulator/super-admin", label: "Super Admin", icon: Crown, superAdminOnly: true },
 ];
 

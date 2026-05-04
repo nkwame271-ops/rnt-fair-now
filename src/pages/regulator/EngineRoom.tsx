@@ -864,6 +864,98 @@ const EngineRoom = () => {
         </div>
       )}
 
+      {/* Student Revenue (isolated from main Split Engine) */}
+      {isMainAdmin && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <Cog className="h-5 w-5 text-primary" /> Student Revenue
+          </h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Student-related fees and splits are isolated from all other revenue. Funds route to IGF, NUGS, Platform, and CM as flat amounts and are visible only to Super Admins in the Student Revenue dashboard.
+          </p>
+
+          {/* Student Fee Toggles */}
+          {studentFeeFlags.length > 0 && (
+            <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden mb-4">
+              <div className="p-4 border-b border-border">
+                <p className="font-semibold text-card-foreground">Student Fees</p>
+                <p className="text-xs text-muted-foreground">Enable, disable, or adjust student-specific fee amounts.</p>
+              </div>
+              <div className="divide-y divide-border">
+                {studentFeeFlags.map(renderFeeRow)}
+              </div>
+            </div>
+          )}
+
+          {/* Student Splits — must equal fee amount per type (flat GHS) */}
+          {Object.keys(studentSplitsByType).length > 0 ? (
+            <div className="space-y-4">
+              {Object.entries(studentSplitsByType).map(([paymentType, splits]) => {
+                const total = splits.reduce((s, r) => s + r.amount, 0);
+                const feeFlag = studentFeeFlags.find(f => f.feature_key === paymentType);
+                const expected = feeFlag?.fee_amount ?? null;
+                const mismatch = expected !== null && Math.abs(total - expected) > 0.02;
+                return (
+                  <div key={paymentType} className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+                    <div className="p-4 border-b border-border flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-card-foreground">{PAYMENT_TYPE_LABELS[paymentType] || paymentType}</p>
+                        <p className={`text-xs ${mismatch ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                          Total: GH₵ {total.toFixed(2)}
+                          {expected !== null && ` / GH₵ ${expected.toFixed(2)} expected`}
+                          {mismatch ? " ⚠️ mismatch" : expected !== null ? " ✓" : ""}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px]">Flat split</Badge>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {splits.map(split => {
+                        const editKey = split.id;
+                        const isEditing = editingSplits[editKey] !== undefined;
+                        return (
+                          <div key={split.id} className="flex items-center justify-between px-4 py-3">
+                            <div>
+                              <span className="text-sm text-card-foreground">{split.description || RECIPIENT_LABELS[split.recipient] || split.recipient}</span>
+                              <span className="text-xs text-muted-foreground ml-2">→ {RECIPIENT_LABELS[split.recipient] || split.recipient}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">GH₵</span>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                className="w-20 h-8 text-sm"
+                                value={isEditing ? editingSplits[editKey] : split.amount}
+                                onChange={e => setEditingSplits(prev => ({ ...prev, [editKey]: parseFloat(e.target.value) || 0 }))}
+                              />
+                              {isEditing && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-2"
+                                  onClick={() => handleSaveSplitAmount(split.id, editingSplits[editKey])}
+                                  disabled={savingSplit === split.id}
+                                >
+                                  {savingSplit === split.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="bg-card rounded-xl border border-border p-6 text-center text-sm text-muted-foreground">
+              No student split configurations found.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Add Tenant Rent Bands */}
       {isMainAdmin && isVisible("engine_room", "rent_bands") && (
         <div>
