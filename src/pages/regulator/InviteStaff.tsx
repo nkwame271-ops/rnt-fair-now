@@ -11,6 +11,7 @@ import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import LogoLoader from "@/components/LogoLoader";
+import { GHANA_INSTITUTIONS } from "@/data/ghanaInstitutions";
 
 const InviteStaff = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
