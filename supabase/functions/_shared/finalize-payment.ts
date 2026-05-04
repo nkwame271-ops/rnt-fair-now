@@ -186,7 +186,8 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
   const userId = escrow.user_id;
   const paymentType = escrow.payment_type;
   const meta = (escrow.metadata as any) || {};
-  const officeId = escrow.office_id || meta.office_id || null;
+  const isStudentRevenue = STUDENT_PAYMENT_TYPES.has(paymentType);
+  const officeId = isStudentRevenue ? null : (escrow.office_id || meta.office_id || null);
 
   // 2. Mark completed (idempotent — only if still pending)
   if (escrow.status !== "completed") {
