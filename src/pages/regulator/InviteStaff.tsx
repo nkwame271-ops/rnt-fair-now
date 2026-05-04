@@ -165,6 +165,7 @@ const InviteStaff = () => {
             NUGS Sub-Admin
           </Button>
         )}
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
