@@ -171,6 +171,23 @@ Deno.serve(async (req) => {
       if (staffError) {
         console.error("Failed to create admin_staff record:", staffError.message);
       }
+    } else {
+      // NUGS sub-admin → record school assignment
+      const { error: nugsError } = await adminClient
+        .from("nugs_staff")
+        .insert({
+          user_id: newUser.user.id,
+          assigned_school: assignedSchool.trim(),
+          created_by: callerId,
+        });
+
+      if (nugsError) {
+        console.error("Failed to create nugs_staff record:", nugsError.message);
+        return new Response(JSON.stringify({ error: `User created but school assignment failed: ${nugsError.message}` }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const labelMap: Record<string, string> = {
