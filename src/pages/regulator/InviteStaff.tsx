@@ -184,7 +184,7 @@ const InviteStaff = () => {
           )}
           {adminType === "nugs_admin" && (
             <>
-              <strong className="text-foreground">NUGS Admin</strong> — Read-only monitoring access to student complaints, institutions, and student profiles. Logs in via the standard staff login and is routed to the NUGS portal.
+              <strong className="text-foreground">NUGS Sub-Admin</strong> — Assigned to a single school. Can view and act on student complaints originating from that institution and escalate unresolved cases to Rent Control. Logs in via the standard staff login and is routed to the NUGS portal.
             </>
           )}
         </div>
