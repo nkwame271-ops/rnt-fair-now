@@ -650,7 +650,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
 async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string; userId: string; meta: any; escrow: any; amountPaid: number; transactionId: string }) {
   const { paymentType, userId, meta, escrow, amountPaid, transactionId } = opts;
 
-  if (paymentType === "tenant_registration") {
+  if (paymentType === "tenant_registration" || paymentType === "student_registration") {
     const { data: tenant } = await supabaseAdmin.from("tenants").select("registration_fee_paid").eq("user_id", userId).single();
     if (tenant && !tenant.registration_fee_paid) {
       await supabaseAdmin.from("tenants").update({
