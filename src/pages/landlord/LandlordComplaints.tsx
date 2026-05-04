@@ -337,6 +337,7 @@ const LandlordComplaints = () => {
     if (!user) return;
     if (!complaintType) { toast.error("Select a complaint type"); return; }
     if (!selectedPropertyId) { toast.error("Select a registered property"); return; }
+    if (propertyUnits.length > 0 && !selectedUnitId) { toast.error("Select the specific unit involved"); return; }
     if (!region) { toast.error("Select a region"); return; }
     if (!officeId) { toast.error("Select a Rent Control office"); return; }
     if (!description.trim()) { toast.error("Provide a description"); return; }
@@ -380,6 +381,7 @@ const LandlordComplaints = () => {
         audio_url: uploadedAudioUrl,
         office_id: officeId,
         linked_property_id: selectedPropertyId,
+        linked_unit_id: selectedUnitId || null,
       } as any).select("id").single();
 
       if (error) throw error;
@@ -755,7 +757,7 @@ const LandlordComplaints = () => {
 
             <Button
               onClick={handleSubmit}
-              disabled={submitting || !complaintType || !selectedPropertyId || !region || !officeId || !description.trim() || locationLat === null}
+              disabled={submitting || !complaintType || !selectedPropertyId || (propertyUnits.length > 0 && !selectedUnitId) || !region || !officeId || !description.trim() || locationLat === null}
               className="w-full"
             >
               {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
