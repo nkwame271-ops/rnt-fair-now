@@ -677,6 +677,10 @@ export type Database = {
           complaint_type_id: string | null
           created_at: string
           description: string
+          escalated_at: string | null
+          escalated_by: string | null
+          escalated_to_rent_control: boolean
+          escalation_reason: string | null
           evidence_urls: string[] | null
           gps_confirmed: boolean
           gps_confirmed_at: string | null
@@ -705,6 +709,10 @@ export type Database = {
           complaint_type_id?: string | null
           created_at?: string
           description: string
+          escalated_at?: string | null
+          escalated_by?: string | null
+          escalated_to_rent_control?: boolean
+          escalation_reason?: string | null
           evidence_urls?: string[] | null
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
@@ -733,6 +741,10 @@ export type Database = {
           complaint_type_id?: string | null
           created_at?: string
           description?: string
+          escalated_at?: string | null
+          escalated_by?: string | null
+          escalated_to_rent_control?: boolean
+          escalation_reason?: string | null
           evidence_urls?: string[] | null
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
@@ -1655,6 +1667,33 @@ export type Database = {
           link?: string | null
           read?: boolean
           title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      nugs_staff: {
+        Row: {
+          assigned_school: string
+          created_at: string
+          created_by: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_school: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_school?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
