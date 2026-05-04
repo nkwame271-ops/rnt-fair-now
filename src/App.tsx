@@ -95,6 +95,7 @@ const OfficeFundRequests = lazy(() => import("./pages/regulator/OfficeFundReques
 const OfficePayoutSettings = lazy(() => import("./pages/regulator/OfficePayoutSettings"));
 const PaymentErrors = lazy(() => import("./pages/regulator/PaymentErrors"));
 const SuperAdminDashboard = lazy(() => import("./pages/regulator/SuperAdminDashboard"));
+const StudentRevenue = lazy(() => import("./pages/regulator/StudentRevenue"));
 const RegulatorReceipts = lazy(() => import("./pages/regulator/RegulatorReceipts"));
 
 // NUGS pages (hidden monitoring portal)
@@ -206,6 +207,7 @@ const App = () => (
                 <Route path="api-keys" element={<AgencyApiKeys />} />
                 <Route path="engine-room" element={<ErrorBoundary section="Engine Room"><EngineRoom /></ErrorBoundary>} />
                 <Route path="super-admin" element={<ErrorBoundary section="Super Admin Dashboard"><SuperAdminDashboard /></ErrorBoundary>} />
+                <Route path="student-revenue" element={<ErrorBoundary section="Student Revenue"><StudentRevenue /></ErrorBoundary>} />
                 <Route path="rent-assessments" element={<RegulatorRentAssessments />} />
                 <Route path="terminations" element={<RegulatorTerminations />} />
                 <Route path="rent-cards" element={<RegulatorRentCards />} />
