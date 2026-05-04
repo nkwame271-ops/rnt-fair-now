@@ -1044,7 +1044,7 @@ Deno.serve(async (req) => {
       reference,
       callback_url: callbackUrl,
       metadata: {
-        type,
+        type: effectivePaymentType,
         userId,
         caseId,
         caseNumber,
