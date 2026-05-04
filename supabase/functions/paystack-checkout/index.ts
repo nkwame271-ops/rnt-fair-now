@@ -525,29 +525,40 @@ Deno.serve(async (req) => {
       callbackPath = body.callbackPath || "/landlord/agreements?status=success";
       relatedTenancyId = tenancyId || null;
 
-    } else if (type === "tenant_registration") {
+    } else if (type === "tenant_registration" || type === "student_registration") {
       const { data: tenant } = await supabase
         .from("tenants")
-        .select("id, registration_fee_paid")
+        .select("id, registration_fee_paid, is_student")
         .eq("user_id", userId)
         .single();
 
       if (!tenant) throw new Error("Tenant record not found");
       if (tenant.registration_fee_paid) throw new Error("Registration fee already paid");
 
-      officeId = await resolveOffice(supabaseAdmin, { userId, region: profile?.delivery_region || undefined, area: profile?.delivery_area || undefined });
+      // Force student_registration type when tenant is flagged as a student.
+      const effectiveType = (tenant as any).is_student ? "student_registration" : "tenant_registration";
       caseType = "registration";
 
-      const fee = await determineFee(supabaseAdmin, "tenant_registration_fee");
+      if (effectiveType === "student_registration") {
+        // Student revenue: never tied to an office.
+        officeId = "accra_central";
+      } else {
+        officeId = await resolveOffice(supabaseAdmin, { userId, region: profile?.delivery_region || undefined, area: profile?.delivery_area || undefined });
+      }
+
+      const feeKey = effectiveType === "student_registration" ? "student_registration" : "tenant_registration_fee";
+      const fee = await determineFee(supabaseAdmin, feeKey);
       if (!fee.enabled || fee.amount === 0) {
         await supabaseAdmin.from("tenants").update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() }).eq("user_id", userId);
         return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       totalAmount = fee.amount;
       splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
-      description = `Tenant Registration Fee (GH₵ ${fee.amount})`;
-      reference = `treg_${userId}_${Date.now()}`;
+      description = `${effectiveType === "student_registration" ? "Student" : "Tenant"} Registration Fee (GH₵ ${fee.amount})`;
+      reference = `${effectiveType === "student_registration" ? "streg" : "treg"}_${userId}_${Date.now()}`;
       callbackPath = "/tenant/dashboard?status=success";
+      // Mutate the outer `type` so escrow_transactions.payment_type matches the actual fee.
+      (body as any).type = effectiveType;
 
     } else if (type === "landlord_registration") {
       let { data: landlord } = await supabase
