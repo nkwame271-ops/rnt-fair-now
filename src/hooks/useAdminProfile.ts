@@ -243,6 +243,7 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   landlords: ["/regulator/landlords"],
   properties: ["/regulator/properties"],
   complaints: ["/regulator/complaints"],
+  escalated_student_complaints: ["/regulator/escalated-student-complaints"],
   applications: ["/regulator/applications"],
   agreements: ["/regulator/agreements"],
   agreement_templates: ["/regulator/agreement-templates"],

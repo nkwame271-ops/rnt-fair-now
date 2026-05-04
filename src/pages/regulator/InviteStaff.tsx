@@ -11,6 +11,7 @@ import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import LogoLoader from "@/components/LogoLoader";
+import { GHANA_INSTITUTIONS } from "@/data/ghanaInstitutions";
 
 const InviteStaff = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
@@ -21,6 +22,7 @@ const InviteStaff = () => {
   const [password, setPassword] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [officeId, setOfficeId] = useState("");
+  const [assignedSchool, setAssignedSchool] = useState("");
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
@@ -56,6 +58,10 @@ const InviteStaff = () => {
       toast.error("Please select an office for the Sub Admin");
       return;
     }
+    if (adminType === "nugs_admin" && !assignedSchool) {
+      toast.error("Please assign a school for the NUGS Sub-Admin");
+      return;
+    }
     setLoading(true);
     setCreated(null);
 
@@ -68,6 +74,7 @@ const InviteStaff = () => {
           adminType,
           officeId: adminType === "sub_admin" ? officeId : null,
           officeName: adminType === "sub_admin" ? office?.name : null,
+          assignedSchool: adminType === "nugs_admin" ? assignedSchool : null,
           allowedFeatures: selectedFeatures,
         },
       });
@@ -83,6 +90,7 @@ const InviteStaff = () => {
       setPassword("");
       setSelectedRegion("");
       setOfficeId("");
+      setAssignedSchool("");
       setSelectedFeatures([]);
     } catch (err: any) {
       toast.error(err.message || "Failed to create staff account");
@@ -130,7 +138,7 @@ const InviteStaff = () => {
       )}
 
       {/* Admin Type Tabs */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid ${profile?.isSuperAdmin ? "grid-cols-3" : "grid-cols-2"} gap-2`}>
         <Button
           variant={adminType === "main_admin" ? "default" : "outline"}
           onClick={() => setAdminType("main_admin")}
@@ -147,14 +155,16 @@ const InviteStaff = () => {
           <Building2 className="h-4 w-4 mr-2" />
           Sub Admin
         </Button>
-        <Button
-          variant={adminType === "nugs_admin" ? "default" : "outline"}
-          onClick={() => setAdminType("nugs_admin")}
-          size="sm"
-        >
-          <GraduationCap className="h-4 w-4 mr-2" />
-          NUGS Admin
-        </Button>
+        {profile?.isSuperAdmin && (
+          <Button
+            variant={adminType === "nugs_admin" ? "default" : "outline"}
+            onClick={() => setAdminType("nugs_admin")}
+            size="sm"
+          >
+            <GraduationCap className="h-4 w-4 mr-2" />
+            NUGS Sub-Admin
+          </Button>
+        )}
       </div>
 
       <motion.div
@@ -176,7 +186,7 @@ const InviteStaff = () => {
           )}
           {adminType === "nugs_admin" && (
             <>
-              <strong className="text-foreground">NUGS Admin</strong> — Read-only monitoring access to student complaints, institutions, and student profiles. Logs in via the standard staff login and is routed to the NUGS portal.
+              <strong className="text-foreground">NUGS Sub-Admin</strong> — Assigned to a single school. Can view and act on student complaints originating from that institution and escalate unresolved cases to Rent Control. Logs in via the standard staff login and is routed to the NUGS portal.
             </>
           )}
         </div>
@@ -256,6 +266,23 @@ const InviteStaff = () => {
                 </div>
               )}
             </>
+          )}
+
+          {adminType === "nugs_admin" && (
+            <div className="space-y-2">
+              <Label>Assigned School</Label>
+              <Select value={assignedSchool} onValueChange={setAssignedSchool}>
+                <SelectTrigger><SelectValue placeholder="Select institution..." /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {GHANA_INSTITUTIONS.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                This sub-admin will only see complaints from students at this institution.
+              </p>
+            </div>
           )}
 
           {/* Feature selection — hidden for NUGS admins */}
