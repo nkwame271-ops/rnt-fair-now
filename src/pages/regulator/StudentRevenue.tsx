@@ -169,7 +169,7 @@ const StudentRevenue = () => {
               <Wallet className="h-4 w-4" /> Total Collected
             </div>
             <p className="text-2xl font-bold text-foreground mt-2">
-              GHS <AnimatedCounter value={stats.total} decimals={2} />
+              GHS <AnimatedCounter value={stats.total} />
             </p>
             <p className="text-xs text-muted-foreground mt-1">{stats.count} completed transactions</p>
           </div>
@@ -179,7 +179,7 @@ const StudentRevenue = () => {
                 <Receipt className="h-4 w-4" /> {RECIPIENT_LABELS[rec]} Share
               </div>
               <p className="text-2xl font-bold text-foreground mt-2">
-                GHS <AnimatedCounter value={stats.byRecipient[rec] || 0} decimals={2} />
+                GHS <AnimatedCounter value={stats.byRecipient[rec] || 0} />
               </p>
             </div>
           ))}
