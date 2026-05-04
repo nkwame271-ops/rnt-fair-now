@@ -196,6 +196,7 @@ const App = () => (
                 <Route path="landlords" element={<RegulatorLandlords />} />
                 <Route path="properties" element={<RegulatorProperties />} />
                 <Route path="complaints" element={<RegulatorComplaints />} />
+                <Route path="escalated-student-complaints" element={<ErrorBoundary section="Escalated Student Complaints"><EscalatedStudentComplaints /></ErrorBoundary>} />
                 <Route path="agreements" element={<RegulatorAgreements />} />
                 <Route path="applications" element={<RegulatorApplications />} />
                 <Route path="agreement-templates" element={<RegulatorAgreementTemplates />} />
