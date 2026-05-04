@@ -1,80 +1,74 @@
+## Student Revenue Separation — Engine Room, Escrow, Payout Settings
 
-## Fix welcome SMS reliability + update welcome copy + move roles above About Us
+Student-related money flows are split off from the standard tenant/landlord pipeline at every layer: configuration (Engine Room), routing (escrow & payout), and visibility (Super Admin only).
 
-### 1. Stop welcome SMS from silently failing on new registrations
+### 1. New dedicated payment types
 
-Current registration sends the welcome notice from the browser via `sendNotification("account_created", ...)`, but the flow is fragile in two ways:
-- `RegisterTenant.tsx` and `RegisterLandlord.tsx` do not await the notification call, so registration completes even if the welcome SMS request never finishes.
-- `send-notification` currently swallows SMS provider failures and still reports SMS as effectively “sent”, so the app has no reliable signal when welcome delivery actually fails.
+Two new `payment_type` values are introduced and used by the student portal exclusively:
 
-### 2. Make the welcome SMS path explicit and reliable
+- `student_registration` — paid by students at signup (replaces the use of `tenant_registration` when `is_student = true`).
+- `student_complaint_fee` — paid for any complaint filed from the student/NUGS portal (replaces `complaint_fee` for student-filed complaints).
 
-Update the registration flow so welcome delivery is handled as a real, inspectable step after successful account creation:
+Existing tenant rows already paid as `tenant_registration` / `complaint_fee` are not migrated — only new student transactions go through the new types.
 
-- **`supabase/functions/send-notification/index.ts`**
-  - Refactor SMS sending to return a real success/failure result instead of swallowing both V2/V1 failures.
-  - For `account_created`, return structured channel results such as:
-    - `sms: "sent"`
-    - `sms: "failed"`
-    - `sms_error: "...reason..."`
-  - Keep HTTP `200` with a structured body so the client can react without breaking registration.
+`paystack-checkout` is updated to detect a student payer (and student-filed complaints) and switch to these new types. `finalize-payment` recognises them so receipts, notifications and case-status side effects keep working.
 
-- **`src/lib/notificationService.ts`**
-  - Return the edge function response instead of only logging internally, so callers can inspect whether SMS actually went out.
+### 2. Engine Room — dedicated Student Revenue category
 
-- **`src/pages/RegisterTenant.tsx` and `src/pages/RegisterLandlord.tsx`**
-  - `await` the notification call after the tenant/landlord record is created.
-  - If SMS succeeds, continue as normal.
-  - If SMS fails, do not roll back registration, but show a visible warning toast like:
-    - “Account created, but welcome SMS could not be delivered.”
-  - This preserves account creation while making failures visible instead of silently recurring.
+A new top-level section "Student Revenue" appears in Engine Room, separate from the current Fees / Splits tabs. Inside it, two cards:
 
-### 3. Consolidate the welcome message copy so it stops drifting
+- Student Registration Fee
+- Student Complaint Filing Fee
 
-Right now welcome-style copy exists in multiple places, which is why the wording keeps getting “fixed” and then diverging again.
+Each card has:
 
-Standardize the welcome copy in all relevant paths so every registration-related SMS uses the same wording:
+- A fee toggle + flat fee amount (stored in `feature_flags` as `student_registration_fee` and `student_complaint_fee`, category `fee`).
+- A flat 4-row split editor with fixed recipients: **IGF**, **NUGS**, **Platform**, **CM**. Each row is an absolute GHS amount, not a percentage. The row sum must equal the fee amount (validated in the UI and on save).
 
-- **Primary live registration path**
-  - `supabase/functions/send-notification/index.ts` → `account_created` SMS template
+Splits are stored in `split_configurations` with `payment_type` = `student_registration` / `student_complaint_fee` and `amount_type = 'flat'`. Recipients are exactly `igf`, `nugs`, `platform`, `cm`. (`igf` already exists as a system account; `nugs` and `cm` are new — see §3.)
 
-- **Secondary/manual welcome paths**
-  - `src/lib/smsService.ts` → `registration_success`
-  - `supabase/functions/bulk-welcome-sms/index.ts` → `WELCOME_MESSAGE`
+Standard fee/split tabs in Engine Room hide these two payment types so they only live in the Student Revenue section.
 
-### 4. Update the welcome SMS text with the requested wording
+### 3. Payout Settings — add NUGS and CM
 
-Use `RentControlGhana` as the heading/prefix and preserve the existing account info, while adding the requested site link and office help line.
+In `OfficePayoutSettings.tsx`, the system settlement accounts list (currently IGF / Admin / Platform / GRA) is extended with two new entries:
 
-The updated welcome copy will include:
-- `RentControlGhana`
-- existing registration confirmation details
-- `Sign in to your dashboard by using rentcontrolghana.com`
-- `Visit the nearest rent control office for assistance`
+- **NUGS** (`account_type = 'nugs'`)
+- **CM** (`account_type = 'cm'`)
 
-If needed for SMS length, the wording will be tightened slightly while preserving all requested information and the same meaning.
+They use the same form fields (bank or momo, account name/number, Paystack recipient sync) as the existing IGF/Platform rows. They are stored as new rows in `system_settlement_accounts`.
 
-### 5. Main page layout change: move roles above About Us
+`finalize-payment.ts` (`RECIPIENT_TO_ACCOUNT_TYPE`) is updated so split recipients `igf`, `nugs`, `platform`, `cm` map to their settlement accounts; payout transfer creation works for them like any other system recipient.
 
-On the landing page, the role cards are currently below the About Us and API sections, which delays the main call-to-action.
+Student splits never go through office-level routing or `secondary_split_configurations` — even the IGF portion of a student fee bypasses the office/HQ secondary-split logic and goes straight to the IGF settlement account.
 
-Update **`src/pages/RoleSelect.tsx`** so:
-- the **Role Selection / Get Started** section appears immediately below the hero
-- **About Us** comes after the roles
-- the rest of the homepage order remains intact unless spacing needs a small adjustment
+### 4. Escrow — Super Admin only, fully isolated
 
-This will make Tenant / Landlord / Student access visible sooner on mobile and desktop without requiring users to scroll far down.
+A new `is_student_revenue` boolean is added to `escrow_transactions` (default false). It is set to `true` whenever the payment type is `student_registration` or `student_complaint_fee`.
 
-### Files to update
-- `supabase/functions/send-notification/index.ts`
-- `src/lib/notificationService.ts`
-- `src/pages/RegisterTenant.tsx`
-- `src/pages/RegisterLandlord.tsx`
-- `src/lib/smsService.ts`
-- `supabase/functions/bulk-welcome-sms/index.ts`
-- `src/pages/RoleSelect.tsx`
+- `EscrowDashboard` (used by main/sub admins) excludes any transaction where `is_student_revenue = true`. Office-level escrows therefore never include student money.
+- A new "Student Revenue" page is added under the Super Admin section (`/regulator/super-admin/student-revenue`) showing only student transactions, splits, receipts, and payouts. Filters mirror the standard escrow dashboard but scoped to student data.
+- RLS is tightened so non-super-admins cannot SELECT student rows from `escrow_transactions`, `escrow_splits`, `payment_receipts`, or `payout_transfers` — even via API. Visibility uses `is_super_admin(auth.uid())`.
+
+### 5. Routing on the student portal
+
+- Student registration checkout from `RegisterTenant.tsx` (when `is_student = true`) calls `paystack-checkout` with `type = 'student_registration'`.
+- `NugsMyComplaints` / NUGS complaint filing pays with `type = 'student_complaint_fee'`. Tenant complaints continue to use the existing `complaint_fee`.
+- Receipt strings, SMS labels, and notification copy reference "Student" so users see the right wording.
+
+### Files touched
+
+- `supabase/migrations/<new>.sql` — add `is_student_revenue` column, new feature flag rows, new system settlement account types `nugs`/`cm`, two new `split_configurations` payment types, RLS updates.
+- `supabase/functions/paystack-checkout/index.ts` — detect student payers, branch to new payment types, skip office routing for student types.
+- `supabase/functions/_shared/finalize-payment.ts` — handle `student_registration` and `student_complaint_fee` side effects, set `is_student_revenue`, add `nugs`/`cm` to `RECIPIENT_TO_ACCOUNT_TYPE`, skip secondary split for student types.
+- `src/pages/regulator/EngineRoom.tsx` — add Student Revenue section with flat 4-way split editor and validation; hide student types from generic tabs.
+- `src/pages/regulator/OfficePayoutSettings.tsx` — add NUGS and CM rows.
+- `src/pages/regulator/SuperAdminDashboard.tsx` + new `src/pages/regulator/StudentRevenue.tsx` and route in `App.tsx`.
+- `src/pages/regulator/EscrowDashboard.tsx` — filter out `is_student_revenue` transactions.
+- `src/pages/RegisterTenant.tsx`, `src/pages/nugs/NugsMyComplaints.tsx` (and any other student complaint entry points) — pass the new payment type.
 
 ### Out of scope
-- OTP SMS wording
-- complaint/reminder/payment SMS templates
-- authentication email templates unless you later want the same wording mirrored in email welcome messages
+
+- Migration of historical tenant/landlord transactions to the new types.
+- Changes to non-student fee structures, percentage configs, or office payout flows.
+- New SMS provider templates beyond a wording tweak in existing notifications.
