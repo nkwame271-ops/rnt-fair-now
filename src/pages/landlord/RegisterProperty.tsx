@@ -167,6 +167,25 @@ const RegisterProperty = () => {
       return;
     }
 
+    // Mandatory unit validation (non-hostel branch)
+    if (!isHostel) {
+      if (units.length === 0) {
+        toast.error("You must add at least one unit before registering this property");
+        return;
+      }
+      const invalidIdx = units.findIndex(
+        (u) => !u.name?.trim() || !u.type?.trim() || !u.rent || parseFloat(u.rent) <= 0
+      );
+      if (invalidIdx !== -1) {
+        toast.error(
+          propertyStructure === "single_unit"
+            ? "Please complete the unit details (name, type and rent) before registering"
+            : `Unit ${invalidIdx + 1} is incomplete. Each unit needs a name, type and rent before registering`
+        );
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
