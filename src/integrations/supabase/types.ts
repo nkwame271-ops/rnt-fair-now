@@ -794,32 +794,112 @@ export type Database = {
           },
         ]
       }
+      contact_message_replies: {
+        Row: {
+          body: string
+          channel: string
+          created_at: string
+          id: string
+          replied_by: string | null
+          subject: string | null
+          submission_id: string
+          template_used: string | null
+        }
+        Insert: {
+          body: string
+          channel: string
+          created_at?: string
+          id?: string
+          replied_by?: string | null
+          subject?: string | null
+          submission_id: string
+          template_used?: string | null
+        }
+        Update: {
+          body?: string
+          channel?: string
+          created_at?: string
+          id?: string
+          replied_by?: string | null
+          subject?: string | null
+          submission_id?: string
+          template_used?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_message_replies_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "contact_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_reply_templates: {
+        Row: {
+          body: string
+          channel: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contact_submissions: {
         Row: {
           created_at: string
           email: string
           id: string
+          last_replied_at: string | null
           message: string
           name: string
           phone: string | null
+          reply_count: number
           status: string
         }
         Insert: {
           created_at?: string
           email: string
           id?: string
+          last_replied_at?: string | null
           message: string
           name: string
           phone?: string | null
+          reply_count?: number
           status?: string
         }
         Update: {
           created_at?: string
           email?: string
           id?: string
+          last_replied_at?: string | null
           message?: string
           name?: string
           phone?: string | null
+          reply_count?: number
           status?: string
         }
         Relationships: []
