@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify caller is main_admin
+    // Verify caller is main_admin or super_admin
     const { data: callerAdmin } = await adminClient
       .from("admin_staff")
       .select("admin_type")
@@ -69,8 +69,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, fullName, password, adminType, officeId, officeName, allowedFeatures } = await req.json();
+    const { email, fullName, password, adminType, officeId, officeName, assignedSchool, allowedFeatures } = await req.json();
     const isNugs = adminType === "nugs_admin";
+
+    // Only Super Admins can create NUGS sub-admins
+    if (isNugs && callerAdmin.admin_type !== "super_admin") {
+      return new Response(JSON.stringify({ error: "Only Super Admins can create NUGS sub-admins." }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!email || !fullName || !password) {
       return new Response(JSON.stringify({ error: "email, fullName, and password are required" }), {
         status: 200,
@@ -90,6 +99,14 @@ Deno.serve(async (req) => {
     // Sub admins must have an office
     if (resolvedAdminType === "sub_admin" && !officeId) {
       return new Response(JSON.stringify({ error: "Sub Admins must be assigned to an office" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // NUGS sub-admins must be assigned to a school
+    if (isNugs && (!assignedSchool || !assignedSchool.trim())) {
+      return new Response(JSON.stringify({ error: "NUGS Sub-Admins must be assigned to a school" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
