@@ -677,7 +677,7 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
     if (propertyId) {
       await supabaseAdmin.from("properties").update({ listed_on_marketplace: true }).eq("id", propertyId);
     }
-  } else if (paymentType === "complaint_fee") {
+  } else if (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") {
     const complaintId = meta?.complaintId || escrow.related_complaint_id;
     if (complaintId) {
       // Find the receipt we just created (by escrow_transaction_id)
