@@ -446,9 +446,21 @@ const RegulatorComplaints = () => {
       const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, phone, email").in("user_id", landlordIds);
       const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
 
-      // Fetch cheapest active unit rent for each linked property
+      // Pull rent precisely: prefer the linked unit's rent; fall back to cheapest unit on the property.
+      const unitIds = [...new Set(data.map((c: any) => c.linked_unit_id).filter(Boolean))] as string[];
       const propIds = [...new Set(data.map((c: any) => c.linked_property_id).filter(Boolean))] as string[];
+      const rentByUnit = new Map<string, { rent: number; name: string | null }>();
       const rentByProp = new Map<string, number>();
+
+      if (unitIds.length > 0) {
+        const { data: linkedUnits } = await supabase
+          .from("units")
+          .select("id, monthly_rent, unit_name")
+          .in("id", unitIds);
+        (linkedUnits || []).forEach((u: any) => {
+          rentByUnit.set(u.id, { rent: Number(u.monthly_rent), name: u.unit_name || null });
+        });
+      }
       if (propIds.length > 0) {
         const { data: units } = await supabase
           .from("units")
@@ -460,11 +472,15 @@ const RegulatorComplaints = () => {
         });
       }
 
-      setLandlordComplaints(data.map((c: any) => ({
-        ...c,
-        _landlordProfile: profileMap.get(c.landlord_user_id),
-        _linkedPropertyRent: c.linked_property_id ? rentByProp.get(c.linked_property_id) ?? null : null,
-      })));
+      setLandlordComplaints(data.map((c: any) => {
+        const unitInfo = c.linked_unit_id ? rentByUnit.get(c.linked_unit_id) : null;
+        return {
+          ...c,
+          _landlordProfile: profileMap.get(c.landlord_user_id),
+          _linkedUnitName: unitInfo?.name ?? null,
+          _linkedPropertyRent: unitInfo?.rent ?? (c.linked_property_id ? rentByProp.get(c.linked_property_id) ?? null : null),
+        };
+      }));
     } else {
       setLandlordComplaints([]);
     }
@@ -887,6 +903,12 @@ const RegulatorComplaints = () => {
                     By: {c._landlordProfile?.full_name || "Unknown"} ({c._landlordProfile?.phone || "—"})
                   </div>
                   <div className="text-sm text-muted-foreground">{c.property_address}, {c.region} • {new Date(c.created_at).toLocaleDateString()}</div>
+                  {(c._linkedUnitName || c._linkedPropertyRent !== null) && (
+                    <div className="text-xs text-foreground mt-1">
+                      {c._linkedUnitName && <><span className="text-muted-foreground">Unit:</span> <span className="font-medium">{c._linkedUnitName}</span> · </>}
+                      {c._linkedPropertyRent !== null && <><span className="text-muted-foreground">Rent:</span> <span className="font-medium">GHS {Number(c._linkedPropertyRent).toLocaleString()}/mo</span></>}
+                    </div>
+                  )}
                 </div>
                 <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusColors[c.status] || ""}`}>{c.status.replace("_", " ")}</span>
               </div>

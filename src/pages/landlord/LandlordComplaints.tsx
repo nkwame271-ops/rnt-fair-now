@@ -47,10 +47,13 @@ const LandlordComplaints = () => {
   const [basketMap, setBasketMap] = useState<Record<string, any[]>>({});
   const [paying, setPaying] = useState<string | null>(null);
 
-  // Property picker
+  // Property + Unit picker
   const [properties, setProperties] = useState<any[]>([]);
   const [offices, setOffices] = useState<{ id: string; name: string; region: string }[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
+  const [propertyUnits, setPropertyUnits] = useState<any[]>([]);
+  const [selectedUnitId, setSelectedUnitId] = useState("");
+  const [unitsLoading, setUnitsLoading] = useState(false);
 
   const [complaintType, setComplaintType] = useState("");
   const [tenantName, setTenantName] = useState("");
@@ -198,7 +201,7 @@ const LandlordComplaints = () => {
   };
 
   const resetForm = () => {
-    setComplaintType(""); setTenantName(""); setSelectedPropertyId("");
+    setComplaintType(""); setTenantName(""); setSelectedPropertyId(""); setSelectedUnitId(""); setPropertyUnits([]);
     setRegion(""); setOfficeId(""); setDescription(""); setDocuments([]);
     setLocationMethod(""); setLocationLat(null); setLocationLng(null);
     setGpsCode(""); setPlaceName(""); setGpsConfirmed(false);
@@ -290,17 +293,17 @@ const LandlordComplaints = () => {
   };
 
   // When property is picked, prefill region/office and try to derive location from property GPS
-  const onPickProperty = (id: string) => {
+  const onPickProperty = async (id: string) => {
     setSelectedPropertyId(id);
+    setSelectedUnitId("");
+    setPropertyUnits([]);
     const p = properties.find((x) => x.id === id);
     if (!p) return;
     if (p.region) setRegion(p.region);
-    // Auto-resolve office from property region
     if (p.region) {
       supabase.rpc("resolve_office_id", { p_region: p.region, p_area: p.area || null })
         .then(({ data }) => { if (data) setOfficeId(data); });
     }
-    // Prefill location from property if available
     if (p.gps_location && typeof p.gps_location === "string") {
       const parts = p.gps_location.split(",").map((s: string) => parseFloat(s.trim()));
       if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
@@ -310,7 +313,21 @@ const LandlordComplaints = () => {
         setPlaceName(p.address || p.property_name || "");
       }
     }
+
+    // Load units for this property
+    setUnitsLoading(true);
+    const { data: units } = await supabase
+      .from("units")
+      .select("id, unit_name, unit_type, monthly_rent, status")
+      .eq("property_id", id)
+      .order("unit_name");
+    setPropertyUnits(units || []);
+    // If only one unit, auto-select it
+    if (units && units.length === 1) setSelectedUnitId(units[0].id);
+    setUnitsLoading(false);
   };
+
+  const selectedUnit = propertyUnits.find((u) => u.id === selectedUnitId);
 
   const officesInRegion = region ? offices.filter((o) => o.region === region) : [];
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
@@ -320,6 +337,7 @@ const LandlordComplaints = () => {
     if (!user) return;
     if (!complaintType) { toast.error("Select a complaint type"); return; }
     if (!selectedPropertyId) { toast.error("Select a registered property"); return; }
+    if (propertyUnits.length > 0 && !selectedUnitId) { toast.error("Select the specific unit involved"); return; }
     if (!region) { toast.error("Select a region"); return; }
     if (!officeId) { toast.error("Select a Rent Control office"); return; }
     if (!description.trim()) { toast.error("Provide a description"); return; }
@@ -363,6 +381,7 @@ const LandlordComplaints = () => {
         audio_url: uploadedAudioUrl,
         office_id: officeId,
         linked_property_id: selectedPropertyId,
+        linked_unit_id: selectedUnitId || null,
       } as any).select("id").single();
 
       if (error) throw error;
@@ -551,6 +570,44 @@ const LandlordComplaints = () => {
               <p className="text-xs text-muted-foreground">Complaints must be tied to a registered property for proper fee calculation and routing.</p>
             </div>
 
+            {/* Unit picker — required when property has units (precision for multi-unit buildings) */}
+            {selectedPropertyId && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5" /> Specific Unit *</Label>
+                {unitsLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading units…
+                  </div>
+                ) : propertyUnits.length === 0 ? (
+                  <div className="text-xs text-warning bg-warning/10 border border-warning/30 rounded-lg p-2.5">
+                    This property has no units configured yet. Add units to the property first.
+                  </div>
+                ) : (
+                  <>
+                    <Select value={selectedUnitId} onValueChange={setSelectedUnitId}>
+                      <SelectTrigger><SelectValue placeholder="Select the unit involved in this complaint" /></SelectTrigger>
+                      <SelectContent>
+                        {propertyUnits.map(u => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.unit_name} · {u.unit_type} · GHS {Number(u.monthly_rent).toLocaleString()}/mo
+                            {u.status === "occupied" ? " (occupied)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedUnit && (
+                      <div className="text-xs bg-muted/40 border border-border rounded-lg p-2.5 flex items-start gap-2">
+                        <Info className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
+                        <span>
+                          The filing fee will be calculated from this unit's rent (<strong>GHS {Number(selectedUnit.monthly_rent).toLocaleString()}/mo</strong>) and mapped to the correct rent band automatically.
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Tenant Name (if applicable)</Label>
               <Input value={tenantName} onChange={(e) => setTenantName(e.target.value)} placeholder="Name of tenant involved" />
@@ -738,7 +795,7 @@ const LandlordComplaints = () => {
 
             <Button
               onClick={handleSubmit}
-              disabled={submitting || !complaintType || !selectedPropertyId || !region || !officeId || !description.trim() || locationLat === null}
+              disabled={submitting || !complaintType || !selectedPropertyId || (propertyUnits.length > 0 && !selectedUnitId) || !region || !officeId || !description.trim() || locationLat === null}
               className="w-full"
             >
               {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}

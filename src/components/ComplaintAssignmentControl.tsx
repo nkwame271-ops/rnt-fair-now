@@ -39,6 +39,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
   const [history, setHistory] = useState<AssignmentRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedOffice, setSelectedOffice] = useState<string>("");
 
   const canAssign = !!profile?.isMainAdmin;
   const current = history.find((h) => !h.unassigned_at) || null;
@@ -122,22 +123,60 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
     return <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading assignment…</div>;
   }
 
+  // Group staff by office (organizational hierarchy: Office → Staff)
+  const staffByOffice = staff.reduce((acc, s) => {
+    const office = s.office_name || "HQ / Unassigned Office";
+    if (!acc[office]) acc[office] = [];
+    acc[office].push(s);
+    return acc;
+  }, {} as Record<string, StaffOption[]>);
+  const officeNames = Object.keys(staffByOffice).sort();
+  const filteredStaff = selectedOffice ? (staffByOffice[selectedOffice] || []) : [];
+
+  // Sync the office dropdown with the currently-assigned staff member
+  useEffect(() => {
+    if (current) {
+      const assignee = staff.find((s) => s.user_id === current.assigned_to);
+      if (assignee) setSelectedOffice(assignee.office_name || "HQ / Unassigned Office");
+    }
+  }, [current, staff]);
+
   return (
     <div className="bg-background border border-border rounded-lg p-3 space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <UserPlus className="h-4 w-4 text-primary" />
         <span className="text-sm font-semibold text-foreground">Assigned to:</span>
         {canAssign ? (
-          <Select value={current?.assigned_to || ""} onValueChange={handleAssign} disabled={saving}>
-            <SelectTrigger className="h-8 w-56"><SelectValue placeholder="Unassigned — pick staff" /></SelectTrigger>
-            <SelectContent>
-              {staff.map((s) => (
-                <SelectItem key={s.user_id} value={s.user_id}>
-                  {s.full_name}{s.office_name ? ` · ${s.office_name}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={selectedOffice} onValueChange={(v) => setSelectedOffice(v)} disabled={saving}>
+              <SelectTrigger className="h-8 w-44"><SelectValue placeholder="Select office" /></SelectTrigger>
+              <SelectContent>
+                {officeNames.map((o) => (
+                  <SelectItem key={o} value={o}>{o} ({staffByOffice[o].length})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={current?.assigned_to || ""}
+              onValueChange={handleAssign}
+              disabled={saving || !selectedOffice}
+            >
+              <SelectTrigger className="h-8 w-56">
+                <SelectValue placeholder={selectedOffice ? "Select staff member" : "Pick an office first"} />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredStaff.length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">No staff in this office</div>
+                ) : (
+                  filteredStaff.map((s) => (
+                    <SelectItem key={s.user_id} value={s.user_id}>
+                      {s.full_name}{s.admin_type === "main_admin" ? " · Main" : ""}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
         ) : (
           <span className="text-sm text-foreground">
             {current ? (staff.find((s) => s.user_id === current.assigned_to)?.full_name || current._assigneeName || "Staff") : "Unassigned"}

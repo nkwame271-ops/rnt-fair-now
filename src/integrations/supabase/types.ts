@@ -1378,6 +1378,7 @@ export type Database = {
           id: string
           landlord_user_id: string
           linked_property_id: string | null
+          linked_unit_id: string | null
           office_id: string | null
           outstanding_amount: number | null
           payment_status: string
@@ -1402,6 +1403,7 @@ export type Database = {
           id?: string
           landlord_user_id: string
           linked_property_id?: string | null
+          linked_unit_id?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
@@ -1426,6 +1428,7 @@ export type Database = {
           id?: string
           landlord_user_id?: string
           linked_property_id?: string | null
+          linked_unit_id?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
@@ -1443,6 +1446,13 @@ export type Database = {
             columns: ["complaint_type_id"]
             isOneToOne: false
             referencedRelation: "complaint_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landlord_complaints_linked_unit_id_fkey"
+            columns: ["linked_unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
           {
