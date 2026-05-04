@@ -78,7 +78,12 @@ const PAYMENT_TYPE_LABELS: Record<string, string> = {
   rent_tax: "Tax Revenue",
   register_tenant_fee: "Register Tenant Fee",
   filing_fee: "Filing Fee",
+  student_registration: "Student Registration Fee",
+  student_complaint_fee: "Student Complaint Filing Fee",
 };
+
+const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee"]);
+const STUDENT_FEATURE_KEYS = new Set(["student_registration", "student_complaint_fee"]);
 
 const RECIPIENT_LABELS: Record<string, string> = {
   platform: "Platform",
@@ -86,6 +91,9 @@ const RECIPIENT_LABELS: Record<string, string> = {
   admin: "Admin",
   gra: "GRA",
   landlord: "Landlord",
+  igf: "IGF",
+  nugs: "NUGS",
+  cm: "CM",
 };
 
 const BAND_BASED_FEE_KEYS = new Set(["agreement_sale_fee", "add_tenant_fee"]);
