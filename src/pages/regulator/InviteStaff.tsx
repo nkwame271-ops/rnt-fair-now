@@ -22,6 +22,7 @@ const InviteStaff = () => {
   const [password, setPassword] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [officeId, setOfficeId] = useState("");
+  const [assignedSchool, setAssignedSchool] = useState("");
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
