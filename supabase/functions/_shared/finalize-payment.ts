@@ -19,7 +19,14 @@ const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
   admin_hq: "admin",   // HQ share routes to the same system admin settlement account
   platform: "platform",
   gra: "gra",
+  // Student revenue recipients — settle directly to their own system accounts.
+  igf: "igf",
+  nugs: "nugs",
+  cm: "cm",
 };
+
+// Student-only payment types — bypass office routing and secondary splits entirely.
+const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee"]);
 
 // Recipients that may have a secondary split configuration (office vs. HQ).
 // When a primary split row is for one of these recipients AND the recipient has
