@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertTriangle, GraduationCap, Search, Eye } from "lucide-react";
+import { Loader2, AlertTriangle, GraduationCap, Search, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { Link } from "react-router-dom";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
+import ComplaintWorkspace from "@/components/ComplaintWorkspace";
 
 interface Row {
   id: string;
