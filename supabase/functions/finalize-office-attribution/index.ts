@@ -41,25 +41,23 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Verify caller is admin
-    const { data: adminStaff } = await adminClient
-      .from("admin_staff")
-      .select("admin_type")
-      .eq("user_id", user.id)
-      .single();
+    // Check if caller is NUGS staff with rent_card permission OR admin staff
+    const [{ data: adminStaff }, { data: nugsStaff }] = await Promise.all([
+      adminClient.from("admin_staff").select("admin_type").eq("user_id", user.id).maybeSingle(),
+      adminClient.from("nugs_staff" as any).select("permissions").eq("user_id", user.id).maybeSingle(),
+    ]);
 
-    if (!adminStaff) throw new Error("Only admin staff can perform this action");
+    const isNugsAssigner = !!nugsStaff && ((nugsStaff as any).permissions?.rent_card === true);
+    if (!adminStaff && !isNugsAssigner) {
+      throw new Error("Only admin or authorized NUGS staff can perform this action");
+    }
 
     const { escrow_transaction_id, office_id } = await req.json();
     if (!escrow_transaction_id || !office_id) {
       throw new Error("Missing required fields: escrow_transaction_id, office_id");
     }
 
-    // Find deferred admin splits for this escrow (these are the office shares
-    // that were waiting for an office assignment). We only touch ACTIVE rows;
-    // superseded rows are historical and must never be re-tagged.
-    // We do NOT touch admin_hq rows — those were already posted to HQ at
-    // finalize-payment time.
+    // Find deferred admin splits for this escrow
     const { data: deferredSplits } = await adminClient
       .from("escrow_splits")
       .select("id, recipient, amount, disbursement_status, description")
@@ -72,6 +70,38 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true, message: "No deferred splits to process" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // NUGS REROUTE PATH ─────────────────────────────────────────────────
+    // When a NUGS user (with rent_card permission) assigns the serial,
+    // the office share is reassigned to the central NUGS pool instead of
+    // an individual office. No office payout — settles directly to NUGS.
+    if (isNugsAssigner && !adminStaff) {
+      const splitIds = deferredSplits.map((s: any) => s.id);
+      const totalNugsAmount = deferredSplits.reduce((sum: number, s: any) => sum + Number(s.amount), 0);
+
+      await adminClient
+        .from("escrow_splits")
+        .update({
+          recipient: "nugs",
+          office_id: null,
+          disbursement_status: "pending_transfer",
+          payout_readiness: "ready",
+          description: (deferredSplits[0]?.description || "Office share") + " → reassigned to NUGS",
+        })
+        .in("id", splitIds);
+
+      await adminClient
+        .from("escrow_transactions")
+        .update({ is_nugs_revenue: true })
+        .eq("id", escrow_transaction_id);
+
+      return new Response(JSON.stringify({
+        success: true,
+        rerouted_to: "nugs",
+        nugs_amount: totalNugsAmount,
+        attributed_splits: splitIds.length,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const officeSplitIds: string[] = [];
