@@ -275,6 +275,8 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         platform_pct: it.platform_pct,
         computation_meta: it.computation_meta || null,
         created_by: user.id,
+        fee_scope: feeScope,
+        is_nugs_revenue: feeScope === "nugs",
       }));
 
       const { error: insErr } = await (supabase.from("complaint_basket_items") as any).insert(rows);
