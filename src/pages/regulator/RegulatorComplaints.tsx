@@ -24,6 +24,7 @@ import { SignedAudio, SignedImage } from "@/components/SignedMedia";
 import ComplaintAssignmentControl from "@/components/ComplaintAssignmentControl";
 import ComplaintReportsDialog from "@/components/ComplaintReportsDialog";
 import { generateComplaintPdf } from "@/lib/generateComplaintPdf";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 type TabKey = "landlord" | "tenant" | "student";
 
