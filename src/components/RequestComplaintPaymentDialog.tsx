@@ -25,6 +25,8 @@ interface Props {
   linkedPropertyId?: string | null;
   monthlyRent?: number | null;
   initialClaimAmount?: number | null;
+  /** When "nugs", fee rules are restricted to fixed-fee types and basket items are tagged as NUGS revenue. */
+  feeScope?: "nugs" | "rent_control";
   onRequested?: () => void;
 }
 
