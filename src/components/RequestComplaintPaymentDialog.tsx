@@ -182,10 +182,11 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
 
   const totals = useMemo(() => summariseBasket(basket), [basket]);
 
+  const scopedTypes = feeScope === "nugs" ? types.filter((t) => t.fee_structure === "fixed") : types;
   const groupedTypes = {
-    fixed: types.filter((t) => t.fee_structure === "fixed"),
-    rent_band: types.filter((t) => t.fee_structure === "rent_band"),
-    percentage: types.filter((t) => t.fee_structure === "percentage"),
+    fixed: scopedTypes.filter((t) => t.fee_structure === "fixed"),
+    rent_band: scopedTypes.filter((t) => t.fee_structure === "rent_band"),
+    percentage: scopedTypes.filter((t) => t.fee_structure === "percentage"),
   };
 
   const addFeeRuleItem = () => {
