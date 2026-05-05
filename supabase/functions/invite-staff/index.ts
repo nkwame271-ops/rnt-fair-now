@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, fullName, password, adminType, officeId, officeName, assignedSchool, allowedFeatures } = await req.json();
+    const { email, fullName, password, adminType, officeId, officeName, assignedSchool, allowedFeatures, nugsPermissions } = await req.json();
     const isNugs = adminType === "nugs_admin";
 
     // Only Super Admins can create NUGS sub-admins
@@ -179,6 +179,10 @@ Deno.serve(async (req) => {
           user_id: newUser.user.id,
           assigned_school: assignedSchool.trim(),
           created_by: callerId,
+          permissions: {
+            complaints: nugsPermissions?.complaints !== false,
+            rent_card: nugsPermissions?.rent_card === true,
+          },
         });
 
       if (nugsError) {
