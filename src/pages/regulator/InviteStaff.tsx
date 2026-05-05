@@ -23,6 +23,8 @@ const InviteStaff = () => {
   const [selectedRegion, setSelectedRegion] = useState("");
   const [officeId, setOfficeId] = useState("");
   const [assignedSchool, setAssignedSchool] = useState("");
+  const [nugsPermComplaints, setNugsPermComplaints] = useState(true);
+  const [nugsPermRentCard, setNugsPermRentCard] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
@@ -76,6 +78,9 @@ const InviteStaff = () => {
           officeName: adminType === "sub_admin" ? office?.name : null,
           assignedSchool: adminType === "nugs_admin" ? assignedSchool : null,
           allowedFeatures: selectedFeatures,
+          nugsPermissions: adminType === "nugs_admin"
+            ? { complaints: nugsPermComplaints, rent_card: nugsPermRentCard }
+            : null,
         },
       });
 
@@ -282,6 +287,18 @@ const InviteStaff = () => {
               <p className="text-xs text-muted-foreground">
                 This sub-admin will only see complaints from students at this institution.
               </p>
+
+              <div className="pt-3 space-y-2">
+                <Label>Feature Permissions</Label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/30 rounded px-2 py-1.5">
+                  <Checkbox checked={nugsPermComplaints} onCheckedChange={(v) => setNugsPermComplaints(!!v)} />
+                  <span className="text-card-foreground">Complaint Management</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/30 rounded px-2 py-1.5">
+                  <Checkbox checked={nugsPermRentCard} onCheckedChange={(v) => setNugsPermRentCard(!!v)} />
+                  <span className="text-card-foreground">Rent Card (assignments route revenue to NUGS pool)</span>
+                </label>
+              </div>
             </div>
           )}
 

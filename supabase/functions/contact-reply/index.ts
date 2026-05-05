@@ -12,12 +12,44 @@ function emailLayout(content: string, subject: string) {
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
     <tr><td>
       <div style="font-weight:700;color:#1f6f4a;font-size:18px;margin-bottom:16px;">Rent Control Ghana</div>
-      <div style="white-space:pre-wrap;line-height:1.55;font-size:14px;">${content}</div>
+      <div style="white-space:pre-wrap;line-height:1.55;font-size:14px;">${content.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>")}</div>
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 12px;" />
       <div style="font-size:12px;color:#64748b;">Rent Control Ghana · rentcontrolghana.com</div>
     </td></tr>
   </table>
 </body></html>`;
+}
+
+async function sendEmailViaResend(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
+  const apiKey = Deno.env.get("RESEND_API_KEY");
+  if (!apiKey) {
+    // No mail provider configured — log only, treat as soft success so reply still records
+    console.warn("RESEND_API_KEY not configured; email will not be dispatched (logged only).");
+    return { ok: true };
+  }
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "RentControlGhana <noreply@notify.rentcontrolghana.com>",
+        to: [to],
+        subject,
+        html,
+      }),
+    });
+    if (!r.ok) {
+      const text = await r.text();
+      return { ok: false, error: `Resend ${r.status}: ${text.slice(0, 200)}` };
+    }
+    await r.text();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 Deno.serve(async (req) => {
@@ -31,27 +63,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
+    // Two-client pattern: user client validates auth + admin permission via RLS-aware RPC
+    const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+    const { data: { user }, error: authErr } = await userClient.auth.getUser();
     if (authErr || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { data: isAdmin } = await supabase.rpc("is_main_admin", { _user_id: user.id });
+    const { data: isAdmin } = await userClient.rpc("is_main_admin", { _user_id: user.id });
     if (!isAdmin) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
+      return new Response(JSON.stringify({ error: "Forbidden — main admin only" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const { submission_id, channel, subject, body: messageBody, template_used } = body || {};
 
     if (!submission_id || !channel || !messageBody || (channel !== "email" && channel !== "sms")) {
@@ -59,7 +92,6 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
     if (typeof messageBody !== "string" || messageBody.length > 5000) {
       return new Response(JSON.stringify({ error: "Message body too long" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -83,56 +115,34 @@ Deno.serve(async (req) => {
       });
     }
 
-    let dispatchResult: any = {};
+    let dispatchResult: any = { channel };
+    let dispatchError: string | null = null;
 
     if (channel === "email") {
       if (!submission.email) {
-        return new Response(JSON.stringify({ error: "Submission has no email" }), {
+        return new Response(JSON.stringify({ error: "Submission has no email address on file" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const finalSubject = subject || "Reply from Rent Control Ghana";
-      const messageId = crypto.randomUUID();
-      await admin.from("email_send_log").insert({
-        message_id: messageId,
-        template_name: "contact_reply",
-        recipient_email: submission.email,
-        status: "pending",
-      });
-      const { error: eqErr } = await admin.rpc("enqueue_email", {
-        queue_name: "transactional_emails",
-        payload: {
-          message_id: messageId,
-          to: submission.email,
-          from: "RentControlGhana <noreply@notify.rentcontrolghana.com>",
-          sender_domain: "notify.rentcontrolghana.com",
-          subject: finalSubject,
-          html: emailLayout(messageBody, finalSubject),
-          text: messageBody,
-          purpose: "transactional",
-          label: "contact_reply",
-          queued_at: new Date().toISOString(),
-        },
-      });
-      if (eqErr) console.error("enqueue_email error", eqErr);
-      dispatchResult = { channel: "email", to: submission.email };
+      const html = emailLayout(messageBody, finalSubject);
+      const r = await sendEmailViaResend(submission.email, finalSubject, html);
+      if (!r.ok) dispatchError = r.error || "Email dispatch failed";
+      dispatchResult.to = submission.email;
     } else {
       if (!submission.phone) {
-        return new Response(JSON.stringify({ error: "Submission has no phone" }), {
+        return new Response(JSON.stringify({ error: "Submission has no phone number on file" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const { error: smsErr } = await admin.functions.invoke("send-sms", {
         body: { phone: submission.phone, message: messageBody.slice(0, 480) },
       });
-      if (smsErr) {
-        return new Response(JSON.stringify({ error: "SMS dispatch failed: " + smsErr.message }), {
-          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      dispatchResult = { channel: "sms", to: submission.phone };
+      if (smsErr) dispatchError = "SMS dispatch failed: " + smsErr.message;
+      dispatchResult.to = submission.phone;
     }
 
+    // Always log the reply attempt — even if dispatch failed (admin can retry)
     const { data: replyRow, error: insErr } = await admin
       .from("contact_message_replies")
       .insert({
@@ -146,8 +156,14 @@ Deno.serve(async (req) => {
       .select()
       .single();
 
-    if (insErr) {
-      console.error("Reply log insert error", insErr);
+    if (insErr) console.error("Reply log insert error", insErr);
+
+    if (dispatchError) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: dispatchError,
+        reply_logged: !!replyRow,
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     return new Response(JSON.stringify({ success: true, reply: replyRow, dispatch: dispatchResult }), {

@@ -24,6 +24,7 @@ import { SignedAudio, SignedImage } from "@/components/SignedMedia";
 import ComplaintAssignmentControl from "@/components/ComplaintAssignmentControl";
 import ComplaintReportsDialog from "@/components/ComplaintReportsDialog";
 import { generateComplaintPdf } from "@/lib/generateComplaintPdf";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 type TabKey = "landlord" | "tenant" | "student";
 
@@ -298,7 +299,9 @@ const RegulatorComplaints = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  const isStudentRow = (c: any) => !!(c._tenantRecord?.is_student || c._tenantRecord?.school);
+  // A complaint is "student" only when we have explicit confirmation. Missing tenant
+  // records fall through to the Tenant tab so rows are never invisible everywhere.
+  const isStudentRow = (c: any) => c._tenantRecord?.is_student === true || !!c._tenantRecord?.school;
   const isSubAdmin = !!profile && !profile.isMainAdmin && !profile.isSuperAdmin;
 
   // Force non-super admins off the Student tab
@@ -736,6 +739,7 @@ const RegulatorComplaints = () => {
 
                   {/* Expanded details */}
                   {isExpanded && (
+                    <ErrorBoundary section={`Complaint ${c.complaint_code}`}>
                     <div className="border-t border-border p-5 bg-muted/10 space-y-5">
                       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
                         <div className="space-y-3">
@@ -778,7 +782,7 @@ const RegulatorComplaints = () => {
                             <div className="text-sm space-y-2">
                               <div><span className="text-muted-foreground">Property:</span> <span className="text-foreground">{c._activeTenancy._property?.property_name || "—"}</span></div>
                               <div><span className="text-muted-foreground">Unit:</span> <span className="text-foreground">{c._activeTenancy._unit?.unit_name || "—"}</span></div>
-                              <div><span className="text-muted-foreground">Rent:</span> <span className="font-medium text-foreground">GH₵ {c._activeTenancy.agreed_rent?.toLocaleString()}</span></div>
+                              <div><span className="text-muted-foreground">Rent:</span> <span className="font-medium text-foreground">GH₵ {Number(c._activeTenancy?.agreed_rent || 0).toLocaleString()}</span></div>
                             </div>
                           ) : (
                             <div className="text-sm text-muted-foreground italic">No active tenancy on record</div>
@@ -878,6 +882,7 @@ const RegulatorComplaints = () => {
                         )}
                       </div>
                     </div>
+                    </ErrorBoundary>
                   )}
                 </div>
               );

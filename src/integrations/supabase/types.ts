@@ -516,6 +516,69 @@ export type Database = {
           },
         ]
       }
+      complaint_fee_revisions: {
+        Row: {
+          changed_by: string | null
+          complaint_id: string
+          created_at: string
+          id: string
+          new_amount: number | null
+          old_amount: number | null
+          reason: string | null
+          scope: string
+        }
+        Insert: {
+          changed_by?: string | null
+          complaint_id: string
+          created_at?: string
+          id?: string
+          new_amount?: number | null
+          old_amount?: number | null
+          reason?: string | null
+          scope?: string
+        }
+        Update: {
+          changed_by?: string | null
+          complaint_id?: string
+          created_at?: string
+          id?: string
+          new_amount?: number | null
+          old_amount?: number | null
+          reason?: string | null
+          scope?: string
+        }
+        Relationships: []
+      }
+      complaint_notes: {
+        Row: {
+          author_role: string
+          author_user_id: string
+          body: string
+          complaint_id: string
+          created_at: string
+          id: string
+          visibility: string
+        }
+        Insert: {
+          author_role?: string
+          author_user_id: string
+          body: string
+          complaint_id: string
+          created_at?: string
+          id?: string
+          visibility?: string
+        }
+        Update: {
+          author_role?: string
+          author_user_id?: string
+          body?: string
+          complaint_id?: string
+          created_at?: string
+          id?: string
+          visibility?: string
+        }
+        Relationships: []
+      }
       complaint_properties: {
         Row: {
           address_description: string | null
@@ -1021,6 +1084,7 @@ export type Database = {
           created_at: string
           currency: string
           id: string
+          is_nugs_revenue: boolean
           is_student_revenue: boolean
           metadata: Json | null
           office_id: string | null
@@ -1040,6 +1104,7 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          is_nugs_revenue?: boolean
           is_student_revenue?: boolean
           metadata?: Json | null
           office_id?: string | null
@@ -1059,6 +1124,7 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          is_nugs_revenue?: boolean
           is_student_revenue?: boolean
           metadata?: Json | null
           office_id?: string | null
@@ -1757,6 +1823,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          permissions: Json
           updated_at: string
           user_id: string
         }
@@ -1765,6 +1832,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          permissions?: Json
           updated_at?: string
           user_id: string
         }
@@ -1773,6 +1841,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          permissions?: Json
           updated_at?: string
           user_id?: string
         }
@@ -4263,7 +4332,12 @@ export type Database = {
         Returns: Json
       }
       is_main_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_nugs_user: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      nugs_has_permission: {
+        Args: { _perm: string; _user_id: string }
+        Returns: boolean
+      }
       rcss_office_summary: {
         Args: never
         Returns: {
