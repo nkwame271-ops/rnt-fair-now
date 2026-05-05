@@ -189,11 +189,15 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
   const isStudentRevenue = STUDENT_PAYMENT_TYPES.has(paymentType);
   const officeId = isStudentRevenue ? null : (escrow.office_id || meta.office_id || null);
 
+  // Detect NUGS-tagged split items and flag the parent escrow accordingly.
+  const splitPlanPreview = (meta.split_plan as any[] | undefined) || [];
+  const hasNugsRevenue = splitPlanPreview.some((s: any) => s?.is_nugs_revenue === true || s?.recipient === "nugs");
+
   // 2. Mark completed (idempotent — only if still pending)
   if (escrow.status !== "completed") {
     await supabaseAdmin
       .from("escrow_transactions")
-      .update({ status: "completed", completed_at: new Date().toISOString(), paystack_transaction_id: transactionId })
+      .update({ status: "completed", completed_at: new Date().toISOString(), paystack_transaction_id: transactionId, ...(hasNugsRevenue ? { is_nugs_revenue: true } : {}) })
       .eq("id", escrowId)
       .in("status", ["pending", "processing"]);
   }
