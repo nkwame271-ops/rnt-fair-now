@@ -68,12 +68,14 @@ const NugsComplaints = () => {
     setLoading(true);
     // Look up the NUGS admin's assigned school for the header
     if (user?.id) {
-      const { data: assignment } = await supabase
-        .from("nugs_staff")
-        .select("assigned_school")
+      const { data: assignment } = await (supabase
+        .from("nugs_staff") as any)
+        .select("assigned_school, permissions")
         .eq("user_id", user.id)
         .maybeSingle();
       setAssignedSchool(assignment?.assigned_school ?? null);
+      const p = (assignment?.permissions as any) || {};
+      setNugsPerms({ complaints: p.complaints !== false, rent_card: !!p.rent_card });
     }
 
     // RLS automatically scopes to student complaints from this NUGS admin's school
