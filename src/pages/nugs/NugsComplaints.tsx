@@ -46,6 +46,7 @@ const statusColor = (s: string) => {
 
 const NugsComplaints = () => {
   const { user } = useAuth();
+  const [nugsPerms, setNugsPerms] = useState<{ complaints: boolean; rent_card: boolean }>({ complaints: true, rent_card: false });
   const [rows, setRows] = useState<ComplaintRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -53,6 +54,15 @@ const NugsComplaints = () => {
   const [escalating, setEscalating] = useState<ComplaintRow | null>(null);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const load = async () => {
     setLoading(true);
