@@ -780,7 +780,7 @@ const RegulatorComplaints = () => {
                             <div className="text-sm space-y-2">
                               <div><span className="text-muted-foreground">Property:</span> <span className="text-foreground">{c._activeTenancy._property?.property_name || "—"}</span></div>
                               <div><span className="text-muted-foreground">Unit:</span> <span className="text-foreground">{c._activeTenancy._unit?.unit_name || "—"}</span></div>
-                              <div><span className="text-muted-foreground">Rent:</span> <span className="font-medium text-foreground">GH₵ {c._activeTenancy.agreed_rent?.toLocaleString()}</span></div>
+                              <div><span className="text-muted-foreground">Rent:</span> <span className="font-medium text-foreground">GH₵ {Number(c._activeTenancy?.agreed_rent || 0).toLocaleString()}</span></div>
                             </div>
                           ) : (
                             <div className="text-sm text-muted-foreground italic">No active tenancy on record</div>
