@@ -739,6 +739,7 @@ const RegulatorComplaints = () => {
 
                   {/* Expanded details */}
                   {isExpanded && (
+                    <ErrorBoundary section={`Complaint ${c.complaint_code}`}>
                     <div className="border-t border-border p-5 bg-muted/10 space-y-5">
                       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
                         <div className="space-y-3">
