@@ -882,6 +882,7 @@ const RegulatorComplaints = () => {
                         )}
                       </div>
                     </div>
+                    </ErrorBoundary>
                   )}
                 </div>
               );
