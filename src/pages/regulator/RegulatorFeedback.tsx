@@ -134,10 +134,15 @@ const RegulatorFeedback = () => {
         },
       });
       if (error) throw new Error(error.message || "Failed to send reply");
-      if ((data as any)?.error) throw new Error((data as any).error);
-
-      toast.success(`Reply sent via ${channel.toUpperCase()}`);
-      const reply = (data as any)?.reply;
+      const d = (data as any) || {};
+      if (d.success === false) {
+        toast.warning(d.error || "Reply logged but delivery failed");
+      } else if (d.error) {
+        throw new Error(d.error);
+      } else {
+        toast.success(`Reply sent via ${channel.toUpperCase()}`);
+      }
+      const reply = d.reply;
       if (reply) {
         setReplies((prev) => ({
           ...prev,
