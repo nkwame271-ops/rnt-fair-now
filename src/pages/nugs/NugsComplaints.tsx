@@ -219,7 +219,10 @@ const NugsComplaints = () => {
               </div>
             ) : (
               !["resolved", "closed"].includes(c.status) && (
-                <div className="mt-3 flex justify-end">
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => toggleExpand(c.id)}>
+                    {expanded.has(c.id) ? <><ChevronUp className="h-4 w-4 mr-1.5" />Hide workspace</> : <><ChevronDown className="h-4 w-4 mr-1.5" />Open workspace</>}
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -230,6 +233,19 @@ const NugsComplaints = () => {
                   </Button>
                 </div>
               )
+            )}
+
+            {expanded.has(c.id) && nugsPerms.complaints && !c.escalated_to_rent_control && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <ComplaintWorkspace
+                  complaintId={c.id}
+                  currentStatus={c.status}
+                  feeScope="nugs"
+                  allowPayment
+                  allowStatusUpdate
+                  onChanged={load}
+                />
+              </div>
             )}
           </div>
         ))}
