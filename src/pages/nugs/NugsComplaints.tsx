@@ -17,7 +17,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import ComplaintWorkspace from "@/components/ComplaintWorkspace";
-import { useAdminProfile } from "@/hooks/useAdminProfile";
+
 
 interface ComplaintRow {
   id: string;
