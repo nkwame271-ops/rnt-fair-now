@@ -186,13 +186,23 @@ const EscalatedStudentComplaints = () => {
             )}
 
             <div className="mt-3 flex justify-end">
-              <Button asChild size="sm" variant="outline">
-                <Link to={`/regulator/complaints?tab=tenant&open=${c.id}`}>
-                  <Eye className="h-4 w-4 mr-1.5" />
-                  Open in Complaints
-                </Link>
+              <Button size="sm" variant="outline" onClick={() => toggleExpand(c.id)}>
+                {expanded.has(c.id) ? <><ChevronUp className="h-4 w-4 mr-1.5" />Hide workspace</> : <><ChevronDown className="h-4 w-4 mr-1.5" />Open workspace</>}
               </Button>
             </div>
+
+            {expanded.has(c.id) && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <ComplaintWorkspace
+                  complaintId={c.id}
+                  currentStatus={c.status}
+                  feeScope="rent_control"
+                  allowPayment
+                  allowStatusUpdate
+                  onChanged={reload}
+                />
+              </div>
+            )}
           </div>
         ))}
         {filtered.length === 0 && (
