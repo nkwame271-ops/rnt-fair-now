@@ -665,14 +665,13 @@ Deno.serve(async (req) => {
         // Try basket-driven per-item split plan first; fall back to legacy single allocation.
         const { data: basketRows } = await supabaseAdmin
           .from("complaint_basket_items")
-          .select("id, kind, label, amount, igf_pct, admin_pct, platform_pct")
+          .select("id, kind, label, amount, igf_pct, admin_pct, platform_pct, is_nugs_revenue, fee_scope")
           .eq("complaint_id", complaintId)
           .eq("complaint_table", isLandlordComplaint ? "landlord_complaints" : "complaints")
           .order("created_at");
 
         if (Array.isArray(basketRows) && basketRows.length > 0) {
           const basketSum = basketRows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
-          // Sanity: outstanding_amount must equal basket sum (within 1 pesewa)
           if (Math.abs(basketSum - serverAmount) > 0.01) {
             throw new Error(`Basket total (GH₵ ${basketSum.toFixed(2)}) does not match the outstanding amount (GH₵ ${serverAmount.toFixed(2)})`);
           }
@@ -682,8 +681,11 @@ Deno.serve(async (req) => {
             const igf = +(amt * (Number(row.igf_pct) || 0) / 100).toFixed(2);
             const adm = +(amt * (Number(row.admin_pct) || 0) / 100).toFixed(2);
             const plat = +(amt * (Number(row.platform_pct) || 0) / 100).toFixed(2);
+            // NUGS-tagged items: re-route the "admin" share to a central NUGS pool (no office split)
+            const adminRecipient = row.is_nugs_revenue ? "nugs" : "admin";
+            const adminLabel = row.is_nugs_revenue ? "NUGS" : "Admin";
             if (igf > 0) perItemSplits.push({ recipient: "rent_control", amount: igf, description: `${row.label} (IGF)`, complaint_basket_item_id: row.id });
-            if (adm > 0) perItemSplits.push({ recipient: "admin", amount: adm, description: `${row.label} (Admin)`, complaint_basket_item_id: row.id });
+            if (adm > 0) perItemSplits.push({ recipient: adminRecipient, amount: adm, description: `${row.label} (${adminLabel})`, complaint_basket_item_id: row.id, is_nugs_revenue: !!row.is_nugs_revenue });
             if (plat > 0) perItemSplits.push({ recipient: "platform", amount: plat, description: `${row.label} (Platform)`, complaint_basket_item_id: row.id });
           }
           splitPlan = perItemSplits;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertTriangle, Search, ArrowUpRight } from "lucide-react";
+import { Loader2, AlertTriangle, Search, ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import ComplaintWorkspace from "@/components/ComplaintWorkspace";
+
 
 interface ComplaintRow {
   id: string;
@@ -44,6 +46,7 @@ const statusColor = (s: string) => {
 
 const NugsComplaints = () => {
   const { user } = useAuth();
+  const [nugsPerms, setNugsPerms] = useState<{ complaints: boolean; rent_card: boolean }>({ complaints: true, rent_card: false });
   const [rows, setRows] = useState<ComplaintRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -51,17 +54,28 @@ const NugsComplaints = () => {
   const [escalating, setEscalating] = useState<ComplaintRow | null>(null);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const load = async () => {
     setLoading(true);
     // Look up the NUGS admin's assigned school for the header
     if (user?.id) {
-      const { data: assignment } = await supabase
-        .from("nugs_staff")
-        .select("assigned_school")
+      const { data: assignment } = await (supabase
+        .from("nugs_staff") as any)
+        .select("assigned_school, permissions")
         .eq("user_id", user.id)
         .maybeSingle();
       setAssignedSchool(assignment?.assigned_school ?? null);
+      const p = (assignment?.permissions as any) || {};
+      setNugsPerms({ complaints: p.complaints !== false, rent_card: !!p.rent_card });
     }
 
     // RLS automatically scopes to student complaints from this NUGS admin's school
@@ -205,7 +219,10 @@ const NugsComplaints = () => {
               </div>
             ) : (
               !["resolved", "closed"].includes(c.status) && (
-                <div className="mt-3 flex justify-end">
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => toggleExpand(c.id)}>
+                    {expanded.has(c.id) ? <><ChevronUp className="h-4 w-4 mr-1.5" />Hide workspace</> : <><ChevronDown className="h-4 w-4 mr-1.5" />Open workspace</>}
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -216,6 +233,19 @@ const NugsComplaints = () => {
                   </Button>
                 </div>
               )
+            )}
+
+            {expanded.has(c.id) && nugsPerms.complaints && !c.escalated_to_rent_control && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <ComplaintWorkspace
+                  complaintId={c.id}
+                  currentStatus={c.status}
+                  feeScope="nugs"
+                  allowPayment
+                  allowStatusUpdate
+                  onChanged={load}
+                />
+              </div>
             )}
           </div>
         ))}

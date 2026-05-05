@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertTriangle, GraduationCap, Search, Eye } from "lucide-react";
+import { Loader2, AlertTriangle, GraduationCap, Search, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { Link } from "react-router-dom";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
+import ComplaintWorkspace from "@/components/ComplaintWorkspace";
 
 interface Row {
   id: string;
@@ -41,9 +41,10 @@ const EscalatedStudentComplaints = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-
-  useEffect(() => {
-    const load = async () => {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const reload = () => { setLoading(true); load(); };
+  const load = async () => {
       const { data: complaints } = await supabase
         .from("complaints")
         .select("id, complaint_code, ticket_number, complaint_type, description, status, payment_status, property_address, region, created_at, tenant_user_id, escalated_at, escalated_by, escalation_reason")
@@ -78,8 +79,8 @@ const EscalatedStudentComplaints = () => {
       );
       setLoading(false);
     };
-    load();
-  }, []);
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   const allStatuses = Array.from(new Set(rows.map((r) => r.status)));
 
@@ -185,13 +186,23 @@ const EscalatedStudentComplaints = () => {
             )}
 
             <div className="mt-3 flex justify-end">
-              <Button asChild size="sm" variant="outline">
-                <Link to={`/regulator/complaints?tab=tenant&open=${c.id}`}>
-                  <Eye className="h-4 w-4 mr-1.5" />
-                  Open in Complaints
-                </Link>
+              <Button size="sm" variant="outline" onClick={() => toggleExpand(c.id)}>
+                {expanded.has(c.id) ? <><ChevronUp className="h-4 w-4 mr-1.5" />Hide workspace</> : <><ChevronDown className="h-4 w-4 mr-1.5" />Open workspace</>}
               </Button>
             </div>
+
+            {expanded.has(c.id) && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <ComplaintWorkspace
+                  complaintId={c.id}
+                  currentStatus={c.status}
+                  feeScope="rent_control"
+                  allowPayment
+                  allowStatusUpdate
+                  onChanged={reload}
+                />
+              </div>
+            )}
           </div>
         ))}
         {filtered.length === 0 && (

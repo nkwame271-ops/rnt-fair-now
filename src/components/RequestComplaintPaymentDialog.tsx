@@ -25,12 +25,14 @@ interface Props {
   linkedPropertyId?: string | null;
   monthlyRent?: number | null;
   initialClaimAmount?: number | null;
+  /** When "nugs", fee rules are restricted to fixed-fee types and basket items are tagged as NUGS revenue. */
+  feeScope?: "nugs" | "rent_control";
   onRequested?: () => void;
 }
 
 const newUid = () => (crypto?.randomUUID?.() ?? `b_${Date.now()}_${Math.random().toString(36).slice(2)}`);
 
-const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, complaintTable, linkedPropertyId, monthlyRent: monthlyRentProp, initialClaimAmount, onRequested }: Props) => {
+const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, complaintTable, linkedPropertyId, monthlyRent: monthlyRentProp, initialClaimAmount, feeScope = "rent_control", onRequested }: Props) => {
   const { user } = useAuth();
   const [types, setTypes] = useState<ComplaintTypeRow[]>([]);
   const [fixedMap, setFixedMap] = useState<Record<string, FixedFeeRow>>({});
@@ -180,10 +182,11 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
 
   const totals = useMemo(() => summariseBasket(basket), [basket]);
 
+  const scopedTypes = feeScope === "nugs" ? types.filter((t) => t.fee_structure === "fixed") : types;
   const groupedTypes = {
-    fixed: types.filter((t) => t.fee_structure === "fixed"),
-    rent_band: types.filter((t) => t.fee_structure === "rent_band"),
-    percentage: types.filter((t) => t.fee_structure === "percentage"),
+    fixed: scopedTypes.filter((t) => t.fee_structure === "fixed"),
+    rent_band: scopedTypes.filter((t) => t.fee_structure === "rent_band"),
+    percentage: scopedTypes.filter((t) => t.fee_structure === "percentage"),
   };
 
   const addFeeRuleItem = () => {
@@ -272,6 +275,8 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         platform_pct: it.platform_pct,
         computation_meta: it.computation_meta || null,
         created_by: user.id,
+        fee_scope: feeScope,
+        is_nugs_revenue: feeScope === "nugs",
       }));
 
       const { error: insErr } = await (supabase.from("complaint_basket_items") as any).insert(rows);

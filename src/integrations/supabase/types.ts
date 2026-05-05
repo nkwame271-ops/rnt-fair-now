@@ -326,8 +326,10 @@ export type Database = {
           computation_meta: Json | null
           created_at: string
           created_by: string
+          fee_scope: string
           id: string
           igf_pct: number
+          is_nugs_revenue: boolean
           kind: string
           label: string
           platform_pct: number
@@ -341,8 +343,10 @@ export type Database = {
           computation_meta?: Json | null
           created_at?: string
           created_by: string
+          fee_scope?: string
           id?: string
           igf_pct?: number
+          is_nugs_revenue?: boolean
           kind: string
           label: string
           platform_pct?: number
@@ -356,8 +360,10 @@ export type Database = {
           computation_meta?: Json | null
           created_at?: string
           created_by?: string
+          fee_scope?: string
           id?: string
           igf_pct?: number
+          is_nugs_revenue?: boolean
           kind?: string
           label?: string
           platform_pct?: number
