@@ -340,6 +340,9 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
         if (s.recipient === "landlord") disbStatus = "held";
         else disbStatus = "pending_transfer";
 
+        // NUGS / student-revenue recipients are office-agnostic central pools
+        const isCentralPool = ["nugs", "cm", "igf", "platform"].includes(s.recipient);
+
         splitRows.push({
           escrow_transaction_id: escrowId,
           recipient: s.recipient,
@@ -347,7 +350,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
           description: s.description || "",
           disbursement_status: disbStatus,
           released_at: null,
-          office_id: officeId,
+          office_id: isCentralPool ? null : officeId,
           release_mode: releaseMode,
           complaint_basket_item_id: (s as any).complaint_basket_item_id ?? null,
         });
