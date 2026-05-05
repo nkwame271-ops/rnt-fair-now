@@ -80,44 +80,7 @@ const EscalatedStudentComplaints = () => {
       setLoading(false);
     };
 
-  useEffect(() => {
-    const load = async () => {
-      const { data: complaints } = await supabase
-        .from("complaints")
-        .select("id, complaint_code, ticket_number, complaint_type, description, status, payment_status, property_address, region, created_at, tenant_user_id, escalated_at, escalated_by, escalation_reason")
-        .eq("escalated_to_rent_control", true)
-        .order("escalated_at", { ascending: false });
-
-      const userIds = [...new Set((complaints || []).map((c: any) => c.tenant_user_id))];
-
-      const [profilesRes, tenantsRes] = await Promise.all([
-        userIds.length > 0
-          ? supabase.from("profiles").select("user_id, full_name, phone").in("user_id", userIds)
-          : Promise.resolve({ data: [] }),
-        userIds.length > 0
-          ? supabase.from("tenants").select("user_id, school").in("user_id", userIds)
-          : Promise.resolve({ data: [] }),
-      ]);
-
-      const nameMap: Record<string, { name: string; phone?: string }> = {};
-      ((profilesRes as any).data || []).forEach((p: any) => {
-        nameMap[p.user_id] = { name: p.full_name, phone: p.phone };
-      });
-      const schoolMap: Record<string, string> = {};
-      ((tenantsRes as any).data || []).forEach((t: any) => { schoolMap[t.user_id] = t.school; });
-
-      setRows(
-        (complaints || []).map((c: any) => ({
-          ...c,
-          studentName: nameMap[c.tenant_user_id]?.name,
-          studentPhone: nameMap[c.tenant_user_id]?.phone,
-          school: schoolMap[c.tenant_user_id],
-        }))
-      );
-      setLoading(false);
-    };
-    load();
-  }, []);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   const allStatuses = Array.from(new Set(rows.map((r) => r.status)));
 
