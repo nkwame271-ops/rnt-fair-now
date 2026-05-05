@@ -298,7 +298,9 @@ const RegulatorComplaints = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  const isStudentRow = (c: any) => !!(c._tenantRecord?.is_student || c._tenantRecord?.school);
+  // A complaint is "student" only when we have explicit confirmation. Missing tenant
+  // records fall through to the Tenant tab so rows are never invisible everywhere.
+  const isStudentRow = (c: any) => c._tenantRecord?.is_student === true || !!c._tenantRecord?.school;
   const isSubAdmin = !!profile && !profile.isMainAdmin && !profile.isSuperAdmin;
 
   // Force non-super admins off the Student tab
