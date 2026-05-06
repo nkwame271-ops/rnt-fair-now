@@ -359,7 +359,7 @@ const FileComplaint = () => {
 
         toast.success("Redirecting to payment…");
         const { data: payRaw, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
-          body: { type: "student_complaint_fee", draft_id: draftId },
+          body: { type: "student_complaint_draft", draftId },
         });
         let payData: any = payRaw;
         if (typeof payRaw === "string") { try { payData = JSON.parse(payRaw); } catch {} }
