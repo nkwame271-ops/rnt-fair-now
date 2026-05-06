@@ -349,8 +349,33 @@ const FileComplaint = () => {
         }).catch((e) => console.error("similarity check failed:", e));
       }
 
+      const inNugs = window.location.pathname.startsWith("/nugs") || isStudent;
+
+      // Student complaint paywall: route immediately to Paystack checkout for the student complaint filing fee
+      if (isStudent) {
+        try {
+          toast.success("Complaint created. Redirecting to payment…");
+          const { data: payRaw, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
+            body: { type: "complaint_fee", complaintId: complaint.id },
+          });
+          let payData: any = payRaw;
+          if (typeof payRaw === "string") { try { payData = JSON.parse(payRaw); } catch {} }
+          if (payErr) throw new Error(payErr.message || "Could not start payment");
+          if (payData?.error) throw new Error(payData.error);
+          if (payData?.authorization_url) {
+            if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
+            window.location.href = payData.authorization_url;
+            return;
+          }
+          throw new Error("No checkout URL received");
+        } catch (e: any) {
+          toast.error(`${e.message || "Payment redirect failed"} — you can pay later from My Complaints.`);
+          navigate("/nugs/my-complaints");
+          return;
+        }
+      }
+
       toast.success("Complaint submitted! An officer will review and contact you regarding any required fee.");
-      const inNugs = window.location.pathname.startsWith("/nugs");
       navigate(inNugs ? "/nugs/my-complaints" : "/tenant/my-cases");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit complaint");
