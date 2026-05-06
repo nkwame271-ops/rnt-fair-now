@@ -687,27 +687,75 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
       await supabaseAdmin.from("properties").update({ listed_on_marketplace: true }).eq("id", propertyId);
     }
   } else if (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") {
-    const complaintId = meta?.complaintId || escrow.related_complaint_id;
+    let complaintId = meta?.complaintId || escrow.related_complaint_id;
+    const draftId = meta?.draft_id;
+    if (!complaintId && draftId) {
+      const { data: draft } = await supabaseAdmin
+        .from("pending_complaint_drafts")
+        .select("id, tenant_user_id, payload, evidence_paths, audio_path, materialized_complaint_id, status")
+        .eq("id", draftId).maybeSingle();
+      if (draft?.materialized_complaint_id) {
+        complaintId = draft.materialized_complaint_id;
+      } else if (draft && draft.status === "pending_payment") {
+        const p = (draft.payload as any) || {};
+        const complaintCode = p.complaint_code || `RC-${new Date().getFullYear()}-${String(Math.floor(10000 + Math.random() * 90000))}`;
+        const { data: ticketNumber } = await supabaseAdmin.rpc("generate_complaint_ticket");
+        let complaintPropertyId: string | null = null;
+        if (p.complaint_property) {
+          const { data: cp } = await supabaseAdmin.from("complaint_properties")
+            .insert({ ...p.complaint_property, tenant_user_id: draft.tenant_user_id })
+            .select("id").single();
+          complaintPropertyId = cp?.id || null;
+        }
+        const { data: newComplaint, error: ncErr } = await supabaseAdmin.from("complaints").insert({
+          tenant_user_id: draft.tenant_user_id,
+          complaint_code: complaintCode,
+          ticket_number: ticketNumber || undefined,
+          complaint_type: p.complaint_type,
+          complaint_type_is_custom: !!p.complaint_type_is_custom,
+          landlord_name: p.landlord_name,
+          property_address: p.property_address,
+          region: p.region,
+          description: p.description,
+          status: "ready_for_scheduling",
+          payment_status: "paid",
+          gps_location: p.gps_location || null,
+          gps_confirmed: !!p.gps_confirmed,
+          gps_confirmed_at: p.gps_confirmed_at || null,
+          office_id: p.office_id || null,
+          complaint_property_id: complaintPropertyId,
+          nugs_school: p.nugs_school || null,
+          assigned_nugs_user_id: p.assigned_nugs_user_id || null,
+          evidence_urls: draft.evidence_paths && draft.evidence_paths.length > 0 ? draft.evidence_paths : undefined,
+          audio_url: draft.audio_path || undefined,
+        }).select("id").single();
+        if (ncErr) {
+          console.error("Failed to materialize complaint from draft:", ncErr.message);
+        } else if (newComplaint) {
+          complaintId = newComplaint.id;
+          if (complaintPropertyId) {
+            await supabaseAdmin.from("complaint_properties").update({ complaint_id: complaintId }).eq("id", complaintPropertyId);
+          }
+          try {
+            const { data: caseNumber } = await supabaseAdmin.rpc("generate_case_number");
+            await supabaseAdmin.from("cases").insert({
+              case_number: caseNumber || `CASE-${Date.now()}`,
+              office_id: p.office_id || null,
+              user_id: draft.tenant_user_id,
+              case_type: "complaint",
+              related_complaint_id: complaintId,
+              metadata: { complaint_code: complaintCode, draft_id: draftId },
+            });
+          } catch (e) { console.error("Case creation from draft failed:", e); }
+          await supabaseAdmin.from("escrow_transactions").update({ related_complaint_id: complaintId }).eq("id", escrow.id);
+          await supabaseAdmin.from("pending_complaint_drafts").update({ status: "materialized", materialized_complaint_id: complaintId }).eq("id", draftId);
+        }
+      }
+    }
     if (complaintId) {
-      // Find the receipt we just created (by escrow_transaction_id)
-      const { data: rcpt } = await supabaseAdmin
-        .from("payment_receipts")
-        .select("id")
-        .eq("escrow_transaction_id", escrow.id)
-        .maybeSingle();
-
-      // Try tenant complaints first, then landlord complaints
-      const updates: any = {
-        status: "ready_for_scheduling",
-        payment_status: "paid",
-        receipt_id: rcpt?.id || null,
-      };
-      const { data: tUpd } = await supabaseAdmin
-        .from("complaints")
-        .update(updates)
-        .eq("id", complaintId)
-        .select("id")
-        .maybeSingle();
+      const { data: rcpt } = await supabaseAdmin.from("payment_receipts").select("id").eq("escrow_transaction_id", escrow.id).maybeSingle();
+      const updates: any = { status: "ready_for_scheduling", payment_status: "paid", receipt_id: rcpt?.id || null };
+      const { data: tUpd } = await supabaseAdmin.from("complaints").update(updates).eq("id", complaintId).select("id").maybeSingle();
       if (!tUpd) {
         await supabaseAdmin.from("landlord_complaints").update(updates).eq("id", complaintId);
       }
