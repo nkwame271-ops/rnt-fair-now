@@ -87,9 +87,10 @@ const FileComplaint = () => {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data: t } = await supabase.from("tenants").select("is_student").eq("user_id", user.id).maybeSingle();
+      const { data: t } = await supabase.from("tenants").select("is_student, school").eq("user_id", user.id).maybeSingle();
       if (!t?.is_student) return;
       setIsStudent(true);
+      if (t.school) setNugsSchool(t.school);
       const { data: hist } = await (supabase.from("student_residence_history") as any)
         .select("id, school, hostel_or_hall, room_or_bed_space, effective_from, effective_to")
         .eq("tenant_user_id", user.id)
