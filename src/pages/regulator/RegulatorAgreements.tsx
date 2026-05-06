@@ -205,19 +205,13 @@ const RegulatorAgreements = () => {
       <div className={`${widthClass} shrink-0 overflow-x-auto pb-1`}>
         <div className="ml-auto flex w-max items-center justify-end gap-2 flex-nowrap">
           {a.agreement_pdf_url && (
-            <a href={a.agreement_pdf_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-              <Button size="sm" variant="outline" className={compactButtonClass}>Draft</Button>
-            </a>
+            <Button size="sm" variant="outline" className={compactButtonClass} onClick={() => openStored(a.agreement_pdf_url)}>Draft</Button>
           )}
           {a.final_agreement_pdf_url && (
-            <a href={a.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-              <Button size="sm" variant="default" className={compactButtonClass}>Final</Button>
-            </a>
+            <Button size="sm" variant="default" className={compactButtonClass} onClick={() => openStored(a.final_agreement_pdf_url)}>Final</Button>
           )}
           {a.existing_agreement_url && (
-            <a href={a.existing_agreement_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-              <Button size="sm" variant="secondary" className={compactButtonClass}>Uploaded</Button>
-            </a>
+            <Button size="sm" variant="secondary" className={compactButtonClass} onClick={() => openStored(a.existing_agreement_url)}>Uploaded</Button>
           )}
           <Button size="sm" variant="outline" className={compactButtonClass} onClick={() => downloadPdf(a)}>
             {a.tenancy_type === "existing_migration" ? "Details" : "PDF"}
