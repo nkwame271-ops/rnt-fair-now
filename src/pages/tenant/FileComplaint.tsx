@@ -28,6 +28,7 @@ const FileComplaint = () => {
   const [offices, setOffices] = useState<{ id: string; name: string; region: string }[]>([]);
   const [form, setForm] = useState({
     type: "",
+    customType: "",
     landlordName: "",
     landlordPhone: "",
     address: "",
@@ -457,6 +458,16 @@ const FileComplaint = () => {
                 </button>
               ))}
             </div>
+            {form.type === "Other" && (
+              <div className="space-y-2 pt-2">
+                <Label>Describe the complaint type <span className="text-destructive">*</span></Label>
+                <Input
+                  value={form.customType}
+                  onChange={(e) => update("customType", e.target.value)}
+                  placeholder="e.g. Unauthorized renovations, harassment, etc."
+                />
+              </div>
+            )}
           </div>
         )}
 
