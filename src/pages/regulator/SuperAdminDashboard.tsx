@@ -608,7 +608,7 @@ const SuperAdminDashboard = () => {
           </div>
         )}
 
-        {showActions && !isYou && (
+        {showActions && !isYou && s.admin_type !== "nugs_admin" && (
           <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEditDialog(s)}>
               <Pencil className="h-3 w-3 mr-1" /> Edit
