@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, FileText, MapPin, Info, ArrowRight, ArrowLeft, Navigation, AlertTriangle, Check, Mic, Square, Play, Trash2, ImagePlus, X, Building2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { complaintTypes, regions, areasByRegion } from "@/data/dummyData";
+import { GHANA_INSTITUTIONS } from "@/data/ghanaInstitutions";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -80,12 +81,16 @@ const FileComplaint = () => {
   const [residences, setResidences] = useState<{ id: string; school: string | null; hostel_or_hall: string | null; room_or_bed_space: string | null; effective_from: string; effective_to: string | null }[]>([]);
   const [selectedResidenceId, setSelectedResidenceId] = useState<string>("");
   const [isStudent, setIsStudent] = useState(false);
+  const [nugsSchool, setNugsSchool] = useState<string>("");
+  const [customSchool, setCustomSchool] = useState<string>("");
+  const [useCustomSchool, setUseCustomSchool] = useState(false);
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data: t } = await supabase.from("tenants").select("is_student").eq("user_id", user.id).maybeSingle();
+      const { data: t } = await supabase.from("tenants").select("is_student, school").eq("user_id", user.id).maybeSingle();
       if (!t?.is_student) return;
       setIsStudent(true);
+      if (t.school) setNugsSchool(t.school);
       const { data: hist } = await (supabase.from("student_residence_history") as any)
         .select("id, school, hostel_or_hall, room_or_bed_space, effective_from, effective_to")
         .eq("tenant_user_id", user.id)
@@ -260,6 +265,10 @@ const FileComplaint = () => {
     if (!form.locationMethod || form.locationLat === null || form.locationLng === null) {
       toast.error("Please provide the property location to continue."); return;
     }
+    const resolvedSchool = isStudent ? (useCustomSchool ? customSchool.trim() : nugsSchool.trim()) : "";
+    if (isStudent && !resolvedSchool) {
+      toast.error("Please select your school (NUGS office) for this complaint."); return;
+    }
     setSubmitting(true);
     try {
       const complaintCode = `RC-${new Date().getFullYear()}-${String(Math.floor(10000 + Math.random() * 90000))}`;
@@ -300,6 +309,7 @@ const FileComplaint = () => {
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
         office_id: form.officeId,
         complaint_property_id: cp?.id || null,
+        nugs_school: resolvedSchool || null,
       } as any).select("id").single();
 
       if (error) throw error;
@@ -339,8 +349,33 @@ const FileComplaint = () => {
         }).catch((e) => console.error("similarity check failed:", e));
       }
 
+      const inNugs = window.location.pathname.startsWith("/nugs") || isStudent;
+
+      // Student complaint paywall: route immediately to Paystack checkout for the student complaint filing fee
+      if (isStudent) {
+        try {
+          toast.success("Complaint created. Redirecting to payment…");
+          const { data: payRaw, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
+            body: { type: "complaint_fee", complaintId: complaint.id },
+          });
+          let payData: any = payRaw;
+          if (typeof payRaw === "string") { try { payData = JSON.parse(payRaw); } catch {} }
+          if (payErr) throw new Error(payErr.message || "Could not start payment");
+          if (payData?.error) throw new Error(payData.error);
+          if (payData?.authorization_url) {
+            if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
+            window.location.href = payData.authorization_url;
+            return;
+          }
+          throw new Error("No checkout URL received");
+        } catch (e: any) {
+          toast.error(`${e.message || "Payment redirect failed"} — you can pay later from My Complaints.`);
+          navigate("/nugs/my-complaints");
+          return;
+        }
+      }
+
       toast.success("Complaint submitted! An officer will review and contact you regarding any required fee.");
-      const inNugs = window.location.pathname.startsWith("/nugs");
       navigate(inNugs ? "/nugs/my-complaints" : "/tenant/my-cases");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit complaint");
@@ -427,6 +462,34 @@ const FileComplaint = () => {
 
         {step === 2 && (
           <div className="space-y-4">
+            {isStudent && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-2">
+                <Label className="flex items-center gap-1.5 text-xs font-semibold text-primary uppercase tracking-wide">
+                  <Building2 className="h-3.5 w-3.5" /> Which NUGS office (school) is this complaint about? <span className="text-destructive">*</span>
+                </Label>
+                {!useCustomSchool ? (
+                  <>
+                    <Select value={nugsSchool} onValueChange={setNugsSchool}>
+                      <SelectTrigger><SelectValue placeholder="Select your school" /></SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {GHANA_INSTITUTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <button type="button" onClick={() => { setUseCustomSchool(true); setNugsSchool(""); }} className="text-xs text-primary hover:underline">
+                      My school isn't listed — enter it manually
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Input value={customSchool} onChange={(e) => setCustomSchool(e.target.value)} placeholder="Type your school name (e.g. Ghana Christian University)" />
+                    <button type="button" onClick={() => { setUseCustomSchool(false); setCustomSchool(""); }} className="text-xs text-primary hover:underline">
+                      Pick from the list instead
+                    </button>
+                    <p className="text-xs text-muted-foreground">A NUGS case will be opened for this school name.</p>
+                  </>
+                )}
+              </div>
+            )}
             {isStudent && residences.length > 0 && (
               <div className="bg-info/5 border border-info/20 rounded-lg p-3 space-y-2">
                 <Label className="flex items-center gap-1.5 text-xs font-semibold text-info uppercase tracking-wide">
@@ -687,7 +750,11 @@ const FileComplaint = () => {
             </div>
             <div className="flex items-start gap-2 text-xs bg-info/5 p-3 rounded-lg border border-info/20">
               <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
-              <span><strong>No payment required at this stage.</strong> An officer will review your complaint and, if a filing fee applies, will request payment from you. You'll see a "Pay Now" button on your dashboard once requested.</span>
+              {isStudent ? (
+                <span><strong>Student Complaint Filing Fee applies.</strong> When you click Submit, you'll be redirected to pay the filing fee configured by Rent Control. Your complaint will be opened for NUGS review once payment is confirmed.</span>
+              ) : (
+                <span><strong>No payment required at this stage.</strong> An officer will review your complaint and, if a filing fee applies, will request payment from you. You'll see a "Pay Now" button on your dashboard once requested.</span>
+              )}
             </div>
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted p-3 rounded-lg border border-border">
               <Info className="h-4 w-4 shrink-0 mt-0.5" />

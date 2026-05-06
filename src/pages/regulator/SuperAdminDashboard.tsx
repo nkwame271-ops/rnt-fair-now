@@ -174,10 +174,12 @@ interface StaffRow {
   email?: string;
   last_login?: string | null;
   is_frozen?: boolean;
+  assigned_school?: string | null;
+  nugs_permissions?: { complaints?: boolean; rent_card?: boolean } | null;
 }
 
-// Sort priority: super_admin first, then main_admin, then sub_admin
-const staffSortOrder = (type: string) => type === "super_admin" ? 0 : type === "main_admin" ? 1 : 2;
+// Sort priority: super_admin first, then main_admin, then sub_admin, then nugs_admin
+const staffSortOrder = (type: string) => type === "super_admin" ? 0 : type === "main_admin" ? 1 : type === "sub_admin" ? 2 : 3;
 
 const SuperAdminDashboard = () => {
   const { user } = useAuth();
@@ -218,14 +220,29 @@ const SuperAdminDashboard = () => {
 
   const fetchStaff = useCallback(async () => {
     setStaffLoading(true);
-    const [{ data: staffData }, { data: officeData }] = await Promise.all([
+    const [{ data: staffData }, { data: officeData }, { data: nugsData }] = await Promise.all([
       supabase.from("admin_staff").select("user_id, admin_type, office_name, office_id, allowed_features, muted_features"),
       supabase.from("offices").select("id, name"),
+      (supabase.from("nugs_staff") as any).select("user_id, assigned_school, permissions"),
     ]);
     setOffices((officeData || []).map((o: any) => ({ id: o.id, name: o.name })));
 
-    if (staffData && staffData.length > 0) {
-      const userIds = staffData.map((s: any) => s.user_id);
+    const combined: any[] = [
+      ...(staffData || []),
+      ...((nugsData || []) as any[]).map((n: any) => ({
+        user_id: n.user_id,
+        admin_type: "nugs_admin",
+        office_name: n.assigned_school,
+        office_id: null,
+        allowed_features: null,
+        muted_features: null,
+        assigned_school: n.assigned_school,
+        nugs_permissions: n.permissions || null,
+      })),
+    ];
+
+    if (combined.length > 0) {
+      const userIds = combined.map((s: any) => s.user_id);
       const [{ data: profiles }, { data: loginLogs }] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds),
         supabase.from("admin_activity_log").select("user_id, created_at").eq("event_type", "login").in("user_id", userIds).order("created_at", { ascending: false }),
@@ -234,7 +251,7 @@ const SuperAdminDashboard = () => {
       const loginMap = new Map<string, string>();
       (loginLogs || []).forEach((l: any) => { if (!loginMap.has(l.user_id)) loginMap.set(l.user_id, l.created_at); });
 
-      const sorted = staffData.map((s: any) => ({
+      const sorted = combined.map((s: any) => ({
         ...s,
         full_name: nameMap.get(s.user_id)?.name || "Unknown",
         email: nameMap.get(s.user_id)?.email || "",
@@ -564,14 +581,20 @@ const SuperAdminDashboard = () => {
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">{s.email}</div>
           </div>
-          <Badge className={s.admin_type === "super_admin" ? "bg-amber-500 text-white border-amber-600" : s.admin_type === "main_admin" ? "" : ""} variant={s.admin_type === "main_admin" ? "default" : s.admin_type === "sub_admin" ? "secondary" : "default"}>
-            {s.admin_type === "super_admin" ? "SUPER ADMIN" : s.admin_type === "main_admin" ? "ADMIN" : "STAFF"}
+          <Badge className={s.admin_type === "super_admin" ? "bg-amber-500 text-white border-amber-600" : s.admin_type === "nugs_admin" ? "bg-info/15 text-info border-info/30" : ""} variant={s.admin_type === "main_admin" ? "default" : s.admin_type === "sub_admin" ? "secondary" : s.admin_type === "nugs_admin" ? "outline" : "default"}>
+            {s.admin_type === "super_admin" ? "SUPER ADMIN" : s.admin_type === "main_admin" ? "ADMIN" : s.admin_type === "nugs_admin" ? "NUGS SUB-ADMIN" : "STAFF"}
           </Badge>
         </div>
 
         <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-          <span>Office: <strong className="text-foreground">{s.office_name || "Headquarters"}</strong></span>
+          <span>{s.admin_type === "nugs_admin" ? "School" : "Office"}: <strong className="text-foreground">{s.office_name || "Headquarters"}</strong></span>
           <span>Last Login: <strong className="text-foreground">{s.last_login ? new Date(s.last_login).toLocaleString() : "Never"}</strong></span>
+          {s.admin_type === "nugs_admin" && s.nugs_permissions && (
+            <>
+              {s.nugs_permissions.complaints && <Badge variant="outline" className="text-[10px]">Complaints</Badge>}
+              {s.nugs_permissions.rent_card && <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700">Rent Card</Badge>}
+            </>
+          )}
         </div>
 
         {s.allowed_features && s.allowed_features.length > 0 && (
@@ -585,7 +608,7 @@ const SuperAdminDashboard = () => {
           </div>
         )}
 
-        {showActions && !isYou && (
+        {showActions && !isYou && s.admin_type !== "nugs_admin" && (
           <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEditDialog(s)}>
               <Pencil className="h-3 w-3 mr-1" /> Edit

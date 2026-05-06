@@ -757,6 +757,7 @@ export type Database = {
           id: string
           landlord_name: string
           linked_property_id: string | null
+          nugs_school: string | null
           office_id: string | null
           outstanding_amount: number | null
           payment_status: string
@@ -789,6 +790,7 @@ export type Database = {
           id?: string
           landlord_name: string
           linked_property_id?: string | null
+          nugs_school?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
@@ -821,6 +823,7 @@ export type Database = {
           id?: string
           landlord_name?: string
           linked_property_id?: string | null
+          nugs_school?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
