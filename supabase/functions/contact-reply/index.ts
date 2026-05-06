@@ -135,10 +135,13 @@ Deno.serve(async (req) => {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const { error: smsErr } = await admin.functions.invoke("send-sms", {
+      const { data: smsData, error: smsErr } = await admin.functions.invoke("send-sms", {
         body: { phone: submission.phone, message: messageBody.slice(0, 480) },
       });
-      if (smsErr) dispatchError = "SMS dispatch failed: " + smsErr.message;
+      const smsBody: any = smsData || {};
+      if (smsErr || smsBody?.error || smsBody?.success === false) {
+        dispatchError = "SMS dispatch failed: " + (smsBody?.error || smsErr?.message || "Unknown SMS provider error");
+      }
       dispatchResult.to = submission.phone;
     }
 
