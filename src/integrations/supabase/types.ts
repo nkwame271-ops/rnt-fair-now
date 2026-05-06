@@ -737,6 +737,7 @@ export type Database = {
       }
       complaints: {
         Row: {
+          assigned_nugs_user_id: string | null
           audio_url: string | null
           basket_total: number | null
           claim_amount: number | null
@@ -744,6 +745,7 @@ export type Database = {
           complaint_property_id: string | null
           complaint_type: string
           complaint_type_id: string | null
+          complaint_type_is_custom: boolean
           created_at: string
           description: string
           escalated_at: string | null
@@ -770,6 +772,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_nugs_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
           claim_amount?: number | null
@@ -777,6 +780,7 @@ export type Database = {
           complaint_property_id?: string | null
           complaint_type: string
           complaint_type_id?: string | null
+          complaint_type_is_custom?: boolean
           created_at?: string
           description: string
           escalated_at?: string | null
@@ -803,6 +807,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_nugs_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
           claim_amount?: number | null
@@ -810,6 +815,7 @@ export type Database = {
           complaint_property_id?: string | null
           complaint_type?: string
           complaint_type_id?: string | null
+          complaint_type_is_custom?: boolean
           created_at?: string
           description?: string
           escalated_at?: string | null
@@ -1096,6 +1102,7 @@ export type Database = {
           is_nugs_revenue: boolean
           is_student_revenue: boolean
           metadata: Json | null
+          nugs_office_id: string | null
           office_id: string | null
           payment_type: string
           paystack_transaction_id: string | null
@@ -1116,6 +1123,7 @@ export type Database = {
           is_nugs_revenue?: boolean
           is_student_revenue?: boolean
           metadata?: Json | null
+          nugs_office_id?: string | null
           office_id?: string | null
           payment_type: string
           paystack_transaction_id?: string | null
@@ -1136,6 +1144,7 @@ export type Database = {
           is_nugs_revenue?: boolean
           is_student_revenue?: boolean
           metadata?: Json | null
+          nugs_office_id?: string | null
           office_id?: string | null
           payment_type?: string
           paystack_transaction_id?: string | null
@@ -1828,28 +1837,37 @@ export type Database = {
       }
       nugs_staff: {
         Row: {
+          allowed_features: Json | null
           assigned_school: string
           created_at: string
           created_by: string | null
           id: string
+          is_frozen: boolean
+          muted_features: Json | null
           permissions: Json
           updated_at: string
           user_id: string
         }
         Insert: {
+          allowed_features?: Json | null
           assigned_school: string
           created_at?: string
           created_by?: string | null
           id?: string
+          is_frozen?: boolean
+          muted_features?: Json | null
           permissions?: Json
           updated_at?: string
           user_id: string
         }
         Update: {
+          allowed_features?: Json | null
           assigned_school?: string
           created_at?: string
           created_by?: string | null
           id?: string
+          is_frozen?: boolean
+          muted_features?: Json | null
           permissions?: Json
           updated_at?: string
           user_id?: string
@@ -2266,6 +2284,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pending_complaint_drafts: {
+        Row: {
+          amount: number
+          audio_path: string | null
+          created_at: string
+          evidence_paths: string[] | null
+          expires_at: string
+          id: string
+          materialized_complaint_id: string | null
+          payload: Json
+          reference: string | null
+          status: string
+          tenant_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          audio_path?: string | null
+          created_at?: string
+          evidence_paths?: string[] | null
+          expires_at?: string
+          id?: string
+          materialized_complaint_id?: string | null
+          payload: Json
+          reference?: string | null
+          status?: string
+          tenant_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          audio_path?: string | null
+          created_at?: string
+          evidence_paths?: string[] | null
+          expires_at?: string
+          id?: string
+          materialized_complaint_id?: string | null
+          payload?: Json
+          reference?: string | null
+          status?: string
+          tenant_user_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       pending_tenants: {
         Row: {
