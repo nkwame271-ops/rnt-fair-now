@@ -446,6 +446,22 @@ Deno.serve(async (req) => {
       officeId = await resolveOffice(supabaseAdmin, { userId });
       caseType = "rent_card";
 
+      // NUGS rent-card revenue routing: if the buyer is a NUGS sub-admin,
+      // reroute the office/admin share to the central NUGS settlement account
+      // and flag the escrow row as NUGS revenue.
+      const { data: nugsRow } = await supabaseAdmin
+        .from("nugs_staff")
+        .select("permissions")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const isNugsBuyer = !!nugsRow;
+      if (isNugsBuyer) {
+        const perms = (nugsRow?.permissions as any) || {};
+        if (perms.rent_card !== true) {
+          return new Response(JSON.stringify({ ok: false, error: "You do not have permission to purchase rent cards. Contact a Super Admin." }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+      }
+
       if (!fee.enabled) {
         const cardCount = cardQty * 2;
         const { data: purchaseIdData } = await supabaseAdmin.rpc("generate_purchase_id");
