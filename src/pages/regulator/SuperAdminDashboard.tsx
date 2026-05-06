@@ -223,7 +223,7 @@ const SuperAdminDashboard = () => {
     const [{ data: staffData }, { data: officeData }, { data: nugsData }] = await Promise.all([
       supabase.from("admin_staff").select("user_id, admin_type, office_name, office_id, allowed_features, muted_features"),
       supabase.from("offices").select("id, name"),
-      (supabase.from("nugs_staff") as any).select("user_id, assigned_school, permissions"),
+      (supabase.from("nugs_staff") as any).select("user_id, assigned_school, permissions, allowed_features, muted_features, is_frozen"),
     ]);
     setOffices((officeData || []).map((o: any) => ({ id: o.id, name: o.name })));
 
@@ -234,8 +234,9 @@ const SuperAdminDashboard = () => {
         admin_type: "nugs_admin",
         office_name: n.assigned_school,
         office_id: null,
-        allowed_features: null,
-        muted_features: null,
+        allowed_features: (n.allowed_features as any) || null,
+        muted_features: (n.muted_features as any) || null,
+        is_frozen: !!n.is_frozen,
         assigned_school: n.assigned_school,
         nugs_permissions: n.permissions || null,
       })),
@@ -464,7 +465,7 @@ const SuperAdminDashboard = () => {
       desc: "This will permanently remove this staff member. This action cannot be undone.",
       label: "Delete Account",
       onConfirm: async (pw, reason) => {
-        await handleAdminAction("delete_account", s.user_id, pw, reason, { account_type: "admin" });
+        await handleAdminAction("delete_account", s.user_id, pw, reason, { account_type: s.admin_type === "nugs_admin" ? "nugs_admin" : "admin" });
         toast.success("Account deleted");
         setStaff(prev => prev.filter(x => x.user_id !== s.user_id));
       },
@@ -505,21 +506,29 @@ const SuperAdminDashboard = () => {
     if (!editFeaturesDialog.staff) return;
     setEditSaving(true);
     try {
-      const { error } = await supabase
-        .from("admin_staff")
-        .update({
-          allowed_features: editFeatures.length > 0 ? editFeatures : null,
-          muted_features: editMuted.length > 0 ? editMuted : null,
-          office_id: editOffice.office_id || null,
-          office_name: editOffice.office_name || null,
-          updated_at: new Date().toISOString(),
-        } as any)
+      const isNugs = editFeaturesDialog.staff.admin_type === "nugs_admin";
+      const table = isNugs ? "nugs_staff" : "admin_staff";
+      const updatePayload: any = isNugs
+        ? {
+            allowed_features: editFeatures.length > 0 ? editFeatures : null,
+            muted_features: editMuted.length > 0 ? editMuted : null,
+            updated_at: new Date().toISOString(),
+          }
+        : {
+            allowed_features: editFeatures.length > 0 ? editFeatures : null,
+            muted_features: editMuted.length > 0 ? editMuted : null,
+            office_id: editOffice.office_id || null,
+            office_name: editOffice.office_name || null,
+            updated_at: new Date().toISOString(),
+          };
+      const { error } = await (supabase.from(table as any) as any)
+        .update(updatePayload)
         .eq("user_id", editFeaturesDialog.staff.user_id);
       if (error) throw error;
       toast.success("Staff updated");
       setStaff(prev => prev.map(s =>
         s.user_id === editFeaturesDialog.staff!.user_id
-          ? { ...s, allowed_features: editFeatures.length > 0 ? editFeatures : null, muted_features: editMuted.length > 0 ? editMuted : null, office_id: editOffice.office_id || null, office_name: editOffice.office_name || null }
+          ? { ...s, allowed_features: editFeatures.length > 0 ? editFeatures : null, muted_features: editMuted.length > 0 ? editMuted : null, ...(isNugs ? {} : { office_id: editOffice.office_id || null, office_name: editOffice.office_name || null }) }
           : s
       ));
       setEditFeaturesDialog({ open: false, staff: null });
@@ -630,7 +639,7 @@ const SuperAdminDashboard = () => {
           </div>
         )}
 
-        {showActions && !isYou && s.admin_type !== "nugs_admin" && (
+        {showActions && !isYou && (
           <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEditDialog(s)}>
               <Pencil className="h-3 w-3 mr-1" /> Edit

@@ -650,31 +650,30 @@ Deno.serve(async (req) => {
 
       case "delete_account": {
         const delAccountType = extra?.account_type;
-        if (!delAccountType || !["landlord", "tenant", "admin"].includes(delAccountType)) {
-          throw new Error("Must specify account_type: landlord, tenant, or admin");
+        if (!delAccountType || !["landlord", "tenant", "admin", "nugs_admin"].includes(delAccountType)) {
+          throw new Error("Must specify account_type: landlord, tenant, admin, or nugs_admin");
         }
         targetType = delAccountType;
 
-        if (delAccountType === "admin") {
-          // Delete admin staff account
+        if (delAccountType === "admin" || delAccountType === "nugs_admin") {
+          const isNugs = delAccountType === "nugs_admin";
+          const staffTable = isNugs ? "nugs_staff" : "admin_staff";
           const { data: staffRecord } = await adminClient
-            .from("admin_staff")
-            .select("id, admin_type, user_id")
+            .from(staffTable)
+            .select(isNugs ? "id, user_id, assigned_school" : "id, admin_type, user_id")
             .eq("user_id", target_id)
             .single();
 
-          if (!staffRecord) throw new Error("Admin account not found");
-          if ((staffRecord as any).user_id === user.id) throw new Error("Cannot delete your own admin account");
+          if (!staffRecord) throw new Error(`${isNugs ? "NUGS" : "Admin"} account not found`);
+          if ((staffRecord as any).user_id === user.id) throw new Error("Cannot delete your own account");
 
-          oldState = { admin_type: (staffRecord as any).admin_type };
+          oldState = isNugs
+            ? { kind: "nugs_admin", assigned_school: (staffRecord as any).assigned_school }
+            : { admin_type: (staffRecord as any).admin_type };
 
-          // Remove from admin_staff
-          await adminClient.from("admin_staff").delete().eq("user_id", target_id);
-          // Remove from user_roles
+          await adminClient.from(staffTable).delete().eq("user_id", target_id);
           await adminClient.from("user_roles").delete().eq("user_id", target_id);
-          // Delete profile
           await adminClient.from("profiles").delete().eq("user_id", target_id);
-          // Ban the auth user
           await adminClient.auth.admin.deleteUser(target_id);
 
           newState = { status: "deleted" };
@@ -1080,13 +1079,12 @@ Deno.serve(async (req) => {
         if (!newPassword || newPassword.length < 8) {
           throw new Error("New password must be at least 8 characters");
         }
-        // Verify target is a staff member
-        const { data: targetStaff } = await adminClient
-          .from("admin_staff")
-          .select("user_id, admin_type")
-          .eq("user_id", target_id)
-          .single();
-        if (!targetStaff) throw new Error("Staff member not found");
+        // Verify target exists in admin_staff OR nugs_staff
+        const [{ data: tAdmin }, { data: tNugs }] = await Promise.all([
+          adminClient.from("admin_staff").select("user_id").eq("user_id", target_id).maybeSingle(),
+          adminClient.from("nugs_staff").select("user_id").eq("user_id", target_id).maybeSingle(),
+        ]);
+        if (!tAdmin && !tNugs) throw new Error("Staff member not found");
         if (target_id === user.id) throw new Error("Cannot reset your own password this way");
 
         const { error: resetErr } = await adminClient.auth.admin.updateUserById(target_id, { password: newPassword });
@@ -1099,19 +1097,21 @@ Deno.serve(async (req) => {
 
       case "freeze_staff": {
         targetType = "admin_staff";
-        const { data: freezeStaff } = await adminClient
-          .from("admin_staff")
-          .select("user_id, admin_type")
-          .eq("user_id", target_id)
-          .single();
-        if (!freezeStaff) throw new Error("Staff member not found");
+        const [{ data: fAdmin }, { data: fNugs }] = await Promise.all([
+          adminClient.from("admin_staff").select("user_id, admin_type").eq("user_id", target_id).maybeSingle(),
+          adminClient.from("nugs_staff").select("user_id").eq("user_id", target_id).maybeSingle(),
+        ]);
+        if (!fAdmin && !fNugs) throw new Error("Staff member not found");
         if (target_id === user.id) throw new Error("Cannot freeze your own account");
 
-        oldState = { admin_type: (freezeStaff as any).admin_type };
+        oldState = fAdmin ? { admin_type: (fAdmin as any).admin_type } : { kind: "nugs_admin" };
 
-        // Ban user in auth (prevents login)
         const { error: banErr } = await adminClient.auth.admin.updateUserById(target_id, { ban_duration: "876000h" });
         if (banErr) throw new Error(`Failed to freeze: ${banErr.message}`);
+
+        if (fNugs) {
+          await adminClient.from("nugs_staff").update({ is_frozen: true }).eq("user_id", target_id);
+        }
 
         newState = { status: "frozen", banned: true };
         break;
@@ -1119,15 +1119,18 @@ Deno.serve(async (req) => {
 
       case "unfreeze_staff": {
         targetType = "admin_staff";
-        const { data: unfreezeStaff } = await adminClient
-          .from("admin_staff")
-          .select("user_id, admin_type")
-          .eq("user_id", target_id)
-          .single();
-        if (!unfreezeStaff) throw new Error("Staff member not found");
+        const [{ data: uAdmin }, { data: uNugs }] = await Promise.all([
+          adminClient.from("admin_staff").select("user_id, admin_type").eq("user_id", target_id).maybeSingle(),
+          adminClient.from("nugs_staff").select("user_id").eq("user_id", target_id).maybeSingle(),
+        ]);
+        if (!uAdmin && !uNugs) throw new Error("Staff member not found");
 
         const { error: unbanErr } = await adminClient.auth.admin.updateUserById(target_id, { ban_duration: "none" });
         if (unbanErr) throw new Error(`Failed to unfreeze: ${unbanErr.message}`);
+
+        if (uNugs) {
+          await adminClient.from("nugs_staff").update({ is_frozen: false }).eq("user_id", target_id);
+        }
 
         oldState = { status: "frozen" };
         newState = { status: "active", unbanned: true };

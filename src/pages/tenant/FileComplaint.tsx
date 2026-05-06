@@ -28,6 +28,7 @@ const FileComplaint = () => {
   const [offices, setOffices] = useState<{ id: string; name: string; region: string }[]>([]);
   const [form, setForm] = useState({
     type: "",
+    customType: "",
     landlordName: "",
     landlordPhone: "",
     address: "",
@@ -259,6 +260,9 @@ const FileComplaint = () => {
     if (!form.type || !form.landlordName || !form.address || !form.region || !form.description) {
       toast.error("Please fill in all required fields before submitting"); return;
     }
+    if (form.type === "Other" && !form.customType.trim()) {
+      toast.error("Please describe the complaint type"); return;
+    }
     if (!form.propertyType || !form.monthlyRent) {
       toast.error("Please complete the Property Details (type and monthly rent)"); return;
     }
@@ -272,9 +276,106 @@ const FileComplaint = () => {
     setSubmitting(true);
     try {
       const complaintCode = `RC-${new Date().getFullYear()}-${String(Math.floor(10000 + Math.random() * 90000))}`;
+      const isCustomType = form.type === "Other";
+      const effectiveType = isCustomType ? form.customType.trim() : form.type;
+
+      // ─── STUDENT PAYMENT-FIRST FLOW ───
+      // Save a draft + upload evidence to drafts/, then redirect to Paystack.
+      // The actual complaint+case rows are materialized only after payment is verified.
+      if (isStudent) {
+        // Resolve assigned NUGS sub-admin for this school (best-effort)
+        let assignedNugsUserId: string | null = null;
+        try {
+          const { data: nugsRow } = await (supabase.from("nugs_staff") as any)
+            .select("user_id")
+            .ilike("assigned_school", resolvedSchool)
+            .maybeSingle();
+          assignedNugsUserId = (nugsRow as any)?.user_id || null;
+        } catch {}
+
+        const draftId = crypto.randomUUID();
+        // Upload evidence under drafts/<draftId>/
+        const draftEvidencePaths: string[] = [];
+        for (let i = 0; i < imageFiles.length; i++) {
+          const file = imageFiles[i];
+          const ext = file.name.split(".").pop();
+          const path = `drafts/${draftId}/evidence-${i}.${ext}`;
+          const { error } = await supabase.storage.from("application-evidence").upload(path, file);
+          if (!error) {
+            const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(path);
+            draftEvidencePaths.push(urlData.publicUrl);
+          }
+        }
+        let draftAudioPath: string | null = null;
+        if (audioBlob) {
+          const path = `drafts/${draftId}/audio.webm`;
+          const { error } = await supabase.storage.from("application-evidence").upload(path, audioBlob, { contentType: "audio/webm" });
+          if (!error) {
+            const { data: urlData } = supabase.storage.from("application-evidence").getPublicUrl(path);
+            draftAudioPath = urlData.publicUrl;
+          }
+        }
+
+        const payload: any = {
+          complaint_code: complaintCode,
+          complaint_type: effectiveType,
+          complaint_type_is_custom: isCustomType,
+          landlord_name: form.landlordName,
+          property_address: form.address,
+          region: form.region,
+          description: form.description,
+          gps_location: `${form.locationLat}, ${form.locationLng}`,
+          gps_confirmed: form.gpsConfirmed,
+          gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
+          office_id: form.officeId,
+          nugs_school: resolvedSchool,
+          assigned_nugs_user_id: assignedNugsUserId,
+          complaint_property: {
+            landlord_name: form.landlordName,
+            property_name: form.propertyName || null,
+            property_type: form.propertyType,
+            unit_description: form.unitDescription || null,
+            monthly_rent: parseFloat(form.monthlyRent) || 0,
+            address_description: form.addressDescription || null,
+            lat: form.locationLat,
+            lng: form.locationLng,
+            gps_code: form.gpsCode || null,
+            place_name: form.placeName || null,
+            place_id: form.placeId || null,
+            location_method: form.locationMethod,
+          },
+        };
+
+        const { error: draftErr } = await (supabase.from("pending_complaint_drafts") as any).insert({
+          id: draftId,
+          tenant_user_id: user.id,
+          payload,
+          evidence_paths: draftEvidencePaths,
+          audio_path: draftAudioPath,
+          amount: 0,
+          status: "pending_payment",
+        });
+        if (draftErr) throw new Error(draftErr.message);
+
+        toast.success("Redirecting to payment…");
+        const { data: payRaw, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
+          body: { type: "student_complaint_draft", draftId },
+        });
+        let payData: any = payRaw;
+        if (typeof payRaw === "string") { try { payData = JSON.parse(payRaw); } catch {} }
+        if (payErr) throw new Error(payErr.message || "Could not start payment");
+        if (payData?.error) throw new Error(payData.error);
+        if (payData?.authorization_url) {
+          if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
+          window.location.href = payData.authorization_url;
+          return;
+        }
+        throw new Error("No checkout URL received");
+      }
+
+      // ─── NON-STUDENT FLOW (unchanged) ───
       const { data: ticketNumber } = await supabase.rpc("generate_complaint_ticket");
 
-      // 1. Insert complaint_properties snapshot first
       const { data: cp, error: cpErr } = await supabase.from("complaint_properties").insert({
         tenant_user_id: user.id,
         landlord_name: form.landlordName,
@@ -297,7 +398,8 @@ const FileComplaint = () => {
         tenant_user_id: user.id,
         complaint_code: complaintCode,
         ticket_number: ticketNumber || undefined,
-        complaint_type: form.type,
+        complaint_type: effectiveType,
+        complaint_type_is_custom: isCustomType,
         landlord_name: form.landlordName,
         property_address: form.address,
         region: form.region,
@@ -309,13 +411,11 @@ const FileComplaint = () => {
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
         office_id: form.officeId,
         complaint_property_id: cp?.id || null,
-        nugs_school: resolvedSchool || null,
       } as any).select("id").single();
 
       if (error) throw error;
       if (!complaint?.id) throw new Error("Complaint was not created properly");
 
-      // Link back: update complaint_properties.complaint_id
       if (cp?.id) {
         await supabase.from("complaint_properties").update({ complaint_id: complaint.id } as any).eq("id", cp.id);
       }
@@ -342,41 +442,14 @@ const FileComplaint = () => {
         } as any).eq("id", complaint.id);
       }
 
-      // Fire-and-forget similarity check
       if (cp?.id) {
         supabase.functions.invoke("run-similarity-check", {
           body: { source_type: "complaint_property", source_id: cp.id },
         }).catch((e) => console.error("similarity check failed:", e));
       }
 
-      const inNugs = window.location.pathname.startsWith("/nugs") || isStudent;
-
-      // Student complaint paywall: route immediately to Paystack checkout for the student complaint filing fee
-      if (isStudent) {
-        try {
-          toast.success("Complaint created. Redirecting to payment…");
-          const { data: payRaw, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
-            body: { type: "complaint_fee", complaintId: complaint.id },
-          });
-          let payData: any = payRaw;
-          if (typeof payRaw === "string") { try { payData = JSON.parse(payRaw); } catch {} }
-          if (payErr) throw new Error(payErr.message || "Could not start payment");
-          if (payData?.error) throw new Error(payData.error);
-          if (payData?.authorization_url) {
-            if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
-            window.location.href = payData.authorization_url;
-            return;
-          }
-          throw new Error("No checkout URL received");
-        } catch (e: any) {
-          toast.error(`${e.message || "Payment redirect failed"} — you can pay later from My Complaints.`);
-          navigate("/nugs/my-complaints");
-          return;
-        }
-      }
-
       toast.success("Complaint submitted! An officer will review and contact you regarding any required fee.");
-      navigate(inNugs ? "/nugs/my-complaints" : "/tenant/my-cases");
+      navigate("/tenant/my-cases");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit complaint");
     } finally {
@@ -457,6 +530,16 @@ const FileComplaint = () => {
                 </button>
               ))}
             </div>
+            {form.type === "Other" && (
+              <div className="space-y-2 pt-2">
+                <Label>Describe the complaint type <span className="text-destructive">*</span></Label>
+                <Input
+                  value={form.customType}
+                  onChange={(e) => update("customType", e.target.value)}
+                  placeholder="e.g. Unauthorized renovations, harassment, etc."
+                />
+              </div>
+            )}
           </div>
         )}
 
