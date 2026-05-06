@@ -90,6 +90,16 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [complaintId, complaintTable]);
 
+  // Sync the office dropdown with the currently-assigned staff member.
+  // IMPORTANT: declared BEFORE any conditional return so hook order stays stable.
+  const currentAssignment = history.find((h) => !h.unassigned_at) || null;
+  useEffect(() => {
+    if (currentAssignment) {
+      const assignee = staff.find((s) => s.user_id === currentAssignment.assigned_to);
+      if (assignee) setSelectedOffice(assignee.office_name || "HQ / Unassigned Office");
+    }
+  }, [currentAssignment, staff]);
+
   const handleAssign = async (newAssigneeId: string) => {
     if (!user || !canAssign) return;
     if (current?.assigned_to === newAssigneeId) return;
@@ -133,13 +143,8 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
   const officeNames = Object.keys(staffByOffice).sort();
   const filteredStaff = selectedOffice ? (staffByOffice[selectedOffice] || []) : [];
 
-  // Sync the office dropdown with the currently-assigned staff member
-  useEffect(() => {
-    if (current) {
-      const assignee = staff.find((s) => s.user_id === current.assigned_to);
-      if (assignee) setSelectedOffice(assignee.office_name || "HQ / Unassigned Office");
-    }
-  }, [current, staff]);
+  // Sync handled by hook above (declared before early return to keep hook order stable).
+
 
   return (
     <div className="bg-background border border-border rounded-lg p-3 space-y-2">
