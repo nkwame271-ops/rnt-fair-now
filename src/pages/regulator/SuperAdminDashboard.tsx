@@ -589,13 +589,35 @@ const SuperAdminDashboard = () => {
         <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
           <span>{s.admin_type === "nugs_admin" ? "School" : "Office"}: <strong className="text-foreground">{s.office_name || "Headquarters"}</strong></span>
           <span>Last Login: <strong className="text-foreground">{s.last_login ? new Date(s.last_login).toLocaleString() : "Never"}</strong></span>
-          {s.admin_type === "nugs_admin" && s.nugs_permissions && (
-            <>
-              {s.nugs_permissions.complaints && <Badge variant="outline" className="text-[10px]">Complaints</Badge>}
-              {s.nugs_permissions.rent_card && <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700">Rent Card</Badge>}
-            </>
-          )}
         </div>
+
+        {s.admin_type === "nugs_admin" && (
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-border/50 text-xs">
+            <span className="font-medium text-foreground">Permissions:</span>
+            {(["complaints", "rent_card"] as const).map((perm) => {
+              const checked = !!(s.nugs_permissions && (s.nugs_permissions as any)[perm]);
+              return (
+                <label key={perm} className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 rounded border-border accent-primary"
+                    checked={checked}
+                    onChange={async (e) => {
+                      const next = { ...(s.nugs_permissions || {}), [perm]: e.target.checked };
+                      const { error } = await (supabase.from("nugs_staff") as any)
+                        .update({ permissions: next })
+                        .eq("user_id", s.user_id);
+                      if (error) { toast.error(error.message); return; }
+                      toast.success(`${perm === "rent_card" ? "Rent Card" : "Complaints"} permission ${e.target.checked ? "granted" : "revoked"}`);
+                      fetchStaff();
+                    }}
+                  />
+                  <span className="capitalize">{perm.replace("_", " ")}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
 
         {s.allowed_features && s.allowed_features.length > 0 && (
           <div className="flex flex-wrap gap-1">
