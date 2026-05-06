@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, FileText, MapPin, Info, ArrowRight, ArrowLeft, Navigation, AlertTriangle, Check, Mic, Square, Play, Trash2, ImagePlus, X, Building2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { complaintTypes, regions, areasByRegion } from "@/data/dummyData";
+import { GHANA_INSTITUTIONS } from "@/data/ghanaInstitutions";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
