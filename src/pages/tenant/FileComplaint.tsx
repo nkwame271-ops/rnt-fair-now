@@ -81,6 +81,9 @@ const FileComplaint = () => {
   const [residences, setResidences] = useState<{ id: string; school: string | null; hostel_or_hall: string | null; room_or_bed_space: string | null; effective_from: string; effective_to: string | null }[]>([]);
   const [selectedResidenceId, setSelectedResidenceId] = useState<string>("");
   const [isStudent, setIsStudent] = useState(false);
+  const [nugsSchool, setNugsSchool] = useState<string>("");
+  const [customSchool, setCustomSchool] = useState<string>("");
+  const [useCustomSchool, setUseCustomSchool] = useState(false);
   useEffect(() => {
     if (!user) return;
     (async () => {
