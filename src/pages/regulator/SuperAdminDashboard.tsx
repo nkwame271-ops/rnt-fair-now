@@ -174,10 +174,12 @@ interface StaffRow {
   email?: string;
   last_login?: string | null;
   is_frozen?: boolean;
+  assigned_school?: string | null;
+  nugs_permissions?: { complaints?: boolean; rent_card?: boolean } | null;
 }
 
-// Sort priority: super_admin first, then main_admin, then sub_admin
-const staffSortOrder = (type: string) => type === "super_admin" ? 0 : type === "main_admin" ? 1 : 2;
+// Sort priority: super_admin first, then main_admin, then sub_admin, then nugs_admin
+const staffSortOrder = (type: string) => type === "super_admin" ? 0 : type === "main_admin" ? 1 : type === "sub_admin" ? 2 : 3;
 
 const SuperAdminDashboard = () => {
   const { user } = useAuth();
