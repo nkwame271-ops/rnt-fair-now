@@ -462,6 +462,34 @@ const FileComplaint = () => {
 
         {step === 2 && (
           <div className="space-y-4">
+            {isStudent && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-2">
+                <Label className="flex items-center gap-1.5 text-xs font-semibold text-primary uppercase tracking-wide">
+                  <Building2 className="h-3.5 w-3.5" /> Which NUGS office (school) is this complaint about? <span className="text-destructive">*</span>
+                </Label>
+                {!useCustomSchool ? (
+                  <>
+                    <Select value={nugsSchool} onValueChange={setNugsSchool}>
+                      <SelectTrigger><SelectValue placeholder="Select your school" /></SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {GHANA_INSTITUTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <button type="button" onClick={() => { setUseCustomSchool(true); setNugsSchool(""); }} className="text-xs text-primary hover:underline">
+                      My school isn't listed — enter it manually
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Input value={customSchool} onChange={(e) => setCustomSchool(e.target.value)} placeholder="Type your school name (e.g. Ghana Christian University)" />
+                    <button type="button" onClick={() => { setUseCustomSchool(false); setCustomSchool(""); }} className="text-xs text-primary hover:underline">
+                      Pick from the list instead
+                    </button>
+                    <p className="text-xs text-muted-foreground">A NUGS case will be opened for this school name.</p>
+                  </>
+                )}
+              </div>
+            )}
             {isStudent && residences.length > 0 && (
               <div className="bg-info/5 border border-info/20 rounded-lg p-3 space-y-2">
                 <Label className="flex items-center gap-1.5 text-xs font-semibold text-info uppercase tracking-wide">
