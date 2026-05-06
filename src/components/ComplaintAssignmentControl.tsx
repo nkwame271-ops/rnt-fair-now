@@ -143,13 +143,8 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
   const officeNames = Object.keys(staffByOffice).sort();
   const filteredStaff = selectedOffice ? (staffByOffice[selectedOffice] || []) : [];
 
-  // Sync the office dropdown with the currently-assigned staff member
-  useEffect(() => {
-    if (current) {
-      const assignee = staff.find((s) => s.user_id === current.assigned_to);
-      if (assignee) setSelectedOffice(assignee.office_name || "HQ / Unassigned Office");
-    }
-  }, [current, staff]);
+  // Sync handled by hook above (declared before early return to keep hook order stable).
+
 
   return (
     <div className="bg-background border border-border rounded-lg p-3 space-y-2">
