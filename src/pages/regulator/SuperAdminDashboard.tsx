@@ -223,7 +223,7 @@ const SuperAdminDashboard = () => {
     const [{ data: staffData }, { data: officeData }, { data: nugsData }] = await Promise.all([
       supabase.from("admin_staff").select("user_id, admin_type, office_name, office_id, allowed_features, muted_features"),
       supabase.from("offices").select("id, name"),
-      (supabase.from("nugs_staff") as any).select("user_id, assigned_school, permissions"),
+      (supabase.from("nugs_staff") as any).select("user_id, assigned_school, permissions, allowed_features, muted_features, is_frozen"),
     ]);
     setOffices((officeData || []).map((o: any) => ({ id: o.id, name: o.name })));
 
@@ -234,8 +234,9 @@ const SuperAdminDashboard = () => {
         admin_type: "nugs_admin",
         office_name: n.assigned_school,
         office_id: null,
-        allowed_features: null,
-        muted_features: null,
+        allowed_features: (n.allowed_features as any) || null,
+        muted_features: (n.muted_features as any) || null,
+        is_frozen: !!n.is_frozen,
         assigned_school: n.assigned_school,
         nugs_permissions: n.permissions || null,
       })),
