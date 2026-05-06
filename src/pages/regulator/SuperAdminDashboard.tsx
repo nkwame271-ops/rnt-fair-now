@@ -220,14 +220,29 @@ const SuperAdminDashboard = () => {
 
   const fetchStaff = useCallback(async () => {
     setStaffLoading(true);
-    const [{ data: staffData }, { data: officeData }] = await Promise.all([
+    const [{ data: staffData }, { data: officeData }, { data: nugsData }] = await Promise.all([
       supabase.from("admin_staff").select("user_id, admin_type, office_name, office_id, allowed_features, muted_features"),
       supabase.from("offices").select("id, name"),
+      (supabase.from("nugs_staff") as any).select("user_id, assigned_school, permissions"),
     ]);
     setOffices((officeData || []).map((o: any) => ({ id: o.id, name: o.name })));
 
-    if (staffData && staffData.length > 0) {
-      const userIds = staffData.map((s: any) => s.user_id);
+    const combined: any[] = [
+      ...(staffData || []),
+      ...((nugsData || []) as any[]).map((n: any) => ({
+        user_id: n.user_id,
+        admin_type: "nugs_admin",
+        office_name: n.assigned_school,
+        office_id: null,
+        allowed_features: null,
+        muted_features: null,
+        assigned_school: n.assigned_school,
+        nugs_permissions: n.permissions || null,
+      })),
+    ];
+
+    if (combined.length > 0) {
+      const userIds = combined.map((s: any) => s.user_id);
       const [{ data: profiles }, { data: loginLogs }] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds),
         supabase.from("admin_activity_log").select("user_id, created_at").eq("event_type", "login").in("user_id", userIds).order("created_at", { ascending: false }),
@@ -236,7 +251,7 @@ const SuperAdminDashboard = () => {
       const loginMap = new Map<string, string>();
       (loginLogs || []).forEach((l: any) => { if (!loginMap.has(l.user_id)) loginMap.set(l.user_id, l.created_at); });
 
-      const sorted = staffData.map((s: any) => ({
+      const sorted = combined.map((s: any) => ({
         ...s,
         full_name: nameMap.get(s.user_id)?.name || "Unknown",
         email: nameMap.get(s.user_id)?.email || "",
