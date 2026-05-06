@@ -328,6 +328,7 @@ export const complaintTypes = [
   "Unregistered Agreement",
   "Property Maintenance Failure",
   "Utility Disputes",
+  "Other",
 ];
 
 export const sampleComplaints: Complaint[] = [
