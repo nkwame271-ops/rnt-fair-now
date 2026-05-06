@@ -581,14 +581,20 @@ const SuperAdminDashboard = () => {
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">{s.email}</div>
           </div>
-          <Badge className={s.admin_type === "super_admin" ? "bg-amber-500 text-white border-amber-600" : s.admin_type === "main_admin" ? "" : ""} variant={s.admin_type === "main_admin" ? "default" : s.admin_type === "sub_admin" ? "secondary" : "default"}>
-            {s.admin_type === "super_admin" ? "SUPER ADMIN" : s.admin_type === "main_admin" ? "ADMIN" : "STAFF"}
+          <Badge className={s.admin_type === "super_admin" ? "bg-amber-500 text-white border-amber-600" : s.admin_type === "nugs_admin" ? "bg-info/15 text-info border-info/30" : ""} variant={s.admin_type === "main_admin" ? "default" : s.admin_type === "sub_admin" ? "secondary" : s.admin_type === "nugs_admin" ? "outline" : "default"}>
+            {s.admin_type === "super_admin" ? "SUPER ADMIN" : s.admin_type === "main_admin" ? "ADMIN" : s.admin_type === "nugs_admin" ? "NUGS SUB-ADMIN" : "STAFF"}
           </Badge>
         </div>
 
         <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-          <span>Office: <strong className="text-foreground">{s.office_name || "Headquarters"}</strong></span>
+          <span>{s.admin_type === "nugs_admin" ? "School" : "Office"}: <strong className="text-foreground">{s.office_name || "Headquarters"}</strong></span>
           <span>Last Login: <strong className="text-foreground">{s.last_login ? new Date(s.last_login).toLocaleString() : "Never"}</strong></span>
+          {s.admin_type === "nugs_admin" && s.nugs_permissions && (
+            <>
+              {s.nugs_permissions.complaints && <Badge variant="outline" className="text-[10px]">Complaints</Badge>}
+              {s.nugs_permissions.rent_card && <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700">Rent Card</Badge>}
+            </>
+          )}
         </div>
 
         {s.allowed_features && s.allowed_features.length > 0 && (
