@@ -483,6 +483,13 @@ Deno.serve(async (req) => {
       const perCardAllocation = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
       totalAmount = fee.amount * cardQty;
       splitPlan = perCardAllocation.map(s => ({ ...s, amount: Math.round(s.amount * cardQty * 100) / 100 }));
+      if (isNugsBuyer) {
+        splitPlan = splitPlan.map(s => (
+          (s.recipient === "office" || s.recipient === "admin")
+            ? { ...s, recipient: "nugs", description: `${s.description || "Office share"} (NUGS)`, is_nugs_revenue: true } as any
+            : s
+        ));
+      }
       description = `Rent Card Purchase (${cardQty} cards × GH₵ ${fee.amount})`;
       reference = `rcard_${userId}_${Date.now()}`;
       callbackPath = "/landlord/rent-cards?status=success";
@@ -492,6 +499,20 @@ Deno.serve(async (req) => {
       const fee = await determineFee(supabaseAdmin, "rent_card_fee");
       officeId = await resolveOffice(supabaseAdmin, { userId });
       caseType = "rent_card";
+
+      // NUGS rent-card revenue routing (single-pair purchase)
+      const { data: nugsRowSingle } = await supabaseAdmin
+        .from("nugs_staff")
+        .select("permissions")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const isNugsBuyerSingle = !!nugsRowSingle;
+      if (isNugsBuyerSingle) {
+        const perms = (nugsRowSingle?.permissions as any) || {};
+        if (perms.rent_card !== true) {
+          return new Response(JSON.stringify({ ok: false, error: "You do not have permission to purchase rent cards. Contact a Super Admin." }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+      }
 
       if (!fee.enabled) {
         const cardCount = 2;
@@ -513,6 +534,13 @@ Deno.serve(async (req) => {
 
       totalAmount = fee.amount;
       splitPlan = await loadAllocation(supabaseAdmin, fee.paymentType, fee.amount, fee.rentBandId);
+      if (isNugsBuyerSingle) {
+        splitPlan = splitPlan.map(s => (
+          (s.recipient === "office" || s.recipient === "admin")
+            ? { ...s, recipient: "nugs", description: `${s.description || "Office share"} (NUGS)`, is_nugs_revenue: true } as any
+            : s
+        ));
+      }
       description = `Rent Card Purchase (GH₵ ${fee.amount})`;
       reference = `rcard_${userId}_${Date.now()}`;
       callbackPath = "/landlord/rent-cards?status=success";
