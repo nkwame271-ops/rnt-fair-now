@@ -265,6 +265,10 @@ const FileComplaint = () => {
     if (!form.locationMethod || form.locationLat === null || form.locationLng === null) {
       toast.error("Please provide the property location to continue."); return;
     }
+    const resolvedSchool = isStudent ? (useCustomSchool ? customSchool.trim() : nugsSchool.trim()) : "";
+    if (isStudent && !resolvedSchool) {
+      toast.error("Please select your school (NUGS office) for this complaint."); return;
+    }
     setSubmitting(true);
     try {
       const complaintCode = `RC-${new Date().getFullYear()}-${String(Math.floor(10000 + Math.random() * 90000))}`;
