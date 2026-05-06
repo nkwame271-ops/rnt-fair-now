@@ -174,9 +174,40 @@ const NugsComplaints = () => {
         </p>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search complaints..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search complaints..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={filtered.length === 0}
+          onClick={() => {
+            const headers = ["Complaint Code","Ticket","Type","Status","Payment","Student","School","Property Address","Region","Created","Escalated","Escalation Reason","Description"];
+            const escape = (v: any) => {
+              const s = (v ?? "").toString().replace(/"/g, '""');
+              return /[",\n]/.test(s) ? `"${s}"` : s;
+            };
+            const rows = filtered.map((c) => [
+              c.complaint_code, c.ticket_number ?? "", c.complaint_type, c.status, c.payment_status ?? "",
+              c.studentName ?? "", c.school ?? "", c.property_address, c.region,
+              format(new Date(c.created_at), "yyyy-MM-dd HH:mm"),
+              c.escalated_to_rent_control ? "yes" : "no", c.escalation_reason ?? "", c.description,
+            ].map(escape).join(","));
+            const csv = [headers.join(","), ...rows].join("\n");
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `nugs-complaints-${format(new Date(), "yyyyMMdd-HHmm")}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast.success(`Downloaded ${filtered.length} complaint(s)`);
+          }}
+        >
+          <Download className="h-4 w-4 mr-1.5" /> Download records
+        </Button>
       </div>
 
       <div className="space-y-3">
