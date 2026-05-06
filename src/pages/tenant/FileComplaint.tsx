@@ -309,6 +309,7 @@ const FileComplaint = () => {
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
         office_id: form.officeId,
         complaint_property_id: cp?.id || null,
+        nugs_school: resolvedSchool || null,
       } as any).select("id").single();
 
       if (error) throw error;
