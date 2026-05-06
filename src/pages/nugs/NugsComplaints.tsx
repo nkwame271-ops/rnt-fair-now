@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertTriangle, Search, ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, AlertTriangle, Search, ArrowUpRight, ChevronDown, ChevronUp, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
