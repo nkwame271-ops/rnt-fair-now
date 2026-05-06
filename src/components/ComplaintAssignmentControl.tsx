@@ -90,6 +90,16 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [complaintId, complaintTable]);
 
+  // Sync the office dropdown with the currently-assigned staff member.
+  // IMPORTANT: declared BEFORE any conditional return so hook order stays stable.
+  const currentAssignment = history.find((h) => !h.unassigned_at) || null;
+  useEffect(() => {
+    if (currentAssignment) {
+      const assignee = staff.find((s) => s.user_id === currentAssignment.assigned_to);
+      if (assignee) setSelectedOffice(assignee.office_name || "HQ / Unassigned Office");
+    }
+  }, [currentAssignment, staff]);
+
   const handleAssign = async (newAssigneeId: string) => {
     if (!user || !canAssign) return;
     if (current?.assigned_to === newAssigneeId) return;
