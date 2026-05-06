@@ -147,6 +147,27 @@ const RegulatorAgreements = () => {
     doc.save(`${useExistingFormat ? "Existing_Tenancy_Details" : "Agreement"}_${a.registration_code}.pdf`);
   };
 
+  const openStored = async (url: string) => {
+    try {
+      const u = new URL(url);
+      const segs = u.pathname.split("/").filter(Boolean);
+      const objIdx = segs.indexOf("object");
+      let rest = objIdx >= 0 ? segs.slice(objIdx + 1) : [];
+      if (["public", "sign", "authenticated"].includes(rest[0])) rest = rest.slice(1);
+      const bucket = rest[0];
+      const path = decodeURIComponent(rest.slice(1).join("/"));
+      if (!bucket || !path) { window.open(url, "_blank"); return; }
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
+      if (error || !data?.signedUrl) {
+        toast.error("Unable to open file: " + (error?.message || "not found"));
+        return;
+      }
+      window.open(data.signedUrl, "_blank");
+    } catch (e: any) {
+      toast.error("Unable to open file: " + (e?.message || "error"));
+    }
+  };
+
   const exportCSV = () => {
     const headers = ["Reg Code", "Tenant", "Landlord", "Property", "Unit", "Rent", "Start", "End", "Status", "Advance Months"];
     const rows = filtered.map((a) => [
