@@ -750,7 +750,11 @@ const FileComplaint = () => {
             </div>
             <div className="flex items-start gap-2 text-xs bg-info/5 p-3 rounded-lg border border-info/20">
               <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
-              <span><strong>No payment required at this stage.</strong> An officer will review your complaint and, if a filing fee applies, will request payment from you. You'll see a "Pay Now" button on your dashboard once requested.</span>
+              {isStudent ? (
+                <span><strong>Student Complaint Filing Fee applies.</strong> When you click Submit, you'll be redirected to pay the filing fee configured by Rent Control. Your complaint will be opened for NUGS review once payment is confirmed.</span>
+              ) : (
+                <span><strong>No payment required at this stage.</strong> An officer will review your complaint and, if a filing fee applies, will request payment from you. You'll see a "Pay Now" button on your dashboard once requested.</span>
+              )}
             </div>
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted p-3 rounded-lg border border-border">
               <Info className="h-4 w-4 shrink-0 mt-0.5" />
