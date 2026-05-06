@@ -1031,6 +1031,43 @@ Deno.serve(async (req) => {
       callbackPath = body.callbackPath || "/landlord/declare-existing-tenancy?status=fee_paid";
       metadata = { items: itemBreakdown, fee_components: feeComponents, quantity: items.length };
 
+    } else if (type === "student_complaint_draft") {
+      // Payment-first model for student complaints — the actual complaint row
+      // is materialized in finalize-payment after Paystack confirms success.
+      const { draftId } = body;
+      if (!draftId) throw new Error("draftId is required");
+
+      const { data: draft, error: dErr } = await supabaseAdmin
+        .from("pending_complaint_drafts")
+        .select("id, tenant_user_id, payload, status")
+        .eq("id", draftId)
+        .maybeSingle();
+      if (dErr || !draft) throw new Error("Complaint draft not found");
+      if (draft.tenant_user_id !== userId) throw new Error("Unauthorized");
+      if (draft.status !== "pending_payment") throw new Error("This complaint draft is no longer awaiting payment");
+
+      // Server-side fee determination — never trust client
+      const fee = await determineFee(supabaseAdmin, "student_complaint_fee");
+      if (!fee.enabled || fee.amount <= 0) {
+        throw new Error("Student complaint fee is not currently configured. Please contact support.");
+      }
+
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, "student_complaint_fee", totalAmount, null);
+      description = `Student Complaint Filing Fee (GH₵ ${totalAmount.toFixed(2)})`;
+      reference = `studcompdraft_${draftId}_${Date.now()}`;
+      callbackPath = "/nugs/my-complaints?status=success";
+      caseType = "complaint";
+      officeId = "accra_central"; // student revenue is office-agnostic
+      metadata = { ...metadata, draft_id: draftId, isStudentComplaintDraft: true };
+      (body as any).type = "student_complaint_fee"; // routes finalize through student logic
+
+      // Persist amount + reference on the draft for traceability
+      await supabaseAdmin
+        .from("pending_complaint_drafts")
+        .update({ amount: totalAmount, reference })
+        .eq("id", draftId);
+
     } else {
       throw new Error("Invalid payment type");
     }
