@@ -33,8 +33,10 @@ interface TenancyView {
   customFieldValues: Record<string, string>;
   agreement_pdf_url: string | null;
   final_agreement_pdf_url: string | null;
+  existing_agreement_url: string | null;
   tenancy_type: string | null;
   tax_compliance_status: string;
+  tenantPending: boolean;
   payments: {
     id: string;
     month_label: string;
@@ -75,8 +77,15 @@ const Agreements = () => {
       const results: TenancyView[] = [];
       for (const t of ts as any[]) {
         const { data: prop } = await supabase.from("properties").select("property_name").eq("id", t.unit.property_id).single();
-        const { data: tenantProfile } = await supabase.from("profiles").select("full_name").eq("user_id", t.tenant_user_id).single();
+        const tenantProfile = t.tenant_user_id
+          ? (await supabase.from("profiles").select("full_name").eq("user_id", t.tenant_user_id).single()).data
+          : null;
         const { data: payments } = await supabase.from("rent_payments").select("id, month_label, status, tenant_marked_paid, landlord_confirmed, tax_amount").eq("tenancy_id", t.id).order("due_date");
+
+        const tenantPending = !t.tenant_user_id || !tenantProfile;
+        const displayName = tenantPending
+          ? (t.placeholder_tenant_name || "Pending Tenant")
+          : (tenantProfile?.full_name || "Unknown");
 
         results.push({
           id: t.id,
@@ -84,7 +93,7 @@ const Agreements = () => {
           agreed_rent: t.agreed_rent,
           status: t.status,
           tenant_accepted: t.tenant_accepted,
-          tenantName: tenantProfile?.full_name || "Unknown",
+          tenantName: displayName,
           tenantIdCode: t.tenant_id_code,
           unitName: t.unit.unit_name,
           unitType: t.unit.unit_type,
@@ -92,9 +101,11 @@ const Agreements = () => {
           customFieldValues: (t as any).custom_field_values || {},
           agreement_pdf_url: (t as any).agreement_pdf_url || null,
           final_agreement_pdf_url: t.final_agreement_pdf_url || null,
+          existing_agreement_url: (t as any).existing_agreement_url || null,
           payments: (payments || []) as any[],
           tenancy_type: (t as any).tenancy_type || null,
           tax_compliance_status: (t as any).tax_compliance_status || "pending",
+          tenantPending,
         });
       }
       setTenancies(results);
@@ -194,8 +205,15 @@ const Agreements = () => {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {t.agreement_pdf_url && !t.final_agreement_pdf_url && (
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {t.tenancy_type === "existing_migration" && t.agreement_pdf_url && !t.final_agreement_pdf_url && (
+                      <a href={t.agreement_pdf_url} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="outline" className="text-xs">
+                          <FileCheck className="h-3 w-3 mr-1" /> Draft
+                        </Button>
+                      </a>
+                    )}
+                    {t.tenancy_type !== "existing_migration" && t.agreement_pdf_url && !t.final_agreement_pdf_url && (
                       <a href={t.agreement_pdf_url} target="_blank" rel="noopener noreferrer">
                         <Button size="sm" variant="outline" className="text-xs">
                           <FileCheck className="h-3 w-3 mr-1" /> Draft Agreement
@@ -205,9 +223,14 @@ const Agreements = () => {
                     {t.final_agreement_pdf_url && (
                       <a href={t.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
                         <Button size="sm" variant="default" className="text-xs">
-                          <FileCheck className="h-3 w-3 mr-1" /> Signed Copy
+                          <FileCheck className="h-3 w-3 mr-1" /> Final
                         </Button>
                       </a>
+                    )}
+                    {t.tenancy_type === "existing_migration" && t.existing_agreement_url && (
+                      <Button size="sm" variant="secondary" className="text-xs" onClick={() => window.open(t.existing_agreement_url!, "_blank")}>
+                        <FileCheck className="h-3 w-3 mr-1" /> Uploaded
+                      </Button>
                     )}
                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                       t.status === "active" ? "bg-success/10 text-success" 
@@ -215,6 +238,11 @@ const Agreements = () => {
                     }`}>
                       {t.status === "active" ? "Active" : t.tenant_accepted ? "Accepted" : t.status === "existing_declared" ? "Existing — Declared" : "Pending Acceptance"}
                     </span>
+                    {t.tenantPending && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-warning/10 text-warning whitespace-nowrap">
+                        Awaiting Tenant Registration / Acceptance
+                      </span>
+                    )}
                     {(t as any).tenancy_type === "existing_migration" && (
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                         (t as any).tax_compliance_status === "verified" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
