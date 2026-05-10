@@ -778,6 +778,7 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
           tenant_marked_paid: true, status: "tenant_paid", paid_date: new Date().toISOString(), payment_method: "Paystack", receiver: transactionId,
         }).eq("tenancy_id", tenancyId).eq("tenant_marked_paid", false);
       }
+      await supabaseAdmin.from("tenancies").update({ tax_compliance_status: "verified" } as any).eq("id", tenancyId);
     }
   } else if (paymentType === "rent_tax") {
     const paymentIds = meta?.paymentIds;
