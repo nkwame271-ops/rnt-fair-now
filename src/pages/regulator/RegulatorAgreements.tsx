@@ -43,7 +43,7 @@ const RegulatorAgreements = () => {
       }
 
       const userIds = [...new Set([
-        ...tenancies.map(t => t.tenant_user_id),
+        ...tenancies.map(t => t.tenant_user_id).filter(Boolean),
         ...tenancies.map(t => t.landlord_user_id),
       ])];
       const unitIds = [...new Set(tenancies.map(t => t.unit_id))];
