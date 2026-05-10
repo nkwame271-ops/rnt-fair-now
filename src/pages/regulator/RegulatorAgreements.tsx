@@ -71,10 +71,17 @@ const RegulatorAgreements = () => {
         const prop = unit ? propMap.get(unit.property_id) : null;
         const unitAmenities = [...((unit as any)?.amenities || [])];
         if ((unit as any)?.custom_amenities) unitAmenities.push(...(unit as any).custom_amenities.split(",").map((s: string) => s.trim()));
+        const tenantProfile = t.tenant_user_id ? profileMap.get(t.tenant_user_id) : null;
+        const hasTenantAccount = !!t.tenant_user_id && !!tenantProfile;
         return {
           ...t,
-          _tenantName: profileMap.get(t.tenant_user_id)?.full_name || "Unknown",
-          _tenantPhone: profileMap.get(t.tenant_user_id)?.phone || "",
+          _tenantName: hasTenantAccount
+            ? tenantProfile!.full_name
+            : ((t as any).placeholder_tenant_name || "Pending Tenant"),
+          _tenantPhone: hasTenantAccount
+            ? (tenantProfile!.phone || "")
+            : ((t as any).placeholder_tenant_phone || ""),
+          _tenantPending: !hasTenantAccount,
           _landlordName: profileMap.get(t.landlord_user_id)?.full_name || "Unknown",
           _landlordPhone: profileMap.get(t.landlord_user_id)?.phone || "",
           _unitName: unit?.unit_name || "—",
@@ -83,7 +90,7 @@ const RegulatorAgreements = () => {
           _propertyName: prop?.property_name || "—",
           _propertyAddress: prop?.address || "—",
           _region: prop?.region || "—",
-          _tenantIdCode: tenantIdMap.get(t.tenant_user_id) || t.tenant_id_code,
+          _tenantIdCode: (t.tenant_user_id && tenantIdMap.get(t.tenant_user_id)) || t.tenant_id_code,
           _propertyId: prop?.id || null,
           _gpsLocation: (prop as any)?.gps_location || "",
           _ghanaPostGps: (prop as any)?.ghana_post_gps || "",
