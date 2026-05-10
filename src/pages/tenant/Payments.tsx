@@ -295,9 +295,20 @@ const Payments = () => {
         </motion.div>
       ) : (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl p-6 shadow-elevated border-2 border-success/30">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-3">
             <CheckCircle2 className="h-5 w-5 text-success" />
             <h2 className="text-lg font-semibold text-card-foreground">Advance Tax Paid ✓</h2>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-success/10 text-success text-xs font-semibold">
+              <CheckCircle2 className="h-3 w-3" /> Paid
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-success/10 text-success text-xs font-semibold">
+              <Shield className="h-3 w-3" /> Tax Confirmed
+            </span>
+            <a href="/tenant/receipts" className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20">
+              <FileText className="h-3 w-3" /> Receipt Available
+            </a>
           </div>
           <div className="bg-muted rounded-lg p-4 space-y-3 mb-5">
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Advance ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>

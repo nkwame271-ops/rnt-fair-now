@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X, UserX, Search, Archive, AlertTriangle } from "lucide-react";
+import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X, UserX, Search, Archive, AlertTriangle, GraduationCap } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -551,6 +551,7 @@ const EngineRoom = () => {
   const landlordFlags = visibleFlags.filter((f) => f.category === "landlord");
   const generalFlags = visibleFlags.filter((f) => f.category === "general");
   const feeFlags = visibleFlags.filter((f) => f.category === "fee");
+  const studentPortalFlags = visibleFlags.filter((f) => f.category === "student" && !STUDENT_FEATURE_KEYS.has(f.feature_key));
 
   // Office payout mode flag
   const payoutModeFlag = flags.find(f => f.feature_key === "office_payout_mode");
@@ -1296,7 +1297,21 @@ const EngineRoom = () => {
         </div>
       )}
 
-      {/* General Features */}
+      {/* Student Portal Feature Control */}
+      {studentPortalFlags.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <GraduationCap className="h-5 w-5 text-primary" /> Student Portal Feature Control
+          </h2>
+          <p className="text-xs text-muted-foreground mb-2">
+            Toggle which Tenant-style features are available to Student users without a code change.
+          </p>
+          <div className="bg-card rounded-xl border border-border shadow-card divide-y divide-border">
+            {studentPortalFlags.map(renderFeatureRow)}
+          </div>
+        </div>
+      )}
+
       {generalFlags.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">

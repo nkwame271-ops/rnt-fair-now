@@ -37,11 +37,30 @@ const RegulatorRentReviews = () => {
 
   useEffect(() => {
     const fetch = async () => {
-      const { data } = await supabase
+      const { data: reqs } = await supabase
         .from("rent_increase_requests")
         .select("*")
         .order("created_at", { ascending: false });
-      setRequests(data || []);
+      const list = reqs || [];
+      // Enrich with property + landlord profile + unit details
+      const propIds = Array.from(new Set(list.map((r: any) => r.property_id).filter(Boolean)));
+      const unitIds = Array.from(new Set(list.map((r: any) => r.unit_id).filter(Boolean)));
+      const landlordIds = Array.from(new Set(list.map((r: any) => r.landlord_user_id).filter(Boolean)));
+      const [propsRes, unitsRes, profilesRes] = await Promise.all([
+        propIds.length ? supabase.from("properties").select("id, property_name, address, area, region, property_type, photos, landlord_user_id").in("id", propIds) : Promise.resolve({ data: [] as any[] }),
+        unitIds.length ? supabase.from("units").select("id, unit_name, unit_type, monthly_rent, bedrooms").in("id", unitIds) : Promise.resolve({ data: [] as any[] }),
+        landlordIds.length ? supabase.from("profiles").select("user_id, full_name, phone, email").in("user_id", landlordIds) : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const propMap = new Map((propsRes.data || []).map((p: any) => [p.id, p]));
+      const unitMap = new Map((unitsRes.data || []).map((u: any) => [u.id, u]));
+      const profMap = new Map((profilesRes.data || []).map((p: any) => [p.user_id, p]));
+      const enriched = list.map((r: any) => ({
+        ...r,
+        _property: r.property_id ? propMap.get(r.property_id) : null,
+        _unit: r.unit_id ? unitMap.get(r.unit_id) : null,
+        _landlord: r.landlord_user_id ? profMap.get(r.landlord_user_id) : null,
+      }));
+      setRequests(enriched);
       setLoading(false);
     };
     fetch();
@@ -65,14 +84,23 @@ const RegulatorRentReviews = () => {
       // If approved, update the unit/property approved rent
       if (decision === "approved" && req) {
         if (req.unit_id) {
-          await supabase.from("units").update({ monthly_rent: req.proposed_rent, asking_rent: req.proposed_rent } as any).eq("id", req.unit_id);
+          await supabase.from("units").update({
+            monthly_rent: req.proposed_rent,
+            asking_rent: req.proposed_rent,
+            rent_locked_at: new Date().toISOString(),
+            rent_locked_amount: req.proposed_rent,
+          } as any).eq("id", req.unit_id);
           // Also update agreed_rent on active tenancy for this unit
           await supabase.from("tenancies").update({ agreed_rent: req.proposed_rent } as any)
             .eq("unit_id", req.unit_id)
             .in("status", ["active", "pending", "renewal_window", "existing_declared"]);
         }
         if (req.property_id) {
-          await supabase.from("properties").update({ approved_rent: req.proposed_rent } as any).eq("id", req.property_id);
+          await supabase.from("properties").update({
+            approved_rent: req.proposed_rent,
+            rent_locked_at: new Date().toISOString(),
+            rent_locked_amount: req.proposed_rent,
+          } as any).eq("id", req.property_id);
 
           // Log event
           await supabase.from("property_events").insert({
@@ -188,7 +216,7 @@ const RegulatorRentReviews = () => {
 
       {/* Review Dialog */}
       <Dialog open={!!reviewing} onOpenChange={(open) => { if (!open) setReviewing(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {reviewing && (
             <>
               <DialogHeader>
@@ -201,6 +229,40 @@ const RegulatorRentReviews = () => {
                   <div><span className="text-muted-foreground">Current Rent:</span> <span className="font-semibold">GH₵ {Number(reviewing.current_approved_rent).toLocaleString()}</span></div>
                   <div><span className="text-muted-foreground">Proposed Rent:</span> <span className="font-semibold">GH₵ {Number(reviewing.proposed_rent).toLocaleString()}</span></div>
                 </div>
+
+                {/* Property + Landlord details */}
+                {(reviewing._property || reviewing._unit || reviewing._landlord) && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2 text-sm">
+                    <div className="font-semibold text-foreground">Property & Landlord</div>
+                    {reviewing._property && (
+                      <>
+                        <div><span className="text-muted-foreground">Property:</span> <span className="font-medium">{reviewing._property.property_name || "—"}</span></div>
+                        <div><span className="text-muted-foreground">Address:</span> <span className="font-medium">{[reviewing._property.address, reviewing._property.area, reviewing._property.region].filter(Boolean).join(", ") || "—"}</span></div>
+                        <div><span className="text-muted-foreground">Type:</span> <span className="font-medium capitalize">{reviewing._property.property_type || "—"}</span></div>
+                        {Array.isArray(reviewing._property.photos) && reviewing._property.photos.length > 0 && (
+                          <div className="flex gap-2 flex-wrap pt-1">
+                            {reviewing._property.photos.slice(0, 4).map((p: string, i: number) => (
+                              <img key={i} src={p} alt="property" className="h-16 w-16 object-cover rounded border border-border" />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {reviewing._unit && (
+                      <div className="pt-1 border-t border-border/50">
+                        <div><span className="text-muted-foreground">Unit:</span> <span className="font-medium">{reviewing._unit.unit_name || "—"} ({reviewing._unit.unit_type || "—"})</span></div>
+                        <div><span className="text-muted-foreground">Current Unit Rent:</span> <span className="font-medium">GH₵ {Number(reviewing._unit.monthly_rent || 0).toLocaleString()}</span></div>
+                      </div>
+                    )}
+                    {reviewing._landlord && (
+                      <div className="pt-1 border-t border-border/50">
+                        <div><span className="text-muted-foreground">Landlord:</span> <span className="font-medium">{reviewing._landlord.full_name || "—"}</span></div>
+                        <div><span className="text-muted-foreground">Phone:</span> <span className="font-medium">{reviewing._landlord.phone || "—"}</span></div>
+                        <div><span className="text-muted-foreground">Email:</span> <span className="font-medium">{reviewing._landlord.email || "—"}</span></div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <Label className="text-sm text-muted-foreground">Landlord's Reason</Label>
