@@ -551,6 +551,7 @@ const EngineRoom = () => {
   const landlordFlags = visibleFlags.filter((f) => f.category === "landlord");
   const generalFlags = visibleFlags.filter((f) => f.category === "general");
   const feeFlags = visibleFlags.filter((f) => f.category === "fee");
+  const studentPortalFlags = visibleFlags.filter((f) => f.category === "student" && !STUDENT_FEATURE_KEYS.has(f.feature_key));
 
   // Office payout mode flag
   const payoutModeFlag = flags.find(f => f.feature_key === "office_payout_mode");
