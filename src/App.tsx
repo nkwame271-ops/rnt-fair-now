@@ -234,6 +234,17 @@ const App = () => (
                 <Route path="marketplace" element={<Marketplace />} />
                 <Route path="file-complaint" element={<FileComplaint />} />
                 <Route path="profile" element={<ProfilePage />} />
+                <Route path="rent-checker" element={<RentChecker />} />
+                <Route path="payments" element={<Payments />} />
+                <Route path="receipts" element={<TenantReceipts />} />
+                <Route path="my-agreements" element={<MyAgreements />} />
+                <Route path="legal-assistant" element={<LegalAssistant />} />
+                <Route path="renewal" element={<RequestRenewal />} />
+                <Route path="termination" element={<TenantTerminationRequest />} />
+                <Route path="report-side-payment" element={<ReportSidePayment />} />
+                <Route path="preferences" element={<TenantPreferences />} />
+                <Route path="messages" element={<TenantMessages />} />
+                <Route path="invite-landlord" element={<InviteLandlord />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
