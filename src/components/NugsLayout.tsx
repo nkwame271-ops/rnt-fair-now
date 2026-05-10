@@ -1,10 +1,34 @@
 import { useNavigate } from "react-router-dom";
 import AnimatedNavLink from "@/components/AnimatedNavLink";
 import AnimatedOutlet from "@/components/AnimatedOutlet";
-import { LayoutDashboard, AlertTriangle, Users, GraduationCap, LogOut, Menu, Shield, Store, FileText, UserCircle, Inbox, Building2, Home } from "lucide-react";
+import {
+  LayoutDashboard,
+  AlertTriangle,
+  Users,
+  GraduationCap,
+  LogOut,
+  Menu,
+  Shield,
+  Store,
+  FileText,
+  UserCircle,
+  Inbox,
+  Building2,
+  Home,
+  Calculator,
+  CreditCard,
+  MessageSquare,
+  MessageCircle,
+  RefreshCw,
+  Bell,
+  ShieldAlert,
+  UserPlus,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import FloatingActionHub from "@/components/FloatingActionHub";
+import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 
 const adminNav = [
   { to: "/nugs/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -13,11 +37,23 @@ const adminNav = [
   { to: "/nugs/institutions", label: "Institutions", icon: Users },
 ];
 
+// Per-feature student keys map nav items to feature_flags entries
 const studentNav = [
   { to: "/nugs/dashboard", label: "My Dashboard", icon: LayoutDashboard },
-  { to: "/nugs/marketplace", label: "Hostel Listings", icon: Store },
+  { to: "/nugs/marketplace", label: "Hostel Listings", icon: Store, featureKey: "student_marketplace" },
+  { to: "/nugs/rent-checker", label: "Rent Checker", icon: Calculator, featureKey: "student_rent_checker" },
   { to: "/nugs/file-complaint", label: "File a Complaint", icon: AlertTriangle },
   { to: "/nugs/my-complaints", label: "My Complaints", icon: Inbox },
+  { to: "/nugs/payments", label: "Payments", icon: CreditCard, featureKey: "student_payments" },
+  { to: "/nugs/receipts", label: "Receipts", icon: FileText, featureKey: "student_receipts" },
+  { to: "/nugs/my-agreements", label: "Agreements", icon: FileText, featureKey: "student_agreements" },
+  { to: "/nugs/legal-assistant", label: "Legal Assistant", icon: MessageSquare, featureKey: "student_legal_assistant" },
+  { to: "/nugs/renewal", label: "Renewal", icon: RefreshCw, featureKey: "student_renewal" },
+  { to: "/nugs/termination", label: "Termination", icon: AlertTriangle, featureKey: "student_termination" },
+  { to: "/nugs/report-side-payment", label: "Report Side Payment", icon: ShieldAlert, featureKey: "student_report_side_payment" },
+  { to: "/nugs/preferences", label: "Preferences", icon: Bell, featureKey: "student_preferences" },
+  { to: "/nugs/messages", label: "Messages", icon: MessageCircle, featureKey: "student_messages" },
+  { to: "/nugs/invite-landlord", label: "Invite Landlord", icon: UserPlus, featureKey: "student_invite_landlord" },
   { to: "/nugs/profile", label: "My Profile", icon: UserCircle },
 ];
 
@@ -26,10 +62,16 @@ const NugsLayout = () => {
   const { signOut, role, user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [studentCtx, setStudentCtx] = useState<{ school: string | null; hostel: string | null } | null>(null);
+  const { flags } = useAllFeatureFlags();
 
-  // Tenants who land here are students; nugs_admin gets the monitoring portal
   const isAdmin = role === "nugs_admin";
-  const navItems = isAdmin ? adminNav : studentNav;
+  const baseNav = isAdmin ? adminNav : studentNav;
+  const navItems = baseNav.filter((item: any) => {
+    if (!item.featureKey) return true;
+    const flag = flags.find((f) => f.feature_key === item.featureKey);
+    if (!flag) return true;
+    return flag.is_enabled;
+  });
 
   useEffect(() => {
     if (isAdmin || !user) return;
@@ -120,6 +162,7 @@ const NugsLayout = () => {
           </div>
         </main>
       </div>
+      <FloatingActionHub />
     </div>
   );
 };
