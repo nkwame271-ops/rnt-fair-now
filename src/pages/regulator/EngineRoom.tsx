@@ -147,19 +147,35 @@ const EngineRoom = () => {
     if (!profile?.isMainAdmin) return;
     const fetchStaff = async () => {
       setStaffLoading(true);
-      const { data: staff } = await supabase
-        .from("admin_staff")
-        .select("user_id, admin_type, office_name, allowed_features, muted_features");
+      const [{ data: staff }, { data: nugsStaff }] = await Promise.all([
+        supabase
+          .from("admin_staff")
+          .select("user_id, admin_type, office_name, allowed_features, muted_features"),
+        (supabase.from("nugs_staff") as any)
+          .select("user_id, role, assigned_school, allowed_features, muted_features"),
+      ]);
 
-      if (staff && staff.length > 0) {
-        const userIds = staff.map((s: any) => s.user_id);
+      const combined: any[] = [
+        ...((staff as any[]) || []),
+        ...(((nugsStaff as any[]) || []).map((n: any) => ({
+          user_id: n.user_id,
+          admin_type: n.role === "nugs_admin" ? "nugs_admin" : "nugs_sub_admin",
+          office_name: n.assigned_school ? `NUGS · ${n.assigned_school}` : "NUGS",
+          allowed_features: n.allowed_features || [],
+          muted_features: n.muted_features || [],
+          _isNugs: true,
+        }))),
+      ];
+
+      if (combined.length > 0) {
+        const userIds = combined.map((s: any) => s.user_id);
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name")
           .in("user_id", userIds);
 
         const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
-        setStaffMembers(staff.map((s: any) => ({
+        setStaffMembers(combined.map((s: any) => ({
           ...s,
           allowed_features: s.allowed_features || [],
           muted_features: s.muted_features || [],
