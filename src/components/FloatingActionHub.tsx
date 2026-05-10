@@ -1,15 +1,19 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { MessageCircle, MessageSquare, X } from "lucide-react";
+import { MessageCircle, MessageSquare, X, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import BetaFeedbackWidget from "@/components/BetaFeedbackWidget";
 import LiveChatWidget from "@/components/LiveChatWidget";
+import ReportIssueDialog from "@/components/ReportIssueDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 type ActivePanel = null | "chat" | "feedback";
 
 const FloatingActionHub = () => {
+  const { user } = useAuth();
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const handleSelect = (panel: ActivePanel) => {
     setActivePanel(panel);
