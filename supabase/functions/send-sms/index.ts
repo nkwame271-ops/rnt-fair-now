@@ -48,8 +48,8 @@ serve(async (req) => {
     const { phone, message, sender } = await req.json();
     if (!phone || !message) {
       return new Response(
-        JSON.stringify({ error: "phone and message are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "phone and message are required" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
