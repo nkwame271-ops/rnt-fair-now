@@ -429,6 +429,11 @@ const RegulatorAgreements = () => {
                 <span className="whitespace-nowrap text-xs text-muted-foreground">Tenant accepted: <span className={a.tenant_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.tenant_accepted ? "Yes" : "No"}</span></span>
                 <span className="whitespace-nowrap text-xs text-muted-foreground">Landlord accepted: <span className={a.landlord_accepted ? "text-success font-semibold" : "text-destructive font-semibold"}>{a.landlord_accepted ? "Yes" : "No"}</span></span>
                 <span className="whitespace-nowrap text-xs text-muted-foreground">Region: {a._region}</span>
+                {a._tenantPending && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-warning/10 text-warning whitespace-nowrap">
+                    Awaiting Tenant Registration / Acceptance
+                  </span>
+                )}
               </div>
               <div className="shrink-0 min-[900px]:ml-auto self-start min-[900px]:self-auto">
                 {renderTaxBadge(a)}
