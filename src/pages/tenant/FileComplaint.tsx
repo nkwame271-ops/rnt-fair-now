@@ -357,20 +357,21 @@ const FileComplaint = () => {
         });
         if (draftErr) throw new Error(draftErr.message);
 
-        toast.success("Redirecting to payment…");
         const { data: payRaw, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
           body: { type: "student_complaint_draft", draftId },
         });
         let payData: any = payRaw;
         if (typeof payRaw === "string") { try { payData = JSON.parse(payRaw); } catch {} }
-        if (payErr) throw new Error(payErr.message || "Could not start payment");
-        if (payData?.error) throw new Error(payData.error);
-        if (payData?.authorization_url) {
-          if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
-          window.location.href = payData.authorization_url;
-          return;
+        if (payErr || payData?.error || !payData?.authorization_url) {
+          // Roll back the draft so user can retry cleanly
+          try { await (supabase.from("pending_complaint_drafts") as any).delete().eq("id", draftId); } catch {}
+          const reason = payData?.error || payErr?.message || "Could not start payment. Please try again.";
+          throw new Error(reason);
         }
-        throw new Error("No checkout URL received");
+        if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
+        toast.success("Redirecting to payment…");
+        window.location.href = payData.authorization_url;
+        return;
       }
 
       // ─── NON-STUDENT FLOW (unchanged) ───

@@ -48,8 +48,8 @@ serve(async (req) => {
     const { phone, message, sender } = await req.json();
     if (!phone || !message) {
       return new Response(
-        JSON.stringify({ error: "phone and message are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "phone and message are required" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -77,9 +77,11 @@ serve(async (req) => {
   } catch (error: unknown) {
     console.error("SMS error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    // ALWAYS return HTTP 200 so supabase-js doesn't surface "non-2xx" errors.
+    // Callers must inspect `success`/`error` in the body.
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ success: false, error: errorMessage }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

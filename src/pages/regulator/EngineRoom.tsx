@@ -147,19 +147,35 @@ const EngineRoom = () => {
     if (!profile?.isMainAdmin) return;
     const fetchStaff = async () => {
       setStaffLoading(true);
-      const { data: staff } = await supabase
-        .from("admin_staff")
-        .select("user_id, admin_type, office_name, allowed_features, muted_features");
+      const [{ data: staff }, { data: nugsStaff }] = await Promise.all([
+        supabase
+          .from("admin_staff")
+          .select("user_id, admin_type, office_name, allowed_features, muted_features"),
+        (supabase.from("nugs_staff") as any)
+          .select("user_id, role, assigned_school, allowed_features, muted_features"),
+      ]);
 
-      if (staff && staff.length > 0) {
-        const userIds = staff.map((s: any) => s.user_id);
+      const combined: any[] = [
+        ...((staff as any[]) || []),
+        ...(((nugsStaff as any[]) || []).map((n: any) => ({
+          user_id: n.user_id,
+          admin_type: n.role === "nugs_admin" ? "nugs_admin" : "nugs_sub_admin",
+          office_name: n.assigned_school ? `NUGS · ${n.assigned_school}` : "NUGS",
+          allowed_features: n.allowed_features || [],
+          muted_features: n.muted_features || [],
+          _isNugs: true,
+        }))),
+      ];
+
+      if (combined.length > 0) {
+        const userIds = combined.map((s: any) => s.user_id);
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name")
           .in("user_id", userIds);
 
         const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
-        setStaffMembers(staff.map((s: any) => ({
+        setStaffMembers(combined.map((s: any) => ({
           ...s,
           allowed_features: s.allowed_features || [],
           muted_features: s.muted_features || [],
@@ -269,6 +285,8 @@ const EngineRoom = () => {
     setToggling(null);
   };
 
+  const tableForMember = (m: any) => (m?._isNugs ? "nugs_staff" : "admin_staff");
+
   const handleMuteFeature = async (staffUserId: string, featureKey: string, currentlyMuted: boolean) => {
     setMutingStaff(staffUserId + "_" + featureKey);
     const member = staffMembers.find(s => s.user_id === staffUserId);
@@ -278,8 +296,8 @@ const EngineRoom = () => {
       ? member.muted_features.filter(f => f !== featureKey)
       : [...member.muted_features, featureKey];
 
-    const { error } = await supabase
-      .from("admin_staff")
+    const { error } = await (supabase
+      .from(tableForMember(member) as any) as any)
       .update({ muted_features: newMuted, updated_at: new Date().toISOString() } as any)
       .eq("user_id", staffUserId);
 
@@ -298,8 +316,8 @@ const EngineRoom = () => {
     const member = staffMembers.find(s => s.user_id === staffUserId);
     if (!member || member.allowed_features.includes(featureKey)) return;
     const newAllowed = [...member.allowed_features, featureKey];
-    const { error } = await supabase
-      .from("admin_staff")
+    const { error } = await (supabase
+      .from(tableForMember(member) as any) as any)
       .update({ allowed_features: newAllowed, updated_at: new Date().toISOString() } as any)
       .eq("user_id", staffUserId);
     if (error) { toast.error("Failed to add feature"); }
@@ -316,8 +334,8 @@ const EngineRoom = () => {
     if (!member) return;
     const newAllowed = member.allowed_features.filter(f => f !== featureKey);
     const newMuted = member.muted_features.filter(f => f !== featureKey);
-    const { error } = await supabase
-      .from("admin_staff")
+    const { error } = await (supabase
+      .from(tableForMember(member) as any) as any)
       .update({ allowed_features: newAllowed, muted_features: newMuted, updated_at: new Date().toISOString() } as any)
       .eq("user_id", staffUserId);
     if (error) { toast.error("Failed to remove feature"); }
