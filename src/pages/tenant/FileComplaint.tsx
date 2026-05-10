@@ -449,7 +449,15 @@ const FileComplaint = () => {
         }).catch((e) => console.error("similarity check failed:", e));
       }
 
-      toast.success("Complaint submitted! An officer will review and contact you regarding any required fee.");
+      toast.success("Your complaint has been received. Please keep checking your dashboard for updates.");
+      if (user && complaint?.id) {
+        await supabase.from("notifications").insert({
+          user_id: user.id,
+          title: "Complaint Received",
+          body: "Your complaint has been received. Please keep checking your dashboard for updates.",
+          link: "/tenant/my-cases",
+        } as any);
+      }
       navigate("/tenant/my-cases");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit complaint");
