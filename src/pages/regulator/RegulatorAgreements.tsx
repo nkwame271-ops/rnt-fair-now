@@ -207,22 +207,26 @@ const RegulatorAgreements = () => {
 
   const renderActionButtons = (a: any, widthClass: string) => {
     const compactButtonClass = "h-7 px-1.5 text-[9px] whitespace-nowrap shrink-0";
+    const isExisting = a.tenancy_type === "existing_migration";
+    const showDraft = isExisting && a.agreement_pdf_url && !a.final_agreement_pdf_url;
+    const showFinal = !!a.final_agreement_pdf_url;
+    const showUploaded = isExisting && a.existing_agreement_url;
 
     return (
       <div className={`${widthClass} shrink-0 overflow-x-auto pb-1`}>
         <div className="ml-auto flex w-max items-center justify-end gap-2 flex-nowrap">
-          {a.agreement_pdf_url && (
+          <Button size="sm" variant="outline" className={compactButtonClass} onClick={() => downloadPdf(a)}>
+            {isExisting ? "Details" : "PDF"}
+          </Button>
+          {showDraft && (
             <Button size="sm" variant="outline" className={compactButtonClass} onClick={() => openStored(a.agreement_pdf_url)}>Draft</Button>
           )}
-          {a.final_agreement_pdf_url && (
+          {showFinal && (
             <Button size="sm" variant="default" className={compactButtonClass} onClick={() => openStored(a.final_agreement_pdf_url)}>Final</Button>
           )}
-          {a.existing_agreement_url && (
+          {showUploaded && (
             <Button size="sm" variant="secondary" className={compactButtonClass} onClick={() => openStored(a.existing_agreement_url)}>Uploaded</Button>
           )}
-          <Button size="sm" variant="outline" className={compactButtonClass} onClick={() => downloadPdf(a)}>
-            {a.tenancy_type === "existing_migration" ? "Details" : "PDF"}
-          </Button>
           {profile?.isMainAdmin && (
             <Button
               size="sm"
