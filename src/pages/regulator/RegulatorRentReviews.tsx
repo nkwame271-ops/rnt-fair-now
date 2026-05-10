@@ -230,8 +230,40 @@ const RegulatorRentReviews = () => {
                   <div><span className="text-muted-foreground">Proposed Rent:</span> <span className="font-semibold">GH₵ {Number(reviewing.proposed_rent).toLocaleString()}</span></div>
                 </div>
 
-                <div>
-                  <Label className="text-sm text-muted-foreground">Landlord's Reason</Label>
+                {/* Property + Landlord details */}
+                {(reviewing._property || reviewing._unit || reviewing._landlord) && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2 text-sm">
+                    <div className="font-semibold text-foreground">Property & Landlord</div>
+                    {reviewing._property && (
+                      <>
+                        <div><span className="text-muted-foreground">Property:</span> <span className="font-medium">{reviewing._property.property_name || "—"}</span></div>
+                        <div><span className="text-muted-foreground">Address:</span> <span className="font-medium">{[reviewing._property.address, reviewing._property.area, reviewing._property.region].filter(Boolean).join(", ") || "—"}</span></div>
+                        <div><span className="text-muted-foreground">Type:</span> <span className="font-medium capitalize">{reviewing._property.property_type || "—"}</span></div>
+                        {Array.isArray(reviewing._property.photos) && reviewing._property.photos.length > 0 && (
+                          <div className="flex gap-2 flex-wrap pt-1">
+                            {reviewing._property.photos.slice(0, 4).map((p: string, i: number) => (
+                              <img key={i} src={p} alt="property" className="h-16 w-16 object-cover rounded border border-border" />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {reviewing._unit && (
+                      <div className="pt-1 border-t border-border/50">
+                        <div><span className="text-muted-foreground">Unit:</span> <span className="font-medium">{reviewing._unit.unit_name || "—"} ({reviewing._unit.unit_type || "—"})</span></div>
+                        <div><span className="text-muted-foreground">Current Unit Rent:</span> <span className="font-medium">GH₵ {Number(reviewing._unit.monthly_rent || 0).toLocaleString()}</span></div>
+                      </div>
+                    )}
+                    {reviewing._landlord && (
+                      <div className="pt-1 border-t border-border/50">
+                        <div><span className="text-muted-foreground">Landlord:</span> <span className="font-medium">{reviewing._landlord.full_name || "—"}</span></div>
+                        <div><span className="text-muted-foreground">Phone:</span> <span className="font-medium">{reviewing._landlord.phone || "—"}</span></div>
+                        <div><span className="text-muted-foreground">Email:</span> <span className="font-medium">{reviewing._landlord.email || "—"}</span></div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                   <p className="text-sm mt-1 bg-muted/50 p-3 rounded-lg">{reviewing.reason || "No reason provided"}</p>
                 </div>
 
