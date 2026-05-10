@@ -33,8 +33,10 @@ interface TenancyView {
   customFieldValues: Record<string, string>;
   agreement_pdf_url: string | null;
   final_agreement_pdf_url: string | null;
+  existing_agreement_url: string | null;
   tenancy_type: string | null;
   tax_compliance_status: string;
+  tenantPending: boolean;
   payments: {
     id: string;
     month_label: string;
