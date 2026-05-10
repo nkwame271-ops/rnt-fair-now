@@ -323,8 +323,9 @@ const DeclareExistingTenancy = () => {
       }
     }
 
-    // Activate rent cards
-    if (draft.rentCardId1 && tenancyData) {
+    // Activate rent cards only when we have a real tenant; otherwise leave cards parked
+    // until tenant registers and accepts (will be activated then).
+    if (draft.rentCardId1 && tenancyData && hasMatchedTenant) {
       const cardActivationData = {
         status: "active",
         tenancy_id: tenancyData.id,
@@ -349,14 +350,17 @@ const DeclareExistingTenancy = () => {
 
     await supabase.from("units").update({ status: "occupied" }).eq("id", unit.id);
 
-    // SMS invitation if not matched
-    if (!draft.matchedTenant?.userId) {
+    // SMS invitation if not matched + link pending_tenant_id back to tenancy
+    if (!hasMatchedTenant) {
       const { data: pendingData } = await supabase.from("pending_tenants").insert({
         full_name: draft.tenantName,
         phone: draft.tenantPhone,
         created_by: user.id,
         tenancy_id: tenancyData?.id || null,
       } as any).select().single();
+      if (pendingData && tenancyData) {
+        await supabase.from("tenancies").update({ pending_tenant_id: pendingData.id } as any).eq("id", tenancyData.id);
+      }
       try {
         await supabase.functions.invoke("send-sms", {
           body: { phone: draft.tenantPhone, message: `Hello ${draft.tenantName}, your landlord has declared an existing tenancy on RentControlGhana. Please register at https://www.rentcontrolghana.com to confirm. Ref: ${registrationCode}` },
