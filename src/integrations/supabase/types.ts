@@ -2663,6 +2663,8 @@ export type Database = {
           property_status: string
           property_structure: string | null
           region: string
+          rent_locked_amount: number | null
+          rent_locked_at: string | null
           room_count: number | null
           suggested_price: number | null
           updated_at: string
@@ -2704,6 +2706,8 @@ export type Database = {
           property_status?: string
           property_structure?: string | null
           region: string
+          rent_locked_amount?: number | null
+          rent_locked_at?: string | null
           room_count?: number | null
           suggested_price?: number | null
           updated_at?: string
@@ -2745,6 +2749,8 @@ export type Database = {
           property_status?: string
           property_structure?: string | null
           region?: string
+          rent_locked_amount?: number | null
+          rent_locked_at?: string | null
           room_count?: number | null
           suggested_price?: number | null
           updated_at?: string
@@ -4356,6 +4362,8 @@ export type Database = {
           id: string
           monthly_rent: number
           property_id: string
+          rent_locked_amount: number | null
+          rent_locked_at: string | null
           status: string
           unit_kind: string
           unit_name: string
@@ -4376,6 +4384,8 @@ export type Database = {
           id?: string
           monthly_rent: number
           property_id: string
+          rent_locked_amount?: number | null
+          rent_locked_at?: string | null
           status?: string
           unit_kind?: string
           unit_name: string
@@ -4396,6 +4406,8 @@ export type Database = {
           id?: string
           monthly_rent?: number
           property_id?: string
+          rent_locked_amount?: number | null
+          rent_locked_at?: string | null
           status?: string
           unit_kind?: string
           unit_name?: string
