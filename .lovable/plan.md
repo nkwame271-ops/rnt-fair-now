@@ -1,52 +1,97 @@
-## Goal
-Make the **Existing Tenancy** row in the Admin → Agreements list reflect reality:
-- Three context-aware action buttons that distinguish the **declared record** from the **agreement document**.
-- The captured tenant name (not the landlord's) and a clear *Awaiting Tenant Registration / Acceptance* status.
-- Automatic linkage to the tenant's account the moment they register.
 
-## What already works (no change needed)
-- Schema: `tenancies.placeholder_tenant_name`, `placeholder_tenant_phone`, `pending_tenant_id` exist.
-- `DeclareExistingTenancy` now stores `tenant_user_id = NULL` and writes the placeholder columns when no match is found.
-- `RegulatorAgreements` reads `placeholder_tenant_name` when there's no tenant account.
-- Tenant-side accept flow in `MyAgreements` already produces `final_agreement_pdf_url`.
+# Resolution Centre & Rent Card Payment Fix
 
-## What still breaks
-1. Old `existing_migration` rows created before the placeholder columns were added still have `tenant_user_id = landlord_user_id`, so the admin list keeps showing the landlord's name.
-2. There is no UI badge that explicitly says *Awaiting Tenant Registration / Acceptance*.
-3. When the tenant finally signs up with the same phone, nothing links them to the tenancy automatically.
-4. Action-button labels need to be regularised: **Details** must always be visible for the declared record; **Draft / Final / Uploaded** must appear *only* when their corresponding document exists.
+## Part A — Rent Card Payment Bug (root cause)
 
-## Plan
+In `supabase/functions/_shared/finalize-payment.ts` (line ~797), rent cards are only created if `escrow_transaction_id` returns no existing rows. If a webhook fires before the redirect (or vice versa), or if `finalize-payment` is invoked with the wrong `escrow.id` linkage, the insert silently no-ops — no receipt row is generated and no cards appear.
 
-### 1. Database migration — backfill + auto-link trigger
-- **Backfill**: for every `tenancies` row where `tenancy_type = 'existing_migration'` AND `landlord_accepted = true` AND `tenant_accepted = false` AND `tenant_user_id = landlord_user_id`:
-  - Set `tenant_user_id = NULL`.
-  - Copy the matching `pending_tenants.full_name` / `phone` into `placeholder_tenant_name` / `placeholder_tenant_phone` (or fall back to the `tenant_id_code` lookup).
-- **Trigger `link_existing_tenancy_on_signup`** on `profiles` AFTER INSERT:
-  - Normalise `NEW.phone` to `233XXXXXXXXX`.
-  - Find tenancies where `tenant_user_id IS NULL` and `placeholder_tenant_phone` (normalised) matches.
-  - Update those rows: `tenant_user_id = NEW.user_id`, clear `placeholder_tenant_name/phone`, leave `tenant_accepted = false` and `status = 'existing_declared'` so the tenant must still accept.
-  - Mark related `pending_tenants` rows as `linked_user_id = NEW.user_id, linked_at = now()`.
-  - Insert a notification: *"A landlord declared an existing tenancy for you. Review and accept in My Agreements."*
+### Fixes
+1. **Idempotent rent card provisioning**: wrap card insert + receipt insert + escrow status flip in a single Postgres function (`provision_rent_cards(escrow_id, user_id, quantity, amount)`) with a unique constraint on `rent_cards.escrow_transaction_id + card_index` so duplicate webhooks are safe.
+2. **Always insert a receipt row** for `rent_card`/`rent_card_bulk` finalize paths (currently only conditional).
+3. **Stale-pending sweeper**: cron edge function `sweep-pending-payments` that re-runs Paystack `verify` for any `escrow_transactions` stuck in `pending` >10 min and replays `finalize-payment`.
+4. **Backfill**: scan last 30 days of `escrow_transactions` where `payment_type IN (rent_card,rent_card_bulk)` and `status='success'` but `rent_cards` count = 0 → auto-repair.
 
-### 2. Admin Agreements UI (`RegulatorAgreements.tsx`)
-- Add a new pill next to the status badge when `_tenantPending` is true:
-  *"Awaiting Tenant Registration / Acceptance"* (warning style).
-- Re-order/relabel action buttons inside `renderActionButtons` for `tenancy_type === 'existing_migration'`:
-  - **Details** — always visible, opens the declared-record PDF (current `downloadPdf` with `useExistingFormat`).
-  - **Draft** — only if `agreement_pdf_url` exists AND `final_agreement_pdf_url` is empty (purchased, landlord-signed, awaiting tenant).
-  - **Final** — only if `final_agreement_pdf_url` exists (both parties signed).
-  - **Uploaded** — only if `existing_agreement_url` exists (manual upload path).
-- Non-existing tenancies keep today's **PDF** button.
+## Part B — User Issue Reports
 
-### 3. Landlord Agreements list (`Agreements.tsx`)
-- Apply the same three-button rule and the *Awaiting Tenant Registration / Acceptance* badge so the landlord sees the same truth.
+### Schema (`issue_reports`)
+- `reporter_user_id`, `reporter_role` (tenant/landlord/student/nugs)
+- `issue_type` enum: `payment_not_updated`, `receipt_missing`, `rent_card_missing`, `complaint_payment_missing`, `agreement_missing`, `wrong_dashboard_status`, `other`
+- `affected_service` enum: `rent_card`, `complaint`, `agreement`, `receipt`, `tenancy`, `dashboard`, `other`
+- `reference_code` (optional — TKT, registration_code, serial, escrow ref)
+- `description`, `evidence_urls[]` (Storage bucket `issue-evidence`, private)
+- `contact_phone`, `contact_email` (prefilled from profile)
+- `status`: `open`, `under_review`, `awaiting_user`, `resolved`, `rejected`
+- `assigned_admin_id`, `resolution_summary`, `resolved_at`
 
-### 4. Verify acceptance closes the loop
-- No code change expected: when the linked tenant opens *My Agreements*, the existing accept flow already flips `tenant_accepted = true`, stamps `tenant_signed_at`, generates `final_agreement_pdf_url`, and moves status to `active`. After that the admin row will automatically drop the *Awaiting…* pill and show the **Final** button.
+### Schema (`issue_correction_log`)
+- `issue_id`, `admin_user_id`, `correction_type`, `target_table`, `target_id`, `before_state` jsonb, `after_state` jsonb, `reason`, `evidence_url`, `created_at`. Immutable (no UPDATE/DELETE policy).
+
+### Schema (`issue_messages`)
+- `issue_id`, `sender_user_id`, `sender_role` (user/admin), `body`, `attachment_url`, `created_at` — for the back-and-forth thread.
+
+### RLS
+- Users: insert + select **own** reports/messages.
+- Super Admin (`is_super_admin(auth.uid())`): full read/write on all three tables.
+- Main Admins: read-only on reports list (no corrections).
+
+## Part C — Report-an-Issue UI
+
+### Reusable component `ReportIssueDialog.tsx`
+Opened from a "Report an Issue" entry on Tenant, Landlord, Student dashboards (and FloatingActionHub). Steps:
+1. Pick issue type (cards).
+2. Pick affected service (auto-narrowed by issue type).
+3. Reference code field (autocomplete from user's recent rent cards / complaints / agreements / receipts).
+4. Description + screenshot upload (`issue-evidence` bucket, max 3 files, 5 MB each).
+5. Confirm contact phone/email; submit.
+
+User gets a toast + email/SMS with ticket ID `ISS-YYYYMMDD-00001` and can track in **My Reports** page per role.
+
+## Part D — Super Admin Resolution Centre
+
+New route: `/regulator/resolution-centre` (Super Admin only, hidden from other admins).
+
+### List view
+Filters: status, issue_type, service, role, date. Columns: ticket, user, type, service, status, age, last activity.
+
+### Detail panel
+- Reporter info card (name, role, phone with click-to-call, email).
+- Original report + evidence gallery (signed URLs).
+- Threaded `issue_messages` (admin ↔ user) with attachment support.
+- **Verification widget** — auto-fetches related record:
+  - Rent card: lists cards by user, escrow tx status, paystack verify button.
+  - Complaint: shows complaint row, payment status.
+  - Agreement: shows tenancy row + PDFs.
+  - Receipt: lists receipts for user/reference.
+  - Dashboard: snapshot of computed statuses.
+- **Correction tools** (service-specific buttons, each opens `AdminPasswordConfirm`):
+  - Rent card → "Provision missing cards" (calls `provision_rent_cards`), "Restore card status", "Reassign serial".
+  - Complaint → "Mark payment confirmed", "Refund fee", "Reassign office".
+  - Agreement → "Restart agreement flow", "Regenerate PDF", "Force link tenant".
+  - Receipt → "Regenerate receipt PDF", "Attach existing receipt".
+  - Dashboard/Other → "Recompute compliance score", "Refresh denormalised totals", free-form note.
+- Every correction click writes to `issue_correction_log` with before/after JSONB snapshots and a mandatory reason + admin password.
+
+### Edge functions
+- `resolution-correction` (Super Admin only, JWT-verified, password re-check) — dispatches to correction handlers, writes log, sends user notification.
+- `provision-rent-cards-repair` — idempotent backfill used by the rent-card correction button.
+
+## Part E — Notifications & Audit
+
+- User receives in-app notification + SMS whenever issue status changes or admin replies.
+- All corrections appear in existing **Admin Activity Logs** with `action_type = 'resolution_correction'`.
+- Super Admin dashboard tile: "Open issues", "Avg resolution time", "Corrections this week".
+
+## Technical notes
+
+- Storage bucket `issue-evidence` (private) with RLS: owner can upload to `{user_id}/*`; Super Admin can read all.
+- Use `react-hook-form` + `zod` for the report dialog (matches existing patterns).
+- All Super Admin correction edge functions must `require_super_admin(req)` helper (extract from JWT, check `is_super_admin`).
+- Rate-limit user submissions to 5/hour per user.
 
 ## Acceptance checks
-1. An `existing_migration` declared today **without** a matched tenant: admin row shows the captured tenant name, *Awaiting Tenant Registration / Acceptance* pill, and only **Details** (+ **Draft** if purchased, or **Uploaded** if a file was attached).
-2. The same tenant registers with the declared phone → admin row instantly shows the real tenant name; pill changes to *Awaiting Acceptance* only.
-3. Tenant accepts in My Agreements → admin row gains **Final** button; pill disappears; status flips to *active*.
-4. Legacy existing-migration rows (where `tenant_user_id` had been set to the landlord) no longer display the landlord's name after the backfill.
+
+1. User submits a "rent card missing" report with screenshot → ticket appears in Resolution Centre within seconds.
+2. Super Admin clicks "Provision missing cards" → cards appear on landlord dashboard, receipt is generated, correction log row written, user gets notification.
+3. Re-clicking "Provision missing cards" does nothing (idempotent).
+4. Non-Super-Admin staff cannot see `/regulator/resolution-centre` and cannot call correction endpoints (403).
+5. Sweeper cron repairs a known stuck rent-card payment without manual intervention.

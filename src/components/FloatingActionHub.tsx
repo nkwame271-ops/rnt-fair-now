@@ -1,15 +1,19 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { MessageCircle, MessageSquare, X } from "lucide-react";
+import { MessageCircle, MessageSquare, X, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import BetaFeedbackWidget from "@/components/BetaFeedbackWidget";
 import LiveChatWidget from "@/components/LiveChatWidget";
+import ReportIssueDialog from "@/components/ReportIssueDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 type ActivePanel = null | "chat" | "feedback";
 
 const FloatingActionHub = () => {
+  const { user } = useAuth();
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const handleSelect = (panel: ActivePanel) => {
     setActivePanel(panel);
@@ -88,9 +92,23 @@ const FloatingActionHub = () => {
                 <MessageSquare className="h-4 w-4 text-primary" />
                 Beta Feedback
               </motion.button>
+              {user && (
+                <motion.button
+                  initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.8 }}
+                  transition={{ delay: 0.1 }}
+                  onClick={() => { setReportOpen(true); setMenuOpen(false); }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-card border border-border shadow-lg text-sm font-medium text-foreground hover:bg-accent transition-colors"
+                >
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Report an Issue
+                </motion.button>
+              )}
             </>
           )}
         </AnimatePresence>
+      <ReportIssueDialog open={reportOpen} onOpenChange={setReportOpen} />
 
         {/* FAB button */}
         <button
