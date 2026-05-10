@@ -517,6 +517,20 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
         throw new Error("Assignment failed unexpectedly");
       }
 
+      // NUGS Revenue Participation: if this office is a NUGS office, reclassify
+      // the related escrow transactions as Student Revenue (NUGS / IGF / CM / Platform split).
+      if (officeId && officeId.toLowerCase().startsWith("nugs")) {
+        try {
+          const cardIdsForReclass = mappingCards.map(c => c.id);
+          await supabase.rpc("classify_nugs_rent_card_revenue" as any, {
+            p_office_id: officeId,
+            p_card_ids: cardIdsForReclass,
+          });
+        } catch (e) {
+          console.error("NUGS revenue reclassification failed (non-fatal):", e);
+        }
+      }
+
       // Write serial_assignments audit records per purchase group
       const assignedCardIds = mappingCards.map(c => c.id);
       const purchaseGroups = new Map<string, { cards: PendingCard[]; serials: string[] }>();
