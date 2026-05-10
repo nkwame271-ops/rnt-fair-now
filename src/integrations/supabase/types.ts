@@ -1438,6 +1438,157 @@ export type Database = {
         }
         Relationships: []
       }
+      issue_correction_log: {
+        Row: {
+          admin_user_id: string
+          after_state: Json | null
+          before_state: Json | null
+          correction_type: string
+          created_at: string
+          evidence_url: string | null
+          id: string
+          issue_id: string | null
+          reason: string
+          target_id: string | null
+          target_table: string | null
+        }
+        Insert: {
+          admin_user_id: string
+          after_state?: Json | null
+          before_state?: Json | null
+          correction_type: string
+          created_at?: string
+          evidence_url?: string | null
+          id?: string
+          issue_id?: string | null
+          reason: string
+          target_id?: string | null
+          target_table?: string | null
+        }
+        Update: {
+          admin_user_id?: string
+          after_state?: Json | null
+          before_state?: Json | null
+          correction_type?: string
+          created_at?: string
+          evidence_url?: string | null
+          id?: string
+          issue_id?: string | null
+          reason?: string
+          target_id?: string | null
+          target_table?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_correction_log_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issue_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      issue_messages: {
+        Row: {
+          attachment_url: string | null
+          body: string
+          created_at: string
+          id: string
+          issue_id: string
+          sender_role: string
+          sender_user_id: string
+        }
+        Insert: {
+          attachment_url?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          issue_id: string
+          sender_role: string
+          sender_user_id: string
+        }
+        Update: {
+          attachment_url?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          issue_id?: string
+          sender_role?: string
+          sender_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_messages_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issue_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      issue_reports: {
+        Row: {
+          affected_service: Database["public"]["Enums"]["issue_service"]
+          assigned_admin_id: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          description: string
+          evidence_urls: string[] | null
+          id: string
+          issue_type: Database["public"]["Enums"]["issue_type"]
+          reference_code: string | null
+          reporter_role: string
+          reporter_user_id: string
+          resolution_summary: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["issue_status"]
+          ticket_number: string
+          updated_at: string
+        }
+        Insert: {
+          affected_service: Database["public"]["Enums"]["issue_service"]
+          assigned_admin_id?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          description: string
+          evidence_urls?: string[] | null
+          id?: string
+          issue_type: Database["public"]["Enums"]["issue_type"]
+          reference_code?: string | null
+          reporter_role: string
+          reporter_user_id: string
+          resolution_summary?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["issue_status"]
+          ticket_number?: string
+          updated_at?: string
+        }
+        Update: {
+          affected_service?: Database["public"]["Enums"]["issue_service"]
+          assigned_admin_id?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          description?: string
+          evidence_urls?: string[] | null
+          id?: string
+          issue_type?: Database["public"]["Enums"]["issue_type"]
+          reference_code?: string | null
+          reporter_role?: string
+          reporter_user_id?: string
+          resolution_summary?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["issue_status"]
+          ticket_number?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       kyc_verifications: {
         Row: {
           ai_match_result: string | null
@@ -4397,6 +4548,7 @@ export type Database = {
       }
       generate_case_number: { Args: never; Returns: string }
       generate_complaint_ticket: { Args: never; Returns: string }
+      generate_issue_ticket: { Args: never; Returns: string }
       generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
       has_role: {
@@ -4441,6 +4593,10 @@ export type Database = {
         Args: { p_landlord_user_id: string }
         Returns: undefined
       }
+      repair_rent_cards_for_escrow: {
+        Args: { p_escrow_id: string }
+        Returns: Json
+      }
       resolve_office_id: {
         Args: { p_area?: string; p_region: string }
         Returns: string
@@ -4454,6 +4610,29 @@ export type Database = {
     }
     Enums: {
       app_role: "tenant" | "landlord" | "regulator" | "nugs_admin"
+      issue_service:
+        | "rent_card"
+        | "complaint"
+        | "agreement"
+        | "receipt"
+        | "tenancy"
+        | "dashboard"
+        | "payment"
+        | "other"
+      issue_status:
+        | "open"
+        | "under_review"
+        | "awaiting_user"
+        | "resolved"
+        | "rejected"
+      issue_type:
+        | "payment_not_updated"
+        | "receipt_missing"
+        | "rent_card_missing"
+        | "complaint_payment_missing"
+        | "agreement_missing"
+        | "wrong_dashboard_status"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4582,6 +4761,32 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["tenant", "landlord", "regulator", "nugs_admin"],
+      issue_service: [
+        "rent_card",
+        "complaint",
+        "agreement",
+        "receipt",
+        "tenancy",
+        "dashboard",
+        "payment",
+        "other",
+      ],
+      issue_status: [
+        "open",
+        "under_review",
+        "awaiting_user",
+        "resolved",
+        "rejected",
+      ],
+      issue_type: [
+        "payment_not_updated",
+        "receipt_missing",
+        "rent_card_missing",
+        "complaint_payment_missing",
+        "agreement_missing",
+        "wrong_dashboard_status",
+        "other",
+      ],
     },
   },
 } as const
