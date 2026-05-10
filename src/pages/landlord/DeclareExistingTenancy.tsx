@@ -241,7 +241,8 @@ const DeclareExistingTenancy = () => {
       if (!uploadErr) agreementUrl = path;
     }
 
-    const tenantUserId = draft.matchedTenant?.userId || user.id;
+    const hasMatchedTenant = !!draft.matchedTenant?.userId;
+    const tenantUserId = hasMatchedTenant ? draft.matchedTenant!.userId : null;
     const tenantIdCode = draft.matchedTenant?.tenantIdCode || `PENDING-${Date.now()}`;
 
     const { error, data: tenancyData } = await supabase.from("tenancies").insert({
@@ -266,6 +267,8 @@ const DeclareExistingTenancy = () => {
       tax_compliance_status: "pending",
       rent_card_id: draft.rentCardId1 || null,
       rent_card_id_2: draft.rentCardId2 || null,
+      placeholder_tenant_name: hasMatchedTenant ? null : draft.tenantName,
+      placeholder_tenant_phone: hasMatchedTenant ? null : draft.tenantPhone,
     } as any).select().single();
 
     if (error) throw error;
