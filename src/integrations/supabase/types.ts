@@ -3861,6 +3861,9 @@ export type Database = {
           landlord_user_id: string
           move_in_date: string
           office_id: string | null
+          pending_tenant_id: string | null
+          placeholder_tenant_name: string | null
+          placeholder_tenant_phone: string | null
           previous_tenancy_id: string | null
           proposed_rent: number | null
           registration_code: string
@@ -3877,7 +3880,7 @@ export type Database = {
           tenant_archived_at: string | null
           tenant_id_code: string
           tenant_signed_at: string | null
-          tenant_user_id: string
+          tenant_user_id: string | null
           terminated_at: string | null
           termination_reason: string | null
           unit_id: string
@@ -3904,6 +3907,9 @@ export type Database = {
           landlord_user_id: string
           move_in_date: string
           office_id?: string | null
+          pending_tenant_id?: string | null
+          placeholder_tenant_name?: string | null
+          placeholder_tenant_phone?: string | null
           previous_tenancy_id?: string | null
           proposed_rent?: number | null
           registration_code: string
@@ -3920,7 +3926,7 @@ export type Database = {
           tenant_archived_at?: string | null
           tenant_id_code: string
           tenant_signed_at?: string | null
-          tenant_user_id: string
+          tenant_user_id?: string | null
           terminated_at?: string | null
           termination_reason?: string | null
           unit_id: string
@@ -3947,6 +3953,9 @@ export type Database = {
           landlord_user_id?: string
           move_in_date?: string
           office_id?: string | null
+          pending_tenant_id?: string | null
+          placeholder_tenant_name?: string | null
+          placeholder_tenant_phone?: string | null
           previous_tenancy_id?: string | null
           proposed_rent?: number | null
           registration_code?: string
@@ -3963,7 +3972,7 @@ export type Database = {
           tenant_archived_at?: string | null
           tenant_id_code?: string
           tenant_signed_at?: string | null
-          tenant_user_id?: string
+          tenant_user_id?: string | null
           terminated_at?: string | null
           termination_reason?: string | null
           unit_id?: string
@@ -4370,6 +4379,10 @@ export type Database = {
           p_pairs: Json
         }
         Returns: Json
+      }
+      classify_nugs_rent_card_revenue: {
+        Args: { p_card_ids: string[]; p_office_id: string }
+        Returns: undefined
       }
       expire_overdue_tenancies: { Args: never; Returns: number }
       expire_tenancy_cascade: {
