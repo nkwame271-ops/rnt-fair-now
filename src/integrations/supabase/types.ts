@@ -2338,6 +2338,8 @@ export type Database = {
           created_by: string
           full_name: string
           id: string
+          linked_at: string | null
+          linked_user_id: string | null
           phone: string
           sms_sent: boolean
           tenancy_id: string | null
@@ -2349,6 +2351,8 @@ export type Database = {
           created_by: string
           full_name: string
           id?: string
+          linked_at?: string | null
+          linked_user_id?: string | null
           phone: string
           sms_sent?: boolean
           tenancy_id?: string | null
@@ -2360,6 +2364,8 @@ export type Database = {
           created_by?: string
           full_name?: string
           id?: string
+          linked_at?: string | null
+          linked_user_id?: string | null
           phone?: string
           sms_sent?: boolean
           tenancy_id?: string | null
