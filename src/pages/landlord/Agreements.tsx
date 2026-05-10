@@ -205,8 +205,15 @@ const Agreements = () => {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {t.agreement_pdf_url && !t.final_agreement_pdf_url && (
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {t.tenancy_type === "existing_migration" && t.agreement_pdf_url && !t.final_agreement_pdf_url && (
+                      <a href={t.agreement_pdf_url} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="outline" className="text-xs">
+                          <FileCheck className="h-3 w-3 mr-1" /> Draft
+                        </Button>
+                      </a>
+                    )}
+                    {t.tenancy_type !== "existing_migration" && t.agreement_pdf_url && !t.final_agreement_pdf_url && (
                       <a href={t.agreement_pdf_url} target="_blank" rel="noopener noreferrer">
                         <Button size="sm" variant="outline" className="text-xs">
                           <FileCheck className="h-3 w-3 mr-1" /> Draft Agreement
@@ -216,9 +223,14 @@ const Agreements = () => {
                     {t.final_agreement_pdf_url && (
                       <a href={t.final_agreement_pdf_url} target="_blank" rel="noopener noreferrer">
                         <Button size="sm" variant="default" className="text-xs">
-                          <FileCheck className="h-3 w-3 mr-1" /> Signed Copy
+                          <FileCheck className="h-3 w-3 mr-1" /> Final
                         </Button>
                       </a>
+                    )}
+                    {t.tenancy_type === "existing_migration" && t.existing_agreement_url && (
+                      <Button size="sm" variant="secondary" className="text-xs" onClick={() => window.open(t.existing_agreement_url!, "_blank")}>
+                        <FileCheck className="h-3 w-3 mr-1" /> Uploaded
+                      </Button>
                     )}
                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                       t.status === "active" ? "bg-success/10 text-success" 
@@ -226,6 +238,11 @@ const Agreements = () => {
                     }`}>
                       {t.status === "active" ? "Active" : t.tenant_accepted ? "Accepted" : t.status === "existing_declared" ? "Existing — Declared" : "Pending Acceptance"}
                     </span>
+                    {t.tenantPending && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-warning/10 text-warning whitespace-nowrap">
+                        Awaiting Tenant Registration / Acceptance
+                      </span>
+                    )}
                     {(t as any).tenancy_type === "existing_migration" && (
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                         (t as any).tax_compliance_status === "verified" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
