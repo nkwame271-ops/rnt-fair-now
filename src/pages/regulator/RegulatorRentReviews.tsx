@@ -216,7 +216,7 @@ const RegulatorRentReviews = () => {
 
       {/* Review Dialog */}
       <Dialog open={!!reviewing} onOpenChange={(open) => { if (!open) setReviewing(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {reviewing && (
             <>
               <DialogHeader>
