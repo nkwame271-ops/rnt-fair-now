@@ -37,11 +37,30 @@ const RegulatorRentReviews = () => {
 
   useEffect(() => {
     const fetch = async () => {
-      const { data } = await supabase
+      const { data: reqs } = await supabase
         .from("rent_increase_requests")
         .select("*")
         .order("created_at", { ascending: false });
-      setRequests(data || []);
+      const list = reqs || [];
+      // Enrich with property + landlord profile + unit details
+      const propIds = Array.from(new Set(list.map((r: any) => r.property_id).filter(Boolean)));
+      const unitIds = Array.from(new Set(list.map((r: any) => r.unit_id).filter(Boolean)));
+      const landlordIds = Array.from(new Set(list.map((r: any) => r.landlord_user_id).filter(Boolean)));
+      const [propsRes, unitsRes, profilesRes] = await Promise.all([
+        propIds.length ? supabase.from("properties").select("id, property_name, address, area, region, property_type, photos, landlord_user_id").in("id", propIds) : Promise.resolve({ data: [] as any[] }),
+        unitIds.length ? supabase.from("units").select("id, unit_name, unit_type, monthly_rent, bedrooms").in("id", unitIds) : Promise.resolve({ data: [] as any[] }),
+        landlordIds.length ? supabase.from("profiles").select("user_id, full_name, phone, email").in("user_id", landlordIds) : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const propMap = new Map((propsRes.data || []).map((p: any) => [p.id, p]));
+      const unitMap = new Map((unitsRes.data || []).map((u: any) => [u.id, u]));
+      const profMap = new Map((profilesRes.data || []).map((p: any) => [p.user_id, p]));
+      const enriched = list.map((r: any) => ({
+        ...r,
+        _property: r.property_id ? propMap.get(r.property_id) : null,
+        _unit: r.unit_id ? unitMap.get(r.unit_id) : null,
+        _landlord: r.landlord_user_id ? profMap.get(r.landlord_user_id) : null,
+      }));
+      setRequests(enriched);
       setLoading(false);
     };
     fetch();
