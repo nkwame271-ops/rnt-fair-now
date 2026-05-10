@@ -264,6 +264,8 @@ const RegulatorRentReviews = () => {
                   </div>
                 )}
 
+                <div>
+                  <Label className="text-sm text-muted-foreground">Landlord's Reason</Label>
                   <p className="text-sm mt-1 bg-muted/50 p-3 rounded-lg">{reviewing.reason || "No reason provided"}</p>
                 </div>
 
