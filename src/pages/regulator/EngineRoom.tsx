@@ -285,6 +285,8 @@ const EngineRoom = () => {
     setToggling(null);
   };
 
+  const tableForMember = (m: any) => (m?._isNugs ? "nugs_staff" : "admin_staff");
+
   const handleMuteFeature = async (staffUserId: string, featureKey: string, currentlyMuted: boolean) => {
     setMutingStaff(staffUserId + "_" + featureKey);
     const member = staffMembers.find(s => s.user_id === staffUserId);
@@ -294,8 +296,8 @@ const EngineRoom = () => {
       ? member.muted_features.filter(f => f !== featureKey)
       : [...member.muted_features, featureKey];
 
-    const { error } = await supabase
-      .from("admin_staff")
+    const { error } = await (supabase
+      .from(tableForMember(member) as any) as any)
       .update({ muted_features: newMuted, updated_at: new Date().toISOString() } as any)
       .eq("user_id", staffUserId);
 
@@ -314,8 +316,8 @@ const EngineRoom = () => {
     const member = staffMembers.find(s => s.user_id === staffUserId);
     if (!member || member.allowed_features.includes(featureKey)) return;
     const newAllowed = [...member.allowed_features, featureKey];
-    const { error } = await supabase
-      .from("admin_staff")
+    const { error } = await (supabase
+      .from(tableForMember(member) as any) as any)
       .update({ allowed_features: newAllowed, updated_at: new Date().toISOString() } as any)
       .eq("user_id", staffUserId);
     if (error) { toast.error("Failed to add feature"); }
@@ -332,8 +334,8 @@ const EngineRoom = () => {
     if (!member) return;
     const newAllowed = member.allowed_features.filter(f => f !== featureKey);
     const newMuted = member.muted_features.filter(f => f !== featureKey);
-    const { error } = await supabase
-      .from("admin_staff")
+    const { error } = await (supabase
+      .from(tableForMember(member) as any) as any)
       .update({ allowed_features: newAllowed, muted_features: newMuted, updated_at: new Date().toISOString() } as any)
       .eq("user_id", staffUserId);
     if (error) { toast.error("Failed to remove feature"); }
