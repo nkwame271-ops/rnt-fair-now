@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { FROM_ADDRESS, SENDER_DOMAIN } from "../_shared/project-domain.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -333,8 +334,8 @@ async function enqueueEmail(supabase: any, to: string, subject: string, html: st
       payload: {
         message_id: messageId,
         to,
-        from: "RentControlGhana <noreply@notify.rentcontrolghana.com>",
-        sender_domain: "notify.rentcontrolghana.com",
+        from: FROM_ADDRESS,
+        sender_domain: SENDER_DOMAIN,
         subject,
         html,
         text: subject,
