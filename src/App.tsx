@@ -106,6 +106,7 @@ const NugsStudents = lazy(() => import("./pages/nugs/NugsStudents"));
 const NugsComplaints = lazy(() => import("./pages/nugs/NugsComplaints"));
 const NugsInstitutions = lazy(() => import("./pages/nugs/NugsInstitutions"));
 const NugsMyComplaints = lazy(() => import("./pages/nugs/NugsMyComplaints"));
+const NugsRentCards = lazy(() => import("./pages/nugs/NugsRentCards"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
