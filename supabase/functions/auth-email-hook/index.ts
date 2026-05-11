@@ -35,18 +35,19 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   reauthentication: ReauthenticationEmail,
 }
 
-// Configuration
+// Configuration — domain constants are imported from the shared project-domain lock.
+import { ROOT_DOMAIN as LOCKED_ROOT, SENDER_DOMAIN as LOCKED_SENDER, PUBLIC_URL as LOCKED_PUBLIC_URL } from "../_shared/project-domain.ts"
 const SITE_NAME = "RentControlGhana"
-const SENDER_DOMAIN = "notify.rentcontrolghana.com"
-const ROOT_DOMAIN = "rentcontrolghana.com"
-const FROM_DOMAIN = "notify.rentcontrolghana.com" // Domain shown in From address (may be root or sender subdomain)
+const SENDER_DOMAIN = LOCKED_SENDER
+const ROOT_DOMAIN = LOCKED_ROOT
+const FROM_DOMAIN = LOCKED_SENDER // Domain shown in From address (may be root or sender subdomain)
 
 // Sample data for preview mode ONLY (not used in actual email sending).
 // URLs are baked in at scaffold time from the project's real data.
 // The sample email uses a fixed placeholder (RFC 6761 .test TLD) so the Go backend
 // can always find-and-replace it with the actual recipient when sending test emails,
 // even if the project's domain has changed since the template was scaffolded.
-const SAMPLE_PROJECT_URL = "https://www.rentcontrolghana.com"
+const SAMPLE_PROJECT_URL = LOCKED_PUBLIC_URL
 const SAMPLE_EMAIL = "user@example.test"
 const SAMPLE_DATA: Record<string, object> = {
   signup: {
