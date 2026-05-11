@@ -5,6 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { generateTenancyCardPdf } from "@/lib/generateTenancyCardPdf";
 import { differenceInDays, format } from "date-fns";
 import { formatGHS } from "@/lib/formatters";
+import { verifyUrl } from "@/lib/projectDomain";
 
 export interface TenancyCardData {
   tenancyId: string;
@@ -57,7 +58,7 @@ const statusLabel = (status: string) => {
 
 const TenancyCard = ({ data }: { data: TenancyCardData }) => {
   const daysRemaining = differenceInDays(new Date(data.expiryDate), new Date());
-  const qrValue = `https://www.rentcontrolghana.com/verify-tenancy/${data.tenancyId}`;
+  const qrValue = verifyUrl(`/verify-tenancy/${data.tenancyId}`);
 
   const handleDownload = () => {
     const doc = generateTenancyCardPdf(data);

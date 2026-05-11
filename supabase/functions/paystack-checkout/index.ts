@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { PUBLIC_URL, ROOT_DOMAIN } from "../_shared/project-domain.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1110,7 +1111,7 @@ Deno.serve(async (req) => {
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
     if (!PAYSTACK_SECRET_KEY) throw new Error("Payment gateway not configured");
 
-    const origin = req.headers.get("origin") || "https://www.rentcontrolghana.com";
+    const origin = req.headers.get("origin") || PUBLIC_URL;
     const callbackUrl = `${origin}${callbackPath}`;
     const amountInPesewas = Math.round(totalAmount * 100);
 
@@ -1118,7 +1119,7 @@ Deno.serve(async (req) => {
     const paystackEmail =
       (profile?.email && isValidEmail(profile.email)) ? profile.email
       : (authUser.email && isValidEmail(authUser.email)) ? authUser.email
-      : `user-${userId.slice(0, 8)}@rentcontrolghana.com`;
+      : `user-${userId.slice(0, 8)}@${ROOT_DOMAIN}`;
 
     const payload: any = {
       email: paystackEmail,

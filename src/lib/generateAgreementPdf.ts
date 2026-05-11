@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import QRCode from "qrcode";
 import { formatGHS } from "@/lib/formatters";
+import { ROOT_DOMAIN, verifyUrl as buildVerifyUrl } from "@/lib/projectDomain";
 
 export interface TemplateConfig {
   max_advance_months: number;
@@ -118,8 +119,8 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
 
   // Generate QR code
   const verifyUrl = data.tenancyId
-    ? `https://www.rentcontrolghana.com/verify-tenancy/${data.tenancyId}`
-    : `https://www.rentcontrolghana.com/verify-tenancy/${data.registrationCode}`;
+    ? buildVerifyUrl(`/verify-tenancy/${data.tenancyId}`)
+    : buildVerifyUrl(`/verify-tenancy/${data.registrationCode}`);
   let qrDataUrl = "";
   try {
     qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 200, margin: 1, errorCorrectionLevel: "H" });
@@ -165,7 +166,7 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   left(`Serial: ${serialCode}`, y + 11, 9, "bold");
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text("ORIGINAL DOCUMENT — Unique serial. Verify at rentcontrolghana.com/verify", 20, y + 19);
+  doc.text(`ORIGINAL DOCUMENT — Unique serial. Verify at ${ROOT_DOMAIN}/verify`, 20, y + 19);
   doc.setTextColor(0);
 
   // QR code in top-right corner
@@ -419,7 +420,7 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100);
   center("This is an electronically generated agreement by the Rent Control Department of Ghana.", y);
-  center(`Serial: ${serialCode} • Verification: ${data.registrationCode} • rentcontrolghana.com/verify`, y + 4);
+  center(`Serial: ${serialCode} • Verification: ${data.registrationCode} • ${ROOT_DOMAIN}/verify`, y + 4);
 
   return doc;
 };

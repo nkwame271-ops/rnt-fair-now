@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { FROM_ADDRESS, ROOT_DOMAIN } from "../_shared/project-domain.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,7 @@ function emailLayout(content: string, subject: string) {
       <div style="font-weight:700;color:#1f6f4a;font-size:18px;margin-bottom:16px;">Rent Control Ghana</div>
       <div style="white-space:pre-wrap;line-height:1.55;font-size:14px;">${safe}</div>
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 12px;" />
-      <div style="font-size:12px;color:#64748b;">Rent Control Ghana · rentcontrolghana.com</div>
+      <div style="font-size:12px;color:#64748b;">Rent Control Ghana · ${ROOT_DOMAIN}</div>
     </td></tr>
   </table>
 </body></html>`;
@@ -38,7 +39,7 @@ async function sendEmailViaResend(to: string, subject: string, html: string): Pr
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "RentControlGhana <noreply@notify.rentcontrolghana.com>",
+        from: FROM_ADDRESS,
         to: [to], subject, html,
       }),
     });
