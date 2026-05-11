@@ -1,66 +1,80 @@
-## Plan — Student portal alignment, FAB, complaint toast, rent reviews lock, tax button hide
+# Fix Bundle: Reported Errors
 
-### 1. FAB on Student Dashboard
-- Add `<FloatingActionHub />` inside `src/components/NugsLayout.tsx` (render for both admin and student views, or at minimum the student branch).
-- This brings **Chat Support, Beta Feedback, and Report an Issue** to NUGS routes.
+This addresses each reported issue. Several items (rent unlock trigger, rent lock columns, tax pills, rent review enrichment) were partially shipped already; we will harden them where the user still sees a problem.
 
-### 2. Complaint submission confirmation message
-- In `src/pages/tenant/FileComplaint.tsx`, change the post-submit toast from "An officer will review and contact you regarding any required fee" to:
-  > "Your complaint has been received. Please keep checking your dashboard for updates."
-- Also insert an in-app `notifications` row for the user with the same wording, linking to `/tenant/my-cases` (or `/nugs/my-complaints` when student) so they see it on the Dashboard's notification bell.
+## 1. Beta Feedback & Contact Messages — no admin email
 
-### 3. Student Portal feature alignment (inherit Tenant capabilities)
-Goal: students can access Receipts, Agreements, Invite Landlord, Payments, Marketplace, Rent Checker, Legal Assistant, Messages, Preferences, Renewal, Termination, Report Side Payment, My Profile — same as the Tenant Portal — subject to per-feature toggles in Engine Room.
+Both forms only write to the database. No notification ever reaches the admin inbox.
 
-Changes:
-- **Routing (`src/App.tsx`)** — under the existing `/nugs` route block, add student-accessible routes that reuse the tenant page components: `payments`, `receipts`, `my-agreements`, `legal-assistant`, `renewal`, `termination`, `report-side-payment`, `preferences`, `messages`, `invite-landlord`, `rent-checker` (Marketplace, File Complaint, Profile already there).
-- **Sidebar (`src/components/NugsLayout.tsx`)** — extend `studentNav` to include the new items (icons matching `TenantLayout`). Filter by feature flags using `useAllFeatureFlags` exactly like `TenantLayout` does, but using a new `student_*` feature-key namespace OR by reading the same feature keys as tenant nav + a master `student_features_enabled` umbrella. We will use **per-feature student keys** prefixed `student_` (e.g. `student_receipts`, `student_agreements`, `student_invite_landlord`, `student_payments`, `student_marketplace`, `student_rent_checker`, `student_legal_assistant`, `student_renewal`, `student_termination`, `student_report_side_payment`, `student_preferences`, `student_messages`) so Admin can toggle independently of tenant toggles.
-- **Header / context badges** — keep the existing school/hostel chip; no other change.
+Fix: After insert, send a notification to the admin team using the existing `send-notification` edge function and (in parallel) write a row into `notifications` for any active super_admin so it also surfaces in the in‑app bell.
 
-### 4. Engine Room: Student Portal Feature Control section
-- **Migration**: insert new rows into `feature_flags` with `category = 'student'` for each `student_*` key above (label + `is_enabled = true`, `fee_enabled = false`). Keep existing student fee flags (`student_registration`, `student_complaint_fee`) unchanged — those remain in the Student Revenue section.
-- **`src/pages/regulator/EngineRoom.tsx`** — add a new collapsible section "Student Portal Feature Control" that renders `visibleFlags.filter(f => f.category === 'student' && !STUDENT_FEATURE_KEYS.has(f.feature_key))` via `renderFeatureRow`. Place it near the Tenant/Landlord feature blocks.
+Files:
+- `src/pages/RoleSelect.tsx` (ContactForm.handleSubmit)
+- `src/components/BetaFeedbackWidget.tsx` (handleSubmit)
 
-### 5. Rent Increase — lock rent after approval
-Already on approval (in `RegulatorRentReviews.handleDecision`): `units.monthly_rent`, `units.asking_rent`, `properties.approved_rent`, and active `tenancies.agreed_rent` are updated. Add:
-- **Migration**: add `rent_locked_at timestamptz` and `rent_locked_amount numeric` columns to `units` and `properties` (or reuse existing `approved_rent` + a flag). On approval, also set `units.rent_locked_at = now()` and `properties.rent_locked_at = now()`.
-- **Update `handleDecision`** to set these.
-- **`src/pages/landlord/EditProperty.tsx`** and the unit edit forms: when `rent_locked_at` is non-null, render the rent input as **read-only** with a small "Locked by approved Rent Review" helper. Block any landlord-side rent edits client-side, and add a DB trigger (defensive) that rejects updates to `monthly_rent`/`asking_rent`/`approved_rent` when `rent_locked_at IS NOT NULL` except when the update comes from `RegulatorRentReviews` flow (service role, or session flag) — practically we'll enforce via RLS/policy that landlords cannot UPDATE these columns once locked.
+For each, after a successful insert, call:
+```
+supabase.functions.invoke("send-notification", { body: { event: "contact_received" / "beta_feedback_received", email: ADMIN_EMAIL, data: {...}} })
+```
 
-### 6. Rent Reviews — show full property details to admin
-In `src/pages/regulator/RegulatorRentReviews.tsx`, augment the fetch and the Review dialog:
-- Fetch joined property + landlord profile: `properties(name, address, area, region, property_type, photos, landlord_user_id, profiles!landlord_user_id(full_name, phone, email))` and the unit details.
-- In the dialog, render a "Property" block: name, full address (area, region), property type, landlord name + phone + email, current unit, monthly_rent, photos thumbnail, link to `/regulator/properties/<id>`.
+Add two new templates (`contact_received`, `beta_feedback_received`) in `supabase/functions/send-notification/index.ts` (`EMAIL_TEMPLATES`, `INAPP_TEMPLATES`, `CHANNEL_MAP`) targeting the configured admin notification email (read from a new `system_settings` row `admin_notify_email` with a sensible fallback constant).
 
-### 7. Tenant Tax payment status — hide button after success
-In `src/pages/tenant/Payments.tsx`:
-- The current `isPaid` predicate already drives `allAdvancePaid`; the issue is the Paystack return flow doesn't always mark `payments.status = 'confirmed'`. Audit:
-  - Ensure `supabase/functions/_shared/finalize-payment.ts` for `payment_type IN ('rent_tax', 'rent_tax_bulk')` sets `payments.status = 'confirmed'` and `tenant_marked_paid = true` for all matching advance rows, and updates `tenancies.tax_compliance_status = 'verified'`.
-- Frontend: keep current "Pay" → "Advance Tax Paid ✓" toggle, plus add explicit status pills under the header:
-  - **Paid** (when `allAdvancePaid`)
-  - **Tax Confirmed** (when `tenancy.tax_compliance_status === 'verified'`)
-  - **Receipt Available** with a button linking to `/tenant/receipts?ref=<latest receipt>` once a receipt row exists for the latest tax escrow.
-- The "Pay GH₵ … Online" button only renders inside `!allAdvancePaid` branch, so once confirmed it disappears. Also guard against the user-cancelled query-param path re-enabling stale state.
+## 2. NUGS Sub-Admin: Rent Card feature toggle does not show
 
-### Files to modify
-- `src/components/NugsLayout.tsx` — FAB import, extended studentNav, feature-flag filtering.
-- `src/App.tsx` — new student routes reusing tenant pages.
-- `src/pages/tenant/FileComplaint.tsx` — confirmation toast + notification insert.
-- `src/pages/regulator/EngineRoom.tsx` — new Student Portal Feature Control block.
-- `src/pages/regulator/RegulatorRentReviews.tsx` — property/landlord detail enrichment + lock columns on approve.
-- `src/pages/landlord/EditProperty.tsx` (and any unit-edit form) — read-only rent when locked.
-- `src/pages/tenant/Payments.tsx` — status pills (Paid / Tax Confirmed / Receipt Available).
-- `supabase/functions/_shared/finalize-payment.ts` — ensure tax finalize flips `status` and `tax_compliance_status`.
+`NugsLayout.adminNav` is hardcoded to 4 items with no rent card entry and no feature gating, so toggling the flag has no effect for sub-admins.
 
-### Database migrations
-- Add `student_*` rows to `feature_flags` (category `student`).
-- Add `rent_locked_at`, `rent_locked_amount` to `units` and `properties`; backfill where `approved_rent` is set.
-- RLS / trigger preventing landlord updates to rent columns when locked.
+Fix:
+- Add `{ to: "/nugs/rent-cards", label: "Rent Cards", icon: CreditCard, featureKey: "nugs_admin_rent_cards" }` to `adminNav`.
+- Apply the same `featureKey` filter currently used for `studentNav` to admin nav (single shared filter loop).
+- Add the route in `src/App.tsx` reusing `RegulatorRentCards` scoped to NUGS context (or a new lightweight page if scope differs).
+- Migration: insert `nugs_admin_rent_cards` into `feature_flags` with `category='nugs'`, default `is_enabled=false`. Surface the toggle in `EngineRoom.tsx` under a new "NUGS Sub-Admin Features" section that filters `category='nugs'`.
 
-### Acceptance checks
-1. Logging in as a student shows the FAB (Chat, Feedback, Report an Issue) on the dashboard.
-2. Filing a complaint shows the new "complaint has been received…" toast and creates a matching notification.
-3. Student sidebar now shows Receipts, Agreements, Invite Landlord, Payments, etc., gated by `student_*` flags toggled from Engine Room → Student Portal Feature Control.
-4. After Admin approves a rent increase, landlord's property/unit rent reflects the approved amount and the rent field is read-only with a "Locked" hint.
-5. Rent Reviews dialog shows full property + landlord details.
-6. Tenant pays tax → Paystack success → button disappears, "Paid / Tax Confirmed / Receipt Available" pills appear, and Receipt link works.
+## 3. Admin Portal Agreements — Tenant placeholder shows landlord name
+
+Verified `Agreements.tsx` and `RegulatorAgreements.tsx` already use `placeholder_tenant_name` correctly when `tenant_user_id` is null, so the bug is in the row insert path.
+
+Fix in `DeclareExistingTenancy.tsx`:
+- Always populate `placeholder_tenant_name` and `placeholder_tenant_phone` from `draft.tenantName`/`tenantPhone`, even when `hasMatchedTenant` is true (only clear the placeholder once `tenant_accepted=true`).
+- When the matched tenant accepts the agreement, a small backend step (db trigger or in `tenant_accepted` update flow) clears the placeholder fields. Add trigger `clear_placeholder_on_tenant_accept`.
+
+Also patch the agreement‑PDF generator path: where it currently substitutes `{{TENANT_NAME}}` from `landlordName` fallback, force it to read the tenancy's effective tenant display name.
+
+## 4. Existing Tenancy → Rent Card Unlinking
+
+Trigger `trg_unlink_rent_cards_on_tenancy_delete` was created in the previous migration. Verify it is active and confirm `delete_existing_tenancy` admin action triggers a true row DELETE (not a soft delete). If the admin function performs a soft delete, switch it to hard `DELETE FROM tenancies` so the trigger fires, OR add a parallel `AFTER UPDATE` clause that fires when `deleted_at` is set.
+
+Fix: read `supabase/functions/admin-action/index.ts` for `delete_tenancy`/`delete_existing_tenancy` and align with the trigger.
+
+## 5. Rent Increase Lock
+
+Already implemented in `EditProperty.tsx` (rent input `readOnly`) and `RegulatorRentReviews.tsx` (sets `rent_locked_*` and writes `monthly_rent`/`approved_rent`).
+
+Hardening:
+- Add a DB trigger `prevent_rent_unlock` on `units` and `properties` that raises if `monthly_rent`/`approved_rent` is changed while `rent_locked_at IS NOT NULL` and the new value differs from `rent_locked_amount`. Only `service_role` (used by approval flow) can bypass.
+- Update `EditProperty.tsx` save path to never include `monthly_rent` in the update payload.
+
+## 6. Rent Reviews — Property details visible & clickable to admin
+
+`RegulatorRentReviews.tsx` already enriches and shows property + landlord. Add:
+- Property name in the table row (new column "Property") linking to `/regulator/properties/:id` (or the existing detail route).
+- In the dialog, wrap property name and landlord name in `<Link>` to their detail pages.
+
+## 7. Tenant Tax Payment Status
+
+Top-level "Pay All Advance Tax" already toggles to a "Paid / Tax Confirmed / Receipt Available" panel via `allAdvancePaid`. The remaining issue is per‑month behavior + a Pay button that may stay enabled briefly because the database row hasn't flipped yet.
+
+Fix in `Payments.tsx`:
+- After `handlePayBulkTax` returns from Paystack callback, poll `rent_payments` for the tenancy every 2s up to 10 attempts until `status='confirmed'` or `tenant_marked_paid=true` for all advance rows; refresh local state.
+- Disable the Pay button while polling.
+- Ensure `finalize-payment.ts` for `rent_tax`/`rent_tax_bulk` definitively sets `payments.status='confirmed'`, `tenant_marked_paid=true`, and `tenancies.tax_compliance_status='verified'` (verify already done in earlier change).
+
+## Technical Notes
+
+- Migrations needed:
+  - Insert `nugs_admin_rent_cards` flag.
+  - Trigger `clear_placeholder_on_tenant_accept` on `tenancies`.
+  - Trigger `prevent_rent_unlock` on `units`/`properties`.
+  - (Optional) augment `unlink_rent_cards_on_tenancy_delete` to also fire on soft-delete.
+- Edge function changes:
+  - Extend `send-notification` with `contact_received` and `beta_feedback_received` templates.
+- Frontend files: `RoleSelect.tsx`, `BetaFeedbackWidget.tsx`, `NugsLayout.tsx`, `App.tsx`, `EngineRoom.tsx`, `DeclareExistingTenancy.tsx`, `EditProperty.tsx`, `RegulatorRentReviews.tsx`, `Payments.tsx`.
