@@ -50,7 +50,8 @@ const StudentRevenue = () => {
 
   useEffect(() => {
     if (profileLoading) return;
-    if (!profile?.isSuperAdmin) {
+    // Student Revenue ledger is reserved for top-tier admins (main + super).
+    if (!profile?.isSuperAdmin && !profile?.isMainAdmin) {
       setLoading(false);
       return;
     }
