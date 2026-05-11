@@ -35,6 +35,19 @@ const ContactForm = () => {
     if (error) {
       toast.error("Failed to send message. Please try again.");
     } else {
+      // Notify admin team (best-effort; do not block UX)
+      supabase.functions.invoke("send-notification", {
+        body: {
+          event: "contact_received",
+          email: "info@rentcontrolghana.com",
+          data: {
+            name: name.trim(),
+            from_email: email.trim(),
+            phone: phone.trim() || "",
+            message: message.trim(),
+          },
+        },
+      }).catch(() => {});
       toast.success("Message sent! We'll get back to you soon.");
       setName(""); setEmail(""); setPhone(""); setMessage("");
     }
