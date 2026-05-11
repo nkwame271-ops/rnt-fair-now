@@ -157,6 +157,7 @@ const RegulatorRentReviews = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
+              <TableHead>Property</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Current Rent</TableHead>
               <TableHead>Proposed Rent</TableHead>
