@@ -70,8 +70,7 @@ const NugsLayout = () => {
   const navItems = baseNav.filter((item: any) => {
     if (!item.featureKey) return true;
     const flag = flags.find((f) => f.feature_key === item.featureKey);
-    if (!flag) return true;
-    return flag.is_enabled;
+    return flag?.is_enabled === true;
   });
 
   useEffect(() => {
