@@ -1,80 +1,59 @@
-# Fix Bundle: Reported Errors
+## Root-cause findings
 
-This addresses each reported issue. Several items (rent unlock trigger, rent lock columns, tax pills, rent review enrichment) were partially shipped already; we will harden them where the user still sees a problem.
+1. **Beta Feedback / Contact emails** — The previous turn wired the forms to `send-notification`, but the underlying email queue infrastructure was never installed in this project: `email_send_log` table does not exist and the `enqueue_email` RPC call silently fails. Also, the configured email domain is `notify.hespariapartments.com` while `send-notification` is hardcoded to send from `notify.rentcontrolghana.com`. Result: every notification email is dropped.
+2. **NUGS Rent Cards menu** — The flag `nugs_admin_rent_cards` exists (currently `is_enabled=false`) and `NugsLayout` already filters by it. After toggling on, the item appears. Likely user effect: cached `useAllFeatureFlags` not refetching after toggle without page reload.
+3. **Agreement tenant placeholder** — `DeclareExistingTenancy` was patched to always populate `placeholder_tenant_name/phone`, and the `clear_placeholder_on_tenant_accept` trigger wipes them only when tenant accepts. Verified shipped. Needs a quick sanity test on the PDF generator (`generateAgreementPdf.ts`) to confirm it reads `placeholder_tenant_name` rather than `landlord_name` as a fallback.
+4. **Rent card unlinking on tenancy delete** — Trigger `trg_unlink_rent_cards_on_tenancy_delete` is in place. `admin-action`'s `delete_existing_tenancy` performs a hard `DELETE`, so trigger fires. Already working.
+5. **Rent increase lock** — DB triggers `prevent_unit_rent_unlock` / `prevent_property_rent_unlock` and `EditProperty` read-only field already shipped. Already working.
+6. **Rent Reviews clickable property** — "Property" column with link to `/regulator/properties?focus=…` already shipped.
+7. **Tax payment status** — Top-level "Pay All Advance Tax" toggles to confirmed panel; no further user reports require change unless polling delay still observed.
 
-## 1. Beta Feedback & Contact Messages — no admin email
+## Plan — focus on the only outstanding blockers
 
-Both forms only write to the database. No notification ever reaches the admin inbox.
+### A. Make Beta Feedback & Contact emails actually deliver
 
-Fix: After insert, send a notification to the admin team using the existing `send-notification` edge function and (in parallel) write a row into `notifications` for any active super_admin so it also surfaces in the in‑app bell.
+**Step 1 — Provision email infrastructure (one-time, idempotent)**
+Call `email_domain--setup_email_infra` to create `email_send_log`, `suppressed_emails`, `email_unsubscribe_tokens`, the pgmq queues (`auth_emails`, `transactional_emails`), the `enqueue_email` / `read_email_batch` / `delete_email` / `move_to_dlq` RPC wrappers, the vault secret, and the pg_cron `process-email-queue` job. Without this the existing `send-notification` enqueue path is a no-op.
 
-Files:
-- `src/pages/RoleSelect.tsx` (ContactForm.handleSubmit)
-- `src/components/BetaFeedbackWidget.tsx` (handleSubmit)
+**Step 2 — Add the project's own sender domain**
+`rentcontrolghana.com` is the project's brand domain. The currently-configured domain (`notify.hespariapartments.com`) belongs to a different pilot. Open the email setup dialog so the user can add `notify.rentcontrolghana.com`, then the queue can render From-headers correctly.
 
-For each, after a successful insert, call:
-```
-supabase.functions.invoke("send-notification", { body: { event: "contact_received" / "beta_feedback_received", email: ADMIN_EMAIL, data: {...}} })
-```
+**Step 3 — Make `send-notification` use the actual configured sender**
+Read the active sender via the `email_domains` table (or hard-code it once the user picks one) instead of the hardcoded `notify.rentcontrolghana.com`. Redeploy the function.
 
-Add two new templates (`contact_received`, `beta_feedback_received`) in `supabase/functions/send-notification/index.ts` (`EMAIL_TEMPLATES`, `INAPP_TEMPLATES`, `CHANNEL_MAP`) targeting the configured admin notification email (read from a new `system_settings` row `admin_notify_email` with a sensible fallback constant).
+**Step 4 — Default admin recipient**
+Insert a single-row `system_settings` entry `admin_notify_email = 'info@rentcontrolghana.com'` (or whatever the user prefers). `RoleSelect.tsx` and `BetaFeedbackWidget.tsx` already pass that address — leave the call sites unchanged.
 
-## 2. NUGS Sub-Admin: Rent Card feature toggle does not show
+### B. NUGS Sub-Admin Rent Cards visibility refresh
 
-`NugsLayout.adminNav` is hardcoded to 4 items with no rent card entry and no feature gating, so toggling the flag has no effect for sub-admins.
+Update `useAllFeatureFlags` (or `NugsLayout`'s consumer) to subscribe to `feature_flags` realtime changes (or refetch on focus) so toggling in Engine Room makes the menu appear without a hard refresh on the sub-admin's session. If realtime is too heavy, add a 60-second SWR refetch.
 
-Fix:
-- Add `{ to: "/nugs/rent-cards", label: "Rent Cards", icon: CreditCard, featureKey: "nugs_admin_rent_cards" }` to `adminNav`.
-- Apply the same `featureKey` filter currently used for `studentNav` to admin nav (single shared filter loop).
-- Add the route in `src/App.tsx` reusing `RegulatorRentCards` scoped to NUGS context (or a new lightweight page if scope differs).
-- Migration: insert `nugs_admin_rent_cards` into `feature_flags` with `category='nugs'`, default `is_enabled=false`. Surface the toggle in `EngineRoom.tsx` under a new "NUGS Sub-Admin Features" section that filters `category='nugs'`.
+### C. Verification pass (no code changes unless a regression is found)
 
-## 3. Admin Portal Agreements — Tenant placeholder shows landlord name
+1. After step A completes, submit a contact form and a beta feedback entry → verify a row in `email_send_log` with `status='sent'` and the message in admin inbox.
+2. Toggle `nugs_admin_rent_cards` ON in Engine Room, sign in as a NUGS sub-admin → menu item should appear (after refresh or within 60s).
+3. Declare an existing tenancy with a tenant who has no account, view the agreement → tenant placeholder shows the captured tenant name (not the landlord). After tenant accepts in their portal → placeholder clears and live `tenant_user_id` name shows.
+4. Delete an existing tenancy from Super Admin → confirm matching `rent_cards` reset to `status='valid'` (or `awaiting_serial`) and `tenancy_id IS NULL`.
+5. Approve a rent increase request → confirm `units.monthly_rent` updates and any subsequent UI/SQL update attempt is rejected by the trigger.
+6. Pay tax online via Paystack → confirm "Pay Tax Online" disappears and panel shows Paid / Tax Confirmed / Receipt Available within ~10s.
 
-Verified `Agreements.tsx` and `RegulatorAgreements.tsx` already use `placeholder_tenant_name` correctly when `tenant_user_id` is null, so the bug is in the row insert path.
+## Files / tools touched
 
-Fix in `DeclareExistingTenancy.tsx`:
-- Always populate `placeholder_tenant_name` and `placeholder_tenant_phone` from `draft.tenantName`/`tenantPhone`, even when `hasMatchedTenant` is true (only clear the placeholder once `tenant_accepted=true`).
-- When the matched tenant accepts the agreement, a small backend step (db trigger or in `tenant_accepted` update flow) clears the placeholder fields. Add trigger `clear_placeholder_on_tenant_accept`.
+- Tool: `email_domain--setup_email_infra` (creates DB infra)
+- Tool: `email_domain--check_email_domain_status` (pre-check)
+- Migration: insert `system_settings.admin_notify_email`
+- Edited: `supabase/functions/send-notification/index.ts` (dynamic sender domain)
+- Edited: `src/hooks/useFeatureFlag.ts` (refetch / realtime)
+- No changes needed: `DeclareExistingTenancy.tsx`, `EditProperty.tsx`, `RegulatorRentReviews.tsx`, `Payments.tsx`, rent-card unlink trigger (already in place)
 
-Also patch the agreement‑PDF generator path: where it currently substitutes `{{TENANT_NAME}}` from `landlordName` fallback, force it to read the tenancy's effective tenant display name.
+## Open question for the user
 
-## 4. Existing Tenancy → Rent Card Unlinking
+The configured email sender right now is `notify.hespariapartments.com`. To send Contact / Beta Feedback alerts from a RentControlGhana-branded address, we need to add `notify.rentcontrolghana.com`. Confirm before I open the email setup dialog, or tell me to keep the existing hespariapartments sender for now.
 
-Trigger `trg_unlink_rent_cards_on_tenancy_delete` was created in the previous migration. Verify it is active and confirm `delete_existing_tenancy` admin action triggers a true row DELETE (not a soft delete). If the admin function performs a soft delete, switch it to hard `DELETE FROM tenancies` so the trigger fires, OR add a parallel `AFTER UPDATE` clause that fires when `deleted_at` is set.
+`notify.hespariapartments.com`.
 
-Fix: read `supabase/functions/admin-action/index.ts` for `delete_tenancy`/`delete_existing_tenancy` and align with the trigger.
+&nbsp;
 
-## 5. Rent Increase Lock
+Not that `hespariapartments.com` is a totally different project don't mix with what's going on in our rent control 
 
-Already implemented in `EditProperty.tsx` (rent input `readOnly`) and `RegulatorRentReviews.tsx` (sets `rent_locked_*` and writes `monthly_rent`/`approved_rent`).
-
-Hardening:
-- Add a DB trigger `prevent_rent_unlock` on `units` and `properties` that raises if `monthly_rent`/`approved_rent` is changed while `rent_locked_at IS NOT NULL` and the new value differs from `rent_locked_amount`. Only `service_role` (used by approval flow) can bypass.
-- Update `EditProperty.tsx` save path to never include `monthly_rent` in the update payload.
-
-## 6. Rent Reviews — Property details visible & clickable to admin
-
-`RegulatorRentReviews.tsx` already enriches and shows property + landlord. Add:
-- Property name in the table row (new column "Property") linking to `/regulator/properties/:id` (or the existing detail route).
-- In the dialog, wrap property name and landlord name in `<Link>` to their detail pages.
-
-## 7. Tenant Tax Payment Status
-
-Top-level "Pay All Advance Tax" already toggles to a "Paid / Tax Confirmed / Receipt Available" panel via `allAdvancePaid`. The remaining issue is per‑month behavior + a Pay button that may stay enabled briefly because the database row hasn't flipped yet.
-
-Fix in `Payments.tsx`:
-- After `handlePayBulkTax` returns from Paystack callback, poll `rent_payments` for the tenancy every 2s up to 10 attempts until `status='confirmed'` or `tenant_marked_paid=true` for all advance rows; refresh local state.
-- Disable the Pay button while polling.
-- Ensure `finalize-payment.ts` for `rent_tax`/`rent_tax_bulk` definitively sets `payments.status='confirmed'`, `tenant_marked_paid=true`, and `tenancies.tax_compliance_status='verified'` (verify already done in earlier change).
-
-## Technical Notes
-
-- Migrations needed:
-  - Insert `nugs_admin_rent_cards` flag.
-  - Trigger `clear_placeholder_on_tenant_accept` on `tenancies`.
-  - Trigger `prevent_rent_unlock` on `units`/`properties`.
-  - (Optional) augment `unlink_rent_cards_on_tenancy_delete` to also fire on soft-delete.
-- Edge function changes:
-  - Extend `send-notification` with `contact_received` and `beta_feedback_received` templates.
-- Frontend files: `RoleSelect.tsx`, `BetaFeedbackWidget.tsx`, `NugsLayout.tsx`, `App.tsx`, `EngineRoom.tsx`, `DeclareExistingTenancy.tsx`, `EditProperty.tsx`, `RegulatorRentReviews.tsx`, `Payments.tsx`.
+&nbsp;
