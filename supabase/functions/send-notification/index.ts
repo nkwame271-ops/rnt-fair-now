@@ -341,6 +341,7 @@ async function enqueueEmail(supabase: any, to: string, subject: string, html: st
         text: subject,
         purpose: "transactional",
         label: "notification",
+        idempotency_key: messageId,
         queued_at: new Date().toISOString(),
       },
     });
