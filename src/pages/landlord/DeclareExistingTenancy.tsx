@@ -267,8 +267,8 @@ const DeclareExistingTenancy = () => {
       tax_compliance_status: "pending",
       rent_card_id: draft.rentCardId1 || null,
       rent_card_id_2: draft.rentCardId2 || null,
-      placeholder_tenant_name: hasMatchedTenant ? null : draft.tenantName,
-      placeholder_tenant_phone: hasMatchedTenant ? null : draft.tenantPhone,
+      placeholder_tenant_name: draft.tenantName || null,
+      placeholder_tenant_phone: draft.tenantPhone || null,
     } as any).select().single();
 
     if (error) throw error;
