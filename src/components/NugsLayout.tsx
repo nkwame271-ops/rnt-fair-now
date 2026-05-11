@@ -35,6 +35,7 @@ const adminNav = [
   { to: "/nugs/students", label: "Students", icon: GraduationCap },
   { to: "/nugs/complaints", label: "Student Complaints", icon: AlertTriangle },
   { to: "/nugs/institutions", label: "Institutions", icon: Users },
+  { to: "/nugs/rent-cards", label: "Rent Cards", icon: CreditCard, featureKey: "nugs_admin_rent_cards" },
 ];
 
 // Per-feature student keys map nav items to feature_flags entries
