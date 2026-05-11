@@ -78,9 +78,11 @@ const RegulatorReceipts = () => {
     setLoading(true);
 
     // Step 1: receipts (with optional office scoping via the txn join below)
+    // Exclude student-related receipts — those belong to the dedicated Student Revenue ledger.
     let q = supabase
       .from("payment_receipts")
       .select("id, receipt_number, created_at, payer_name, payer_email, payment_type, total_amount, status, description, qr_code_data, office_id, user_id, escrow_transaction_id, admin_confirmed_at, admin_confirmed_by")
+      .not("payment_type", "in", "(student_registration,student_complaint_fee)")
       .order("created_at", { ascending: false })
       .limit(500);
 
