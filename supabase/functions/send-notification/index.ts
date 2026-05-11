@@ -30,6 +30,8 @@ const CHANNEL_MAP: Record<string, Channel[]> = {
   tenancy_agreement:     ["email", "inapp"],
   rent_card_copy:        ["email", "inapp"],
   complaint_summary:     ["email", "inapp"],
+  contact_received:      ["email"],
+  beta_feedback_received:["email"],
 };
 
 // ── SMS Templates ──
@@ -186,6 +188,31 @@ const EMAIL_TEMPLATES: Record<string, (d: Record<string, string>) => { subject: 
       <p>Please log in for details and updates.</p>
     `),
   }),
+  contact_received: (d) => ({
+    subject: `New Contact Message — ${d.name || "User"}`,
+    html: emailLayout(`
+      <p><strong>New contact form submission</strong></p>
+      <table style="margin:16px 0;border-collapse:collapse;">
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">From:</td><td style="padding:4px 0;">${d.name || ""}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Email:</td><td style="padding:4px 0;">${d.from_email || ""}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Phone:</td><td style="padding:4px 0;">${d.phone || "—"}</td></tr>
+      </table>
+      <p style="white-space:pre-wrap;border-left:3px solid #2d7a4f;padding:8px 12px;background:#f7faf8;">${d.message || ""}</p>
+      <p>Reply via the Regulator Feedback portal.</p>
+    `),
+  }),
+  beta_feedback_received: (d) => ({
+    subject: `Beta Feedback (${d.category || "general"}) — ${d.from_email || "user"}`,
+    html: emailLayout(`
+      <p><strong>New beta feedback submitted</strong></p>
+      <table style="margin:16px 0;border-collapse:collapse;">
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Category:</td><td style="padding:4px 0;">${d.category || "general"}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">From:</td><td style="padding:4px 0;">${d.from_email || ""}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Page:</td><td style="padding:4px 0;">${d.page_url || ""}</td></tr>
+      </table>
+      <p style="white-space:pre-wrap;border-left:3px solid #2d7a4f;padding:8px 12px;background:#f7faf8;">${d.message || ""}</p>
+    `),
+  }),
 };
 
 // ── In-App notification titles/bodies ──
@@ -206,6 +233,8 @@ const INAPP_TEMPLATES: Record<string, (d: Record<string, string>) => { title: st
   tenancy_agreement: (d) => ({ title: "Tenancy Agreement", body: `Agreement ${d.tenancy_id} has been ${d.action || "created"}.`, link: "/tenant/my-agreements" }),
   rent_card_copy: () => ({ title: "Rent Card Available", body: "Your rent card details are available.", link: "/landlord/rent-cards" }),
   complaint_summary: (d) => ({ title: "Complaint Filed", body: `Complaint ${d.code} has been submitted.`, link: "/tenant/my-cases" }),
+  contact_received: (d) => ({ title: "New Contact Message", body: `${d.name || "User"} (${d.from_email || ""}): ${(d.message || "").slice(0, 80)}`, link: "/regulator/feedback" }),
+  beta_feedback_received: (d) => ({ title: `Beta Feedback (${d.category || "general"})`, body: `${d.from_email || ""}: ${(d.message || "").slice(0, 80)}`, link: "/regulator/feedback" }),
 };
 
 function emailLayout(content: string): string {

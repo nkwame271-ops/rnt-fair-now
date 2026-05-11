@@ -106,6 +106,7 @@ const NugsStudents = lazy(() => import("./pages/nugs/NugsStudents"));
 const NugsComplaints = lazy(() => import("./pages/nugs/NugsComplaints"));
 const NugsInstitutions = lazy(() => import("./pages/nugs/NugsInstitutions"));
 const NugsMyComplaints = lazy(() => import("./pages/nugs/NugsMyComplaints"));
+const NugsRentCards = lazy(() => import("./pages/nugs/NugsRentCards"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -231,6 +232,7 @@ const App = () => (
                 <Route path="complaints" element={<NugsComplaints />} />
                 <Route path="institutions" element={<NugsInstitutions />} />
                 <Route path="my-complaints" element={<NugsMyComplaints />} />
+                <Route path="rent-cards" element={<NugsRentCards />} />
                 <Route path="marketplace" element={<Marketplace />} />
                 <Route path="file-complaint" element={<FileComplaint />} />
                 <Route path="profile" element={<ProfilePage />} />

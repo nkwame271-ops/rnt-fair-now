@@ -39,6 +39,19 @@ const BetaFeedbackWidget = ({ onClose }: BetaFeedbackWidgetProps) => {
     if (error) {
       toast.error("Failed to send feedback");
     } else {
+      // Notify admin team (best-effort)
+      supabase.functions.invoke("send-notification", {
+        body: {
+          event: "beta_feedback_received",
+          email: "info@rentcontrolghana.com",
+          data: {
+            category,
+            from_email: user.email || "",
+            page_url: window.location.pathname,
+            message: message.trim(),
+          },
+        },
+      }).catch(() => {});
       toast.success("Thanks for your feedback! 🎉");
       setMessage("");
       setOpen(false);

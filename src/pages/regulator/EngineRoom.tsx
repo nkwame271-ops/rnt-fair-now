@@ -552,6 +552,7 @@ const EngineRoom = () => {
   const generalFlags = visibleFlags.filter((f) => f.category === "general");
   const feeFlags = visibleFlags.filter((f) => f.category === "fee");
   const studentPortalFlags = visibleFlags.filter((f) => f.category === "student" && !STUDENT_FEATURE_KEYS.has(f.feature_key));
+  const nugsFlags = visibleFlags.filter((f) => f.category === "nugs");
 
   // Office payout mode flag
   const payoutModeFlag = flags.find(f => f.feature_key === "office_payout_mode");
@@ -1308,6 +1309,21 @@ const EngineRoom = () => {
           </p>
           <div className="bg-card rounded-xl border border-border shadow-card divide-y divide-border">
             {studentPortalFlags.map(renderFeatureRow)}
+          </div>
+        </div>
+      )}
+
+      {/* NUGS Sub-Admin Feature Control */}
+      {nugsFlags.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <GraduationCap className="h-5 w-5 text-primary" /> NUGS Sub-Admin Feature Control
+          </h2>
+          <p className="text-xs text-muted-foreground mb-2">
+            Toggle which administrative pages are visible to NUGS sub-admin accounts.
+          </p>
+          <div className="bg-card rounded-xl border border-border shadow-card divide-y divide-border">
+            {nugsFlags.map(renderFeatureRow)}
           </div>
         </div>
       )}

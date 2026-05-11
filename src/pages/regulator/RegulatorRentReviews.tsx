@@ -157,6 +157,7 @@ const RegulatorRentReviews = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
+              <TableHead>Property</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Current Rent</TableHead>
               <TableHead>Proposed Rent</TableHead>
@@ -167,7 +168,7 @@ const RegulatorRentReviews = () => {
           </TableHeader>
           <TableBody>
             {requests.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No rent increase requests</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No rent increase requests</TableCell></TableRow>
             ) : (
               requests.map(req => {
                 const increase = req.current_approved_rent > 0
@@ -176,6 +177,11 @@ const RegulatorRentReviews = () => {
                 return (
                   <TableRow key={req.id}>
                     <TableCell className="text-sm">{new Date(req.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-sm">
+                      {req._property?.id ? (
+                        <a href={`/regulator/properties?focus=${req._property.id}`} className="text-primary hover:underline">{req._property.property_name || "Property"}</a>
+                      ) : "—"}
+                    </TableCell>
                     <TableCell className="text-sm capitalize">{req.request_type?.replace(/_/g, " ")}</TableCell>
                     <TableCell className="font-medium">GH₵ {Number(req.current_approved_rent).toLocaleString()}</TableCell>
                     <TableCell className="font-medium">GH₵ {Number(req.proposed_rent).toLocaleString()}</TableCell>
