@@ -233,6 +233,8 @@ const INAPP_TEMPLATES: Record<string, (d: Record<string, string>) => { title: st
   tenancy_agreement: (d) => ({ title: "Tenancy Agreement", body: `Agreement ${d.tenancy_id} has been ${d.action || "created"}.`, link: "/tenant/my-agreements" }),
   rent_card_copy: () => ({ title: "Rent Card Available", body: "Your rent card details are available.", link: "/landlord/rent-cards" }),
   complaint_summary: (d) => ({ title: "Complaint Filed", body: `Complaint ${d.code} has been submitted.`, link: "/tenant/my-cases" }),
+  contact_received: (d) => ({ title: "New Contact Message", body: `${d.name || "User"} (${d.from_email || ""}): ${(d.message || "").slice(0, 80)}`, link: "/regulator/feedback" }),
+  beta_feedback_received: (d) => ({ title: `Beta Feedback (${d.category || "general"})`, body: `${d.from_email || ""}: ${(d.message || "").slice(0, 80)}`, link: "/regulator/feedback" }),
 };
 
 function emailLayout(content: string): string {
