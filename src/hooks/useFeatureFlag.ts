@@ -57,21 +57,34 @@ export const useAllFeatureFlags = () => {
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const reload = () => {
+    invalidateFeatureFlags();
+    fetchFlags().then((f) => {
+      setFlags(f);
+      setLoading(false);
+    });
+  };
+
   useEffect(() => {
     fetchFlags().then((f) => {
       setFlags(f);
       setLoading(false);
     });
+    // Refetch on tab focus so toggles made elsewhere appear without hard refresh
+    const onFocus = () => reload();
+    window.addEventListener("focus", onFocus);
+    // Realtime subscription so menu items appear/disappear immediately when an admin toggles a flag
+    const channel = supabase
+      .channel("feature_flags_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "feature_flags" }, () => reload())
+      .subscribe();
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  return { flags, loading, refetch: () => {
-    invalidateFeatureFlags();
-    setLoading(true);
-    fetchFlags().then((f) => {
-      setFlags(f);
-      setLoading(false);
-    });
-  }};
+  return { flags, loading, refetch: reload };
 };
 
 export const useFeatureFlagsByCategory = (category: string) => {
