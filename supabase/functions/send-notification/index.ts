@@ -30,6 +30,8 @@ const CHANNEL_MAP: Record<string, Channel[]> = {
   tenancy_agreement:     ["email", "inapp"],
   rent_card_copy:        ["email", "inapp"],
   complaint_summary:     ["email", "inapp"],
+  contact_received:      ["email", "inapp"],
+  beta_feedback_received:["email", "inapp"],
 };
 
 // ── SMS Templates ──
