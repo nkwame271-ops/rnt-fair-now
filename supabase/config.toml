@@ -55,3 +55,5 @@ project_id = "qjrvwcwmhuxygdanbxsz"
     verify_jwt = false
   [functions.run-similarity-check]
     verify_jwt = false
+  [functions.process-email-queue]
+    verify_jwt = true
