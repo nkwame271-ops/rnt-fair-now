@@ -11,6 +11,8 @@
  * 6. Handle payment-type-specific side effects
  */
 
+import { verifyUrl } from "./project-domain.ts";
+
 // Recipient → system settlement account type mapping
 const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
   rent_control: "igf",
@@ -435,7 +437,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       payment_type: paymentType,
       description: meta.description || `Payment for ${paymentType.replace(/_/g, " ")}`,
       split_breakdown: splitBreakdown.length > 0 ? splitBreakdown : null,
-      qr_code_data: `https://www.rentcontrolghana.com/verify/receipt/${reference}`,
+      qr_code_data: verifyUrl(`/verify/receipt/${reference}`),
       status: "active",
       office_id: officeId,
       tenancy_id: escrow.related_tenancy_id || null,
