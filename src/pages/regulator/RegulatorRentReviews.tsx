@@ -168,7 +168,7 @@ const RegulatorRentReviews = () => {
           </TableHeader>
           <TableBody>
             {requests.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No rent increase requests</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No rent increase requests</TableCell></TableRow>
             ) : (
               requests.map(req => {
                 const increase = req.current_approved_rent > 0
