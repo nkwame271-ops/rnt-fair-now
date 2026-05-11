@@ -232,6 +232,7 @@ const App = () => (
                 <Route path="complaints" element={<NugsComplaints />} />
                 <Route path="institutions" element={<NugsInstitutions />} />
                 <Route path="my-complaints" element={<NugsMyComplaints />} />
+                <Route path="rent-cards" element={<NugsRentCards />} />
                 <Route path="marketplace" element={<Marketplace />} />
                 <Route path="file-complaint" element={<FileComplaint />} />
                 <Route path="profile" element={<ProfilePage />} />
