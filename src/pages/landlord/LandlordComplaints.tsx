@@ -16,6 +16,8 @@ import { regions } from "@/data/dummyData";
 import AppointmentSlotPicker from "@/components/AppointmentSlotPicker";
 import { useJsApiLoader } from "@react-google-maps/api";
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
+import { SignedImage } from "@/components/SignedMedia";
+import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 
 const complaintTypes = [
   "Tenant refusing to vacate",
@@ -167,8 +169,15 @@ const LandlordComplaints = () => {
   const handlePayNow = async (complaint: any) => {
     setPaying(complaint.id);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Your session expired. Please sign in again.");
+        setPaying(null);
+        return;
+      }
       const { data: rawData, error } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "complaint_fee", complaintId: complaint.id },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
       let data = rawData;
       if (typeof rawData === "string") { try { data = JSON.parse(rawData); } catch {} }
@@ -520,7 +529,13 @@ const LandlordComplaints = () => {
               {c.evidence_urls?.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {c.evidence_urls.map((url: string, i: number) => (
-                    <img key={i} src={url} alt={`Doc ${i + 1}`} className="w-16 h-16 rounded-lg object-cover border border-border" />
+                    <SignedImage
+                      key={i}
+                      src={url}
+                      alt={`Doc ${i + 1}`}
+                      className="w-16 h-16 rounded-lg object-cover border border-border hover:opacity-80 cursor-pointer"
+                      onClick={() => openSignedStorageUrl(url)}
+                    />
                   ))}
                 </div>
               )}

@@ -21,6 +21,7 @@ import { CreditCard, Receipt, Hash } from "lucide-react";
 import { ComplaintSimilarityPanel } from "@/components/PropertySimilarityMatches";
 import { SkeletonCardList } from "@/components/ui/skeleton";
 import { SignedAudio, SignedImage } from "@/components/SignedMedia";
+import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 import ComplaintAssignmentControl from "@/components/ComplaintAssignmentControl";
 import ComplaintReportsDialog from "@/components/ComplaintReportsDialog";
 import { generateComplaintPdf } from "@/lib/generateComplaintPdf";
@@ -952,7 +953,7 @@ const RegulatorComplaints = () => {
                       src={url}
                       alt={`Evidence ${i + 1}`}
                       className="w-16 h-16 rounded-lg object-cover border border-border hover:opacity-80 cursor-pointer"
-                      onClick={() => window.open(url, "_blank")}
+                      onClick={() => openSignedStorageUrl(url)}
                     />
                   ))}
                 </div>
