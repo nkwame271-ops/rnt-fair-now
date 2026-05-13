@@ -72,46 +72,21 @@ const RegulatorRentReviews = () => {
     try {
       const req = requests.find(r => r.id === requestId);
 
-      const { error } = await supabase.from("rent_increase_requests").update({
-        status: decision,
-        reviewer_user_id: user.id,
-        reviewer_notes: reviewerNotes,
-        reviewed_at: new Date().toISOString(),
-      } as any).eq("id", requestId);
-
-      if (error) throw error;
-
-      // If approved, update the unit/property approved rent
-      if (decision === "approved" && req) {
-        if (req.unit_id) {
-          await supabase.from("units").update({
-            monthly_rent: req.proposed_rent,
-            asking_rent: req.proposed_rent,
-            rent_locked_at: new Date().toISOString(),
-            rent_locked_amount: req.proposed_rent,
-          } as any).eq("id", req.unit_id);
-          // Also update agreed_rent on active tenancy for this unit
-          await supabase.from("tenancies").update({ agreed_rent: req.proposed_rent } as any)
-            .eq("unit_id", req.unit_id)
-            .in("status", ["active", "pending", "renewal_window", "existing_declared"]);
-        }
-        if (req.property_id) {
-          await supabase.from("properties").update({
-            approved_rent: req.proposed_rent,
-            rent_locked_at: new Date().toISOString(),
-            rent_locked_amount: req.proposed_rent,
-          } as any).eq("id", req.property_id);
-
-          // Log event
-          await supabase.from("property_events").insert({
-            property_id: req.property_id,
-            event_type: "rent_update",
-            old_value: { rent: req.current_approved_rent },
-            new_value: { rent: req.proposed_rent },
-            performed_by: user.id,
-            reason: `Rent increase approved: ${reviewerNotes || "No notes"}`,
-          } as any);
-        }
+      if (decision === "approved") {
+        const { error: rpcErr } = await supabase.rpc("approve_rent_increase_request" as any, {
+          p_request_id: requestId,
+          p_reviewer: user.id,
+          p_reviewer_notes: reviewerNotes || null,
+        });
+        if (rpcErr) throw rpcErr;
+      } else {
+        const { error } = await supabase.from("rent_increase_requests").update({
+          status: decision,
+          reviewer_user_id: user.id,
+          reviewer_notes: reviewerNotes,
+          reviewed_at: new Date().toISOString(),
+        } as any).eq("id", requestId);
+        if (error) throw error;
       }
 
       // Notify landlord of the decision
