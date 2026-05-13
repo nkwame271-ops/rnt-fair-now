@@ -64,7 +64,14 @@ const EditProperty = () => {
   const [propertyStatus, setPropertyStatus] = useState("");
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
   const [units, setUnits] = useState<EditableUnit[]>([]);
-  const [occupiedUnitIds, setOccupiedUnitIds] = useState<Set<string>>(new Set());
+  const [gpsLocation, setGpsLocation] = useState<string>("");
+  const [gpsState, setGpsState] = useState<
+    | { kind: "idle" }
+    | { kind: "loading" }
+    | { kind: "invalid" }
+    | { kind: "failed" }
+    | { kind: "resolved"; data: ResolvedGps }
+  >({ kind: "idle" });
 
   useEffect(() => {
     if (!user || !id) return;
