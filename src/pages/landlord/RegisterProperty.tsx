@@ -172,6 +172,10 @@ const RegisterProperty = () => {
       toast.error("Ghana Post GPS code is required");
       return;
     }
+    if (locationValidation.status === "block") {
+      toast.error("The selected map location does not match the GhanaPostGPS location. Please adjust the map pin or confirm the correct GPS address.");
+      return;
+    }
 
     // Mandatory unit validation (non-hostel branch)
     if (!isHostel) {
