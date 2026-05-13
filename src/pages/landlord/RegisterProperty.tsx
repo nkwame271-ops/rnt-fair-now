@@ -74,6 +74,12 @@ const RegisterProperty = () => {
   const [gpsLocation, setGpsLocation] = useState("");
   const [gpsConfirmed, setGpsConfirmed] = useState(false);
   const [ghanaPostGps, setGhanaPostGps] = useState("");
+  const [locationValidation, setLocationValidation] = useState<{
+    status: "ok" | "review" | "block" | null;
+    distanceM: number | null;
+    gpsLat: number | null;
+    gpsLng: number | null;
+  }>({ status: null, distanceM: null, gpsLat: null, gpsLng: null });
   const [propertyCondition, setPropertyCondition] = useState("");
   const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial" | "hostel">("residential");
   const [images, setImages] = useState<File[]>([]);
