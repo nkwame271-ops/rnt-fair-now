@@ -28,6 +28,7 @@ const RegulatorProperties = () => {
   const [detailProperty, setDetailProperty] = useState<any | null>(null);
   const [detailLandlord, setDetailLandlord] = useState<{ full_name?: string; phone?: string; email?: string; landlord_id?: string } | null>(null);
   const [detailImages, setDetailImages] = useState<any[]>([]);
+  const [detailRentHistory, setDetailRentHistory] = useState<any[]>([]);
   const [approving, setApproving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
