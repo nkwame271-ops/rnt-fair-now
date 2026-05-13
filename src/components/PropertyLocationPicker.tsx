@@ -54,6 +54,7 @@ const PropertyLocationPicker = ({
   ghanaPostGps = "",
   confirmed = false,
   required = false,
+  onLocationValidationChange,
 }: Props) => {
   const { isLoaded, loadError } = useJsApiLoader({ googleMapsApiKey: GOOGLE_MAPS_API_KEY, libraries: GOOGLE_MAPS_LIBRARIES });
 
