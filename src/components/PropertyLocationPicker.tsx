@@ -34,6 +34,12 @@ interface Props {
   ghanaPostGps?: string;
   confirmed?: boolean;
   required?: boolean;
+  onLocationValidationChange?: (v: {
+    status: DistanceLevel | null;
+    distanceM: number | null;
+    gpsLat: number | null;
+    gpsLng: number | null;
+  }) => void;
 }
 
 const mapContainerStyle = { width: "100%", height: "300px" };
