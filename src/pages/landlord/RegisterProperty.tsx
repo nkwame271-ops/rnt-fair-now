@@ -550,6 +550,7 @@ const RegisterProperty = () => {
                   }}
                   onConfirmChange={(next) => setGpsConfirmed(!!next)}
                   onGhanaPostGpsChange={setGhanaPostGps}
+                  onLocationValidationChange={setLocationValidation}
                 />
               </ErrorBoundary>
 
