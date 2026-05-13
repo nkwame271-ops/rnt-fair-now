@@ -69,6 +69,106 @@ const PropertyLocationPicker = ({
   const mapRef = useRef<google.maps.Map | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
 
+  // GhanaPostGPS validation state
+  type GpsState =
+    | { kind: "idle" }
+    | { kind: "loading" }
+    | { kind: "invalid" }
+    | { kind: "failed" }
+    | { kind: "resolved"; data: ResolvedGps };
+  const [gpsState, setGpsState] = useState<GpsState>({ kind: "idle" });
+
+  useEffect(() => {
+    const code = (ghanaPostGps || "").trim().toUpperCase();
+    if (!code) { setGpsState({ kind: "idle" }); return; }
+    if (!validateGhanaPostGpsFormat(code)) { setGpsState({ kind: "invalid" }); return; }
+    let cancelled = false;
+    setGpsState({ kind: "loading" });
+    const t = window.setTimeout(async () => {
+      const res = await resolveGhanaPostGps(code);
+      if (cancelled) return;
+      if ("error" in res) setGpsState({ kind: "failed" });
+      else setGpsState({ kind: "resolved", data: res });
+    }, 600);
+    return () => { cancelled = true; window.clearTimeout(t); };
+  }, [ghanaPostGps]);
+
+  const distanceInfo = (() => {
+    if (gpsState.kind !== "resolved" || !markerPos) return null;
+    const meters = haversineMeters(markerPos, gpsState.data);
+    return { meters, ...classifyDistance(meters) };
+  })();
+
+  useEffect(() => {
+    if (!onLocationValidationChange) return;
+    if (gpsState.kind === "resolved" && markerPos && distanceInfo) {
+      onLocationValidationChange({
+        status: distanceInfo.level,
+        distanceM: distanceInfo.meters,
+        gpsLat: gpsState.data.lat,
+        gpsLng: gpsState.data.lng,
+      });
+    } else {
+      onLocationValidationChange({ status: null, distanceM: null, gpsLat: null, gpsLng: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gpsState, markerPos?.lat, markerPos?.lng]);
+
+  const renderGpsValidation = () => {
+    if (gpsState.kind === "idle") return null;
+    if (gpsState.kind === "loading") {
+      return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Verifying GhanaPostGPS code…
+        </div>
+      );
+    }
+    if (gpsState.kind === "invalid") {
+      return (
+        <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1.5">
+          GhanaPostGPS code format looks wrong. Use the form <code>GA-123-4567</code>.
+        </div>
+      );
+    }
+    if (gpsState.kind === "failed") {
+      return (
+        <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1.5">
+          Could not verify this GhanaPostGPS code right now. Double-check it — registration will be marked for review.
+        </div>
+      );
+    }
+    const r = gpsState.data;
+    return (
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>📍 {r.area || r.district || r.region || "Resolved"}</span>
+          <a
+            href={googleMapsLink(r.lat, r.lng)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            View on map <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+        {distanceInfo && (
+          <div
+            className={
+              "text-xs rounded-md px-2.5 py-1.5 border " +
+              (distanceInfo.level === "ok"
+                ? "bg-success/10 text-success border-success/20"
+                : distanceInfo.level === "review"
+                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
+                  : "bg-destructive/10 text-destructive border-destructive/20")
+            }
+          >
+            {distanceInfo.message}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Poll for google.maps.places after the JS API loads — avoids a race where
   // useJsApiLoader resolves isLoaded=true before the places library is attached.
   useEffect(() => {
