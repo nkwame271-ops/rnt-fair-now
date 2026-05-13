@@ -253,6 +253,7 @@ const RegisterProperty = () => {
         ghana_post_gps_lng: locationValidation.gpsLng,
         location_distance_m: locationValidation.distanceM,
         location_review_required: locationValidation.status === "review" || (!!ghanaPostGps && locationValidation.status === null && locationValidation.gpsLat === null),
+        property_condition: propertyCondition || null,
         property_category: propertyCategory,
         listed_on_marketplace: false,
         property_status: propertyStatus,
