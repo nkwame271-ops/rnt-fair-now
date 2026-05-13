@@ -167,8 +167,15 @@ const LandlordComplaints = () => {
   const handlePayNow = async (complaint: any) => {
     setPaying(complaint.id);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Your session expired. Please sign in again.");
+        setPaying(null);
+        return;
+      }
       const { data: rawData, error } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "complaint_fee", complaintId: complaint.id },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
       let data = rawData;
       if (typeof rawData === "string") { try { data = JSON.parse(rawData); } catch {} }
