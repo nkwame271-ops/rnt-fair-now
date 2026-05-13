@@ -5,10 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { MapPin, Navigation, ChevronDown, Check, AlertTriangle, Globe } from "lucide-react";
+import { MapPin, Navigation, ChevronDown, Check, AlertTriangle, Globe, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { GHANA_REGIONS } from "@/lib/gpsUtils";
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
+import {
+  resolveGhanaPostGps,
+  validateGhanaPostGpsFormat,
+  haversineMeters,
+  classifyDistance,
+  googleMapsLink,
+  type DistanceLevel,
+  type ResolvedGps,
+} from "@/lib/locationValidation";
 
 interface LocationData {
   lat: number;
