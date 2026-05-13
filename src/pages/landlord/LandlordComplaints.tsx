@@ -16,6 +16,8 @@ import { regions } from "@/data/dummyData";
 import AppointmentSlotPicker from "@/components/AppointmentSlotPicker";
 import { useJsApiLoader } from "@react-google-maps/api";
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
+import { SignedImage } from "@/components/SignedMedia";
+import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 
 const complaintTypes = [
   "Tenant refusing to vacate",
