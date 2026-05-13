@@ -175,8 +175,23 @@ const EditProperty = () => {
       toast.error("Address, region, and area are required");
       return;
     }
+    if (!locationLocked && distanceInfo?.level === "block") {
+      toast.error("The selected map location does not match the GhanaPostGPS location. Please adjust the map pin or confirm the correct GPS address.");
+      return;
+    }
     setSaving(true);
     const normalizedAddr = address.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+    const locationFields = locationLocked
+      ? {}
+      : {
+          ghana_post_gps: ghanaPostGps || null,
+          ghana_post_gps_lat: gpsState.kind === "resolved" ? gpsState.data.lat : null,
+          ghana_post_gps_lng: gpsState.kind === "resolved" ? gpsState.data.lng : null,
+          location_distance_m: distanceInfo?.meters ?? null,
+          location_review_required:
+            distanceInfo?.level === "review" ||
+            (!!ghanaPostGps && (gpsState.kind === "failed" || gpsState.kind === "invalid")),
+        };
     const { error } = await supabase
       .from("properties")
       .update({
@@ -185,10 +200,10 @@ const EditProperty = () => {
         region,
         area,
         property_condition: condition || null,
-        ghana_post_gps: locationLocked ? undefined : (ghanaPostGps || null),
         property_category: propertyCategory,
         ownership_type: ownershipType,
         normalized_address: normalizedAddr,
+        ...locationFields,
       } as any)
       .eq("id", id!)
       .eq("landlord_user_id", user!.id);
