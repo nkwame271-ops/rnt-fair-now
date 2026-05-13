@@ -1,70 +1,67 @@
-## Plan
+## Goal
+Validate that the typed/Google Maps address and the GhanaPostGPS code refer to (roughly) the same place during property registration and editing, and make GhanaPostGPS clickable in the admin portal.
 
-1. Fix contact-message reply delivery
-   - Update the contact reply flow to use the project’s current queued email pipeline instead of the legacy direct `RESEND_API_KEY` send path.
-   - Keep reply logging in place, but treat delivery and logging separately so admins can see whether a reply was sent, queued, or only recorded.
-   - Verify the reply path from the feedback screen so email replies to contact submissions actually reach recipients.
+## Validation rules (haversine distance between map pin and GhanaPostGPS)
+- 0–50 m → accept silently (badge: "Location verified")
+- 51–150 m → accept but flag the property `location_review_required = true` (badge: "Location Needs Review")
+- > 150 m → block submission with the error:
+  *"The selected map location does not match the GhanaPostGPS location. Please adjust the map pin or confirm the correct GPS address."*
+- If the GhanaPostGPS code can't be resolved (lookup fails / invalid format) → show inline warning and require the landlord to either fix the code or tick a "Confirm location is correct" override (override forces `location_review_required = true`).
 
-2. Upgrade NUGS rent cards from read-only to assignment-capable
-   - Replace the current NUGS rent-card page, which only lists cards, with the assignment workflow NUGS sub-admins need.
-   - Reuse the existing rent-card stock and pending-purchase patterns where possible, but scope them to NUGS staff assignments instead of regulator office staff.
-   - Add the missing backend access rules so NUGS sub-admins can read available serial stock, pending card purchases, and assignment history for their NUGS scope, not just view `rent_cards` rows.
+GhanaPostGPS format check: `^[A-Z]{2}-\d{2,4}-\d{3,4}$` (e.g. `GA-123-4567`).
 
-3. Repair approved rent increase propagation
-   - Move approval side effects out of the fragile page-only flow and into a reliable backend/database path so approved rent reviews consistently update property rent, unit rent, tenancy agreed rent, and audit history together.
-   - Add a repair step for already-approved requests where the request status says approved but the linked property/unit rent did not update correctly.
-   - Ensure landlord-facing pages read the latest approved values after approval without stale mismatches.
+## Backend
+1. **New edge function** `resolve-ghana-post-gps` (verify_jwt = false, public).
+   - Input: `{ code: string }`.
+   - Calls `https://ghanapostgps.sperse.com/get.php` with `POST` form `address=<code>` (the public lookup).
+   - Returns `{ lat, lng, region, district, area, formatted }` or `{ error }`.
+   - Caches successful lookups in a new table `ghana_post_gps_cache (code PK, lat, lng, region, district, area, resolved_at)` to avoid hammering the unofficial endpoint.
+   - 5 s timeout; on failure returns `{ error: "lookup_failed" }` so the UI can degrade gracefully.
 
-4. Add visible rent history trail for admins
-   - Use the existing property event history to show previous rent values and the effective dates inside admin property details.
-   - Record rent-change events consistently whenever an approval changes rent, so the admin “Properties” area shows a usable rent timeline.
-   - Backfill missing rent-change history for recent approved reviews where practical.
+2. **Migration**
+   - Create `ghana_post_gps_cache` (service-role write, public read).
+   - Add columns to `properties`: `location_review_required boolean default false`, `location_distance_m integer null`, `ghana_post_gps_lat numeric`, `ghana_post_gps_lng numeric`.
+   - Add the same flag to `existing_tenancies` registration path if the file declares its own GhanaPostGPS (it does — store on the related property only; tenancy stays untouched schema-wise).
 
-5. Improve Rent Reviews property context for admins
-   - Expand the rent-review details so admins can see full linked property information clearly and navigate into the property record directly.
-   - Include landlord identity, property location, unit details, and other relevant property fields consistently in the review modal/table so decisions are based on the full property context.
+## Frontend
 
-6. Correct tenant tax payment state after successful payment
-   - Audit the tax-payment finalization path for completed `rent_tax` / `rent_tax_bulk` transactions and fix the cases where completed escrow records are not updating `rent_payments` and tenancy tax compliance.
-   - Add a reconciliation step for already-completed tax payments that still show as unpaid/pending in the tenant portal.
-   - Keep the tenant UI driven by payment truth so once tax is paid the action changes automatically to the paid state, hides the active online-payment button, and shows Paid / Tax Confirmed / Receipt Available.
+### Shared helper `src/lib/locationValidation.ts`
+- `haversineMeters(a, b)`
+- `validateGhanaPostGpsFormat(code)`
+- `classifyDistance(meters) → { level: "ok" | "review" | "block", message }`
+- `resolveGhanaPostGps(code)` → invokes the new edge function via `supabase.functions.invoke`.
 
-7. Validate end-to-end
-   - Test contact reply delivery from the feedback portal.
-   - Test NUGS sub-admin rent-card assignment with scoped stock and pending purchases.
-   - Test approving a rent increase and confirm the updated rent appears in admin properties and landlord views.
-   - Test a tenant tax payment and confirm the action button no longer remains active and the paid state renders correctly.
+### `PropertyLocationPicker.tsx`
+- After user enters/changes the GhanaPostGPS code (debounced 600 ms), call `resolveGhanaPostGps`.
+- When both the map pin and GhanaPostGPS coords exist, compute distance and surface:
+  - green check + "Locations match (X m)"
+  - amber alert + "Location needs review (X m)"
+  - red alert + the block message above
+- Expose results via new optional callback `onLocationValidationChange({ status, distanceM, gpsLat, gpsLng })`.
+- Add a "View on map" link next to the GhanaPostGPS field that opens `https://www.google.com/maps?q=<lat>,<lng>` in a new tab once resolved.
 
-## Technical details
+### `RegisterProperty.tsx` and `EditProperty.tsx`
+- Subscribe to the new validation callback; store `gpsLat/gpsLng/distance/status`.
+- On submit:
+  - status `block` → toast error and abort.
+  - status `review` → set `location_review_required = true` on insert/update.
+  - Persist `ghana_post_gps_lat`, `ghana_post_gps_lng`, `location_distance_m`.
 
-- Likely frontend files
-  - `src/pages/regulator/RegulatorFeedback.tsx`
-  - `src/pages/nugs/NugsRentCards.tsx`
-  - `src/pages/regulator/RegulatorRentReviews.tsx`
-  - `src/pages/regulator/RegulatorProperties.tsx`
-  - `src/pages/tenant/Payments.tsx`
-  - `src/pages/landlord/MyProperties.tsx`
-  - `src/pages/landlord/LandlordDashboard.tsx`
+### Admin portal
+- `RegulatorProperties.tsx` detail dialog: render GhanaPostGPS as a link → opens Google Maps using the cached lat/lng (fallback: `https://www.google.com/maps/search/?api=1&query=<code>`).
+- Show a "Location Needs Review" badge on rows where `location_review_required = true`, plus a filter chip in the toolbar to surface them.
+- Add an "Approve location" action (admin-only) that clears the flag and writes a `property_events` row of type `location_review_cleared`.
 
-- Likely backend/database files
-  - `supabase/functions/contact-reply/index.ts`
-  - `supabase/functions/_shared/finalize-payment.ts`
-  - one or more database migrations for:
-    - NUGS rent-card access policies / helper functions
-    - reliable rent-review approval side effects and repair/backfill queries
-    - optional rent-history support/backfill if existing `property_events` data is incomplete
+## Files to add / change
+- `supabase/migrations/<new>.sql` — table + property columns.
+- `supabase/functions/resolve-ghana-post-gps/index.ts` — new function (with cache read/write through service role).
+- `src/lib/locationValidation.ts` — new helper.
+- `src/components/PropertyLocationPicker.tsx` — debounced lookup, distance UI, callback, "view on map" link.
+- `src/pages/landlord/RegisterProperty.tsx` — wire validation, block/review handling, persist new columns.
+- `src/pages/landlord/EditProperty.tsx` — same as above for edits.
+- `src/pages/regulator/RegulatorProperties.tsx` — clickable GhanaPostGPS, review badge + filter, approve action.
 
-- Key root causes found during exploration
-  - Contact replies still use a legacy direct email sender that depends on `RESEND_API_KEY`, while the rest of the project already uses the queued built-in email flow.
-  - The NUGS rent-card page is currently a standalone read-only list and does not connect to the assignment workflow used elsewhere.
-  - Current NUGS policies allow reading `rent_cards`, but not the broader serial-stock / assignment data needed for real management.
-  - Rent-review approval logic currently runs from the page itself, which is why approvals can mark the request approved without guaranteeing all linked rent records and history stay in sync.
-  - Completed tax escrow records exist, but the tenant payment table still contains unpaid/pending rows, so the portal keeps showing an active payment action.
-
-## Expected outcome
-
-- Contact replies arrive by email.
-- NUGS sub-admins can assign rent cards, not just view them.
-- Approved rent increases reflect across property, unit, and landlord-facing views with an admin-visible rent trail.
-- Rent review screens show complete property context.
-- After successful tax payment, tenants see the paid/confirmed/receipt state instead of an active pay button.
+## Notes / risks
+- The Sperse endpoint is unofficial; we cache results and degrade to a soft warning on failure so registration is never permanently blocked by a third-party outage.
+- All new admin actions remain gated by `is_main_admin()` in RLS.
+- No changes to existing rent / tenancy logic — purely location validation.

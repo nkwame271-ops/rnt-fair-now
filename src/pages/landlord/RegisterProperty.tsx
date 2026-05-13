@@ -74,6 +74,12 @@ const RegisterProperty = () => {
   const [gpsLocation, setGpsLocation] = useState("");
   const [gpsConfirmed, setGpsConfirmed] = useState(false);
   const [ghanaPostGps, setGhanaPostGps] = useState("");
+  const [locationValidation, setLocationValidation] = useState<{
+    status: "ok" | "review" | "block" | null;
+    distanceM: number | null;
+    gpsLat: number | null;
+    gpsLng: number | null;
+  }>({ status: null, distanceM: null, gpsLat: null, gpsLng: null });
   const [propertyCondition, setPropertyCondition] = useState("");
   const [propertyCategory, setPropertyCategory] = useState<"residential" | "commercial" | "hostel">("residential");
   const [images, setImages] = useState<File[]>([]);
@@ -166,6 +172,10 @@ const RegisterProperty = () => {
       toast.error("Ghana Post GPS code is required");
       return;
     }
+    if (locationValidation.status === "block") {
+      toast.error("The selected map location does not match the GhanaPostGPS location. Please adjust the map pin or confirm the correct GPS address.");
+      return;
+    }
 
     // Mandatory unit validation (non-hostel branch)
     if (!isHostel) {
@@ -239,6 +249,10 @@ const RegisterProperty = () => {
         gps_confirmed: true,
         gps_confirmed_at: new Date().toISOString(),
         ghana_post_gps: ghanaPostGps,
+        ghana_post_gps_lat: locationValidation.gpsLat,
+        ghana_post_gps_lng: locationValidation.gpsLng,
+        location_distance_m: locationValidation.distanceM,
+        location_review_required: locationValidation.status === "review" || (!!ghanaPostGps && locationValidation.status === null && locationValidation.gpsLat === null),
         property_condition: propertyCondition || null,
         property_category: propertyCategory,
         listed_on_marketplace: false,
@@ -536,6 +550,7 @@ const RegisterProperty = () => {
                   }}
                   onConfirmChange={(next) => setGpsConfirmed(!!next)}
                   onGhanaPostGpsChange={setGhanaPostGps}
+                  onLocationValidationChange={setLocationValidation}
                 />
               </ErrorBoundary>
 

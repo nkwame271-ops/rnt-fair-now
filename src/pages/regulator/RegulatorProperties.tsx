@@ -616,8 +616,51 @@ const RegulatorProperties = () => {
                     </a>
                   </div>
                   <div><span className="text-muted-foreground">Condition:</span> <span className="font-semibold">{detailProperty.property_condition || "—"}</span></div>
-                  <div><span className="text-muted-foreground">GPS:</span> <span className="font-semibold">{detailProperty.gps_location || "—"}</span></div>
-                  <div><span className="text-muted-foreground">Ghana Post GPS:</span> <span className="font-semibold">{detailProperty.ghana_post_gps || "—"}</span></div>
+                  <div>
+                    <span className="text-muted-foreground">GPS:</span>{" "}
+                    {detailProperty.gps_location ? (
+                      <a
+                        href={`https://www.google.com/maps?q=${detailProperty.gps_location}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-primary hover:underline"
+                      >
+                        {detailProperty.gps_location}
+                      </a>
+                    ) : <span className="font-semibold">—</span>}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Ghana Post GPS:</span>{" "}
+                    {detailProperty.ghana_post_gps ? (
+                      <a
+                        href={
+                          (detailProperty as any).ghana_post_gps_lat && (detailProperty as any).ghana_post_gps_lng
+                            ? `https://www.google.com/maps?q=${(detailProperty as any).ghana_post_gps_lat},${(detailProperty as any).ghana_post_gps_lng}`
+                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(detailProperty.ghana_post_gps)}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-primary hover:underline"
+                      >
+                        {detailProperty.ghana_post_gps}
+                      </a>
+                    ) : <span className="font-semibold">—</span>}
+                    {(detailProperty as any).location_distance_m != null && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        ({(detailProperty as any).location_distance_m} m from map pin)
+                      </span>
+                    )}
+                  </div>
+                  {(detailProperty as any).location_review_required && (
+                    <div className="col-span-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <AlertTriangle className="h-4 w-4" /> Location Needs Review
+                      </div>
+                      <p className="mt-1">
+                        The map pin and GhanaPostGPS are more than 50 m apart, or the GhanaPostGPS code could not be verified at registration. Compare both links above before approving.
+                      </p>
+                    </div>
+                  )}
                   <div><span className="text-muted-foreground">Assessment:</span> {assessmentBadge(detailProperty.assessment_status || "pending")}</div>
                   <div><span className="text-muted-foreground">Property Status:</span>{" "}
                     <Badge variant="outline" className={`text-xs ${statusColors[detailProperty.property_status || "pending_assessment"] || ""}`}>

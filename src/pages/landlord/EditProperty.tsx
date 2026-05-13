@@ -9,8 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, Save, Lock, AlertTriangle, Building2 } from "lucide-react";
+import { Loader2, ArrowLeft, Save, Lock, AlertTriangle, Building2, ExternalLink } from "lucide-react";
 import { regions, areasByRegion } from "@/data/dummyData";
+import {
+  resolveGhanaPostGps,
+  validateGhanaPostGpsFormat,
+  haversineMeters,
+  classifyDistance,
+  googleMapsLink,
+  type ResolvedGps,
+} from "@/lib/locationValidation";
+import { parseGPS } from "@/lib/gpsUtils";
 
 const unitTypePresets = [
   "Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom",
@@ -56,6 +65,37 @@ const EditProperty = () => {
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
   const [units, setUnits] = useState<EditableUnit[]>([]);
   const [occupiedUnitIds, setOccupiedUnitIds] = useState<Set<string>>(new Set());
+  const [gpsLocation, setGpsLocation] = useState<string>("");
+  const [gpsState, setGpsState] = useState<
+    | { kind: "idle" }
+    | { kind: "loading" }
+    | { kind: "invalid" }
+    | { kind: "failed" }
+    | { kind: "resolved"; data: ResolvedGps }
+  >({ kind: "idle" });
+
+  useEffect(() => {
+    const code = (ghanaPostGps || "").trim().toUpperCase();
+    if (!code) { setGpsState({ kind: "idle" }); return; }
+    if (!validateGhanaPostGpsFormat(code)) { setGpsState({ kind: "invalid" }); return; }
+    let cancelled = false;
+    setGpsState({ kind: "loading" });
+    const t = window.setTimeout(async () => {
+      const r = await resolveGhanaPostGps(code);
+      if (cancelled) return;
+      if ("error" in r) setGpsState({ kind: "failed" });
+      else setGpsState({ kind: "resolved", data: r });
+    }, 600);
+    return () => { cancelled = true; window.clearTimeout(t); };
+  }, [ghanaPostGps]);
+
+  const pin = parseGPS(gpsLocation);
+  const distanceInfo = (gpsState.kind === "resolved" && pin)
+    ? (() => {
+        const meters = haversineMeters(pin, gpsState.data);
+        return { meters, ...classifyDistance(meters) };
+      })()
+    : null;
 
   useEffect(() => {
     if (!user || !id) return;
@@ -75,6 +115,7 @@ const EditProperty = () => {
       setArea(prop.area);
       setCondition(prop.property_condition || "");
       setGhanaPostGps(prop.ghana_post_gps || "");
+      setGpsLocation((prop as any).gps_location || "");
       setPropertyCategory(((prop as any).property_category as "residential" | "commercial") || "residential");
       setOwnershipType((prop as any).ownership_type || "owner");
       setLocationLocked(prop.location_locked || false);
@@ -134,8 +175,23 @@ const EditProperty = () => {
       toast.error("Address, region, and area are required");
       return;
     }
+    if (!locationLocked && distanceInfo?.level === "block") {
+      toast.error("The selected map location does not match the GhanaPostGPS location. Please adjust the map pin or confirm the correct GPS address.");
+      return;
+    }
     setSaving(true);
     const normalizedAddr = address.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+    const locationFields = locationLocked
+      ? {}
+      : {
+          ghana_post_gps: ghanaPostGps || null,
+          ghana_post_gps_lat: gpsState.kind === "resolved" ? gpsState.data.lat : null,
+          ghana_post_gps_lng: gpsState.kind === "resolved" ? gpsState.data.lng : null,
+          location_distance_m: distanceInfo?.meters ?? null,
+          location_review_required:
+            distanceInfo?.level === "review" ||
+            (!!ghanaPostGps && (gpsState.kind === "failed" || gpsState.kind === "invalid")),
+        };
     const { error } = await supabase
       .from("properties")
       .update({
@@ -144,10 +200,10 @@ const EditProperty = () => {
         region,
         area,
         property_condition: condition || null,
-        ghana_post_gps: locationLocked ? undefined : (ghanaPostGps || null),
         property_category: propertyCategory,
         ownership_type: ownershipType,
         normalized_address: normalizedAddr,
+        ...locationFields,
       } as any)
       .eq("id", id!)
       .eq("landlord_user_id", user!.id);
@@ -292,6 +348,41 @@ const EditProperty = () => {
             disabled={locationLocked}
           />
           {locationLocked && <p className="text-xs text-muted-foreground">Location is locked after approval. Contact admin to change.</p>}
+          {!locationLocked && gpsState.kind === "loading" && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Verifying GhanaPostGPS code…</p>
+          )}
+          {!locationLocked && gpsState.kind === "invalid" && ghanaPostGps && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">Format looks wrong. Use <code>GA-123-4567</code>.</p>
+          )}
+          {!locationLocked && gpsState.kind === "failed" && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">Could not verify this code right now. Saving will mark this property for review.</p>
+          )}
+          {!locationLocked && gpsState.kind === "resolved" && (
+            <div className="space-y-1">
+              <a
+                href={googleMapsLink(gpsState.data.lat, gpsState.data.lng)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary inline-flex items-center gap-1 hover:underline"
+              >
+                View on map <ExternalLink className="h-3 w-3" />
+              </a>
+              {distanceInfo && (
+                <p
+                  className={
+                    "text-xs " +
+                    (distanceInfo.level === "ok"
+                      ? "text-success"
+                      : distanceInfo.level === "review"
+                        ? "text-amber-700 dark:text-amber-400"
+                        : "text-destructive")
+                  }
+                >
+                  {distanceInfo.message}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
