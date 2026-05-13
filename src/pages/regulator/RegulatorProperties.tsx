@@ -85,7 +85,8 @@ const RegulatorProperties = () => {
   const openDetail = async (p: any) => {
     setDetailProperty(p);
     setDetailLandlord(null);
-    const [imgRes, profRes, llRes] = await Promise.all([
+    setDetailRentHistory([]);
+    const [imgRes, profRes, llRes, evRes] = await Promise.all([
       supabase.from("property_images").select("*").eq("property_id", p.id),
       p.landlord_user_id
         ? supabase.from("profiles").select("full_name, phone, email").eq("user_id", p.landlord_user_id).maybeSingle()
@@ -93,8 +94,10 @@ const RegulatorProperties = () => {
       p.landlord_user_id
         ? supabase.from("landlords").select("landlord_id").eq("user_id", p.landlord_user_id).maybeSingle()
         : Promise.resolve({ data: null }),
+      supabase.from("property_events").select("*").eq("property_id", p.id).eq("event_type", "rent_update").order("created_at", { ascending: false }),
     ]);
     setDetailImages(imgRes.data || []);
+    setDetailRentHistory((evRes as any).data || []);
     setDetailLandlord({
       full_name: (profRes.data as any)?.full_name,
       phone: (profRes.data as any)?.phone,
