@@ -92,6 +92,7 @@ const EditProperty = () => {
       setArea(prop.area);
       setCondition(prop.property_condition || "");
       setGhanaPostGps(prop.ghana_post_gps || "");
+      setGpsLocation((prop as any).gps_location || "");
       setPropertyCategory(((prop as any).property_category as "residential" | "commercial") || "residential");
       setOwnershipType((prop as any).ownership_type || "owner");
       setLocationLocked(prop.location_locked || false);
