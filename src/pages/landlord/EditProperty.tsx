@@ -9,8 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, Save, Lock, AlertTriangle, Building2 } from "lucide-react";
+import { Loader2, ArrowLeft, Save, Lock, AlertTriangle, Building2, ExternalLink } from "lucide-react";
 import { regions, areasByRegion } from "@/data/dummyData";
+import {
+  resolveGhanaPostGps,
+  validateGhanaPostGpsFormat,
+  haversineMeters,
+  classifyDistance,
+  googleMapsLink,
+  type ResolvedGps,
+} from "@/lib/locationValidation";
+import { parseGPS } from "@/lib/gpsUtils";
 
 const unitTypePresets = [
   "Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom",
