@@ -28,6 +28,7 @@ const RegulatorProperties = () => {
   const [detailProperty, setDetailProperty] = useState<any | null>(null);
   const [detailLandlord, setDetailLandlord] = useState<{ full_name?: string; phone?: string; email?: string; landlord_id?: string } | null>(null);
   const [detailImages, setDetailImages] = useState<any[]>([]);
+  const [detailRentHistory, setDetailRentHistory] = useState<any[]>([]);
   const [approving, setApproving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -84,7 +85,8 @@ const RegulatorProperties = () => {
   const openDetail = async (p: any) => {
     setDetailProperty(p);
     setDetailLandlord(null);
-    const [imgRes, profRes, llRes] = await Promise.all([
+    setDetailRentHistory([]);
+    const [imgRes, profRes, llRes, evRes] = await Promise.all([
       supabase.from("property_images").select("*").eq("property_id", p.id),
       p.landlord_user_id
         ? supabase.from("profiles").select("full_name, phone, email").eq("user_id", p.landlord_user_id).maybeSingle()
@@ -92,8 +94,10 @@ const RegulatorProperties = () => {
       p.landlord_user_id
         ? supabase.from("landlords").select("landlord_id").eq("user_id", p.landlord_user_id).maybeSingle()
         : Promise.resolve({ data: null }),
+      supabase.from("property_events").select("*").eq("property_id", p.id).eq("event_type", "rent_update").order("created_at", { ascending: false }),
     ]);
     setDetailImages(imgRes.data || []);
+    setDetailRentHistory((evRes as any).data || []);
     setDetailLandlord({
       full_name: (profRes.data as any)?.full_name,
       phone: (profRes.data as any)?.phone,
@@ -685,6 +689,33 @@ const RegulatorProperties = () => {
                     ))}
                   </div>
                 </div>
+
+                {detailRentHistory.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold text-card-foreground mb-2 flex items-center gap-2">
+                      <ClipboardCheck className="h-4 w-4 text-primary" /> Rent History
+                    </h3>
+                    <div className="space-y-2">
+                      {detailRentHistory.map((ev: any) => {
+                        const oldRent = Number(ev.old_value?.rent ?? 0);
+                        const newRent = Number(ev.new_value?.rent ?? 0);
+                        const delta = oldRent > 0 ? Math.round(((newRent - oldRent) / oldRent) * 100) : 0;
+                        return (
+                          <div key={ev.id} className="bg-muted/40 border border-border/50 rounded-lg p-3 text-sm">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">
+                                GH₵ {oldRent.toLocaleString()} → <span className="text-success">GH₵ {newRent.toLocaleString()}</span>
+                                {oldRent > 0 && <span className="ml-2 text-xs text-muted-foreground">({delta > 0 ? "+" : ""}{delta}%)</span>}
+                              </span>
+                              <span className="text-xs text-muted-foreground">{new Date(ev.created_at).toLocaleDateString()}</span>
+                            </div>
+                            {ev.reason && <div className="text-xs text-muted-foreground mt-1">{ev.reason}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {((detailProperty.assessment_status || "pending") !== "approved" || (detailProperty as any).property_status === "pending_assessment") && (
                   <div className="flex gap-2">
