@@ -952,7 +952,7 @@ const RegulatorComplaints = () => {
                       src={url}
                       alt={`Evidence ${i + 1}`}
                       className="w-16 h-16 rounded-lg object-cover border border-border hover:opacity-80 cursor-pointer"
-                      onClick={() => window.open(url, "_blank")}
+                      onClick={() => openSignedStorageUrl(url)}
                     />
                   ))}
                 </div>

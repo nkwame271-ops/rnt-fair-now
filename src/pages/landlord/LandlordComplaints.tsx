@@ -527,7 +527,13 @@ const LandlordComplaints = () => {
               {c.evidence_urls?.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {c.evidence_urls.map((url: string, i: number) => (
-                    <img key={i} src={url} alt={`Doc ${i + 1}`} className="w-16 h-16 rounded-lg object-cover border border-border" />
+                    <SignedImage
+                      key={i}
+                      src={url}
+                      alt={`Doc ${i + 1}`}
+                      className="w-16 h-16 rounded-lg object-cover border border-border hover:opacity-80 cursor-pointer"
+                      onClick={() => openSignedStorageUrl(url)}
+                    />
                   ))}
                 </div>
               )}
