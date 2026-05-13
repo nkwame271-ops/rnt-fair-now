@@ -353,6 +353,7 @@ const PropertyLocationPicker = ({
               className="text-sm font-mono"
               maxLength={20}
             />
+            {renderGpsValidation()}
           </div>
         )}
 
