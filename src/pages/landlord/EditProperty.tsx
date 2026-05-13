@@ -348,6 +348,41 @@ const EditProperty = () => {
             disabled={locationLocked}
           />
           {locationLocked && <p className="text-xs text-muted-foreground">Location is locked after approval. Contact admin to change.</p>}
+          {!locationLocked && gpsState.kind === "loading" && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Verifying GhanaPostGPS code…</p>
+          )}
+          {!locationLocked && gpsState.kind === "invalid" && ghanaPostGps && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">Format looks wrong. Use <code>GA-123-4567</code>.</p>
+          )}
+          {!locationLocked && gpsState.kind === "failed" && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">Could not verify this code right now. Saving will mark this property for review.</p>
+          )}
+          {!locationLocked && gpsState.kind === "resolved" && (
+            <div className="space-y-1">
+              <a
+                href={googleMapsLink(gpsState.data.lat, gpsState.data.lng)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary inline-flex items-center gap-1 hover:underline"
+              >
+                View on map <ExternalLink className="h-3 w-3" />
+              </a>
+              {distanceInfo && (
+                <p
+                  className={
+                    "text-xs " +
+                    (distanceInfo.level === "ok"
+                      ? "text-success"
+                      : distanceInfo.level === "review"
+                        ? "text-amber-700 dark:text-amber-400"
+                        : "text-destructive")
+                  }
+                >
+                  {distanceInfo.message}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
