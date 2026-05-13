@@ -4651,6 +4651,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_rent_increase_request: {
+        Args: {
+          p_request_id: string
+          p_reviewer: string
+          p_reviewer_notes?: string
+        }
+        Returns: Json
+      }
       assign_serials_atomic: {
         Args: {
           p_assigned_by: string

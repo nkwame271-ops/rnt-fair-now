@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { FROM_ADDRESS, ROOT_DOMAIN } from "../_shared/project-domain.ts";
+import { FROM_ADDRESS, ROOT_DOMAIN, SENDER_DOMAIN } from "../_shared/project-domain.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,26 +28,37 @@ function emailLayout(content: string, subject: string) {
 </body></html>`;
 }
 
-async function sendEmailViaResend(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
-  const apiKey = Deno.env.get("RESEND_API_KEY");
-  if (!apiKey) {
-    console.warn("RESEND_API_KEY not configured; email logged only.");
-    return { ok: true };
-  }
+/**
+ * Enqueue an email through the project's queued email pipeline so the dispatcher
+ * (process-email-queue) actually delivers it. This mirrors send-notification.
+ */
+async function enqueueEmail(admin: any, to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   try {
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: FROM_ADDRESS,
-        to: [to], subject, html,
-      }),
+    const messageId = crypto.randomUUID();
+    await admin.from("email_send_log").insert({
+      message_id: messageId,
+      template_name: "contact_reply",
+      recipient_email: to,
+      status: "pending",
     });
-    if (!r.ok) {
-      const text = await r.text();
-      return { ok: false, error: `Resend ${r.status}: ${text.slice(0, 200)}` };
-    }
-    return { ok: true };
+    const { error } = await admin.rpc("enqueue_email", {
+      queue_name: "transactional_emails",
+      payload: {
+        message_id: messageId,
+        to,
+        from: FROM_ADDRESS,
+        sender_domain: SENDER_DOMAIN,
+        subject,
+        html,
+        text: subject,
+        purpose: "transactional",
+        label: "contact_reply",
+        idempotency_key: messageId,
+        queued_at: new Date().toISOString(),
+      },
+    });
+    if (error) return { ok: false, error: `Email queue error: ${error.message}` };
+    return { ok: true, messageId };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
@@ -103,12 +114,14 @@ Deno.serve(async (req) => {
 
     let dispatchTo: string | null = null;
     let dispatchError: string | null = null;
+    let dispatchInfo: Record<string, any> = {};
 
     if (channel === "email") {
       if (!submission.email) return json({ success: false, error: "This contact has no email address on file" });
       const finalSubject = subject || "Reply from Rent Control Ghana";
-      const r = await sendEmailViaResend(submission.email, finalSubject, emailLayout(messageBody, finalSubject));
-      if (!r.ok) dispatchError = r.error || "Email dispatch failed";
+      const r = await enqueueEmail(admin, submission.email, finalSubject, emailLayout(messageBody, finalSubject));
+      if (!r.ok) dispatchError = r.error || "Email enqueue failed";
+      else dispatchInfo.message_id = r.messageId;
       dispatchTo = submission.email;
     } else {
       if (!submission.phone) return json({ success: false, error: "This contact has no phone number on file" });
@@ -151,7 +164,14 @@ Deno.serve(async (req) => {
       return json({ success: false, error: dispatchError, reply_logged: !!replyRow, reply: replyRow });
     }
 
-    return json({ success: true, reply: replyRow, dispatch: { channel, to: dispatchTo } });
+    return json({
+      success: true,
+      reply: replyRow,
+      dispatch: { channel, to: dispatchTo, ...dispatchInfo },
+      message: channel === "email"
+        ? "Email queued for delivery — it will be sent within seconds."
+        : "SMS dispatched.",
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     console.error("contact-reply unhandled error", msg);
