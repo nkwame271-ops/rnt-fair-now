@@ -75,6 +75,29 @@ const EditProperty = () => {
   >({ kind: "idle" });
 
   useEffect(() => {
+    const code = (ghanaPostGps || "").trim().toUpperCase();
+    if (!code) { setGpsState({ kind: "idle" }); return; }
+    if (!validateGhanaPostGpsFormat(code)) { setGpsState({ kind: "invalid" }); return; }
+    let cancelled = false;
+    setGpsState({ kind: "loading" });
+    const t = window.setTimeout(async () => {
+      const r = await resolveGhanaPostGps(code);
+      if (cancelled) return;
+      if ("error" in r) setGpsState({ kind: "failed" });
+      else setGpsState({ kind: "resolved", data: r });
+    }, 600);
+    return () => { cancelled = true; window.clearTimeout(t); };
+  }, [ghanaPostGps]);
+
+  const pin = parseGPS(gpsLocation);
+  const distanceInfo = (gpsState.kind === "resolved" && pin)
+    ? (() => {
+        const meters = haversineMeters(pin, gpsState.data);
+        return { meters, ...classifyDistance(meters) };
+      })()
+    : null;
+
+  useEffect(() => {
     if (!user || !id) return;
     const fetchData = async () => {
       const [{ data: prop, error: propErr }, { data: unitData }] = await Promise.all([
