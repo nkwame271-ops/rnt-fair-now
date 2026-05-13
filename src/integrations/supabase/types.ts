@@ -1361,6 +1361,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ghana_post_gps_cache: {
+        Row: {
+          area: string | null
+          code: string
+          district: string | null
+          formatted: string | null
+          lat: number
+          lng: number
+          region: string | null
+          resolved_at: string
+        }
+        Insert: {
+          area?: string | null
+          code: string
+          district?: string | null
+          formatted?: string | null
+          lat: number
+          lng: number
+          region?: string | null
+          resolved_at?: string
+        }
+        Update: {
+          area?: string | null
+          code?: string
+          district?: string | null
+          formatted?: string | null
+          lat?: number
+          lng?: number
+          region?: string | null
+          resolved_at?: string
+        }
+        Relationships: []
+      }
       hostel_room_categories: {
         Row: {
           block_label: string | null
@@ -2728,6 +2761,8 @@ export type Database = {
           duplicate_old_rent: number | null
           furnishing_status: string | null
           ghana_post_gps: string | null
+          ghana_post_gps_lat: number | null
+          ghana_post_gps_lng: number | null
           gps_confirmed: boolean
           gps_confirmed_at: string | null
           gps_location: string | null
@@ -2735,9 +2770,11 @@ export type Database = {
           landlord_user_id: string
           last_assessment_id: string | null
           listed_on_marketplace: boolean
+          location_distance_m: number | null
           location_locked: boolean
           location_locked_at: string | null
           location_locked_by: string | null
+          location_review_required: boolean
           normalized_address: string | null
           occupancy_type: string | null
           office_id: string | null
@@ -2771,6 +2808,8 @@ export type Database = {
           duplicate_old_rent?: number | null
           furnishing_status?: string | null
           ghana_post_gps?: string | null
+          ghana_post_gps_lat?: number | null
+          ghana_post_gps_lng?: number | null
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
@@ -2778,9 +2817,11 @@ export type Database = {
           landlord_user_id: string
           last_assessment_id?: string | null
           listed_on_marketplace?: boolean
+          location_distance_m?: number | null
           location_locked?: boolean
           location_locked_at?: string | null
           location_locked_by?: string | null
+          location_review_required?: boolean
           normalized_address?: string | null
           occupancy_type?: string | null
           office_id?: string | null
@@ -2814,6 +2855,8 @@ export type Database = {
           duplicate_old_rent?: number | null
           furnishing_status?: string | null
           ghana_post_gps?: string | null
+          ghana_post_gps_lat?: number | null
+          ghana_post_gps_lng?: number | null
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
@@ -2821,9 +2864,11 @@ export type Database = {
           landlord_user_id?: string
           last_assessment_id?: string | null
           listed_on_marketplace?: boolean
+          location_distance_m?: number | null
           location_locked?: boolean
           location_locked_at?: string | null
           location_locked_by?: string | null
+          location_review_required?: boolean
           normalized_address?: string | null
           occupancy_type?: string | null
           office_id?: string | null
