@@ -75,6 +75,10 @@ const RegulatorTenants = lazy(() => import("./pages/regulator/RegulatorTenants")
 const RegulatorLandlords = lazy(() => import("./pages/regulator/RegulatorLandlords"));
 const RegulatorProperties = lazy(() => import("./pages/regulator/RegulatorProperties"));
 const RegulatorComplaints = lazy(() => import("./pages/regulator/RegulatorComplaints"));
+const AdminFileComplaint = lazy(() => import("./pages/regulator/AdminFileComplaint"));
+const FormEngine = lazy(() => import("./pages/regulator/FormEngine"));
+const FormTemplateEditor = lazy(() => import("./pages/regulator/FormTemplateEditor"));
+const FormFill = lazy(() => import("./pages/regulator/FormFill"));
 const RegulatorAgreements = lazy(() => import("./pages/regulator/RegulatorAgreements"));
 const RegulatorAgreementTemplates = lazy(() => import("./pages/regulator/RegulatorAgreementTemplates"));
 const RegulatorAnalytics = lazy(() => import("./pages/regulator/RegulatorAnalytics"));
@@ -198,6 +202,10 @@ const App = () => (
                 <Route path="landlords" element={<RegulatorLandlords />} />
                 <Route path="properties" element={<RegulatorProperties />} />
                 <Route path="complaints" element={<RegulatorComplaints />} />
+                <Route path="complaints/new" element={<AdminFileComplaint />} />
+                <Route path="form-engine" element={<FormEngine />} />
+                <Route path="form-engine/:id" element={<FormTemplateEditor />} />
+                <Route path="form-engine/:id/fill" element={<FormFill />} />
                 <Route path="escalated-student-complaints" element={<ErrorBoundary section="Escalated Student Complaints"><EscalatedStudentComplaints /></ErrorBoundary>} />
                 <Route path="agreements" element={<RegulatorAgreements />} />
                 <Route path="applications" element={<RegulatorApplications />} />

@@ -737,10 +737,12 @@ export type Database = {
       }
       complaints: {
         Row: {
+          admin_filer_user_id: string | null
           assigned_nugs_user_id: string | null
           audio_url: string | null
           basket_total: number | null
           claim_amount: number | null
+          complainant_role: string | null
           complaint_code: string
           complaint_property_id: string | null
           complaint_type: string
@@ -753,29 +755,41 @@ export type Database = {
           escalated_to_rent_control: boolean
           escalation_reason: string | null
           evidence_urls: string[] | null
+          filed_by_admin: boolean
           gps_confirmed: boolean
           gps_confirmed_at: string | null
           gps_location: string | null
           id: string
           landlord_name: string
           linked_property_id: string | null
+          linked_unit_id: string | null
           nugs_school: string | null
           office_id: string | null
           outstanding_amount: number | null
           payment_status: string
+          physical_docket_ref: string | null
+          placeholder_complainant_name: string | null
+          placeholder_complainant_phone: string | null
+          placeholder_respondent_name: string | null
+          placeholder_respondent_phone: string | null
           property_address: string
           receipt_id: string | null
           region: string
+          rent_amount: number | null
+          respondent_role: string | null
+          respondent_user_id: string | null
           status: string
-          tenant_user_id: string
+          tenant_user_id: string | null
           ticket_number: string
           updated_at: string
         }
         Insert: {
+          admin_filer_user_id?: string | null
           assigned_nugs_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
           claim_amount?: number | null
+          complainant_role?: string | null
           complaint_code: string
           complaint_property_id?: string | null
           complaint_type: string
@@ -788,29 +802,41 @@ export type Database = {
           escalated_to_rent_control?: boolean
           escalation_reason?: string | null
           evidence_urls?: string[] | null
+          filed_by_admin?: boolean
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
           id?: string
           landlord_name: string
           linked_property_id?: string | null
+          linked_unit_id?: string | null
           nugs_school?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
+          physical_docket_ref?: string | null
+          placeholder_complainant_name?: string | null
+          placeholder_complainant_phone?: string | null
+          placeholder_respondent_name?: string | null
+          placeholder_respondent_phone?: string | null
           property_address: string
           receipt_id?: string | null
           region: string
+          rent_amount?: number | null
+          respondent_role?: string | null
+          respondent_user_id?: string | null
           status?: string
-          tenant_user_id: string
+          tenant_user_id?: string | null
           ticket_number?: string
           updated_at?: string
         }
         Update: {
+          admin_filer_user_id?: string | null
           assigned_nugs_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
           claim_amount?: number | null
+          complainant_role?: string | null
           complaint_code?: string
           complaint_property_id?: string | null
           complaint_type?: string
@@ -823,21 +849,31 @@ export type Database = {
           escalated_to_rent_control?: boolean
           escalation_reason?: string | null
           evidence_urls?: string[] | null
+          filed_by_admin?: boolean
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
           id?: string
           landlord_name?: string
           linked_property_id?: string | null
+          linked_unit_id?: string | null
           nugs_school?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
+          physical_docket_ref?: string | null
+          placeholder_complainant_name?: string | null
+          placeholder_complainant_phone?: string | null
+          placeholder_respondent_name?: string | null
+          placeholder_respondent_phone?: string | null
           property_address?: string
           receipt_id?: string | null
           region?: string
+          rent_amount?: number | null
+          respondent_role?: string | null
+          respondent_user_id?: string | null
           status?: string
-          tenant_user_id?: string
+          tenant_user_id?: string | null
           ticket_number?: string
           updated_at?: string
         }
@@ -1319,6 +1355,105 @@ export type Database = {
           portal?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      form_submissions: {
+        Row: {
+          complaint_id: string | null
+          created_at: string
+          data: Json
+          generated_by: string | null
+          id: string
+          pdf_url: string | null
+          status: string
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          complaint_id?: string | null
+          created_at?: string
+          data?: Json
+          generated_by?: string | null
+          id?: string
+          pdf_url?: string | null
+          status?: string
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          complaint_id?: string | null
+          created_at?: string
+          data?: Json
+          generated_by?: string | null
+          id?: string
+          pdf_url?: string | null
+          status?: string
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_complaint_id_fkey"
+            columns: ["complaint_id"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "form_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department: string | null
+          effective_date: string | null
+          form_name: string
+          form_number: string | null
+          id: string
+          layout: Json
+          regulation_ref: string | null
+          schema: Json
+          status: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          effective_date?: string | null
+          form_name: string
+          form_number?: string | null
+          id?: string
+          layout?: Json
+          regulation_ref?: string | null
+          schema?: Json
+          status?: string
+          updated_at?: string
+          version?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          effective_date?: string | null
+          form_name?: string
+          form_number?: string | null
+          id?: string
+          layout?: Json
+          regulation_ref?: string | null
+          schema?: Json
+          status?: string
+          updated_at?: string
+          version?: string
         }
         Relationships: []
       }
