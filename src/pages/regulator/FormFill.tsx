@@ -32,7 +32,7 @@ const FormFill = () => {
 
       const ctx = await buildAutofillContext(complaintId);
       const filled: Record<string, any> = {};
-      const sections = (t.schema?.sections || []) as any[];
+      const sections = (((t.schema as any)?.sections) || []) as any[];
       for (const sec of sections) {
         for (const f of sec.fields || []) {
           if (f.autofill?.source && f.autofill?.path) {
