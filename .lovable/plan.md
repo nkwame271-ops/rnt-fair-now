@@ -1,38 +1,150 @@
-## Two Complaint bugs — root causes & fix plan
 
-### Bug 1 — Admin "Attached download" returns `{statusCode: "404", error: "Bucket not found"}`
+# Admin-Assisted Complaint Filing & Rent Control Form Engine
 
-**Root cause:** Evidence is stored in the **private** bucket `application-evidence`, but the upload code calls `supabase.storage.from(...).getPublicUrl(path)` and saves that URL into `complaints.evidence_urls`. The thumbnail in `RegulatorComplaints.tsx` (line 947–957) renders correctly because `<SignedImage>` re-signs the URL via `useSignedStorageUrl`, but the **click handler** (`onClick={() => window.open(url, "_blank")}`) opens the **raw public URL**, which 404s because the bucket is private.
+This is a large, two-part build. I'll deliver it in two coordinated phases inside the Admin (Regulator) Portal so the existing complaint workflow stays intact.
 
-**Fix:** On click, resolve the URL through the same signing path before opening. Use the existing `parseStorageUrl` + `supabase.storage.createSignedUrl` (mirrors what `useSignedStorageUrl` already does). Apply the same fix to:
-- `src/pages/regulator/RegulatorComplaints.tsx` (tenant complaints `<SignedImage onClick>` and the landlord-complaints evidence block at line 947–957, which currently uses bare `<SignedImage>` with no click — add the same signed open).
-- `src/pages/landlord/LandlordComplaints.tsx` line 520–526 — currently `<img src={url}>` of a private URL → broken thumbnails. Switch to `<SignedImage>` + signed-open click.
-- `src/pages/tenant/FileComplaint.tsx` if it renders past evidence (verify and fix the same way).
+---
 
-Add a small shared helper `openSignedStorageUrl(url)` in `src/lib/` so all three pages share one implementation.
+## Part 1 — Admin-Assisted Complaint Filing
 
-### Bug 2 — Landlord "Pay Now" returns "Not authenticated"
+### New page
+`src/pages/regulator/AdminFileComplaint.tsx` — accessible from `RegulatorComplaints` via a new **"File Complaint on Behalf"** button, and as a route `/regulator/complaints/new`.
 
-**Root cause:** `supabase-checkout` requires the `Authorization: Bearer …` header (line 254–264 of `paystack-checkout/index.ts`). `supabase.functions.invoke` only attaches the header when the session is already loaded. On `LandlordComplaints.tsx`, `handlePayNow` invokes the function without first confirming the session is ready, so under a race (page mounted before `getSession()` resolves, refresh-token flight, or stale session) the header is missing and the function throws "Not authenticated".
+### Form fields
+- Complainant type: Tenant / Landlord / Interested Person
+- Respondent type: Tenant / Landlord / Interested Person
+- Complainant: search existing user (by phone/name/Ghana Card) OR enter name + phone
+- Respondent: search existing user OR enter name + phone
+- Property/premises: if complainant or respondent is linked, show their registered properties → select property → select unit (multi-unit) → auto-load rent value, rent band, tenancy
+- Free-text address fallback when no linked property
+- Rent amount (auto-filled from unit if linked, editable)
+- Complaint type (existing `complaint_types` table)
+- Description (long text)
+- Attachments (uploads to existing `application-evidence` bucket)
+- Office handling complaint (offices dropdown, defaults from region)
+- Optional **docket / physical case reference number** (free text, stored on complaint)
+- Optional region (auto from office)
 
-**Fix in `src/pages/landlord/LandlordComplaints.tsx` `handlePayNow`:**
-1. Call `const { data: { session } } = await supabase.auth.getSession();` first.
-2. If no `session`, show toast "Please sign in again" and abort (or push to login).
-3. Pass the token explicitly to `invoke`:
-   ```ts
-   await supabase.functions.invoke("paystack-checkout", {
-     body: { type: "complaint_fee", complaintId: complaint.id },
-     headers: { Authorization: `Bearer ${session.access_token}` },
-   });
-   ```
-4. Apply the same guard to the equivalent `handlePayNow` in `src/pages/nugs/NugsMyComplaints.tsx` and any tenant complaint Pay-Now button (audit `MyCases.tsx` / `Payments.tsx` for the same pattern) so the bug doesn't recur in the other portals.
+### Submission behavior
+Insert into existing `complaints` table with:
+- `filed_by_admin = true` (new column)
+- `admin_filer_user_id = auth.uid()`
+- `physical_docket_ref` (new column)
+- `complainant_role`, `respondent_role` (extend existing columns / add)
+- `placeholder_complainant_name/phone`, `placeholder_respondent_name/phone` for non-platform users
+- Reuses `generate_complaint_ticket()` so ticket flows identically
+- Status: `submitted` → admin can request payment, assign, schedule (existing flows in `RegulatorComplaints` continue to work)
 
-### Files to change
-- `src/lib/openSignedUrl.ts` *(new helper)*
-- `src/pages/regulator/RegulatorComplaints.tsx` — signed-open on evidence thumbnails (both tenant + landlord complaint blocks)
-- `src/pages/landlord/LandlordComplaints.tsx` — signed thumbnails + signed-open click; auth-ready guard in `handlePayNow`
-- `src/pages/tenant/FileComplaint.tsx` — signed-open if rendering evidence
-- `src/pages/nugs/NugsMyComplaints.tsx` — same auth-ready guard in `handlePayNow`
-- `src/pages/tenant/MyCases.tsx` / `Payments.tsx` — apply auth-ready guard wherever `paystack-checkout` is invoked
+### Placeholder profiles & SMS invites
+- If a party isn't on the platform, store their name/phone on the complaint as placeholder fields
+- Send SMS via existing `send-sms` function:
+  - Complainant: "Your complaint TKT-… has been filed on your behalf at <office>. Register at rentcontrolghana.com using <phone> to track it."
+  - Respondent: "A complaint TKT-… has been filed against you at <office>. Register at rentcontrolghana.com using <phone> to respond."
+- SMS only fires when phone provided
 
-No DB migrations, no edge-function changes, no bucket changes.
+### Search component
+New `src/components/PartySearchCombobox.tsx` — searches `profiles` by phone/name, returns `{user_id, full_name, phone, role}`. Used for both complainant and respondent fields.
+
+### Property/unit cascade
+New `src/components/LinkedPropertyPicker.tsx` — when a tenant/landlord is linked, fetches their properties (landlord) or current tenancy property (tenant), then units, then auto-fills rent + rent band via existing `compute-rent-benchmark` logic.
+
+---
+
+## Part 2 — Rent Control Form Engine
+
+A flexible, metadata-driven template system. Templates are stored in DB, rendered + filled at runtime, exported as PDF.
+
+### Database (one migration)
+
+```text
+form_templates
+  id, form_name, form_number, regulation_ref, department, version,
+  effective_date, status (draft/active/retired), schema (jsonb),
+  layout (jsonb), created_by, created_at, updated_at
+
+form_submissions
+  id, template_id, complaint_id (nullable), case_id (nullable),
+  data (jsonb), status (draft/finalized), pdf_url, generated_by,
+  created_at, updated_at
+```
+
+`schema` jsonb shape:
+```text
+{
+  sections: [
+    { id, title, order, fields: [
+      { id, type, label, required, options?, autofill?: {source, path}, ... }
+    ]}
+  ]
+}
+```
+
+`layout` jsonb shape: title position, header, footer, signature/stamp/QR areas, page size.
+
+RLS: only admin staff (`is_main_admin`) can CRUD templates; submissions readable by admins + linked complaint parties.
+
+### Field types supported
+text, number, date, dropdown, checkbox, long text, file upload, signature, stamp, table, auto-filled
+
+### Auto-fill sources
+`profile`, `landlord`, `tenant`, `complaint`, `property`, `tenancy`, `payment`, `appointment`, `officer` — resolved server-side via a lightweight resolver in `src/lib/formAutofill.ts` that takes `{templateId, complaintId}` and returns the merged data object.
+
+### Pages
+- `src/pages/regulator/FormEngine.tsx` — list of templates + "New Template" + edit/clone
+- `src/pages/regulator/FormTemplateEditor.tsx` — drag-order sections/fields, configure metadata, layout, autofill mapping, preview
+- `src/pages/regulator/FormFill.tsx` — fill a template against an optional complaint, save draft, preview, generate PDF, attach to complaint
+- Entry from `RegulatorComplaints` complaint detail: **"Generate Form"** button → choose template → opens FormFill prefilled
+
+### PDF rendering
+`src/lib/generateDynamicFormPdf.ts` — uses existing `jsPDF` (already a dep via `generateComplaintPdf`). Reads `layout` + filled `data`, renders sections/fields, embeds signatures (PNG), QR (existing qrcode dep), page-size aware. Saves to storage bucket `form-outputs` (new, private) and stores URL on `form_submissions`. Attaches to complaint via `complaint_attachments` (existing) when "Attach to complaint" chosen.
+
+### Preloaded templates
+After migration, seed two `form_templates` rows via the `insert` tool:
+- **Form 7 — Complaint Against Conduct of Landlord/Tenant/Person Interested in Premises**
+  Sections: Complainant Details, Respondent Details, Premises Details, Particulars of Complaint, Declaration, Officer Section
+  Autofill from `complaint` + `complainant.profile` + `respondent.profile` + `property` + `tenancy`
+- **Form 33 — Summons to Person Against Whom Complaint Has Been Made**
+  Sections: Court/Office Header, Respondent Details, Complaint Reference, Hearing Details, Officer Signature, Stamp
+  Autofill from `complaint` + `appointment` + `office`
+
+### Form actions on FormFill page
+Save draft · Preview · Generate PDF · Download · Print · Attach to complaint · Send by SMS link (uses existing `send-sms` with a tokenised public link)
+
+### Separation of concerns
+- Template = `form_templates.schema/layout`
+- Data = `form_submissions.data` + autofill resolver pulling live records
+- Output = generated PDF saved to `form-outputs` bucket
+
+---
+
+## Files to create
+- `src/pages/regulator/AdminFileComplaint.tsx`
+- `src/pages/regulator/FormEngine.tsx`
+- `src/pages/regulator/FormTemplateEditor.tsx`
+- `src/pages/regulator/FormFill.tsx`
+- `src/components/PartySearchCombobox.tsx`
+- `src/components/LinkedPropertyPicker.tsx`
+- `src/components/forms/FieldRenderer.tsx`
+- `src/components/forms/SectionEditor.tsx`
+- `src/lib/formAutofill.ts`
+- `src/lib/generateDynamicFormPdf.ts`
+- One migration: `form_templates`, `form_submissions`, `complaints` extensions, `form-outputs` bucket + RLS
+
+## Files to edit
+- `src/pages/regulator/RegulatorComplaints.tsx` — "File on Behalf" button + per-complaint "Generate Form" button
+- `src/App.tsx` — new routes
+- `src/components/RegulatorLayout.tsx` — sidebar entries: "File Complaint", "Form Engine"
+- `src/integrations/supabase/types.ts` — auto-regenerated
+
+## Order of execution
+1. Migration (DB schema + bucket + RLS)
+2. Seed Form 7 + Form 33 templates
+3. Backend helpers (`formAutofill.ts`, `generateDynamicFormPdf.ts`)
+4. Admin-Assisted Complaint Filing page + supporting components
+5. Form Engine pages (list, editor, fill)
+6. Wiring into `RegulatorComplaints` + sidebar + routes
+7. Smoke test: file a complaint on behalf → request payment → generate Form 7 → attach PDF
+
+---
+
+This is a sizeable build (≈12 new files + 1 migration). Approve and I'll implement straight through; the existing complaint dashboard, payment, assignment, and scheduling flows will continue to work unchanged.
