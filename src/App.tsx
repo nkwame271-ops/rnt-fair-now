@@ -202,6 +202,10 @@ const App = () => (
                 <Route path="landlords" element={<RegulatorLandlords />} />
                 <Route path="properties" element={<RegulatorProperties />} />
                 <Route path="complaints" element={<RegulatorComplaints />} />
+                <Route path="complaints/new" element={<AdminFileComplaint />} />
+                <Route path="form-engine" element={<FormEngine />} />
+                <Route path="form-engine/:id" element={<FormTemplateEditor />} />
+                <Route path="form-engine/:id/fill" element={<FormFill />} />
                 <Route path="escalated-student-complaints" element={<ErrorBoundary section="Escalated Student Complaints"><EscalatedStudentComplaints /></ErrorBoundary>} />
                 <Route path="agreements" element={<RegulatorAgreements />} />
                 <Route path="applications" element={<RegulatorApplications />} />
