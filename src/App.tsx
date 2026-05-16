@@ -75,6 +75,10 @@ const RegulatorTenants = lazy(() => import("./pages/regulator/RegulatorTenants")
 const RegulatorLandlords = lazy(() => import("./pages/regulator/RegulatorLandlords"));
 const RegulatorProperties = lazy(() => import("./pages/regulator/RegulatorProperties"));
 const RegulatorComplaints = lazy(() => import("./pages/regulator/RegulatorComplaints"));
+const AdminFileComplaint = lazy(() => import("./pages/regulator/AdminFileComplaint"));
+const FormEngine = lazy(() => import("./pages/regulator/FormEngine"));
+const FormTemplateEditor = lazy(() => import("./pages/regulator/FormTemplateEditor"));
+const FormFill = lazy(() => import("./pages/regulator/FormFill"));
 const RegulatorAgreements = lazy(() => import("./pages/regulator/RegulatorAgreements"));
 const RegulatorAgreementTemplates = lazy(() => import("./pages/regulator/RegulatorAgreementTemplates"));
 const RegulatorAnalytics = lazy(() => import("./pages/regulator/RegulatorAnalytics"));
