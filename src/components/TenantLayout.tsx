@@ -18,6 +18,7 @@ import {
   Bell,
   AlertTriangle,
   ShieldAlert,
+  Siren,
   UserPlus,
 } from "lucide-react";
 import { useState } from "react";
@@ -26,6 +27,7 @@ import { useFeatureLabels } from "@/hooks/useFeatureLabel";
 import TourGuide from "@/components/TourGuide";
 import { tenantTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
+import SafetyPanicButton from "@/components/SafetyPanicButton";
 import NotificationBell from "@/components/NotificationBell";
 import CommandSearch from "@/components/CommandSearch";
 import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
@@ -45,6 +47,8 @@ const navItems = [
   { to: "/tenant/report-side-payment", label: "Report Side Payment", icon: ShieldAlert, featureKey: "report_side_payment" },
   { to: "/tenant/preferences", label: "Preferences", icon: Bell, featureKey: "preferences" },
   { to: "/tenant/messages", label: "Messages", icon: MessageCircle, featureKey: "tenant_messages" },
+  { to: "/tenant/report-safety", label: "Report Safety Issue", icon: Siren },
+  { to: "/tenant/my-safety-reports", label: "My Safety Reports", icon: ShieldAlert },
   { to: "/tenant/invite-landlord", label: "Invite Landlord", icon: UserPlus },
   { to: "/tenant/profile", label: "My Profile", icon: UserCircle },
 ];
@@ -135,6 +139,7 @@ const TenantLayout = () => {
       </div>
       <TourGuide steps={tenantTourSteps} storageKey="tour_tenant_completed" />
       <FloatingActionHub />
+      <SafetyPanicButton role="tenant" />
     </div>
   );
 };
