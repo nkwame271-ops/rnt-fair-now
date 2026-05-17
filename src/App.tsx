@@ -103,6 +103,15 @@ const ResolutionCentre = lazy(() => import("./pages/regulator/ResolutionCentre")
 const StudentRevenue = lazy(() => import("./pages/regulator/StudentRevenue"));
 const EscalatedStudentComplaints = lazy(() => import("./pages/regulator/EscalatedStudentComplaints"));
 const RegulatorReceipts = lazy(() => import("./pages/regulator/RegulatorReceipts"));
+const SafetyEmergencyReports = lazy(() => import("./pages/regulator/SafetyEmergencyReports"));
+const SafetyReportDetail = lazy(() => import("./pages/regulator/SafetyReportDetail"));
+const SafetyContacts = lazy(() => import("./pages/regulator/SafetyContacts"));
+
+// Shared safety pages per portal
+const TenantReportSafety = lazy(() => import("./pages/tenant/ReportSafety"));
+const LandlordReportSafety = lazy(() => import("./pages/landlord/ReportSafety"));
+const NugsReportSafety = lazy(() => import("./pages/nugs/ReportSafety"));
+const MySafetyReports = lazy(() => import("./pages/shared/MySafetyReports"));
 
 // NUGS pages (hidden monitoring portal)
 const NugsDashboard = lazy(() => import("./pages/nugs/NugsDashboard"));
