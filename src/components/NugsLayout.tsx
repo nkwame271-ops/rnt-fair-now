@@ -23,11 +23,13 @@ import {
   Bell,
   ShieldAlert,
   UserPlus,
+  Siren,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingActionHub from "@/components/FloatingActionHub";
+import SafetyPanicButton from "@/components/SafetyPanicButton";
 import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 
 const adminNav = [
