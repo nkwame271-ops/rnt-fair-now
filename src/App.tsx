@@ -200,6 +200,8 @@ const App = () => (
                 <Route path="payment-settings" element={<LandlordPaymentSettings />} />
                 <Route path="receipts" element={<LandlordReceipts />} />
                 <Route path="invite-tenant" element={<InviteTenant />} />
+                <Route path="report-safety" element={<LandlordReportSafety />} />
+                <Route path="my-safety-reports" element={<MySafetyReports />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="feedback" element={<LandlordFeedback />} />
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
