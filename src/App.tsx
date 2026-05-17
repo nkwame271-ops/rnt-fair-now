@@ -243,6 +243,9 @@ const App = () => (
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
                 <Route path="payment-errors" element={<PaymentErrors />} />
                 <Route path="receipts" element={<RegulatorReceipts />} />
+                <Route path="safety" element={<SafetyEmergencyReports />} />
+                <Route path="safety/contacts" element={<SafetyContacts />} />
+                <Route path="safety/:id" element={<SafetyReportDetail />} />
               </Route>
 
               {/* NUGS Admin Routes — hidden monitoring portal */}
