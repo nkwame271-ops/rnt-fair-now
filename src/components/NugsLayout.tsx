@@ -23,11 +23,13 @@ import {
   Bell,
   ShieldAlert,
   UserPlus,
+  Siren,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingActionHub from "@/components/FloatingActionHub";
+import SafetyPanicButton from "@/components/SafetyPanicButton";
 import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
 
 const adminNav = [
@@ -55,6 +57,8 @@ const studentNav = [
   { to: "/nugs/preferences", label: "Preferences", icon: Bell, featureKey: "student_preferences" },
   { to: "/nugs/messages", label: "Messages", icon: MessageCircle, featureKey: "student_messages" },
   { to: "/nugs/invite-landlord", label: "Invite Landlord", icon: UserPlus, featureKey: "student_invite_landlord" },
+  { to: "/nugs/report-safety", label: "Report Safety Issue", icon: Siren },
+  { to: "/nugs/my-safety-reports", label: "My Safety Reports", icon: ShieldAlert },
   { to: "/nugs/profile", label: "My Profile", icon: UserCircle },
 ];
 
@@ -163,6 +167,7 @@ const NugsLayout = () => {
         </main>
       </div>
       <FloatingActionHub />
+      {!isAdmin && <SafetyPanicButton role="student" />}
     </div>
   );
 };

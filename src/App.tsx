@@ -103,6 +103,15 @@ const ResolutionCentre = lazy(() => import("./pages/regulator/ResolutionCentre")
 const StudentRevenue = lazy(() => import("./pages/regulator/StudentRevenue"));
 const EscalatedStudentComplaints = lazy(() => import("./pages/regulator/EscalatedStudentComplaints"));
 const RegulatorReceipts = lazy(() => import("./pages/regulator/RegulatorReceipts"));
+const SafetyEmergencyReports = lazy(() => import("./pages/regulator/SafetyEmergencyReports"));
+const SafetyReportDetail = lazy(() => import("./pages/regulator/SafetyReportDetail"));
+const SafetyContacts = lazy(() => import("./pages/regulator/SafetyContacts"));
+
+// Shared safety pages per portal
+const TenantReportSafety = lazy(() => import("./pages/tenant/ReportSafety"));
+const LandlordReportSafety = lazy(() => import("./pages/landlord/ReportSafety"));
+const NugsReportSafety = lazy(() => import("./pages/nugs/ReportSafety"));
+const MySafetyReports = lazy(() => import("./pages/shared/MySafetyReports"));
 
 // NUGS pages (hidden monitoring portal)
 const NugsDashboard = lazy(() => import("./pages/nugs/NugsDashboard"));
@@ -164,6 +173,8 @@ const App = () => (
                 <Route path="report-side-payment" element={<ReportSidePayment />} />
                 <Route path="receipts" element={<TenantReceipts />} />
                 <Route path="invite-landlord" element={<InviteLandlord />} />
+                <Route path="report-safety" element={<TenantReportSafety />} />
+                <Route path="my-safety-reports" element={<MySafetyReports />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
@@ -189,6 +200,8 @@ const App = () => (
                 <Route path="payment-settings" element={<LandlordPaymentSettings />} />
                 <Route path="receipts" element={<LandlordReceipts />} />
                 <Route path="invite-tenant" element={<InviteTenant />} />
+                <Route path="report-safety" element={<LandlordReportSafety />} />
+                <Route path="my-safety-reports" element={<MySafetyReports />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="feedback" element={<LandlordFeedback />} />
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
@@ -230,6 +243,9 @@ const App = () => (
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
                 <Route path="payment-errors" element={<PaymentErrors />} />
                 <Route path="receipts" element={<RegulatorReceipts />} />
+                <Route path="safety" element={<SafetyEmergencyReports />} />
+                <Route path="safety/contacts" element={<SafetyContacts />} />
+                <Route path="safety/:id" element={<SafetyReportDetail />} />
               </Route>
 
               {/* NUGS Admin Routes — hidden monitoring portal */}
@@ -255,6 +271,8 @@ const App = () => (
                 <Route path="preferences" element={<TenantPreferences />} />
                 <Route path="messages" element={<TenantMessages />} />
                 <Route path="invite-landlord" element={<InviteLandlord />} />
+                <Route path="report-safety" element={<NugsReportSafety />} />
+                <Route path="my-safety-reports" element={<MySafetyReports />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

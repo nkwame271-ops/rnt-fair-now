@@ -21,6 +21,8 @@ import {
   CreditCard,
   Wallet,
   UserPlus,
+  Siren,
+  ShieldAlert,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +30,7 @@ import { useFeatureLabels } from "@/hooks/useFeatureLabel";
 import TourGuide from "@/components/TourGuide";
 import { landlordTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
+import SafetyPanicButton from "@/components/SafetyPanicButton";
 import NotificationBell from "@/components/NotificationBell";
 import CommandSearch from "@/components/CommandSearch";
 import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
@@ -51,6 +54,8 @@ const navItems = [
   { to: "/landlord/payment-settings", label: "Payment Settings", icon: CreditCard, featureKey: "payment_settings" },
   { to: "/landlord/receipts", label: "Receipts", icon: FileText, featureKey: "landlord_receipts" },
   { to: "/landlord/invite-tenant", label: "Invite Tenant", icon: UserPlus },
+  { to: "/landlord/report-safety", label: "Report Safety Issue", icon: Siren },
+  { to: "/landlord/my-safety-reports", label: "My Safety Reports", icon: ShieldAlert },
   { to: "/landlord/profile", label: "My Profile", icon: UserCircle },
   { to: "/landlord/rent-increase-request", label: "Rent Increase", icon: Wallet, featureKey: "rent_increase" },
   { to: "/landlord/feedback", label: "Beta Feedback", icon: MessageSquare, featureKey: "landlord_feedback" },
@@ -145,6 +150,7 @@ const LandlordLayout = () => {
       </div>
       <TourGuide steps={landlordTourSteps} storageKey="tour_landlord_completed" />
       <FloatingActionHub />
+      <SafetyPanicButton role="landlord" />
     </div>
   );
 };

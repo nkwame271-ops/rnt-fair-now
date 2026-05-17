@@ -23,6 +23,7 @@ import {
   Crown,
   GraduationCap,
   Wrench,
+  Siren,
 } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -77,6 +78,7 @@ const allNavItems = [
   { to: "/regulator/landlords", label: "Landlords", icon: Building2 },
   { to: "/regulator/properties", label: "Properties", icon: Building2 },
   { to: "/regulator/complaints", label: "Complaints", icon: AlertTriangle },
+  { to: "/regulator/safety", label: "Safety & Emergency", icon: Siren },
   { to: "/regulator/complaints/new", label: "File Complaint", icon: FileText },
   { to: "/regulator/form-engine", label: "Form Engine", icon: FileText },
   { to: "/regulator/escalated-student-complaints", label: "Escalated Student Complaints", icon: GraduationCap },
