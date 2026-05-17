@@ -271,6 +271,8 @@ const App = () => (
                 <Route path="preferences" element={<TenantPreferences />} />
                 <Route path="messages" element={<TenantMessages />} />
                 <Route path="invite-landlord" element={<InviteLandlord />} />
+                <Route path="report-safety" element={<NugsReportSafety />} />
+                <Route path="my-safety-reports" element={<MySafetyReports />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
