@@ -3961,6 +3961,267 @@ export type Database = {
           },
         ]
       }
+      safety_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          details: Json | null
+          id: string
+          report_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          report_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          report_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "safety_audit_log_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "safety_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      safety_contacts: {
+        Row: {
+          active: boolean
+          contact_type: string
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          scope: string
+          scope_value: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          contact_type: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          scope?: string
+          scope_value?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          contact_type?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          scope?: string
+          scope_value?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      safety_location_pings: {
+        Row: {
+          accuracy: number | null
+          id: string
+          latitude: number
+          longitude: number
+          recorded_at: string
+          report_id: string
+        }
+        Insert: {
+          accuracy?: number | null
+          id?: string
+          latitude: number
+          longitude: number
+          recorded_at?: string
+          report_id: string
+        }
+        Update: {
+          accuracy?: number | null
+          id?: string
+          latitude?: number
+          longitude?: number
+          recorded_at?: string
+          report_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "safety_location_pings_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "safety_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      safety_notes: {
+        Row: {
+          author_user_id: string
+          created_at: string
+          id: string
+          note: string
+          report_id: string
+        }
+        Insert: {
+          author_user_id: string
+          created_at?: string
+          id?: string
+          note: string
+          report_id: string
+        }
+        Update: {
+          author_user_id?: string
+          created_at?: string
+          id?: string
+          note?: string
+          report_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "safety_notes_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "safety_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      safety_reports: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          assigned_office_id: string | null
+          assigned_to_user_id: string | null
+          category: string | null
+          closed_at: string | null
+          closed_by: string | null
+          closure_reason: string | null
+          created_at: string
+          description: string | null
+          emergency_type: string | null
+          escalated_at: string | null
+          escalated_to: string[] | null
+          escalation_notes: string | null
+          evidence_urls: string[] | null
+          false_alert_count_at_time: number | null
+          hostel_or_hall: string | null
+          id: string
+          is_silent: boolean
+          latitude: number | null
+          location_accuracy: number | null
+          location_address: string | null
+          longitude: number | null
+          property_id: string | null
+          report_kind: string
+          response_time_seconds: number | null
+          school: string | null
+          severity: string
+          status: string
+          ticket_number: string
+          unit_id: string | null
+          updated_at: string
+          user_id: string
+          user_marked_safe_at: string | null
+          user_name_snapshot: string | null
+          user_phone_snapshot: string | null
+          user_role: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          assigned_office_id?: string | null
+          assigned_to_user_id?: string | null
+          category?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          closure_reason?: string | null
+          created_at?: string
+          description?: string | null
+          emergency_type?: string | null
+          escalated_at?: string | null
+          escalated_to?: string[] | null
+          escalation_notes?: string | null
+          evidence_urls?: string[] | null
+          false_alert_count_at_time?: number | null
+          hostel_or_hall?: string | null
+          id?: string
+          is_silent?: boolean
+          latitude?: number | null
+          location_accuracy?: number | null
+          location_address?: string | null
+          longitude?: number | null
+          property_id?: string | null
+          report_kind: string
+          response_time_seconds?: number | null
+          school?: string | null
+          severity?: string
+          status?: string
+          ticket_number?: string
+          unit_id?: string | null
+          updated_at?: string
+          user_id: string
+          user_marked_safe_at?: string | null
+          user_name_snapshot?: string | null
+          user_phone_snapshot?: string | null
+          user_role: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          assigned_office_id?: string | null
+          assigned_to_user_id?: string | null
+          category?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          closure_reason?: string | null
+          created_at?: string
+          description?: string | null
+          emergency_type?: string | null
+          escalated_at?: string | null
+          escalated_to?: string[] | null
+          escalation_notes?: string | null
+          evidence_urls?: string[] | null
+          false_alert_count_at_time?: number | null
+          hostel_or_hall?: string | null
+          id?: string
+          is_silent?: boolean
+          latitude?: number | null
+          location_accuracy?: number | null
+          location_address?: string | null
+          longitude?: number | null
+          property_id?: string | null
+          report_kind?: string
+          response_time_seconds?: number | null
+          school?: string | null
+          severity?: string
+          status?: string
+          ticket_number?: string
+          unit_id?: string | null
+          updated_at?: string
+          user_id?: string
+          user_marked_safe_at?: string | null
+          user_name_snapshot?: string | null
+          user_phone_snapshot?: string | null
+          user_role?: string
+        }
+        Relationships: []
+      }
       secondary_split_configurations: {
         Row: {
           description: string | null
@@ -4870,6 +5131,7 @@ export type Database = {
       generate_issue_ticket: { Args: never; Returns: string }
       generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
+      generate_safety_ticket: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

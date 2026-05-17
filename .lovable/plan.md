@@ -1,150 +1,133 @@
+# Safety & Emergency Reporting System
 
-# Admin-Assisted Complaint Filing & Rent Control Form Engine
+A separate system from Complaints — fast, free, never blocked by payment.
 
-This is a large, two-part build. I'll deliver it in two coordinated phases inside the Admin (Regulator) Portal so the existing complaint workflow stays intact.
+## 1. Database (migration)
 
----
+### New tables
 
-## Part 1 — Admin-Assisted Complaint Filing
+**`safety_reports`** — non-emergency safety issues + emergency panic alerts
+- `id`, `ticket_number` (SR-YYYYMMDD-NNNNN via `generate_safety_ticket()`)
+- `report_kind` enum: `safety_report` | `panic_emergency`
+- `category` text (sexual_harassment, physical_assault, digital_abuse, threats, domestic_violence, suspicious_activity, property_invasion, health_security, other)
+- `emergency_type` text (police, medical, fire, security, other) — panic only
+- `user_id`, `user_role` (student/tenant/landlord), `user_name_snapshot`, `user_phone_snapshot`
+- `property_id`, `unit_id`, `hostel_or_hall`, `school` (nullable)
+- `description` (nullable for panic)
+- `evidence_urls` text[]
+- `latitude`, `longitude`, `location_accuracy`, `location_address`
+- `is_silent` boolean (silent alert)
+- `severity` (low/medium/high/critical) — default critical for panic
+- `status` (submitted, acknowledged, under_review, escalated, resolved, closed, false_alert)
+- `assigned_to_user_id`, `assigned_office_id`
+- `acknowledged_at`, `acknowledged_by`, `response_time_seconds`
+- `escalated_to` text[] (nugs, police, cid, campus_security, rent_control_leadership)
+- `escalated_at`, `escalation_notes`
+- `user_marked_safe_at`
+- `closure_reason`, `closed_at`, `closed_by`
+- `false_alert_count_at_time` int
+- timestamps
 
-### New page
-`src/pages/regulator/AdminFileComplaint.tsx` — accessible from `RegulatorComplaints` via a new **"File Complaint on Behalf"** button, and as a route `/regulator/complaints/new`.
+**`safety_location_pings`** — live location updates
+- `id`, `report_id`, `latitude`, `longitude`, `accuracy`, `recorded_at`
 
-### Form fields
-- Complainant type: Tenant / Landlord / Interested Person
-- Respondent type: Tenant / Landlord / Interested Person
-- Complainant: search existing user (by phone/name/Ghana Card) OR enter name + phone
-- Respondent: search existing user OR enter name + phone
-- Property/premises: if complainant or respondent is linked, show their registered properties → select property → select unit (multi-unit) → auto-load rent value, rent band, tenancy
-- Free-text address fallback when no linked property
-- Rent amount (auto-filled from unit if linked, editable)
-- Complaint type (existing `complaint_types` table)
-- Description (long text)
-- Attachments (uploads to existing `application-evidence` bucket)
-- Office handling complaint (offices dropdown, defaults from region)
-- Optional **docket / physical case reference number** (free text, stored on complaint)
-- Optional region (auto from office)
+**`safety_audit_log`** — every action
+- `id`, `report_id`, `actor_user_id`, `action` (acknowledged, called_user, messaged_user, assigned, escalated, note_added, status_changed, location_ping, marked_safe, closed)
+- `details` jsonb, `created_at`
 
-### Submission behavior
-Insert into existing `complaints` table with:
-- `filed_by_admin = true` (new column)
-- `admin_filer_user_id = auth.uid()`
-- `physical_docket_ref` (new column)
-- `complainant_role`, `respondent_role` (extend existing columns / add)
-- `placeholder_complainant_name/phone`, `placeholder_respondent_name/phone` for non-platform users
-- Reuses `generate_complaint_ticket()` so ticket flows identically
-- Status: `submitted` → admin can request payment, assign, schedule (existing flows in `RegulatorComplaints` continue to work)
+**`safety_notes`** — admin notes
+- `id`, `report_id`, `author_user_id`, `note`, `created_at`
 
-### Placeholder profiles & SMS invites
-- If a party isn't on the platform, store their name/phone on the complaint as placeholder fields
-- Send SMS via existing `send-sms` function:
-  - Complainant: "Your complaint TKT-… has been filed on your behalf at <office>. Register at rentcontrolghana.com using <phone> to track it."
-  - Respondent: "A complaint TKT-… has been filed against you at <office>. Register at rentcontrolghana.com using <phone> to respond."
-- SMS only fires when phone provided
+**`safety_contacts`** — configured alert recipients (super admin manages)
+- `id`, `contact_type` (super_admin, safety_admin, nugs_desk, campus_security, user_emergency_contact), `name`, `phone`, `email`, `scope` (global/region/school), `scope_value`, `active`
 
-### Search component
-New `src/components/PartySearchCombobox.tsx` — searches `profiles` by phone/name, returns `{user_id, full_name, phone, role}`. Used for both complainant and respondent fields.
+### Functions
+- `generate_safety_ticket()` — SR-YYYYMMDD-NNNNN
+- `auto_escalate_unacknowledged()` — cron candidate, escalates after timeout
+- `log_safety_action()` trigger helper
 
-### Property/unit cascade
-New `src/components/LinkedPropertyPicker.tsx` — when a tenant/landlord is linked, fetches their properties (landlord) or current tenancy property (tenant), then units, then auto-fills rent + rent band via existing `compute-rent-benchmark` logic.
+### RLS
+- Users: insert own reports, view own reports, update own (mark safe, add ping)
+- Admins (`is_main_admin`): full select/update
+- Service role: full
 
----
+### Storage
+- `safety-evidence` bucket (private), admin + owner read
 
-## Part 2 — Rent Control Form Engine
+## 2. Edge Functions
 
-A flexible, metadata-driven template system. Templates are stored in DB, rendered + filled at runtime, exported as PDF.
+- **`submit-safety-report`** — validates payload, inserts report, logs audit, fans out SMS to configured `safety_contacts` (via `send-sms`), notifies super admins. Returns ticket number. Never requires payment.
+- **`safety-location-ping`** — accepts lat/lng from authenticated user for own active report
+- **`safety-acknowledge`** — admin marks acknowledged, records response time
+- **`safety-escalate`** — admin escalates, triggers SMS to escalation contacts
 
-### Database (one migration)
+## 3. Shared UI (all user portals)
 
-```text
-form_templates
-  id, form_name, form_number, regulation_ref, department, version,
-  effective_date, status (draft/active/retired), schema (jsonb),
-  layout (jsonb), created_by, created_at, updated_at
+**`src/components/SafetyPanicButton.tsx`** — floating red button (bottom-right, sibling of FAB) on every authenticated layout
+- Always visible to tenant/landlord/student
+- Two-step modal: pick emergency type → "Send Emergency Alert" + "Silent Alert" toggle + "Call Police Now" (tel:191)
+- Auto-captures geolocation
+- Shows ticket number toast + "I am safe" persistent banner
 
-form_submissions
-  id, template_id, complaint_id (nullable), case_id (nullable),
-  data (jsonb), status (draft/finalized), pdf_url, generated_by,
-  created_at, updated_at
-```
+**`src/pages/shared/ReportSafetyIssue.tsx`** — full form for non-immediate safety reports
+- Category dropdown, description, location autodetect/manual, property picker (auto-loaded for tenants/landlords), evidence upload, severity hint, silent toggle
 
-`schema` jsonb shape:
-```text
-{
-  sections: [
-    { id, title, order, fields: [
-      { id, type, label, required, options?, autofill?: {source, path}, ... }
-    ]}
-  ]
-}
-```
+**`src/pages/shared/MySafetyReports.tsx`** — user views their reports, status, "I am safe" button while active
 
-`layout` jsonb shape: title position, header, footer, signature/stamp/QR areas, page size.
+### Layout integration
+- `TenantLayout`, `LandlordLayout`, `NugsLayout` — mount `<SafetyPanicButton />`
+- Sidebar links: "Report Safety Issue" + "My Safety Reports"
+- Routes in `App.tsx` under `/tenant`, `/landlord`, `/nugs`
 
-RLS: only admin staff (`is_main_admin`) can CRUD templates; submissions readable by admins + linked complaint parties.
+## 4. Admin Portal
 
-### Field types supported
-text, number, date, dropdown, checkbox, long text, file upload, signature, stamp, table, auto-filled
+**`src/pages/regulator/SafetyEmergencyReports.tsx`** — dashboard
+- Tabs: Active Emergencies | Unacknowledged | Reports | Closed
+- Filters: role, region/location, school, property, severity, status, kind
+- Table: ticket, user, role, category, severity, location, status, response time, assigned
+- Live map (existing `PropertyMap`/Google Maps) plotting active emergencies + location pings
+- Row actions: Acknowledge, Call (tel:), Message (SMS), Assign Officer, Escalate (multi-select to NUGS/Police/CID/Security/Leadership), Add Note, Mark Resolved, Close, Download Summary PDF
 
-### Auto-fill sources
-`profile`, `landlord`, `tenant`, `complaint`, `property`, `tenancy`, `payment`, `appointment`, `officer` — resolved server-side via a lightweight resolver in `src/lib/formAutofill.ts` that takes `{templateId, complaintId}` and returns the merged data object.
+**`src/pages/regulator/SafetyReportDetail.tsx`** — single report
+- Header: ticket, status, severity, response timer
+- User info + tel/SMS quick actions
+- Live location map with ping history
+- Description, evidence (signed URLs)
+- Notes timeline + add-note
+- Audit log
+- Escalation panel
+- Status controls + closure reason
 
-### Pages
-- `src/pages/regulator/FormEngine.tsx` — list of templates + "New Template" + edit/clone
-- `src/pages/regulator/FormTemplateEditor.tsx` — drag-order sections/fields, configure metadata, layout, autofill mapping, preview
-- `src/pages/regulator/FormFill.tsx` — fill a template against an optional complaint, save draft, preview, generate PDF, attach to complaint
-- Entry from `RegulatorComplaints` complaint detail: **"Generate Form"** button → choose template → opens FormFill prefilled
+**`src/pages/regulator/SafetyContacts.tsx`** — manage `safety_contacts` (super admin only)
 
-### PDF rendering
-`src/lib/generateDynamicFormPdf.ts` — uses existing `jsPDF` (already a dep via `generateComplaintPdf`). Reads `layout` + filled `data`, renders sections/fields, embeds signatures (PNG), QR (existing qrcode dep), page-size aware. Saves to storage bucket `form-outputs` (new, private) and stores URL on `form_submissions`. Attaches to complaint via `complaint_attachments` (existing) when "Attach to complaint" chosen.
+### Sidebar (`RegulatorLayout`)
+- New "Safety & Emergency" section with the three pages
+- Badge with count of unacknowledged active emergencies (realtime)
 
-### Preloaded templates
-After migration, seed two `form_templates` rows via the `insert` tool:
-- **Form 7 — Complaint Against Conduct of Landlord/Tenant/Person Interested in Premises**
-  Sections: Complainant Details, Respondent Details, Premises Details, Particulars of Complaint, Declaration, Officer Section
-  Autofill from `complaint` + `complainant.profile` + `respondent.profile` + `property` + `tenancy`
-- **Form 33 — Summons to Person Against Whom Complaint Has Been Made**
-  Sections: Court/Office Header, Respondent Details, Complaint Reference, Hearing Details, Officer Signature, Stamp
-  Autofill from `complaint` + `appointment` + `office`
+### Routes (`App.tsx`)
+- `/regulator/safety` → SafetyEmergencyReports
+- `/regulator/safety/:id` → SafetyReportDetail
+- `/regulator/safety/contacts` → SafetyContacts
 
-### Form actions on FormFill page
-Save draft · Preview · Generate PDF · Download · Print · Attach to complaint · Send by SMS link (uses existing `send-sms` with a tokenised public link)
+## 5. Realtime
+- Enable realtime publication on `safety_reports` + `safety_location_pings`
+- Admin dashboard subscribes for instant new-emergency toast/sound
 
-### Separation of concerns
-- Template = `form_templates.schema/layout`
-- Data = `form_submissions.data` + autofill resolver pulling live records
-- Output = generated PDF saved to `form-outputs` bucket
+## 6. Helpers / libs
+- `src/lib/safetyCategories.ts` — category + emergency-type metadata + icons
+- `src/lib/generateSafetyCasePdf.ts` — case summary PDF (jsPDF, reuses styling from `generateComplaintReports`)
+- `src/lib/useGeolocation.ts` — hook with permission + accuracy
 
----
+## 7. Abuse control
+- Count prior `false_alert` closures per user — show admin badge if ≥3
+- Never block submission
 
-## Files to create
-- `src/pages/regulator/AdminFileComplaint.tsx`
-- `src/pages/regulator/FormEngine.tsx`
-- `src/pages/regulator/FormTemplateEditor.tsx`
-- `src/pages/regulator/FormFill.tsx`
-- `src/components/PartySearchCombobox.tsx`
-- `src/components/LinkedPropertyPicker.tsx`
-- `src/components/forms/FieldRenderer.tsx`
-- `src/components/forms/SectionEditor.tsx`
-- `src/lib/formAutofill.ts`
-- `src/lib/generateDynamicFormPdf.ts`
-- One migration: `form_templates`, `form_submissions`, `complaints` extensions, `form-outputs` bucket + RLS
+## 8. Out of scope (deferred)
+- Real Police/CID API dispatch (manual call button only)
+- Background location tracking when app closed (PWA limitation)
 
-## Files to edit
-- `src/pages/regulator/RegulatorComplaints.tsx` — "File on Behalf" button + per-complaint "Generate Form" button
-- `src/App.tsx` — new routes
-- `src/components/RegulatorLayout.tsx` — sidebar entries: "File Complaint", "Form Engine"
-- `src/integrations/supabase/types.ts` — auto-regenerated
-
-## Order of execution
-1. Migration (DB schema + bucket + RLS)
-2. Seed Form 7 + Form 33 templates
-3. Backend helpers (`formAutofill.ts`, `generateDynamicFormPdf.ts`)
-4. Admin-Assisted Complaint Filing page + supporting components
-5. Form Engine pages (list, editor, fill)
-6. Wiring into `RegulatorComplaints` + sidebar + routes
-7. Smoke test: file a complaint on behalf → request payment → generate Form 7 → attach PDF
-
----
-
-This is a sizeable build (≈12 new files + 1 migration). Approve and I'll implement straight through; the existing complaint dashboard, payment, assignment, and scheduling flows will continue to work unchanged.
+## Technical notes
+- All emergency-related code never references payment/escrow tables.
+- Geolocation uses `navigator.geolocation.watchPosition` while a panic report is `submitted|acknowledged|under_review`.
+- SMS fan-out via existing `send-sms` edge function.
+- Silent mode suppresses sonner toasts + post-submit modal; returns to current page silently.
