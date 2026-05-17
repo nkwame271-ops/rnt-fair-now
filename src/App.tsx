@@ -173,6 +173,8 @@ const App = () => (
                 <Route path="report-side-payment" element={<ReportSidePayment />} />
                 <Route path="receipts" element={<TenantReceipts />} />
                 <Route path="invite-landlord" element={<InviteLandlord />} />
+                <Route path="report-safety" element={<TenantReportSafety />} />
+                <Route path="my-safety-reports" element={<MySafetyReports />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
