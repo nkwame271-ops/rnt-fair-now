@@ -504,7 +504,7 @@ export default function ComplaintsCommandCenter() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => navigate(r.case_kind === "landlord_complaint" ? `/regulator/complaints?focus=${r.id}` : `/regulator/complaints/${r.id}`)}
+                          onClick={() => navigate(`/regulator/complaints/${r.id}${r.case_kind === "landlord_complaint" ? "?kind=landlord" : ""}`)}
                         >
                           <Eye className="h-3.5 w-3.5 mr-1" /> View
                         </Button>
