@@ -128,27 +128,6 @@ const FormFill = () => {
     }
   };
 
-      const payload = { template_id: tpl.id, complaint_id: complaintId, data, status: "finalized", pdf_url: path };
-      const res = submissionId
-        ? await supabase.from("form_submissions").update(payload).eq("id", submissionId).select("id").single()
-        : await supabase.from("form_submissions").insert(payload).select("id").single();
-      if (res.error) throw res.error;
-      setSubmissionId(res.data!.id);
-
-      if (complaintId) {
-        const { data: c } = await supabase.from("complaints").select("evidence_urls").eq("id", complaintId).single();
-        const urls = [...((c?.evidence_urls as string[]) || []), path];
-        await supabase.from("complaints").update({ evidence_urls: urls }).eq("id", complaintId);
-      }
-
-      toast({ title: "PDF generated", description: complaintId ? "Attached to complaint." : "Saved." });
-    } catch (e: any) {
-      toast({ title: "Generation failed", description: e.message, variant: "destructive" });
-    } finally {
-      setBusy(false);
-    }
-  };
-
   if (!tpl) return <p className="container py-6 text-sm text-muted-foreground">Loading…</p>;
 
   return (
