@@ -16,6 +16,7 @@ import {
   StickyNote, Gavel, Activity, ChevronLeft, Edit3, UserPlus, Calendar as CalendarIcon, Plus, CheckCircle2,
 } from "lucide-react";
 import { STAGE_LABELS, STAGE_BADGE_CLASS, transitionStage, logComplaintAction } from "@/lib/complaintAudit";
+import { notifyComplaintParties, complaintRecipients } from "@/lib/complaintNotify";
 import { signStorageUrl } from "@/lib/signStorageUrl";
 
 const ComplaintCaseFile = () => {
