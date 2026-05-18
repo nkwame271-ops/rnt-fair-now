@@ -93,6 +93,7 @@ const ComplaintCaseFile = () => {
           </h1>
           <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground flex-wrap">
             <Badge variant="outline">{c.ticket_number || c.complaint_code}</Badge>
+            {c.case_number && <Badge className="bg-primary text-primary-foreground">{c.case_number}</Badge>}
             <Badge className={stageClass}>{stageLabel}</Badge>
             <span>•</span>
             <span>{new Date(c.created_at).toLocaleDateString()}</span>
