@@ -1365,6 +1365,9 @@ const EngineRoom = () => {
           <p className="text-sm text-muted-foreground mb-3">
             Configure the complete catalogue of complaint types in three structures (Fixed, Rent Band, Percentage). The legacy generic complaint fee has been retired.
           </p>
+          <div className="bg-info/5 border border-info/20 rounded-lg p-3 text-xs text-foreground mb-3">
+            <strong>Filing fee:</strong> the basic complaint filing fee charged to complainants is driven by the <code className="bg-muted px-1 rounded">filing_of_complaint</code> complaint type below (rent-band structure). Engine Room's legacy <em>Complaint Fee</em> key is kept only for receipt categorisation — it does not override this rule.
+          </div>
           <div className="bg-card rounded-xl border border-border shadow-card p-5">
             <ComplaintTypesManager />
           </div>
