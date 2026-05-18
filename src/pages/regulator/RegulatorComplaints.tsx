@@ -25,6 +25,7 @@ import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 import ComplaintAssignmentControl from "@/components/ComplaintAssignmentControl";
 import ComplaintReportsDialog from "@/components/ComplaintReportsDialog";
 import { generateComplaintPdf } from "@/lib/generateComplaintPdf";
+import { signStorageUrls, signStorageUrl } from "@/lib/signStorageUrl";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 type TabKey = "landlord" | "tenant" | "student";
