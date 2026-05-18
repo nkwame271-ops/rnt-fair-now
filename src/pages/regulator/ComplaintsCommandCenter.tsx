@@ -404,7 +404,7 @@ export default function ComplaintsCommandCenter() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => navigate(`/regulator/complaints?case=${r.id}`)}
+                          onClick={() => navigate(`/regulator/complaints/${r.id}`)}
                         >
                           <Eye className="h-3.5 w-3.5 mr-1" /> View
                         </Button>
