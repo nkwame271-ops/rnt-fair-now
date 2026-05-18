@@ -48,7 +48,7 @@ const HearingWorkspace = () => {
       setNotes(hRes.data.notes || "");
       setOutcome(hRes.data.outcome || "");
       setStatusVal(hRes.data.status || "scheduled");
-      setAttendance({ ...attendance, ...(hRes.data.attendance || {}) });
+      setAttendance({ ...attendance, ...((hRes.data.attendance as any) || {}) });
       lastSavedRef.current = hRes.data.notes || "";
     }
     setLoading(false);
