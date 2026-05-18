@@ -1,130 +1,156 @@
 import jsPDF from "jspdf";
-import type { Form7Party } from "./form7";
+import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, fmtDate, fmtTime } from "./_brand";
 
 export interface Form33Data {
-  case_number: string;
+  // Top header
+  case_prefix?: string; // "CA"
+  case_number?: string;
+  parties_line?: string; // "Afua Owusu VRS Eric Atta"
+  // Office
+  rent_office?: string;
+  rent_officer?: string;
+  // Summons target
+  person_summoned?: string;
+  complaint_category?: string;
+  // Hearing
+  hearing_time?: string; // free text e.g. "09:00 AM" or ISO
+  hearing_date?: string; // ISO or display
+  hearing_venue?: string;
+  // Body
+  summons_paragraph?: string; // editable, with placeholders allowed
+  // Issue
+  issued_office?: string;
+  issued_date?: string; // ISO
+  signature_name?: string;
+  stamp_text?: string;
+  footer_slogan?: string;
   ticket_number?: string;
-  office_name: string;
-  office_region?: string;
-  complainants: Form7Party[];
-  respondents: Form7Party[];
-  person_summoned: string; // single respondent name (one summons per respondent)
-  nature_of_complaint: string;
-  appearance_at: string; // ISO datetime
-  venue?: string;
-  issued_at_location?: string;
-  date_issued?: string; // ISO
-  hearing_officer_name?: string;
 }
 
-const fmtDate = (iso?: string) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
-};
-const fmtTime = (iso?: string) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-};
+const DEFAULT_SUMMONS = (d: Form33Data) =>
+  `You are hereby commanded in the name of the Republic to appear in person before me at ${
+    d.hearing_time || "[time]"
+  } on ${fmtDate(d.hearing_date) || "[date]"} and on every adjournment until this case is disposed off at the Rent Office in ${
+    d.hearing_venue || "[venue]"
+  }.`;
 
-export function renderForm33(data: Form33Data): jsPDF {
+export function renderForm33(d: Form33Data): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const W = doc.internal.pageSize.getWidth();
-  const M = 48;
-  let y = M;
+  drawWatermark(doc);
+  drawHeader(doc, { subtitle: "Regulation 38(2) · Rent Regulation, 1964 (LI 369)" });
 
+  let y = 86;
+
+  // Top row: CA / Case number (left) — Parties line (right)
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text("REPUBLIC OF GHANA  •  RENT CONTROL DEPARTMENT", W / 2, y, { align: "center" });
-  y += 18;
-  doc.setFontSize(13);
-  doc.text("FORM 33", W / 2, y, { align: "center" });
-  y += 14;
-  doc.setFontSize(10);
+  doc.text(`${d.case_prefix || "CA"}  ${d.case_number || "—"}`, MARGIN, y);
   doc.setFont("helvetica", "normal");
-  doc.text("Summons to Persons Against Whom Complaints Have Been Made", W / 2, y, { align: "center" });
-  y += 12;
-  doc.setFont("helvetica", "italic");
-  doc.text("Under Regulation 38(2) — Rent Regulation, 1964 (L.I. 369)", W / 2, y, { align: "center" });
-  y += 18;
-  doc.setDrawColor(140);
-  doc.line(M, y, W - M, y);
-  y += 16;
+  doc.setFontSize(10);
+  doc.text(d.parties_line || "Complainant(s) VRS Respondent(s)", A4.W - MARGIN, y, { align: "right" });
+  y += 10;
+  doc.setDrawColor(20, 80, 50);
+  doc.line(MARGIN, y, A4.W - MARGIN, y);
+  y += 22;
 
-  // Case number bold
+  // FORM 33 + heading
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text("FORM 33", A4.W / 2, y, { align: "center" });
+  y += 18;
+  doc.setFontSize(10);
+  const heading = doc.splitTextToSize(
+    "SUMMONS TO PERSONS AGAINST WHOM COMPLAINTS HAVE BEEN MADE",
+    A4.W - MARGIN * 2
+  );
+  doc.text(heading, A4.W / 2, y, { align: "center" });
+  y += heading.length * 12 + 18;
+
+  // Rent Officer for / To
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Rent Officer for ${d.rent_office || "—"}${d.rent_officer ? "  ·  " + d.rent_officer : ""}`, MARGIN, y);
+  y += 18;
+  doc.text(`To: ${d.person_summoned || "—"}`, MARGIN, y);
+  y += 22;
+
+  // Whereas intro
+  doc.text("Whereas your attendance is necessary to answer a complaint of a", MARGIN, y);
+  y += 18;
+
+  // Centered bold underlined category
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.text(`Case Number: ${data.case_number}`, M, y);
-  y += 20;
+  const cat = (d.complaint_category || "—").toUpperCase();
+  doc.text(cat, A4.W / 2, y, { align: "center" });
+  const catWidth = doc.getTextWidth(cat);
+  doc.setLineWidth(0.6);
+  doc.line(A4.W / 2 - catWidth / 2, y + 3, A4.W / 2 + catWidth / 2, y + 3);
+  y += 22;
 
-  // Parties block
+  // Summons paragraph
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.text("Parties Involved", M, y);
+  const paragraph = d.summons_paragraph && d.summons_paragraph.trim() ? d.summons_paragraph : DEFAULT_SUMMONS(d);
+  const lines = doc.splitTextToSize(paragraph, A4.W - MARGIN * 2);
+  for (const line of lines) {
+    if (y > A4.H - 200) {
+      drawFooter(doc, d.footer_slogan);
+      doc.addPage();
+      drawWatermark(doc);
+      drawHeader(doc, { subtitle: "Regulation 38(2) · Rent Regulation, 1964 (LI 369)" });
+      y = 100;
+    }
+    doc.text(line, MARGIN, y);
+    y += 14;
+  }
   y += 14;
-  doc.setFont("helvetica", "normal");
-  data.complainants.forEach((c) => {
-    doc.text(c.name || "—", M + 12, y);
-    y += 12;
-  });
-  doc.setFont("helvetica", "italic");
-  doc.text("VS", M, y + 2);
-  y += 16;
-  doc.setFont("helvetica", "normal");
-  data.respondents.forEach((r) => {
-    doc.text(r.name || "—", M + 12, y);
-    y += 12;
-  });
-  y += 10;
 
-  const row = (label: string, value: string) => {
-    doc.setFont("helvetica", "bold");
-    doc.text(label, M, y);
-    doc.setFont("helvetica", "normal");
-    const lines = doc.splitTextToSize(value || "—", W - M * 2 - 160);
-    doc.text(lines, M + 160, y);
-    y += Math.max(14, lines.length * 14);
-  };
-
-  row("Rent Officer for:", `${data.office_name}${data.office_region ? " (" + data.office_region + ")" : ""}`);
-  row("Person Summoned:", data.person_summoned);
-  row("Nature of Complaint:", data.nature_of_complaint);
-  row("Appearance Date:", fmtDate(data.appearance_at));
-  row("Time:", fmtTime(data.appearance_at));
-  row("Venue:", data.venue || data.office_name);
-  y += 10;
-  row("Issued at:", data.issued_at_location || data.office_name);
-  row("Date Issued:", fmtDate(data.date_issued || new Date().toISOString()));
-
-  y += 24;
-  // Body paragraph
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  const body = doc.splitTextToSize(
-    `You are hereby required to appear before the Rent Officer on the date, time and venue shown above to answer the complaint summarised in Case ${data.case_number}. Failure to appear may result in the matter being determined in your absence.`,
-    W - M * 2
-  );
-  doc.text(body, M, y);
-  y += body.length * 14 + 30;
-
-  // Signature line
-  if (y > 720) { doc.addPage(); y = M; }
-  doc.line(M, y, M + 220, y);
-  y += 12;
+  // Hearing summary table
+  const rowH = 16;
+  const tableY = y;
+  doc.setDrawColor(180);
+  doc.setLineWidth(0.4);
+  doc.rect(MARGIN, tableY, A4.W - MARGIN * 2, rowH * 3);
+  doc.line(MARGIN, tableY + rowH, A4.W - MARGIN, tableY + rowH);
+  doc.line(MARGIN, tableY + rowH * 2, A4.W - MARGIN, tableY + rowH * 2);
+  doc.line(MARGIN + 140, tableY, MARGIN + 140, tableY + rowH * 3);
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
+  doc.text("Hearing Date", MARGIN + 6, tableY + 11);
+  doc.text("Hearing Time", MARGIN + 6, tableY + 11 + rowH);
+  doc.text("Venue", MARGIN + 6, tableY + 11 + rowH * 2);
+  doc.setFont("helvetica", "normal");
+  doc.text(fmtDate(d.hearing_date), MARGIN + 146, tableY + 11);
+  doc.text(d.hearing_time || fmtTime(d.hearing_date), MARGIN + 146, tableY + 11 + rowH);
+  doc.text(d.hearing_venue || d.rent_office || "—", MARGIN + 146, tableY + 11 + rowH * 2);
+  y = tableY + rowH * 3 + 20;
+
+  // Issued line
   doc.setFont("helvetica", "italic");
-  doc.text(`Hearing Officer: ${data.hearing_officer_name || "_____________________"}`, M, y);
-  doc.text(`${data.office_name}`, M, y + 12);
-
-  doc.setFontSize(8);
-  doc.setTextColor(120);
+  doc.setFontSize(9);
   doc.text(
-    `Generated ${new Date().toLocaleString("en-GB")}  •  Ticket ${data.ticket_number || ""}`,
-    W / 2,
-    820,
-    { align: "center" }
+    `Issued at ${d.issued_office || d.rent_office || "—"} on ${fmtDate(d.issued_date || new Date().toISOString())}`,
+    MARGIN,
+    y
   );
+  y += 24;
 
+  if (y > A4.H - 160) {
+    drawFooter(doc, d.footer_slogan);
+    doc.addPage();
+    drawWatermark(doc);
+    drawHeader(doc, { subtitle: "Regulation 38(2) · Rent Regulation, 1964 (LI 369)" });
+    y = 110;
+  }
+
+  drawSignatureStamp(doc, y, {
+    signatureName: d.signature_name || d.rent_officer,
+    signatureRole: "Rent Officer",
+    stampText: d.stamp_text || "Rent Control Department",
+    dateText: fmtDate(d.issued_date || new Date().toISOString()),
+  });
+
+  drawFooter(doc, d.footer_slogan);
   return doc;
 }

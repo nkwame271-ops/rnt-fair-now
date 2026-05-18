@@ -1,0 +1,205 @@
+import { useEffect, useMemo, useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
+import {
+  StatutoryFormType,
+  generateStatutoryForm,
+  prefillForm7,
+  prefillForm33,
+  prefillForm32A,
+} from "@/lib/complaintForms";
+import { renderForm7 } from "@/lib/pdf/form7";
+import { renderForm33 } from "@/lib/pdf/form33";
+import { renderForm32A } from "@/lib/pdf/form32a";
+import PdfLivePreview from "./PdfLivePreview";
+
+interface Props {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  complaint: any;
+  officeName?: string;
+  formType: StatutoryFormType;
+  /** Optional starting data — e.g. previous version's form_data_json (regenerate). */
+  initialData?: Record<string, any>;
+  onGenerated: () => void;
+}
+
+const TITLES: Record<StatutoryFormType, string> = {
+  form_7: "Form 7 — Complaint",
+  form_33: "Form 33 — Summons",
+  form_32a: "Form 32A — Order / Decision",
+};
+
+const Field = ({ label, value, onChange, type = "text" }: any) => (
+  <div className="space-y-1">
+    <Label className="text-xs">{label}</Label>
+    <Input type={type} value={value || ""} onChange={(e) => onChange(e.target.value)} />
+  </div>
+);
+
+const Area = ({ label, value, onChange, rows = 6 }: any) => (
+  <div className="space-y-1">
+    <Label className="text-xs">{label}</Label>
+    <Textarea rows={rows} value={value || ""} onChange={(e) => onChange(e.target.value)} />
+  </div>
+);
+
+export default function FormEditorDialog({
+  open,
+  onOpenChange,
+  complaint,
+  officeName,
+  formType,
+  initialData,
+  onGenerated,
+}: Props) {
+  const [data, setData] = useState<any>({});
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    if (initialData) {
+      setData(initialData);
+      return;
+    }
+    if (formType === "form_7") setData(prefillForm7(complaint, officeName));
+    else if (formType === "form_33") setData(prefillForm33(complaint, officeName));
+    else setData(prefillForm32A(complaint, officeName));
+  }, [open, formType, complaint, officeName, initialData]);
+
+  const set = (k: string, v: any) => setData((d: any) => ({ ...d, [k]: v }));
+
+  const render = useMemo(() => {
+    if (formType === "form_7") return renderForm7;
+    if (formType === "form_33") return renderForm33;
+    return renderForm32A;
+  }, [formType]);
+
+  const handleGenerate = async () => {
+    setBusy(true);
+    try {
+      await generateStatutoryForm(complaint.id, formType, data);
+      toast({ title: `${TITLES[formType].split(" — ")[0]} generated`, description: "Saved to Complaint Documents." });
+      onOpenChange(false);
+      onGenerated();
+    } catch (e: any) {
+      toast({ title: "Generation failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-7xl h-[92vh] flex flex-col p-0">
+        <DialogHeader className="px-5 pt-5">
+          <DialogTitle>{TITLES[formType]}</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 px-5 pb-4 overflow-hidden min-h-0">
+          {/* Editor */}
+          <div className="overflow-y-auto pr-2 space-y-4">
+            {formType === "form_7" && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Case reference" value={data.case_reference} onChange={(v: any) => set("case_reference", v)} />
+                  <Field label="Case number" value={data.case_number} onChange={(v: any) => set("case_number", v)} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Complainant name" value={data.complainant_name} onChange={(v: any) => set("complainant_name", v)} />
+                  <Field label="Telephone" value={data.complainant_telephone} onChange={(v: any) => set("complainant_telephone", v)} />
+                </div>
+                <Area label="Postal address of complainant" value={data.complainant_postal_address} rows={2} onChange={(v: any) => set("complainant_postal_address", v)} />
+                <Area label="Name and address of person complained against" value={data.respondent_name_address} rows={3} onChange={(v: any) => set("respondent_name_address", v)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="House number" value={data.premises_house_no} onChange={(v: any) => set("premises_house_no", v)} />
+                  <Field label="Rent office" value={data.rent_office} onChange={(v: any) => set("rent_office", v)} />
+                </div>
+                <Area label="Premises address" value={data.premises_address} rows={2} onChange={(v: any) => set("premises_address", v)} />
+                <Field label="Complaint category" value={data.complaint_category} onChange={(v: any) => set("complaint_category", v)} />
+                <Area label="Complaint statement (editable narrative)" value={data.complaint_statement} rows={10} onChange={(v: any) => set("complaint_statement", v)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Signature name" value={data.signature_name} onChange={(v: any) => set("signature_name", v)} />
+                  <Field label="Signature date" type="date" value={(data.signature_date || "").slice(0, 10)} onChange={(v: any) => set("signature_date", v)} />
+                </div>
+                <Field label="Stamp text" value={data.stamp_text} onChange={(v: any) => set("stamp_text", v)} />
+                <Field label="Footer slogan" value={data.footer_slogan} onChange={(v: any) => set("footer_slogan", v)} />
+              </>
+            )}
+
+            {formType === "form_33" && (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <Field label="Case prefix" value={data.case_prefix} onChange={(v: any) => set("case_prefix", v)} />
+                  <Field label="Case number" value={data.case_number} onChange={(v: any) => set("case_number", v)} />
+                  <Field label="Complaint category" value={data.complaint_category} onChange={(v: any) => set("complaint_category", v)} />
+                </div>
+                <Field label="Parties line (Complainant VRS Respondent)" value={data.parties_line} onChange={(v: any) => set("parties_line", v)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Rent office" value={data.rent_office} onChange={(v: any) => set("rent_office", v)} />
+                  <Field label="Rent officer" value={data.rent_officer} onChange={(v: any) => set("rent_officer", v)} />
+                </div>
+                <Field label="Person summoned (To:)" value={data.person_summoned} onChange={(v: any) => set("person_summoned", v)} />
+                <div className="grid grid-cols-3 gap-3">
+                  <Field label="Hearing date" type="date" value={(data.hearing_date || "").slice(0, 10)} onChange={(v: any) => set("hearing_date", v)} />
+                  <Field label="Hearing time" value={data.hearing_time} onChange={(v: any) => set("hearing_time", v)} />
+                  <Field label="Hearing venue" value={data.hearing_venue} onChange={(v: any) => set("hearing_venue", v)} />
+                </div>
+                <Area label="Summons paragraph (editable)" value={data.summons_paragraph} rows={6} onChange={(v: any) => set("summons_paragraph", v)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Issued office" value={data.issued_office} onChange={(v: any) => set("issued_office", v)} />
+                  <Field label="Issued date" type="date" value={(data.issued_date || "").slice(0, 10)} onChange={(v: any) => set("issued_date", v)} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Signature name" value={data.signature_name} onChange={(v: any) => set("signature_name", v)} />
+                  <Field label="Stamp text" value={data.stamp_text} onChange={(v: any) => set("stamp_text", v)} />
+                </div>
+              </>
+            )}
+
+            {formType === "form_32a" && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Case number" value={data.case_number} onChange={(v: any) => set("case_number", v)} />
+                  <Field label="Hearing reference" value={data.hearing_reference} onChange={(v: any) => set("hearing_reference", v)} />
+                </div>
+                <Field label="Parties line" value={data.parties_line} onChange={(v: any) => set("parties_line", v)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Rent office" value={data.rent_office} onChange={(v: any) => set("rent_office", v)} />
+                  <Field label="Rent officer" value={data.rent_officer} onChange={(v: any) => set("rent_officer", v)} />
+                </div>
+                <Area label="Decision / Order body (editable)" value={data.decision_body} rows={12} onChange={(v: any) => set("decision_body", v)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Issued office" value={data.issued_office} onChange={(v: any) => set("issued_office", v)} />
+                  <Field label="Issued date" type="date" value={(data.issued_date || "").slice(0, 10)} onChange={(v: any) => set("issued_date", v)} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Signature name" value={data.signature_name} onChange={(v: any) => set("signature_name", v)} />
+                  <Field label="Stamp text" value={data.stamp_text} onChange={(v: any) => set("stamp_text", v)} />
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Preview */}
+          <div className="hidden lg:block overflow-hidden min-h-0">
+            <PdfLivePreview data={data} render={render} label={`Live ${TITLES[formType].split(" — ")[0]} Preview`} />
+          </div>
+        </div>
+
+        <DialogFooter className="px-5 pb-5 pt-2 border-t">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
+          <Button onClick={handleGenerate} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Generate PDF
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
