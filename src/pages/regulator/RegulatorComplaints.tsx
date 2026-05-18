@@ -25,6 +25,7 @@ import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 import ComplaintAssignmentControl from "@/components/ComplaintAssignmentControl";
 import ComplaintReportsDialog from "@/components/ComplaintReportsDialog";
 import { generateComplaintPdf } from "@/lib/generateComplaintPdf";
+import { signStorageUrls, signStorageUrl } from "@/lib/signStorageUrl";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 type TabKey = "landlord" | "tenant" | "student";
@@ -400,8 +401,8 @@ const RegulatorComplaints = () => {
           role: isTenant ? "tenant" : "landlord",
         },
         respondentName: isTenant ? (c.landlord_name || "—") : (c.tenant_name || "—"),
-        evidenceUrls: c.evidence_urls || [],
-        audioUrl: c.audio_url || null,
+        evidenceUrls: await signStorageUrls(c.evidence_urls || []),
+        audioUrl: c.audio_url ? await signStorageUrl(c.audio_url) : null,
         basket,
         basketTotal,
         assignedStaff: current ? {
