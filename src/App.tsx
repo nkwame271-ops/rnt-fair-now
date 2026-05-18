@@ -80,6 +80,7 @@ const ComplaintsCommandCenter = lazy(() => import("./pages/regulator/ComplaintsC
 const ComplaintWizard = lazy(() => import("./pages/regulator/ComplaintWizard"));
 const ComplaintCaseFile = lazy(() => import("./pages/regulator/ComplaintCaseFile"));
 const HearingWorkspace = lazy(() => import("./pages/regulator/HearingWorkspace"));
+const HearingSchedule = lazy(() => import("./pages/regulator/HearingSchedule"));
 const FormEngine = lazy(() => import("./pages/regulator/FormEngine"));
 const FormTemplateEditor = lazy(() => import("./pages/regulator/FormTemplateEditor"));
 const FormFill = lazy(() => import("./pages/regulator/FormFill"));
@@ -220,6 +221,7 @@ const App = () => (
                 <Route path="properties" element={<RegulatorProperties />} />
                 <Route path="complaints" element={<RegulatorComplaints />} />
                 <Route path="complaints/command-center" element={<ComplaintsCommandCenter />} />
+                <Route path="complaints/schedule" element={<HearingSchedule />} />
                 <Route path="complaints/new" element={<ComplaintWizard />} />
                 <Route path="complaints/new-simple" element={<AdminFileComplaint />} />
                 <Route path="complaints/:id" element={<ComplaintCaseFile />} />

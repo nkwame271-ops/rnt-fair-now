@@ -16,6 +16,7 @@ import {
   StickyNote, Gavel, Activity, ChevronLeft, Edit3, UserPlus, Calendar as CalendarIcon, Plus, CheckCircle2,
 } from "lucide-react";
 import { STAGE_LABELS, STAGE_BADGE_CLASS, transitionStage, logComplaintAction } from "@/lib/complaintAudit";
+import { notifyComplaintParties, complaintRecipients } from "@/lib/complaintNotify";
 import { signStorageUrl } from "@/lib/signStorageUrl";
 
 const ComplaintCaseFile = () => {
@@ -353,6 +354,13 @@ const AssignDialog = ({ open, onOpenChange, complaint, offices, admins, onSaved 
       }).eq("id", complaint.id);
       await transitionStage({ caseId: complaint.id, toStage: "assigned", reason: "Assigned to officer" });
       await logComplaintAction({ caseId: complaint.id, action: "assign", newValue: { officeId, officerId } });
+      const officerName = admins.find((a: any) => a.user_id === officerId)?.full_name || "an officer";
+      await notifyComplaintParties({
+        event: "assigned",
+        data: { ref: complaint.ticket_number || complaint.complaint_code, officer: officerName },
+        recipients: complaintRecipients(complaint),
+        link: `/regulator/complaints/${complaint.id}`,
+      });
       toast({ title: "Case assigned" });
       onOpenChange(false);
       onSaved();
@@ -405,6 +413,12 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
       if (error) throw error;
       await supabase.from("complaints").update({ next_hearing_at: new Date(when).toISOString() }).eq("id", complaint.id);
       await transitionStage({ caseId: complaint.id, toStage: "scheduled", reason: "Hearing scheduled" });
+      await notifyComplaintParties({
+        event: "scheduled",
+        data: { ref: complaint.ticket_number || complaint.complaint_code, when: new Date(when).toLocaleString() },
+        recipients: complaintRecipients(complaint),
+        link: `/regulator/complaints/${complaint.id}`,
+      });
       toast({ title: "Hearing scheduled" });
       onOpenChange(false); onSaved();
     } catch (e: any) { toast({ title: e.message, variant: "destructive" }); }
@@ -511,6 +525,13 @@ const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
       });
       if (error) throw error;
       await transitionStage({ caseId: complaint.id, toStage: outcome, reason: "Decision recorded" });
+      const evt = outcome === "settled" ? "settled" : outcome === "closed" ? "closed" : "decided";
+      await notifyComplaintParties({
+        event: evt as any,
+        data: { ref: complaint.ticket_number || complaint.complaint_code },
+        recipients: complaintRecipients(complaint),
+        link: `/regulator/complaints/${complaint.id}`,
+      });
       toast({ title: "Decision recorded" });
       onOpenChange(false); onSaved();
     } catch (e: any) { toast({ title: e.message, variant: "destructive" }); }
