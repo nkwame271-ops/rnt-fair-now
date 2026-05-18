@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, FileText, History, CheckCircle2, Loader2, Download, Sparkles } from "lucide-react";
+import { ArrowLeft, Save, FileText, History, CheckCircle2, Loader2, Download, Sparkles, BookmarkPlus, RefreshCw } from "lucide-react";
 import RichTextEditor from "@/components/regulator/RichTextEditor";
 import { logComplaintAction } from "@/lib/complaintAudit";
 import { notifyComplaintParties } from "@/lib/complaintNotify";
+import { applyTemplatePlaceholders, buildComplaintContext } from "@/lib/templatePlaceholders";
 
 const FORM_TYPES = [
   { value: "summons", label: "Summons" },
