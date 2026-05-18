@@ -413,6 +413,12 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
       if (error) throw error;
       await supabase.from("complaints").update({ next_hearing_at: new Date(when).toISOString() }).eq("id", complaint.id);
       await transitionStage({ caseId: complaint.id, toStage: "scheduled", reason: "Hearing scheduled" });
+      await notifyComplaintParties({
+        event: "scheduled",
+        data: { ref: complaint.ticket_number || complaint.complaint_code, when: new Date(when).toLocaleString() },
+        recipients: complaintRecipients(complaint),
+        link: `/regulator/complaints/${complaint.id}`,
+      });
       toast({ title: "Hearing scheduled" });
       onOpenChange(false); onSaved();
     } catch (e: any) { toast({ title: e.message, variant: "destructive" }); }
