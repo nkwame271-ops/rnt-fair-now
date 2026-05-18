@@ -316,6 +316,51 @@ export type Database = {
         }
         Relationships: []
       }
+      complaint_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_name: string | null
+          actor_role: string | null
+          case_id: string | null
+          case_kind: string | null
+          created_at: string
+          id: string
+          ip_address: string | null
+          new_value: Json | null
+          old_value: Json | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_name?: string | null
+          actor_role?: string | null
+          case_id?: string | null
+          case_kind?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_name?: string | null
+          actor_role?: string | null
+          case_id?: string | null
+          case_kind?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       complaint_basket_items: {
         Row: {
           admin_pct: number
@@ -377,6 +422,113 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      complaint_decisions: {
+        Row: {
+          case_id: string
+          case_kind: string
+          compliance_deadline: string | null
+          decision_summary: string | null
+          document_id: string | null
+          id: string
+          internal_remarks: string | null
+          next_hearing_at: string | null
+          officer_user_id: string
+          orders: string | null
+          outcome: string
+          payment_orders: Json | null
+          recorded_at: string
+        }
+        Insert: {
+          case_id: string
+          case_kind?: string
+          compliance_deadline?: string | null
+          decision_summary?: string | null
+          document_id?: string | null
+          id?: string
+          internal_remarks?: string | null
+          next_hearing_at?: string | null
+          officer_user_id: string
+          orders?: string | null
+          outcome: string
+          payment_orders?: Json | null
+          recorded_at?: string
+        }
+        Update: {
+          case_id?: string
+          case_kind?: string
+          compliance_deadline?: string | null
+          decision_summary?: string | null
+          document_id?: string | null
+          id?: string
+          internal_remarks?: string | null
+          next_hearing_at?: string | null
+          officer_user_id?: string
+          orders?: string | null
+          outcome?: string
+          payment_orders?: Json | null
+          recorded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_decisions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "complaint_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      complaint_documents: {
+        Row: {
+          case_id: string
+          case_kind: string
+          change_reason: string | null
+          edited_by: string | null
+          file_url: string | null
+          finalized_at: string | null
+          finalized_by: string | null
+          form_type: string
+          generated_at: string
+          generated_by: string | null
+          id: string
+          metadata: Json | null
+          status: string
+          version_number: number
+        }
+        Insert: {
+          case_id: string
+          case_kind?: string
+          change_reason?: string | null
+          edited_by?: string | null
+          file_url?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
+          form_type: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          metadata?: Json | null
+          status?: string
+          version_number?: number
+        }
+        Update: {
+          case_id?: string
+          case_kind?: string
+          change_reason?: string | null
+          edited_by?: string | null
+          file_url?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
+          form_type?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          metadata?: Json | null
+          status?: string
+          version_number?: number
+        }
+        Relationships: []
       }
       complaint_fee_bands: {
         Row: {
@@ -555,32 +707,106 @@ export type Database = {
         }
         Relationships: []
       }
+      complaint_hearings: {
+        Row: {
+          attendance: Json | null
+          case_id: string
+          case_kind: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          officer_user_id: string | null
+          outcome: string | null
+          priority: string | null
+          reschedule_reason: string | null
+          room_id: string | null
+          scheduled_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attendance?: Json | null
+          case_id: string
+          case_kind?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          officer_user_id?: string | null
+          outcome?: string | null
+          priority?: string | null
+          reschedule_reason?: string | null
+          room_id?: string | null
+          scheduled_at: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attendance?: Json | null
+          case_id?: string
+          case_kind?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          officer_user_id?: string | null
+          outcome?: string | null
+          priority?: string | null
+          reschedule_reason?: string | null
+          room_id?: string | null
+          scheduled_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_hearings_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "hearing_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       complaint_notes: {
         Row: {
           author_role: string
           author_user_id: string
           body: string
+          case_kind: string
           complaint_id: string
           created_at: string
+          edit_history: Json | null
           id: string
+          note_type: string
+          updated_at: string
           visibility: string
         }
         Insert: {
           author_role?: string
           author_user_id: string
           body: string
+          case_kind?: string
           complaint_id: string
           created_at?: string
+          edit_history?: Json | null
           id?: string
+          note_type?: string
+          updated_at?: string
           visibility?: string
         }
         Update: {
           author_role?: string
           author_user_id?: string
           body?: string
+          case_kind?: string
           complaint_id?: string
           created_at?: string
+          edit_history?: Json | null
           id?: string
+          note_type?: string
+          updated_at?: string
           visibility?: string
         }
         Relationships: []
@@ -681,6 +907,39 @@ export type Database = {
         }
         Relationships: []
       }
+      complaint_status_history: {
+        Row: {
+          case_id: string
+          case_kind: string
+          changed_at: string
+          changed_by: string | null
+          id: string
+          new_status: string
+          previous_status: string | null
+          reason: string | null
+        }
+        Insert: {
+          case_id: string
+          case_kind?: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          new_status: string
+          previous_status?: string | null
+          reason?: string | null
+        }
+        Update: {
+          case_id?: string
+          case_kind?: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          new_status?: string
+          previous_status?: string | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
       complaint_types: {
         Row: {
           active: boolean
@@ -735,20 +994,66 @@ export type Database = {
         }
         Relationships: []
       }
+      complaint_witnesses: {
+        Row: {
+          address: string | null
+          case_id: string
+          case_kind: string
+          created_at: string
+          created_by: string | null
+          email: string | null
+          expected_testimony: string | null
+          id: string
+          name: string
+          phone: string | null
+          side: string
+        }
+        Insert: {
+          address?: string | null
+          case_id: string
+          case_kind?: string
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          expected_testimony?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          side: string
+        }
+        Update: {
+          address?: string | null
+          case_id?: string
+          case_kind?: string
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          expected_testimony?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          side?: string
+        }
+        Relationships: []
+      }
       complaints: {
         Row: {
           admin_filer_user_id: string | null
           assigned_nugs_user_id: string | null
+          assigned_officer_user_id: string | null
           audio_url: string | null
           basket_total: number | null
           claim_amount: number | null
           complainant_role: string | null
           complaint_code: string
           complaint_property_id: string | null
+          complaint_title: string | null
           complaint_type: string
           complaint_type_id: string | null
           complaint_type_is_custom: boolean
           created_at: string
+          created_by_user_id: string | null
+          current_stage: string
           description: string
           escalated_at: string | null
           escalated_by: string | null
@@ -759,10 +1064,14 @@ export type Database = {
           gps_confirmed: boolean
           gps_confirmed_at: string | null
           gps_location: string | null
+          hearing_room_id: string | null
           id: string
+          internal_notes: string | null
           landlord_name: string
+          last_activity_at: string
           linked_property_id: string | null
           linked_unit_id: string | null
+          next_hearing_at: string | null
           nugs_school: string | null
           office_id: string | null
           outstanding_amount: number | null
@@ -786,16 +1095,20 @@ export type Database = {
         Insert: {
           admin_filer_user_id?: string | null
           assigned_nugs_user_id?: string | null
+          assigned_officer_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
           claim_amount?: number | null
           complainant_role?: string | null
           complaint_code: string
           complaint_property_id?: string | null
+          complaint_title?: string | null
           complaint_type: string
           complaint_type_id?: string | null
           complaint_type_is_custom?: boolean
           created_at?: string
+          created_by_user_id?: string | null
+          current_stage?: string
           description: string
           escalated_at?: string | null
           escalated_by?: string | null
@@ -806,10 +1119,14 @@ export type Database = {
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
+          hearing_room_id?: string | null
           id?: string
+          internal_notes?: string | null
           landlord_name: string
+          last_activity_at?: string
           linked_property_id?: string | null
           linked_unit_id?: string | null
+          next_hearing_at?: string | null
           nugs_school?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
@@ -833,16 +1150,20 @@ export type Database = {
         Update: {
           admin_filer_user_id?: string | null
           assigned_nugs_user_id?: string | null
+          assigned_officer_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
           claim_amount?: number | null
           complainant_role?: string | null
           complaint_code?: string
           complaint_property_id?: string | null
+          complaint_title?: string | null
           complaint_type?: string
           complaint_type_id?: string | null
           complaint_type_is_custom?: boolean
           created_at?: string
+          created_by_user_id?: string | null
+          current_stage?: string
           description?: string
           escalated_at?: string | null
           escalated_by?: string | null
@@ -853,10 +1174,14 @@ export type Database = {
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
+          hearing_room_id?: string | null
           id?: string
+          internal_notes?: string | null
           landlord_name?: string
+          last_activity_at?: string
           linked_property_id?: string | null
           linked_unit_id?: string | null
+          next_hearing_at?: string | null
           nugs_school?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
@@ -1529,6 +1854,44 @@ export type Database = {
         }
         Relationships: []
       }
+      hearing_rooms: {
+        Row: {
+          active: boolean
+          capacity: number | null
+          created_at: string
+          id: string
+          name: string
+          office_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          capacity?: number | null
+          created_at?: string
+          id?: string
+          name: string
+          office_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          capacity?: number | null
+          created_at?: string
+          id?: string
+          name?: string
+          office_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hearing_rooms_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hostel_room_categories: {
         Row: {
           block_label: string | null
@@ -1948,19 +2311,27 @@ export type Database = {
       }
       landlord_complaints: {
         Row: {
+          assigned_officer_user_id: string | null
           audio_url: string | null
           basket_total: number | null
           claim_amount: number | null
           complaint_code: string
+          complaint_title: string | null
           complaint_type: string
           complaint_type_id: string | null
           created_at: string
+          created_by_user_id: string | null
+          current_stage: string
           description: string
           evidence_urls: string[] | null
+          hearing_room_id: string | null
           id: string
+          internal_notes: string | null
           landlord_user_id: string
+          last_activity_at: string
           linked_property_id: string | null
           linked_unit_id: string | null
+          next_hearing_at: string | null
           office_id: string | null
           outstanding_amount: number | null
           payment_status: string
@@ -1973,19 +2344,27 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_officer_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
           claim_amount?: number | null
           complaint_code: string
+          complaint_title?: string | null
           complaint_type: string
           complaint_type_id?: string | null
           created_at?: string
+          created_by_user_id?: string | null
+          current_stage?: string
           description: string
           evidence_urls?: string[] | null
+          hearing_room_id?: string | null
           id?: string
+          internal_notes?: string | null
           landlord_user_id: string
+          last_activity_at?: string
           linked_property_id?: string | null
           linked_unit_id?: string | null
+          next_hearing_at?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
@@ -1998,19 +2377,27 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_officer_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
           claim_amount?: number | null
           complaint_code?: string
+          complaint_title?: string | null
           complaint_type?: string
           complaint_type_id?: string | null
           created_at?: string
+          created_by_user_id?: string | null
+          current_stage?: string
           description?: string
           evidence_urls?: string[] | null
+          hearing_room_id?: string | null
           id?: string
+          internal_notes?: string | null
           landlord_user_id?: string
+          last_activity_at?: string
           linked_property_id?: string | null
           linked_unit_id?: string | null
+          next_hearing_at?: string | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
@@ -5132,6 +5519,10 @@ export type Database = {
       generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
       generate_safety_ticket: { Args: never; Returns: string }
+      has_admin_role: {
+        Args: { _role: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
