@@ -538,6 +538,44 @@ const ComplaintDocumentEditor = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={saveTplOpen} onOpenChange={setSaveTplOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Save as Global Template</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This template will appear in the Form Engine and become available across all complaints.
+              Placeholders like <code>{"{{ticket_number}}"}</code>, <code>{"{{complainant_name}}"}</code>,
+              <code>{"{{respondent_name}}"}</code>, and <code>{"{{property_address}}"}</code> will auto-fill on apply.
+            </p>
+            <div className="space-y-1">
+              <Label>Template Name *</Label>
+              <Input value={tplMeta.form_name} onChange={(e) => setTplMeta({ ...tplMeta, form_name: e.target.value })} placeholder="e.g. Notice of Hearing" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label>Form Number</Label>
+                <Input value={tplMeta.form_number} onChange={(e) => setTplMeta({ ...tplMeta, form_number: e.target.value })} placeholder="e.g. form_hearing" />
+              </div>
+              <div className="space-y-1">
+                <Label>Category</Label>
+                <Input value={tplMeta.category} onChange={(e) => setTplMeta({ ...tplMeta, category: e.target.value })} placeholder="e.g. Hearings" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Description</Label>
+              <Textarea value={tplMeta.description} onChange={(e) => setTplMeta({ ...tplMeta, description: e.target.value })} rows={2} placeholder="Short description for the Form Engine list" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveTplOpen(false)}>Cancel</Button>
+            <Button onClick={saveAsGlobalTemplate} disabled={savingTpl}>
+              {savingTpl && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Save Template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
