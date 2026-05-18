@@ -1,78 +1,102 @@
-# Triage & Fix Plan — Complaints, Forms, Safety
 
-This batch covers six distinct issues. I'll fix the blocking bugs first, then layer in the Form 7 / Form 33 auto-generation flow on top of the existing Document Editor (Phase 6) so we don't duplicate work.
+## Goal
 
-## 1. Admin → File Complaint silently fails
+Make Form 7 (Complaint) and Form 33 (Summons) generate PDFs that match the official Rent Control layouts shown in your samples, and rebuild the complaint intake UI so capturing those fields is fast and pleasant — not a wall of inputs.
 
-Likely cause (confirmed against RLS):
-- `INSERT` policy `Admin staff can file complaints` only allows users present in `admin_staff`. NUGS-only or regulator-without-admin_staff rows fail with no useful toast because the catch reads `e.message` which can be empty for RLS rejections.
-- Even when insert succeeds, the chained `.select("id, ticket_number, complaint_code")` requires a SELECT policy; non-regulator admins fail here.
+## What's wrong today
 
-Fix:
-- Wrap `submit()` in `AdminFileComplaint.tsx` with a clearer error pipeline (always surface `error.message || error.details || error.hint`).
-- After insert, if the post-insert select returns nothing/error, re-fetch with `admin_staff`-scoped query, falling back to a service-side fetch using returned `id` if available.
-- Add a new RLS policy: `Admin staff read complaints they filed` so the returning `select` resolves.
-- Stenographers don't currently have an `admin_staff` row in some envs — verify by surfacing a friendly "Your account is not in admin_staff; ask Super Admin to add you" error rather than a silent failure.
+- **Form 7 / Form 33 PDFs**: rendered from a generic `form_templates` schema with loose label-matching. Fields like multiple respondents, premises house number, agreement expiry, deposit, occupancy duration, GPS for complainant address, CAR case number, hearing officer/venue are not modeled — so the PDFs don't look like the samples.
+- **Intake UI**: single long page, no grouping of "additional details", no support for multiple complainants/respondents, no GPS capture for complainant address, no agreement/deposit fields. Too painful for officers doing paper-to-digital intake.
 
-## 2. Form 7 auto-generation on complaint filing
+## Scope (frontend + form generators only — no workflow changes)
 
-Workflow:
-- After a successful complaint insert in `AdminFileComplaint.tsx` and the wizard (`ComplaintWizard.tsx`), call a new helper `autoGenerateForm7(caseId, complaint)` that:
-  1. Loads the canonical `form_templates` row where `form_number = 'Form 7'`.
-  2. Builds a `form_submissions` row with `data` pre-filled from the complaint (parties, address, region, ticket, description, date).
-  3. Renders the PDF via existing `generateDynamicFormPdf`, uploads to `form-outputs/<caseId>/form-7-v1.pdf`.
-  4. Inserts a `complaint_documents` row (`form_type='form_7'`, `version_number=1`, `status='final'`, `pdf_url=path`) so the Case File → Documents tab shows it immediately.
-- Idempotent: skip if a `complaint_documents` row with `form_type='form_7'` already exists for the case.
+### 1. Data model additions (one migration)
 
-## 3. Form 33 generation on hearing scheduling
+Add nullable columns to `public.complaints` to back the official forms:
 
-Trigger point: existing **Schedule Hearing** action in `ComplaintCaseFile.tsx`.
-- After `complaint_hearings` insert succeeds, call `generateForm33(caseId, hearing)`:
-  - Pre-fill respondent name, case number, hearing date/time, venue (room name), parties.
-  - Save as a *draft* `complaint_documents` row so the admin can edit variable fields before finalizing.
-- Add an "Edit & Finalize Form 33" button on the Documents tab that opens `ComplaintDocumentEditor` with `form_type=form_33` and the draft pre-loaded.
+- `complainants jsonb` — array of `{name, phone, address, gps_lat, gps_lng}` (primary complainant still mirrored to existing placeholder columns for back-compat)
+- `respondents jsonb` — array of `{name, phone}` (primary mirrored to existing columns)
+- `premises_house_no text`, `premises_town text` (kept separate from free-form `property_address`)
+- `complainant_address text`, `complainant_gps_lat numeric`, `complainant_gps_lng numeric`
+- `agreement_expiry_date date`, `deposit_amount numeric`, `occupied_months int`, `tenants_intent text` (renew / vacate / other)
+- `relief_sought text` (e.g. "Eject tenants immediately")
+- `case_number text` — the CAR-style number ("CAR 2734/2026"). Auto-generated on first hearing schedule from a small sequence helper; editable by admin.
+- `hearing_venue text`, `hearing_officer_name text`, `summons_issued_at timestamptz`
 
-## 4. Complaint Documents Section
+All optional; existing flows keep working.
 
-`ComplaintCaseFile.tsx` already has a Documents tab from Phase 6. Enhance it:
-- Group items: **Statutory Forms (Form 7, Form 33)**, **Evidence**, **Receipts**, **Other Documents**.
-- Each row: badge for status (draft/final), Download PDF, Regenerate (rebuilds PDF from latest data, bumps version), Edit (opens WYSIWYG / FormFill).
-- Pull receipts from `receipts` table keyed by complaint payment.
+### 2. New modern intake UI — `AdminFileComplaint.tsx` (full rewrite of the page, same route)
 
-## 5. Form Engine — Generate & Delete
+A **2-column, sectioned form** with progressive disclosure:
 
-`FormFill.tsx` Generate button:
-- `generateAndAttach` already exists. Bug: when called without a `complaintId`, it tries to update `form_submissions` then exits with no toast on path errors. Add explicit error toasts on every catch branch and a visible "Saved to outputs" success state with link to the file.
+```text
+┌─ Header (sticky) ─────────────────────────────────┐
+│ File Complaint • [Save Draft] [File Complaint]    │
+├──────────────────────┬────────────────────────────┤
+│ LEFT (primary)       │ RIGHT (live Form 7 preview)│
+│  • Parties           │  Mini PDF-style preview    │
+│  • Premises          │  updating as you type      │
+│  • Complaint summary │                            │
+│  • Office & docket   │                            │
+└──────────────────────┴────────────────────────────┘
+```
 
-`FormEngine.tsx` Delete button:
-- Inspect template list delete; ensure it calls `supabase.from('form_templates').delete().eq('id', id)` inside a confirmed AlertDialog and refreshes the list state on success. Add toast feedback for both success and RLS-blocked failures.
+UX rules to keep it light:
+- **Single-click "Add another complainant/respondent"** chips, not nested cards
+- **GPS capture** button on each complainant address (uses existing geolocation pattern)
+- **"More details" collapsible** per section — agreement date, deposit, occupancy months, intent live behind a single expander so the form looks short by default
+- **Smart defaults**: office auto-picked from region, case number left blank until hearing scheduled, relief sought has 4 quick chips ("Eject", "Refund deposit", "Repair", "Other")
+- **Autosave draft** to `localStorage` keyed by admin user (no schema change)
+- **Sticky submit bar** with inline validation summary (no toast spam)
 
-## 6. Safety & Emergency submission failures
+### 3. Form 7 PDF generator — purpose-built
 
-Likely cause: `submit-safety-report` edge function works against the schema, but the SMS fan-out hits the failing Arkesel V2/V1 endpoints (see logs: `Your are not allowed to use this Sender ID`). The fan-out is wrapped in `try/catch` so it should not fail the function — but the `notify admins` insert into `notifications` may fail if no admin rows or column mismatch, and that block is NOT wrapped properly in all paths.
+New module `src/lib/pdf/form7.ts` (uses existing `jspdf` already in the project) that renders the exact layout from the sample:
 
-Fix:
-- Audit `submit-safety-report/index.ts`: wrap every best-effort side-effect in its own try/catch returning success regardless. Only the core `safety_reports` insert and `safety_audit_log` insert determine success.
-- Frontend: surface the real error in the toast (`err.message`) instead of a generic message.
-- Verify the `safety-evidence` bucket upload doesn't 403 for the user (RLS on storage). Add a pre-check.
+- Header: "FORM 7 — Complaint Against Conduct of Landlord/Tenant/Person Interested in Premises", "Under Rent Regulation 19(1)"
+- Numbered fields exactly matching the sample (Complainant, Address, Respondents list, Premises, Summary bullets, Stamp box)
+- Bulleted summary auto-composed from: monthly rent, agreement expiry, intent, deposit, occupancy months, free-form description, relief sought
+- Footer with ticket number, filing date, and a placeholder for the office stamp
 
-## Technical Section
+Replaces the generic `autoGenerateForm7` path for `form_7`; the `form_templates` row stays for backwards compat but isn't used.
 
-Files touched:
-- `src/pages/regulator/AdminFileComplaint.tsx` — error surfacing, auto-Form-7 trigger.
-- `src/pages/regulator/ComplaintWizard.tsx` — auto-Form-7 trigger.
-- `src/pages/regulator/ComplaintCaseFile.tsx` — auto-Form-33 on hearing schedule, Documents tab grouping & actions.
-- `src/pages/regulator/FormFill.tsx` — error toasts on Generate.
-- `src/pages/regulator/FormEngine.tsx` — wire Delete with confirm + feedback.
-- `src/pages/shared/ReportSafetyIssue.tsx` — show real error message.
-- `src/components/SafetyPanicButton.tsx` — show real error message.
-- `supabase/functions/submit-safety-report/index.ts` — defensive try/catch around side-effects.
-- `src/lib/complaintForms.ts` *(new)* — `autoGenerateForm7`, `generateForm33`, `attachAsComplaintDocument` helpers.
-- Migration: new RLS policy `Admin staff read complaints they filed` on `public.complaints` and a CHECK that statutory `Form 7` / `Form 33` rows exist in `form_templates` (seed if missing).
+### 4. Form 33 PDF generator — purpose-built
 
-Rollout order: migration → safety edge-function fix → frontend bug fixes → Form 7/33 auto-attach → Documents tab grouping.
+New module `src/lib/pdf/form33.ts`:
 
-After implementation I'll verify by:
-- Filing a test complaint as an admin and confirming ticket toast + dashboard entry.
-- Scheduling a hearing and seeing Form 33 draft appear.
-- Triggering a Safety report and seeing the real error or success.
+- Header: "FORM 33 — Summons to Persons Against Whom Complaints Have Been Made", "Under Regulation 38(2) (Rent Regulation, 1964 LI 369)"
+- Case Number: `case_number` (auto-issued on first hearing schedule if blank)
+- Parties: multi-line list of complainants vs respondent
+- Rent Officer for: office name/region
+- Person Summoned: respondent name (one summons per respondent — loop if >1)
+- Nature of Complaint, Appearance Date + Time, Issued At, Date Issued
+
+Trigger remains in `ComplaintCaseFile.tsx` when a hearing is scheduled; output saved as `draft` in `complaint_documents` so the officer can edit/finalize before sending.
+
+### 5. Case File tweaks
+
+- Show generated Form 7 with a **"Preview / Download / Regenerate"** row (uses new generator)
+- Show Form 33 draft per respondent with the same row
+- Display `case_number` prominently once issued; add inline "Edit case number" for admins
+
+## Out of scope
+
+- Workflow/state machine changes
+- Notifications/SMS changes
+- Rich-text document editor (TipTap) — keep as-is for free-form rulings
+- Backend RLS changes (current policies already cover the new columns)
+
+## Technical notes
+
+- Migration adds nullable columns only — no destructive changes, no policy rewrites.
+- PDF generators use `jspdf` + `jspdf-autotable` (already installed). No new deps.
+- Live preview component reuses the same `form7.ts` render but to a hidden canvas → image via `jspdf`'s `output('datauristring')`.
+- Case number sequence: `case_number_seq` int sequence + a small SQL helper `issue_case_number()` returning `CAR <n>/<YYYY>`.
+- Storage path unchanged: `complaints/{caseId}/form-7-v{n}.pdf`, `complaints/{caseId}/form-33-v{n}.pdf`.
+
+## Files
+
+- **Migration**: new columns on `complaints` + `case_number_seq` sequence + `issue_case_number()` function
+- **Created**: `src/lib/pdf/form7.ts`, `src/lib/pdf/form33.ts`, `src/components/regulator/Form7LivePreview.tsx`
+- **Rewritten**: `src/pages/regulator/AdminFileComplaint.tsx`
+- **Updated**: `src/lib/complaintForms.ts` (route Form 7/33 to new generators), `src/pages/regulator/ComplaintCaseFile.tsx` (case number display, regenerate buttons)
