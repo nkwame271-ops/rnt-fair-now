@@ -205,20 +205,34 @@ const ComplaintCaseFile = () => {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-4">
-          <Card><CardContent className="pt-6 space-y-2">
+          <Card><CardContent className="pt-6 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Compose summons, rulings, and notices with the WYSIWYG editor. Each save creates a draft; finalize to lock and notify parties.</p>
+              <Button size="sm" onClick={() => navigate(`/regulator/complaints/${id}/documents/new`)}>
+                <Plus className="h-4 w-4 mr-1" /> New Document
+              </Button>
+            </div>
             {docs.length === 0 && <p className="text-sm text-muted-foreground">No documents generated yet.</p>}
             {docs.map((d) => (
-              <div key={d.id} className="flex items-center justify-between rounded border p-2 text-sm">
-                <div>
-                  <strong>{d.form_type}</strong> · v{d.version_number}
-                  <Badge variant="outline" className="ml-2">{d.status}</Badge>
-                  {d.change_reason && <p className="text-xs text-muted-foreground mt-1">{d.change_reason}</p>}
-                </div>
+              <div key={d.id} className="flex items-center justify-between rounded border p-3 text-sm hover:bg-accent">
+                <button className="text-left flex-1" onClick={() => navigate(`/regulator/complaints/${id}/documents/${d.id}`)}>
+                  <div className="flex items-center gap-2">
+                    <FileSignature className="h-4 w-4" />
+                    <strong>{d.title || d.form_type}</strong>
+                    <Badge variant="outline">v{d.version_number}</Badge>
+                    <Badge variant={d.status === "finalized" ? "default" : "secondary"}>{d.status}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {d.form_type} · {new Date(d.generated_at).toLocaleString()}
+                  </p>
+                  {d.change_reason && <p className="text-xs italic text-muted-foreground mt-1">"{d.change_reason}"</p>}
+                </button>
                 {d.file_url && (
-                  <Button size="sm" variant="outline" onClick={async () => {
+                  <Button size="sm" variant="outline" onClick={async (e) => {
+                    e.stopPropagation();
                     const url = await signStorageUrl(d.file_url.includes("/") ? d.file_url : `form-outputs/${d.file_url}`);
                     if (url) window.open(url, "_blank");
-                  }}>Open</Button>
+                  }}>Open File</Button>
                 )}
               </div>
             ))}
