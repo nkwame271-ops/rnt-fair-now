@@ -1048,12 +1048,18 @@ export type Database = {
       complaints: {
         Row: {
           admin_filer_user_id: string | null
+          agreement_expiry_date: string | null
           assigned_nugs_user_id: string | null
           assigned_officer_user_id: string | null
           audio_url: string | null
           basket_total: number | null
+          case_number: string | null
           claim_amount: number | null
+          complainant_address: string | null
+          complainant_gps_lat: number | null
+          complainant_gps_lng: number | null
           complainant_role: string | null
+          complainants: Json | null
           complaint_code: string
           complaint_property_id: string | null
           complaint_title: string | null
@@ -1063,6 +1069,7 @@ export type Database = {
           created_at: string
           created_by_user_id: string | null
           current_stage: string
+          deposit_amount: number | null
           description: string
           escalated_at: string | null
           escalated_by: string | null
@@ -1073,7 +1080,9 @@ export type Database = {
           gps_confirmed: boolean
           gps_confirmed_at: string | null
           gps_location: string | null
+          hearing_officer_name: string | null
           hearing_room_id: string | null
+          hearing_venue: string | null
           id: string
           internal_notes: string | null
           landlord_name: string
@@ -1082,6 +1091,7 @@ export type Database = {
           linked_unit_id: string | null
           next_hearing_at: string | null
           nugs_school: string | null
+          occupied_months: number | null
           office_id: string | null
           outstanding_amount: number | null
           payment_status: string
@@ -1090,25 +1100,37 @@ export type Database = {
           placeholder_complainant_phone: string | null
           placeholder_respondent_name: string | null
           placeholder_respondent_phone: string | null
+          premises_house_no: string | null
+          premises_town: string | null
           property_address: string
           receipt_id: string | null
           region: string
+          relief_sought: string | null
           rent_amount: number | null
           respondent_role: string | null
           respondent_user_id: string | null
+          respondents: Json | null
           status: string
+          summons_issued_at: string | null
           tenant_user_id: string | null
+          tenants_intent: string | null
           ticket_number: string
           updated_at: string
         }
         Insert: {
           admin_filer_user_id?: string | null
+          agreement_expiry_date?: string | null
           assigned_nugs_user_id?: string | null
           assigned_officer_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
+          case_number?: string | null
           claim_amount?: number | null
+          complainant_address?: string | null
+          complainant_gps_lat?: number | null
+          complainant_gps_lng?: number | null
           complainant_role?: string | null
+          complainants?: Json | null
           complaint_code: string
           complaint_property_id?: string | null
           complaint_title?: string | null
@@ -1118,6 +1140,7 @@ export type Database = {
           created_at?: string
           created_by_user_id?: string | null
           current_stage?: string
+          deposit_amount?: number | null
           description: string
           escalated_at?: string | null
           escalated_by?: string | null
@@ -1128,7 +1151,9 @@ export type Database = {
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
+          hearing_officer_name?: string | null
           hearing_room_id?: string | null
+          hearing_venue?: string | null
           id?: string
           internal_notes?: string | null
           landlord_name: string
@@ -1137,6 +1162,7 @@ export type Database = {
           linked_unit_id?: string | null
           next_hearing_at?: string | null
           nugs_school?: string | null
+          occupied_months?: number | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
@@ -1145,25 +1171,37 @@ export type Database = {
           placeholder_complainant_phone?: string | null
           placeholder_respondent_name?: string | null
           placeholder_respondent_phone?: string | null
+          premises_house_no?: string | null
+          premises_town?: string | null
           property_address: string
           receipt_id?: string | null
           region: string
+          relief_sought?: string | null
           rent_amount?: number | null
           respondent_role?: string | null
           respondent_user_id?: string | null
+          respondents?: Json | null
           status?: string
+          summons_issued_at?: string | null
           tenant_user_id?: string | null
+          tenants_intent?: string | null
           ticket_number?: string
           updated_at?: string
         }
         Update: {
           admin_filer_user_id?: string | null
+          agreement_expiry_date?: string | null
           assigned_nugs_user_id?: string | null
           assigned_officer_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
+          case_number?: string | null
           claim_amount?: number | null
+          complainant_address?: string | null
+          complainant_gps_lat?: number | null
+          complainant_gps_lng?: number | null
           complainant_role?: string | null
+          complainants?: Json | null
           complaint_code?: string
           complaint_property_id?: string | null
           complaint_title?: string | null
@@ -1173,6 +1211,7 @@ export type Database = {
           created_at?: string
           created_by_user_id?: string | null
           current_stage?: string
+          deposit_amount?: number | null
           description?: string
           escalated_at?: string | null
           escalated_by?: string | null
@@ -1183,7 +1222,9 @@ export type Database = {
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
+          hearing_officer_name?: string | null
           hearing_room_id?: string | null
+          hearing_venue?: string | null
           id?: string
           internal_notes?: string | null
           landlord_name?: string
@@ -1192,6 +1233,7 @@ export type Database = {
           linked_unit_id?: string | null
           next_hearing_at?: string | null
           nugs_school?: string | null
+          occupied_months?: number | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
@@ -1200,14 +1242,20 @@ export type Database = {
           placeholder_complainant_phone?: string | null
           placeholder_respondent_name?: string | null
           placeholder_respondent_phone?: string | null
+          premises_house_no?: string | null
+          premises_town?: string | null
           property_address?: string
           receipt_id?: string | null
           region?: string
+          relief_sought?: string | null
           rent_amount?: number | null
           respondent_role?: string | null
           respondent_user_id?: string | null
+          respondents?: Json | null
           status?: string
+          summons_issued_at?: string | null
           tenant_user_id?: string | null
+          tenants_intent?: string | null
           ticket_number?: string
           updated_at?: string
         }
@@ -5558,6 +5606,7 @@ export type Database = {
       is_main_admin: { Args: { _user_id: string }; Returns: boolean }
       is_nugs_user: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      issue_car_case_number: { Args: never; Returns: string }
       move_to_dlq: {
         Args: {
           dlq_name: string
