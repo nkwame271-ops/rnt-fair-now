@@ -490,6 +490,7 @@ export type Database = {
           file_url: string | null
           finalized_at: string | null
           finalized_by: string | null
+          form_data_json: Json | null
           form_type: string
           generated_at: string
           generated_by: string | null
@@ -509,6 +510,7 @@ export type Database = {
           file_url?: string | null
           finalized_at?: string | null
           finalized_by?: string | null
+          form_data_json?: Json | null
           form_type: string
           generated_at?: string
           generated_by?: string | null
@@ -528,6 +530,7 @@ export type Database = {
           file_url?: string | null
           finalized_at?: string | null
           finalized_by?: string | null
+          form_data_json?: Json | null
           form_type?: string
           generated_at?: string
           generated_by?: string | null
