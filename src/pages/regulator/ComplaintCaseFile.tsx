@@ -42,6 +42,7 @@ const ComplaintCaseFile = () => {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [decisionOpen, setDecisionOpen] = useState(false);
+  const [headerFormEditor, setHeaderFormEditor] = useState<{ open: boolean; type: StatutoryFormType }>({ open: false, type: "form_7" });
 
   const load = async () => {
     if (!id) return;
