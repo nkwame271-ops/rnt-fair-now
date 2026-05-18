@@ -24,6 +24,9 @@ import { StatutoryFormType } from "@/lib/complaintForms";
 
 const ComplaintCaseFile = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = (() => { try { const u = new URL(window.location.href); return [Object.fromEntries(u.searchParams)] as const; } catch { return [{} as Record<string,string>] as const; } })();
+  const kindHint = (searchParams as any)?.kind === "landlord" ? "landlord_complaint" : null;
+  const [caseKind, setCaseKind] = useState<"complaint" | "landlord_complaint">("complaint");
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [c, setC] = useState<any>(null);
@@ -47,10 +50,29 @@ const ComplaintCaseFile = () => {
   const load = async () => {
     if (!id) return;
     setLoading(true);
+
+    // Try primary table per hint, fall back to the other
+    const primary = kindHint === "landlord_complaint" ? "landlord_complaints" : "complaints";
+    const fallback = primary === "complaints" ? "landlord_complaints" : "complaints";
+    let cData: any = null;
+    let resolvedKind: "complaint" | "landlord_complaint" =
+      primary === "complaints" ? "complaint" : "landlord_complaint";
+
+    const primaryRes = await supabase.from(primary).select("*").eq("id", id).maybeSingle();
+    if (primaryRes.data) {
+      cData = primaryRes.data;
+    } else {
+      const fbRes = await supabase.from(fallback).select("*").eq("id", id).maybeSingle();
+      if (fbRes.data) {
+        cData = fbRes.data;
+        resolvedKind = fallback === "complaints" ? "complaint" : "landlord_complaint";
+      }
+    }
+    setCaseKind(resolvedKind);
+
     const [
-      cRes, hRes, nRes, wRes, dRes, decRes, hisRes, audRes, offRes, roomRes, staffRes,
+      hRes, nRes, wRes, dRes, decRes, hisRes, audRes, offRes, roomRes, staffRes,
     ] = await Promise.all([
-      supabase.from("complaints").select("*").eq("id", id).maybeSingle(),
       supabase.from("complaint_hearings").select("*").eq("case_id", id).order("scheduled_at", { ascending: false }),
       supabase.from("complaint_notes").select("*").eq("complaint_id", id).order("created_at", { ascending: false }),
       supabase.from("complaint_witnesses").select("*").eq("case_id", id),
@@ -62,7 +84,7 @@ const ComplaintCaseFile = () => {
       supabase.from("hearing_rooms").select("*").order("name"),
       supabase.from("admin_staff").select("user_id, admin_type, full_name, office_id"),
     ]);
-    setC(cRes.data);
+    setC(cData);
     setHearings(hRes.data || []);
     setNotes(nRes.data || []);
     setWitnesses(wRes.data || []);
