@@ -24,6 +24,9 @@ import { StatutoryFormType } from "@/lib/complaintForms";
 
 const ComplaintCaseFile = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = (() => { try { const u = new URL(window.location.href); return [Object.fromEntries(u.searchParams)] as const; } catch { return [{} as Record<string,string>] as const; } })();
+  const kindHint = (searchParams as any)?.kind === "landlord" ? "landlord_complaint" : null;
+  const [caseKind, setCaseKind] = useState<"complaint" | "landlord_complaint">("complaint");
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [c, setC] = useState<any>(null);
