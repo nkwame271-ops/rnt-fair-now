@@ -1,133 +1,149 @@
-# Safety & Emergency Reporting System
+# Complaint Management Module — Upgrade Plan
 
-A separate system from Complaints — fast, free, never blocked by payment.
+This is a large, multi-phase upgrade. Existing complaint tables, fees, and workflows stay intact. New capabilities are layered on top: new admin roles, a Command Center dashboard, a tabbed Case File, a Hearing Workspace, versioned documents, and an audit log. Built in 5 phases so each is testable before the next.
 
-## 1. Database (migration)
+## Scope guardrails
 
-### New tables
+- Tenant / landlord / NUGS complaint filing pages stay as-is.
+- Existing `complaints` and `landlord_complaints` tables stay — we extend, never rename.
+- Existing Form Engine (templates + submissions) keeps working; we add versioning + WYSIWYG on top of it.
+- Existing assignment, scheduling, payment, and receipt flows keep working; new UIs read the same data.
 
-**`safety_reports`** — non-emergency safety issues + emergency panic alerts
-- `id`, `ticket_number` (SR-YYYYMMDD-NNNNN via `generate_safety_ticket()`)
-- `report_kind` enum: `safety_report` | `panic_emergency`
-- `category` text (sexual_harassment, physical_assault, digital_abuse, threats, domestic_violence, suspicious_activity, property_invasion, health_security, other)
-- `emergency_type` text (police, medical, fire, security, other) — panic only
-- `user_id`, `user_role` (student/tenant/landlord), `user_name_snapshot`, `user_phone_snapshot`
-- `property_id`, `unit_id`, `hostel_or_hall`, `school` (nullable)
-- `description` (nullable for panic)
-- `evidence_urls` text[]
-- `latitude`, `longitude`, `location_accuracy`, `location_address`
-- `is_silent` boolean (silent alert)
-- `severity` (low/medium/high/critical) — default critical for panic
-- `status` (submitted, acknowledged, under_review, escalated, resolved, closed, false_alert)
-- `assigned_to_user_id`, `assigned_office_id`
-- `acknowledged_at`, `acknowledged_by`, `response_time_seconds`
-- `escalated_to` text[] (nugs, police, cid, campus_security, rent_control_leadership)
-- `escalated_at`, `escalation_notes`
-- `user_marked_safe_at`
-- `closure_reason`, `closed_at`, `closed_by`
-- `false_alert_count_at_time` int
-- timestamps
+---
 
-**`safety_location_pings`** — live location updates
-- `id`, `report_id`, `latitude`, `longitude`, `accuracy`, `recorded_at`
+## Phase 1 — Roles, schema, and audit foundation
 
-**`safety_audit_log`** — every action
-- `id`, `report_id`, `actor_user_id`, `action` (acknowledged, called_user, messaged_user, assigned, escalated, note_added, status_changed, location_ping, marked_safe, closed)
-- `details` jsonb, `created_at`
+New `admin_role` enum stored on `admin_staff`:
+`stenographer | case_admin | adjudicating_officer | main_admin | super_admin`.
 
-**`safety_notes`** — admin notes
-- `id`, `report_id`, `author_user_id`, `note`, `created_at`
+Each role gets a `has_admin_role(uid, role)` security-definer function used by RLS.
 
-**`safety_contacts`** — configured alert recipients (super admin manages)
-- `id`, `contact_type` (super_admin, safety_admin, nugs_desk, campus_security, user_emergency_contact), `name`, `phone`, `email`, `scope` (global/region/school), `scope_value`, `active`
+New tables (all RLS-protected, scoped to office where applicable):
 
-### Functions
-- `generate_safety_ticket()` — SR-YYYYMMDD-NNNNN
-- `auto_escalate_unacknowledged()` — cron candidate, escalates after timeout
-- `log_safety_action()` trigger helper
+- `complaint_status_history` — every status change with `changed_by, previous_status, new_status, reason, changed_at`.
+- `complaint_audit_log` — `actor_id/name/role, case_id, action, old_value, new_value, ip, user_agent, created_at`.
+- `complaint_documents` — versioned generated documents:
+  `case_id, form_type, version_number, status (draft|under_review|finalized|voided|replaced), generated_by, edited_by, finalized_by, file_url, change_reason, generated_at, finalized_at`. Unique on `(case_id, form_type, version_number)`.
+- `complaint_witnesses` — name, phone, email, address, side (complainant|respondent), expected_testimony.
+- `complaint_notes` — author, role, note_type (`internal|official_proceedings`), body, edit_history jsonb.
+- `complaint_hearings` — scheduled_date, scheduled_time, room_id, officer_user_id, status (`scheduled|ongoing|completed|adjourned|cancelled`), attendance jsonb, outcome.
+- `hearing_rooms` — office_id, name, capacity, active.
+- `complaint_decisions` — case_id, outcome (`settled|adjourned|dismissed|withdrawn|decided|...`), decision_summary, orders, payment_orders, compliance_deadline, document_id, officer_user_id, recorded_at.
 
-### RLS
-- Users: insert own reports, view own reports, update own (mark safe, add ping)
-- Admins (`is_main_admin`): full select/update
-- Service role: full
+Light extensions to `complaints` / `landlord_complaints`:
+`complaint_title, claim_amount_internal, internal_notes, current_stage, last_activity_at, created_by_user_id` (back-fillable).
 
-### Storage
-- `safety-evidence` bucket (private), admin + owner read
+Triggers:
 
-## 2. Edge Functions
+- `complaint_status_history` populated automatically on `status` change.
+- `last_activity_at` bumped on insert/update of related child rows.
 
-- **`submit-safety-report`** — validates payload, inserts report, logs audit, fans out SMS to configured `safety_contacts` (via `send-sms`), notifies super admins. Returns ticket number. Never requires payment.
-- **`safety-location-ping`** — accepts lat/lng from authenticated user for own active report
-- **`safety-acknowledge`** — admin marks acknowledged, records response time
-- **`safety-escalate`** — admin escalates, triggers SMS to escalation contacts
+---
 
-## 3. Shared UI (all user portals)
+## Phase 2 — Complaints Command Center + upgraded list
 
-**`src/components/SafetyPanicButton.tsx`** — floating red button (bottom-right, sibling of FAB) on every authenticated layout
-- Always visible to tenant/landlord/student
-- Two-step modal: pick emergency type → "Send Emergency Alert" + "Silent Alert" toggle + "Call Police Now" (tel:191)
-- Auto-captures geolocation
-- Shows ticket number toast + "I am safe" persistent banner
+New page `/regulator/complaints/command-center` becomes the default complaints landing.
 
-**`src/pages/shared/ReportSafetyIssue.tsx`** — full form for non-immediate safety reports
-- Category dropdown, description, location autodetect/manual, property picker (auto-loaded for tenants/landlords), evidence upload, severity hint, silent toggle
+- Summary cards: New / Draft / Submitted / Assigned / Hearings Today / Adjourned / Settled / Decided / Overdue / Awaiting Documents / Awaiting Assignment.
+- Filters: region, district, office, complaint type, status, officer, hearing room, date range, created_by, assigned_officer.
+- Quick actions: New Complaint, Search Case, Generate Report, View Hearing Schedule, Open Form Templates, Open Pending Assignments.
 
-**`src/pages/shared/MySafetyReports.tsx`** — user views their reports, status, "I am safe" button while active
+Upgraded list table (replaces current list contents but lives on the same route to avoid breakage):
 
-### Layout integration
-- `TenantLayout`, `LandlordLayout`, `NugsLayout` — mount `<SafetyPanicButton />`
-- Sidebar links: "Report Safety Issue" + "My Safety Reports"
-- Routes in `App.tsx` under `/tenant`, `/landlord`, `/nugs`
+- Columns: Case Ref, Date Received, Type, Complainant, Respondent, Office, Assigned Officer, Hearing Date, Status, Created By, Last Activity, Actions.
+- Color-coded status badges driven by `current_stage`.
+- Row actions: View Case, Continue Draft, Assign, Schedule, Generate Documents, Evaluate, Print Case File.
+- Global search by case ref, party name, phone, address, officer, form number, payment ref.
 
-## 4. Admin Portal
+---
 
-**`src/pages/regulator/SafetyEmergencyReports.tsx`** — dashboard
-- Tabs: Active Emergencies | Unacknowledged | Reports | Closed
-- Filters: role, region/location, school, property, severity, status, kind
-- Table: ticket, user, role, category, severity, location, status, response time, assigned
-- Live map (existing `PropertyMap`/Google Maps) plotting active emergencies + location pings
-- Row actions: Acknowledge, Call (tel:), Message (SMS), Assign Officer, Escalate (multi-select to NUGS/Police/CID/Security/Leadership), Add Note, Mark Resolved, Close, Download Summary PDF
+## Phase 3 — Complaint Creation Wizard (Stenographer)
 
-**`src/pages/regulator/SafetyReportDetail.tsx`** — single report
-- Header: ticket, status, severity, response timer
-- User info + tel/SMS quick actions
-- Live location map with ping history
-- Description, evidence (signed URLs)
-- Notes timeline + add-note
-- Audit log
-- Escalation panel
-- Status controls + closure reason
+New `/regulator/complaints/new` 8-step wizard wrapping the existing Admin-Assisted intake plus the missing fields.
 
-**`src/pages/regulator/SafetyContacts.tsx`** — manage `safety_contacts` (super admin only)
+Steps: Type → Parties → Property → Details → Evidence → Witnesses → Forms → Review.
 
-### Sidebar (`RegulatorLayout`)
-- New "Safety & Emergency" section with the three pages
-- Badge with count of unacknowledged active emergencies (realtime)
+- Each step persists to a draft (`status='draft'`) so stenographers can resume.
+- Narrative box gets helper buttons (Improve grammar / Formalize / Insert clause) backed by `lovable-ai` (`legal-assistant` style call with role=stenographer).
+- File uploads tagged with visibility (`internal | party_visible | document_only`) using existing `application-evidence` bucket plus `visibility` metadata column.
+- Step 7 lists active `form_templates` matched to the chosen complaint type and lets the stenographer generate any.
+- "Submit for Review" flips status to `submitted` and notifies office's Case Admins.
 
-### Routes (`App.tsx`)
-- `/regulator/safety` → SafetyEmergencyReports
-- `/regulator/safety/:id` → SafetyReportDetail
-- `/regulator/safety/contacts` → SafetyContacts
+---
 
-## 5. Realtime
-- Enable realtime publication on `safety_reports` + `safety_location_pings`
-- Admin dashboard subscribes for instant new-emergency toast/sound
+## Phase 4 — Case File + Hearing Workspace + Decisions
 
-## 6. Helpers / libs
-- `src/lib/safetyCategories.ts` — category + emergency-type metadata + icons
-- `src/lib/generateSafetyCasePdf.ts` — case summary PDF (jsPDF, reuses styling from `generateComplaintReports`)
-- `src/lib/useGeolocation.ts` — hook with permission + accuracy
+New `/regulator/complaints/:id` tabbed Case File:
 
-## 7. Abuse control
-- Count prior `false_alert` closures per user — show admin badge if ≥3
-- Never block submission
+`Overview | Parties | Property | Complaint | Evidence | Witnesses | Forms | Hearings | Notes | Payments | Ledger | Activity Log | Decision`.
 
-## 8. Out of scope (deferred)
-- Real Police/CID API dispatch (manual call button only)
-- Background location tracking when app closed (PWA limitation)
+Each tab reads from existing tables plus the Phase-1 additions; no destructive migration of legacy rows.
+
+Quick actions sidebar: Edit Draft, Assign Case, Schedule Hearing, Generate Form, Add Hearing Note, Record Attendance, Record Settlement, Record Decision, Close Case — gated by role.
+
+Hearing Workspace `/regulator/complaints/:id/hearing/:hearingId` — three-pane:
+
+- Left: case summary, parties, property, key amount, documents.
+- Center: live hearing notes (autosaved), attendance toggles, directions, next steps.
+- Right: forms, evidence, witnesses, previous hearing notes, payment/ledger.
+
+Decision flow writes to `complaint_decisions`, auto-generates a Decision PDF from a `decision` template, attaches as a finalized `complaint_documents` row, and flips `current_stage` to `decided | settled | dismissed | withdrawn | closed`.
+
+Assignment screen shows officer workload (cases today / week / pending / next slot) computed from `complaint_hearings`.
+
+---
+
+## Phase 5 — Form Engine v2 (versioning + Word-style editor) + Schedule + Notifications
+
+Form Engine update (no breaking changes to existing templates):
+
+- WYSIWYG editor (TipTap) replacing the current JSON schema editor for body content; existing schema still supported for autofilled fields.
+- Insertable blocks: text, table, placeholder, logo, watermark image, header, footer, signature block, stamp area, page number, case ref, date, officer name, office name, party names, complaint type, hearing date/time, QR/verification URL.
+- Finalize action: creates a `complaint_documents` row at the next `version_number`, marks status `finalized`, locks. Subsequent edits create v2/v3 with `change_reason`.
+- Preview / Edit / Save Draft / Generate PDF / Download / Print / Attach to Case.
+
+Hearing Schedule `/regulator/complaints/schedule`:
+
+- Day / Week / Month views (reuse existing calendar component).
+- Officer view, Room view, Office view.
+- Color codes: green completed, blue scheduled, orange pending reschedule, red cancelled, grey adjourned, purple ongoing.
+- Filters: region, district, office, officer, room, date, status.
+
+Notifications:
+
+- Extend existing `notifications` table writes + `send-sms` calls for: complaint submitted, case assigned, hearing scheduled/rescheduled, summons generated, document ready, adjourned, settlement recorded, decision issued, case closed.
+- Internal notes never sent over SMS.
+
+---
 
 ## Technical notes
-- All emergency-related code never references payment/escrow tables.
-- Geolocation uses `navigator.geolocation.watchPosition` while a panic report is `submitted|acknowledged|under_review`.
-- SMS fan-out via existing `send-sms` edge function.
-- Silent mode suppresses sonner toasts + post-submit modal; returns to current page silently.
+
+```text
+Routes added
+/regulator/complaints/command-center
+/regulator/complaints/new                  (8-step wizard)
+/regulator/complaints/:id                  (tabbed Case File)
+/regulator/complaints/:id/hearing/:hid     (Hearing Workspace)
+/regulator/complaints/schedule
+/regulator/form-engine/:id/edit-wysiwyg
+```
+
+```text
+RLS pattern (example)
+- stenographer:    INSERT/UPDATE on complaints WHERE created_by_user_id = auth.uid() AND status IN (draft, submitted)
+- case_admin:      ALL on complaints WHERE office_id IN (admin_staff.office_ids)
+- adjudicating:    SELECT on complaints assigned to them; INSERT on hearings/notes/decisions
+- super_admin:     ALL
+```
+
+- All existing edge functions (`send-sms`, `paystack-*`, complaint payment basket, etc.) untouched.
+- New audit-log writes happen via a single shared helper `logComplaintAction()` called from each mutator.
+- Document versioning is enforced in DB (unique constraint) and surfaced in UI as a Versions drawer per form.
+
+---
+
+## What ships in this loop
+
+If you approve, I'll start with **Phase 1 (schema + roles + audit)** and **Phase 2 (Command Center + upgraded list)** in the next message — that alone is a meaningful, shippable improvement. Phases 3–5 follow in subsequent messages so each can be reviewed.
+
+Reply "approve" to proceed, or tell me which phases to reorder, drop, or expand.
