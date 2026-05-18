@@ -305,13 +305,21 @@ const RegulatorAgreementTemplates = () => {
           <FileText className="h-5 w-5 text-primary" /> Standard Terms & Conditions
         </h2>
         <p className="text-sm text-muted-foreground">These terms appear in every generated tenancy agreement PDF. Add, edit, or remove clauses as needed.</p>
+        <p className="text-xs text-muted-foreground -mt-1">
+          Use line breaks for sub-clauses. Indent sub-clauses with 2–4 spaces or letters like "(a)", "(b)" — formatting is preserved in the live PDF.
+        </p>
         <div className="space-y-2">
           {config.terms.map((term, index) => (
             <div key={index} className="flex gap-2 items-start group bg-muted/30 rounded-lg p-3 hover:bg-muted/50 transition-colors">
               <span className="text-xs font-mono text-muted-foreground pt-1 shrink-0 w-6">{index + 1}.</span>
               {editingTermIndex === index ? (
                 <div className="flex-1 space-y-2">
-                  <Textarea value={editingTermValue} onChange={e => setEditingTermValue(e.target.value)} className="min-h-[60px]" autoFocus />
+                  <Textarea
+                    value={editingTermValue}
+                    onChange={e => setEditingTermValue(e.target.value)}
+                    className="min-h-[140px] font-mono text-sm whitespace-pre-wrap"
+                    autoFocus
+                  />
                   <div className="flex gap-2">
                     <Button size="sm" onClick={saveEditTerm}><Check className="h-3 w-3 mr-1" /> Save</Button>
                     <Button size="sm" variant="ghost" onClick={() => setEditingTermIndex(null)}><X className="h-3 w-3 mr-1" /> Cancel</Button>
@@ -319,7 +327,7 @@ const RegulatorAgreementTemplates = () => {
                 </div>
               ) : (
                 <div className="flex-1 flex items-start gap-2">
-                  <p className="text-sm text-foreground flex-1">{term}</p>
+                  <p className="text-sm text-foreground flex-1 whitespace-pre-wrap break-words">{term}</p>
                   <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditTerm(index)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeTerm(index)}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -329,11 +337,25 @@ const RegulatorAgreementTemplates = () => {
             </div>
           ))}
         </div>
-        <div className="flex gap-2 pt-2 border-t border-border">
-          <Input placeholder="Add a new term or condition..." value={newTerm} onChange={e => setNewTerm(e.target.value)} onKeyDown={e => e.key === "Enter" && addTerm()} className="flex-1" />
-          <Button onClick={addTerm} disabled={!newTerm.trim()}>
-            <Plus className="h-4 w-4 mr-1" /> Add Term
-          </Button>
+        <div className="flex flex-col gap-2 pt-2 border-t border-border">
+          <Textarea
+            placeholder={"Add a new term or condition... (Shift+Enter for new line)\n  (a) Sub-clauses indent with spaces\n  (b) Line breaks are preserved"}
+            value={newTerm}
+            onChange={e => setNewTerm(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                addTerm();
+              }
+            }}
+            className="min-h-[100px] font-mono text-sm whitespace-pre-wrap"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-muted-foreground">Tip: press ⌘/Ctrl+Enter to add.</span>
+            <Button onClick={addTerm} disabled={!newTerm.trim()}>
+              <Plus className="h-4 w-4 mr-1" /> Add Term
+            </Button>
+          </div>
         </div>
       </div>
 
