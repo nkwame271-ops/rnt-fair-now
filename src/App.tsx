@@ -216,6 +216,7 @@ const App = () => (
                 <Route path="landlords" element={<RegulatorLandlords />} />
                 <Route path="properties" element={<RegulatorProperties />} />
                 <Route path="complaints" element={<RegulatorComplaints />} />
+                <Route path="complaints/command-center" element={<ComplaintsCommandCenter />} />
                 <Route path="complaints/new" element={<AdminFileComplaint />} />
                 <Route path="form-engine" element={<FormEngine />} />
                 <Route path="form-engine/:id" element={<FormTemplateEditor />} />
