@@ -465,9 +465,12 @@ const MyAgreements = () => {
           </div>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             {(t.agreement_pdf_url || t.final_agreement_pdf_url) && (
-              <a href={t.final_agreement_pdf_url || t.agreement_pdf_url || "#"} target="_blank" rel="noopener noreferrer">
-                <Button variant="outline"><Download className="h-4 w-4 mr-1" /> Download Agreement</Button>
-              </a>
+              <Button
+                variant="outline"
+                onClick={() => openSignedStorageUrl((t.final_agreement_pdf_url || t.agreement_pdf_url) as string)}
+              >
+                <Download className="h-4 w-4 mr-1" /> Download Agreement
+              </Button>
             )}
             <Button
               variant="destructive"
