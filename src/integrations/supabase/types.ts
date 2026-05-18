@@ -87,6 +87,7 @@ export type Database = {
           muted_features: string[] | null
           office_id: string | null
           office_name: string | null
+          payment_permissions: Json
           stock_alert_threshold: number | null
           updated_at: string | null
           user_id: string
@@ -100,6 +101,7 @@ export type Database = {
           muted_features?: string[] | null
           office_id?: string | null
           office_name?: string | null
+          payment_permissions?: Json
           stock_alert_threshold?: number | null
           updated_at?: string | null
           user_id: string
@@ -113,6 +115,7 @@ export type Database = {
           muted_features?: string[] | null
           office_id?: string | null
           office_name?: string | null
+          payment_permissions?: Json
           stock_alert_threshold?: number | null
           updated_at?: string | null
           user_id?: string
@@ -1623,12 +1626,15 @@ export type Database = {
           metadata: Json | null
           nugs_office_id: string | null
           office_id: string | null
+          officer_id: string | null
+          payment_intent_id: string | null
           payment_type: string
           paystack_transaction_id: string | null
           reference: string | null
           related_complaint_id: string | null
           related_property_id: string | null
           related_tenancy_id: string | null
+          service_record_id: string | null
           status: string
           total_amount: number
           user_id: string
@@ -1644,12 +1650,15 @@ export type Database = {
           metadata?: Json | null
           nugs_office_id?: string | null
           office_id?: string | null
+          officer_id?: string | null
+          payment_intent_id?: string | null
           payment_type: string
           paystack_transaction_id?: string | null
           reference?: string | null
           related_complaint_id?: string | null
           related_property_id?: string | null
           related_tenancy_id?: string | null
+          service_record_id?: string | null
           status?: string
           total_amount: number
           user_id: string
@@ -1665,12 +1674,15 @@ export type Database = {
           metadata?: Json | null
           nugs_office_id?: string | null
           office_id?: string | null
+          officer_id?: string | null
+          payment_intent_id?: string | null
           payment_type?: string
           paystack_transaction_id?: string | null
           reference?: string | null
           related_complaint_id?: string | null
           related_property_id?: string | null
           related_tenancy_id?: string | null
+          service_record_id?: string | null
           status?: string
           total_amount?: number
           user_id?: string
@@ -1681,6 +1693,13 @@ export type Database = {
             columns: ["office_id"]
             isOneToOne: false
             referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "escrow_transactions_payment_intent_id_fkey"
+            columns: ["payment_intent_id"]
+            isOneToOne: false
+            referencedRelation: "payment_intents"
             referencedColumns: ["id"]
           },
         ]
@@ -2991,6 +3010,250 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_fulfillments: {
+        Row: {
+          allocation_summary: Json
+          case_id: string | null
+          created_at: string
+          currency: string
+          escrow_transaction_id: string | null
+          expected_amount: number | null
+          fulfilled_at: string | null
+          fulfilled_via:
+            | Database["public"]["Enums"]["payment_reconciliation_actor_type"]
+            | null
+          fulfillment_status: Database["public"]["Enums"]["payment_fulfillment_status"]
+          gross_amount: number
+          id: string
+          metadata: Json
+          net_amount: number
+          notes: string | null
+          office_id: string | null
+          officer_id: string | null
+          paid_amount: number
+          payment_intent_id: string | null
+          payment_provider: string
+          paystack_fee: number
+          paystack_reference: string
+          paystack_transaction_id: string | null
+          platform_reference: string
+          receipt_id: string | null
+          service_record_id: string | null
+          service_type: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          allocation_summary?: Json
+          case_id?: string | null
+          created_at?: string
+          currency?: string
+          escrow_transaction_id?: string | null
+          expected_amount?: number | null
+          fulfilled_at?: string | null
+          fulfilled_via?:
+            | Database["public"]["Enums"]["payment_reconciliation_actor_type"]
+            | null
+          fulfillment_status?: Database["public"]["Enums"]["payment_fulfillment_status"]
+          gross_amount?: number
+          id?: string
+          metadata?: Json
+          net_amount?: number
+          notes?: string | null
+          office_id?: string | null
+          officer_id?: string | null
+          paid_amount?: number
+          payment_intent_id?: string | null
+          payment_provider?: string
+          paystack_fee?: number
+          paystack_reference: string
+          paystack_transaction_id?: string | null
+          platform_reference: string
+          receipt_id?: string | null
+          service_record_id?: string | null
+          service_type: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          allocation_summary?: Json
+          case_id?: string | null
+          created_at?: string
+          currency?: string
+          escrow_transaction_id?: string | null
+          expected_amount?: number | null
+          fulfilled_at?: string | null
+          fulfilled_via?:
+            | Database["public"]["Enums"]["payment_reconciliation_actor_type"]
+            | null
+          fulfillment_status?: Database["public"]["Enums"]["payment_fulfillment_status"]
+          gross_amount?: number
+          id?: string
+          metadata?: Json
+          net_amount?: number
+          notes?: string | null
+          office_id?: string | null
+          officer_id?: string | null
+          paid_amount?: number
+          payment_intent_id?: string | null
+          payment_provider?: string
+          paystack_fee?: number
+          paystack_reference?: string
+          paystack_transaction_id?: string | null
+          platform_reference?: string
+          receipt_id?: string | null
+          service_record_id?: string | null
+          service_type?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_fulfillments_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_fulfillments_escrow_transaction_id_fkey"
+            columns: ["escrow_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "escrow_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_fulfillments_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_fulfillments_payment_intent_id_fkey"
+            columns: ["payment_intent_id"]
+            isOneToOne: false
+            referencedRelation: "payment_intents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_fulfillments_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "payment_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_intents: {
+        Row: {
+          abandoned_at: string | null
+          case_id: string | null
+          created_at: string
+          currency: string
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          escrow_transaction_id: string | null
+          expected_amount: number
+          failure_reason: string | null
+          fulfilled_at: string | null
+          id: string
+          last_verified_at: string | null
+          metadata: Json
+          office_id: string | null
+          officer_id: string | null
+          payment_provider: string
+          paystack_reference: string | null
+          platform_reference: string
+          provider_payload: Json
+          service_record_id: string | null
+          service_type: string
+          status: Database["public"]["Enums"]["payment_intent_status"]
+          updated_at: string
+          user_id: string | null
+          user_type: string | null
+        }
+        Insert: {
+          abandoned_at?: string | null
+          case_id?: string | null
+          created_at?: string
+          currency?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          escrow_transaction_id?: string | null
+          expected_amount?: number
+          failure_reason?: string | null
+          fulfilled_at?: string | null
+          id?: string
+          last_verified_at?: string | null
+          metadata?: Json
+          office_id?: string | null
+          officer_id?: string | null
+          payment_provider?: string
+          paystack_reference?: string | null
+          platform_reference: string
+          provider_payload?: Json
+          service_record_id?: string | null
+          service_type: string
+          status?: Database["public"]["Enums"]["payment_intent_status"]
+          updated_at?: string
+          user_id?: string | null
+          user_type?: string | null
+        }
+        Update: {
+          abandoned_at?: string | null
+          case_id?: string | null
+          created_at?: string
+          currency?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          escrow_transaction_id?: string | null
+          expected_amount?: number
+          failure_reason?: string | null
+          fulfilled_at?: string | null
+          id?: string
+          last_verified_at?: string | null
+          metadata?: Json
+          office_id?: string | null
+          officer_id?: string | null
+          payment_provider?: string
+          paystack_reference?: string | null
+          platform_reference?: string
+          provider_payload?: Json
+          service_record_id?: string | null
+          service_type?: string
+          status?: Database["public"]["Enums"]["payment_intent_status"]
+          updated_at?: string
+          user_id?: string | null
+          user_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intents_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_intents_escrow_transaction_id_fkey"
+            columns: ["escrow_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "escrow_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_intents_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_processing_errors: {
         Row: {
           created_at: string
@@ -3034,16 +3297,32 @@ export type Database = {
         Row: {
           admin_confirmed_at: string | null
           admin_confirmed_by: string | null
+          case_id: string | null
           created_at: string
           description: string | null
           escrow_transaction_id: string | null
+          generated_by_admin_id: string | null
+          generated_by_type:
+            | Database["public"]["Enums"]["payment_reconciliation_actor_type"]
+            | null
           id: string
           office_id: string | null
+          officer_id: string | null
           payer_email: string | null
           payer_name: string | null
+          payer_phone: string | null
+          payment_date: string | null
+          payment_method: string | null
           payment_type: string
+          paystack_reference: string | null
+          platform_reference: string | null
           qr_code_data: string | null
           receipt_number: string
+          receipt_status: Database["public"]["Enums"]["payment_receipt_status"]
+          reconciliation_date: string | null
+          reconciliation_notes: string | null
+          service_record_id: string | null
+          service_type: string | null
           split_breakdown: Json | null
           status: string
           tenancy_id: string | null
@@ -3053,16 +3332,32 @@ export type Database = {
         Insert: {
           admin_confirmed_at?: string | null
           admin_confirmed_by?: string | null
+          case_id?: string | null
           created_at?: string
           description?: string | null
           escrow_transaction_id?: string | null
+          generated_by_admin_id?: string | null
+          generated_by_type?:
+            | Database["public"]["Enums"]["payment_reconciliation_actor_type"]
+            | null
           id?: string
           office_id?: string | null
+          officer_id?: string | null
           payer_email?: string | null
           payer_name?: string | null
+          payer_phone?: string | null
+          payment_date?: string | null
+          payment_method?: string | null
           payment_type: string
+          paystack_reference?: string | null
+          platform_reference?: string | null
           qr_code_data?: string | null
           receipt_number?: string
+          receipt_status?: Database["public"]["Enums"]["payment_receipt_status"]
+          reconciliation_date?: string | null
+          reconciliation_notes?: string | null
+          service_record_id?: string | null
+          service_type?: string | null
           split_breakdown?: Json | null
           status?: string
           tenancy_id?: string | null
@@ -3072,16 +3367,32 @@ export type Database = {
         Update: {
           admin_confirmed_at?: string | null
           admin_confirmed_by?: string | null
+          case_id?: string | null
           created_at?: string
           description?: string | null
           escrow_transaction_id?: string | null
+          generated_by_admin_id?: string | null
+          generated_by_type?:
+            | Database["public"]["Enums"]["payment_reconciliation_actor_type"]
+            | null
           id?: string
           office_id?: string | null
+          officer_id?: string | null
           payer_email?: string | null
           payer_name?: string | null
+          payer_phone?: string | null
+          payment_date?: string | null
+          payment_method?: string | null
           payment_type?: string
+          paystack_reference?: string | null
+          platform_reference?: string | null
           qr_code_data?: string | null
           receipt_number?: string
+          receipt_status?: Database["public"]["Enums"]["payment_receipt_status"]
+          reconciliation_date?: string | null
+          reconciliation_notes?: string | null
+          service_record_id?: string | null
+          service_type?: string | null
           split_breakdown?: Json | null
           status?: string
           tenancy_id?: string | null
@@ -3090,10 +3401,124 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "payment_receipts_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payment_receipts_escrow_transaction_id_fkey"
             columns: ["escrow_transaction_id"]
             isOneToOne: false
             referencedRelation: "escrow_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_reconciliation_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_type: Database["public"]["Enums"]["payment_reconciliation_actor_type"]
+          allocation_summary: Json
+          amount: number | null
+          case_id: string | null
+          created_at: string
+          failure_reason: string | null
+          id: string
+          ip_address: string | null
+          metadata: Json
+          new_status: string | null
+          notes: string | null
+          office_id: string | null
+          officer_id: string | null
+          old_status: string | null
+          payment_fulfillment_id: string | null
+          payment_intent_id: string | null
+          paystack_reference: string | null
+          platform_reference: string | null
+          service_type: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_type: Database["public"]["Enums"]["payment_reconciliation_actor_type"]
+          allocation_summary?: Json
+          amount?: number | null
+          case_id?: string | null
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          new_status?: string | null
+          notes?: string | null
+          office_id?: string | null
+          officer_id?: string | null
+          old_status?: string | null
+          payment_fulfillment_id?: string | null
+          payment_intent_id?: string | null
+          paystack_reference?: string | null
+          platform_reference?: string | null
+          service_type?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_type?: Database["public"]["Enums"]["payment_reconciliation_actor_type"]
+          allocation_summary?: Json
+          amount?: number | null
+          case_id?: string | null
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          new_status?: string | null
+          notes?: string | null
+          office_id?: string | null
+          officer_id?: string | null
+          old_status?: string | null
+          payment_fulfillment_id?: string | null
+          payment_intent_id?: string | null
+          paystack_reference?: string | null
+          platform_reference?: string | null
+          service_type?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_reconciliation_audit_log_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reconciliation_audit_log_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reconciliation_audit_log_payment_fulfillment_id_fkey"
+            columns: ["payment_fulfillment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_fulfillments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reconciliation_audit_log_payment_intent_id_fkey"
+            columns: ["payment_intent_id"]
+            isOneToOne: false
+            referencedRelation: "payment_intents"
             referencedColumns: ["id"]
           },
         ]
@@ -5603,6 +6028,10 @@ export type Database = {
         Args: { _role: string; _user_id: string }
         Returns: boolean
       }
+      has_payment_permission: {
+        Args: { _perm: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -5703,6 +6132,32 @@ export type Database = {
         | "agreement_missing"
         | "wrong_dashboard_status"
         | "other"
+      payment_fulfillment_status:
+        | "pending"
+        | "fulfilled"
+        | "failed"
+        | "reconciliation_required"
+        | "manually_reconciled"
+        | "duplicate_blocked"
+      payment_intent_status:
+        | "pending"
+        | "paystack_success"
+        | "fulfilled"
+        | "failed"
+        | "abandoned"
+        | "reconciliation_required"
+        | "manually_reconciled"
+      payment_receipt_status:
+        | "auto_generated"
+        | "manually_reconciled"
+        | "duplicate_blocked"
+        | "voided"
+      payment_reconciliation_actor_type:
+        | "system"
+        | "webhook"
+        | "callback"
+        | "recovery_worker"
+        | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5856,6 +6311,36 @@ export const Constants = {
         "agreement_missing",
         "wrong_dashboard_status",
         "other",
+      ],
+      payment_fulfillment_status: [
+        "pending",
+        "fulfilled",
+        "failed",
+        "reconciliation_required",
+        "manually_reconciled",
+        "duplicate_blocked",
+      ],
+      payment_intent_status: [
+        "pending",
+        "paystack_success",
+        "fulfilled",
+        "failed",
+        "abandoned",
+        "reconciliation_required",
+        "manually_reconciled",
+      ],
+      payment_receipt_status: [
+        "auto_generated",
+        "manually_reconciled",
+        "duplicate_blocked",
+        "voided",
+      ],
+      payment_reconciliation_actor_type: [
+        "system",
+        "webhook",
+        "callback",
+        "recovery_worker",
+        "admin",
       ],
     },
   },
