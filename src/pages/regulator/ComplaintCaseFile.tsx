@@ -127,6 +127,12 @@ const ComplaintCaseFile = () => {
           <Button variant="outline" size="sm" onClick={() => setDecisionOpen(true)}>
             <Gavel className="h-4 w-4 mr-1" /> Record Decision
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setHeaderFormEditor({ open: true, type: "form_7" })}>
+            <FileSignature className="h-4 w-4 mr-1" /> Generate Form 7
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setHeaderFormEditor({ open: true, type: "form_33" })}>
+            <FileSignature className="h-4 w-4 mr-1" /> Generate Form 33
+          </Button>
         </div>
       </div>
 
