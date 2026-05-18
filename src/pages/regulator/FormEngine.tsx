@@ -44,10 +44,23 @@ const FormEngine = () => {
   const remove = async () => {
     if (!confirmId) return;
     setDeleting(true);
-    const { error } = await supabase.from("form_templates").delete().eq("id", confirmId);
+    const { data, error, count } = await supabase
+      .from("form_templates")
+      .delete({ count: "exact" })
+      .eq("id", confirmId)
+      .select("id");
     setDeleting(false);
     if (error) {
       toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (!data || data.length === 0 || count === 0) {
+      toast({
+        title: "Not deleted",
+        description:
+          "You don't have permission to delete this template, or it's still referenced by an existing form submission.",
+        variant: "destructive",
+      });
       return;
     }
     setTemplates((t) => t.filter((x) => x.id !== confirmId));
