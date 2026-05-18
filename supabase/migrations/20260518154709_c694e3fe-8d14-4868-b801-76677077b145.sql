@@ -1,0 +1,2 @@
+ALTER TABLE public.complaints DROP CONSTRAINT IF EXISTS complaints_status_check;
+ALTER TABLE public.complaints ADD CONSTRAINT complaints_status_check CHECK (status = ANY (ARRAY['draft'::text, 'submitted'::text, 'awaiting_payment'::text, 'pending_payment'::text, 'under_review'::text, 'in_progress'::text, 'ready_for_scheduling'::text, 'scheduled'::text, 'schedule_complainant'::text, 'resolved'::text, 'closed'::text]));
