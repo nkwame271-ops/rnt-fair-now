@@ -204,35 +204,87 @@ export default function ComplaintsCommandCenter() {
       since,
     ],
     queryFn: async () => {
-      let q = supabase
-        .from("complaints")
-        .select(
-          "id, complaint_code, ticket_number, complaint_type, status, current_stage, payment_status, region, office_id, created_at, last_activity_at, next_hearing_at, assigned_officer_user_id, created_by_user_id, landlord_name, placeholder_complainant_name, placeholder_respondent_name, tenant_user_id, respondent_user_id, complaint_title",
-        )
-        .order("last_activity_at", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false })
-        .limit(PAGE_SIZE);
+      const buildQuery = (table: "complaints" | "landlord_complaints") => {
+        const cols =
+          table === "complaints"
+            ? "id, complaint_code, ticket_number, complaint_type, status, current_stage, payment_status, region, office_id, created_at, last_activity_at, next_hearing_at, assigned_officer_user_id, created_by_user_id, landlord_name, placeholder_complainant_name, placeholder_respondent_name, tenant_user_id, respondent_user_id, complaint_title"
+            : "id, complaint_code, ticket_number, complaint_type, status, current_stage, payment_status, region, office_id, created_at, last_activity_at, next_hearing_at, assigned_officer_user_id, created_by_user_id, landlord_user_id, tenant_name, complaint_title";
+        let q: any = supabase
+          .from(table)
+          .select(cols)
+          .order("last_activity_at", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false })
+          .limit(PAGE_SIZE);
 
-      if (stageFilter !== "all") q = q.eq("current_stage", stageFilter);
-      if (typeFilter !== "all") q = q.eq("complaint_type", typeFilter);
-      if (regionFilter !== "all") q = q.eq("region", regionFilter);
-      if (since) q = q.gte("created_at", since);
-      if (search.trim()) {
-        const s = `%${search.trim()}%`;
-        q = q.or(
-          [
-            `complaint_code.ilike.${s}`,
-            `ticket_number.ilike.${s}`,
-            `landlord_name.ilike.${s}`,
-            `placeholder_complainant_name.ilike.${s}`,
-            `placeholder_respondent_name.ilike.${s}`,
-            `complaint_title.ilike.${s}`,
-          ].join(","),
-        );
-      }
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as ComplaintRow[];
+        if (stageFilter !== "all") q = q.eq("current_stage", stageFilter);
+        if (typeFilter !== "all") q = q.eq("complaint_type", typeFilter);
+        if (regionFilter !== "all") q = q.eq("region", regionFilter);
+        if (since) q = q.gte("created_at", since);
+        if (search.trim()) {
+          const s = `%${search.trim()}%`;
+          const filters =
+            table === "complaints"
+              ? [
+                  `complaint_code.ilike.${s}`,
+                  `ticket_number.ilike.${s}`,
+                  `landlord_name.ilike.${s}`,
+                  `placeholder_complainant_name.ilike.${s}`,
+                  `placeholder_respondent_name.ilike.${s}`,
+                  `complaint_title.ilike.${s}`,
+                ]
+              : [
+                  `complaint_code.ilike.${s}`,
+                  `ticket_number.ilike.${s}`,
+                  `tenant_name.ilike.${s}`,
+                  `complaint_title.ilike.${s}`,
+                ];
+          q = q.or(filters.join(","));
+        }
+        return q;
+      };
+
+      const [a, b] = await Promise.all([
+        buildQuery("complaints"),
+        buildQuery("landlord_complaints"),
+      ]);
+      if (a.error) throw a.error;
+      if (b.error) throw b.error;
+
+      const tenantRows: ComplaintRow[] = (a.data ?? []).map((r: any) => ({
+        ...r,
+        case_kind: "complaint" as const,
+      }));
+      const landlordRows: ComplaintRow[] = (b.data ?? []).map((r: any) => ({
+        id: r.id,
+        complaint_code: r.complaint_code,
+        ticket_number: r.ticket_number,
+        complaint_type: r.complaint_type,
+        status: r.status,
+        current_stage: r.current_stage,
+        payment_status: r.payment_status,
+        region: r.region,
+        office_id: r.office_id,
+        created_at: r.created_at,
+        last_activity_at: r.last_activity_at,
+        next_hearing_at: r.next_hearing_at,
+        assigned_officer_user_id: r.assigned_officer_user_id,
+        created_by_user_id: r.created_by_user_id ?? r.landlord_user_id ?? null,
+        landlord_name: null,
+        placeholder_complainant_name: null,
+        placeholder_respondent_name: r.tenant_name ?? null,
+        tenant_user_id: null,
+        respondent_user_id: null,
+        complaint_title: r.complaint_title,
+        case_kind: "landlord_complaint" as const,
+      }));
+
+      return [...tenantRows, ...landlordRows]
+        .sort((x, y) => {
+          const tx = new Date(x.last_activity_at ?? x.created_at).getTime();
+          const ty = new Date(y.last_activity_at ?? y.created_at).getTime();
+          return ty - tx;
+        })
+        .slice(0, PAGE_SIZE);
     },
     staleTime: 30_000,
   });
