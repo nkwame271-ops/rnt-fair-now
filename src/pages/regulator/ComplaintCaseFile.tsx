@@ -215,7 +215,7 @@ const ComplaintCaseFile = () => {
                 </div>
                 {d.file_url && (
                   <Button size="sm" variant="outline" onClick={async () => {
-                    const url = await signStorageUrl("form-outputs", d.file_url);
+                    const url = await signStorageUrl(d.file_url.includes("/") ? d.file_url : `form-outputs/${d.file_url}`);
                     if (url) window.open(url, "_blank");
                   }}>Open</Button>
                 )}
