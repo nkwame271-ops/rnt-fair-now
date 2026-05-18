@@ -266,27 +266,53 @@ const ComplaintWizard = () => {
   };
 
   const submitForReview = async () => {
-    if (!complaintTypeId) return toast({ title: "Complaint type required", variant: "destructive" });
-    if (!address) return toast({ title: "Property address required", variant: "destructive" });
-    if (!description) return toast({ title: "Description required", variant: "destructive" });
-    if (!officeId) return toast({ title: "Office required", variant: "destructive" });
-    if (!(complainant?.full_name || phName.c)) return toast({ title: "Complainant required", variant: "destructive" });
-    if (!(respondent?.full_name || phName.r)) return toast({ title: "Respondent required", variant: "destructive" });
+    const missing: string[] = [];
+    if (!complaintTypeId) missing.push("Complaint type");
+    if (!address) missing.push("Property address");
+    if (!description) missing.push("Description");
+    if (!officeId) missing.push("Office");
+    if (!(complainant?.full_name || phName.c)) missing.push("Complainant");
+    if (!(respondent?.full_name || phName.r)) missing.push("Respondent");
+    if (missing.length) {
+      toast({
+        title: "Can't submit — missing fields",
+        description: missing.join(", "),
+        variant: "destructive",
+      });
+      // Jump to first relevant step
+      if (missing.includes("Complaint type")) setStepIdx(0);
+      else if (missing.includes("Complainant") || missing.includes("Respondent")) setStepIdx(1);
+      else if (missing.includes("Property address") || missing.includes("Office")) setStepIdx(2);
+      else if (missing.includes("Description")) setStepIdx(3);
+      return;
+    }
 
     setSubmitting(true);
     try {
       const pk = await saveDraft(true);
-      if (!pk) return;
+      if (!pk) {
+        toast({ title: "Could not save draft", description: "Submission aborted.", variant: "destructive" });
+        return;
+      }
       const { error } = await supabase
         .from("complaints")
         .update({ status: "submitted" })
         .eq("id", pk);
       if (error) throw error;
-      await transitionStage({ caseId: pk, toStage: "submitted", reason: "Submitted via wizard" });
-      toast({ title: "Submitted for review", description: ticketNumber || "" });
+      try {
+        await transitionStage({ caseId: pk, toStage: "submitted", reason: "Submitted via wizard" });
+      } catch (te: any) {
+        console.warn("transitionStage failed (non-fatal)", te);
+      }
+      toast({ title: "Submitted for review", description: ticketNumber || "Complaint sent to office" });
       navigate("/regulator/complaints/command-center");
     } catch (e: any) {
-      toast({ title: "Submission failed", description: e.message, variant: "destructive" });
+      console.error("Submit for Review failed", e);
+      toast({
+        title: "Submission failed",
+        description: e?.message || e?.details || "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
