@@ -87,8 +87,8 @@ export const autoGenerateComplaintForm = async ({
     return { skipped: true, reason: "template_missing" };
   }
 
-  const schema = (template.schema || { sections: [] }) as FormSchema;
-  const layout = (template.layout || {}) as FormLayout;
+  const schema = ((template.schema as unknown) || { sections: [] }) as FormSchema;
+  const layout = ((template.layout as unknown) || {}) as FormLayout;
   const data = fillFromComplaint(schema, complaint, extra);
 
   let pdfPath: string | null = null;
