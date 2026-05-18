@@ -310,6 +310,14 @@ const ComplaintCaseFile = () => {
       />
       <NoteDialog open={noteOpen} onOpenChange={setNoteOpen} caseId={c.id} onSaved={load} />
       <DecisionDialog open={decisionOpen} onOpenChange={setDecisionOpen} complaint={c} onSaved={load} />
+      <FormEditorDialog
+        open={headerFormEditor.open}
+        onOpenChange={(v) => setHeaderFormEditor((s) => ({ ...s, open: v }))}
+        complaint={c}
+        officeName={offices.find((o) => o.id === c.office_id)?.name}
+        formType={headerFormEditor.type}
+        onGenerated={load}
+      />
     </div>
   );
 };
