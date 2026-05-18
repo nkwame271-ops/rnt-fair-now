@@ -282,7 +282,7 @@ const ComplaintWizard = () => {
         .update({ status: "submitted" })
         .eq("id", pk);
       if (error) throw error;
-      await transitionStage("complaint", pk, "submitted", "Submitted via wizard");
+      await transitionStage({ caseId: pk, toStage: "submitted", reason: "Submitted via wizard" });
       toast({ title: "Submitted for review", description: ticketNumber || "" });
       navigate("/regulator/complaints/command-center");
     } catch (e: any) {
