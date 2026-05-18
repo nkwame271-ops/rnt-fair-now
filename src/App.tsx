@@ -222,6 +222,8 @@ const App = () => (
                 <Route path="complaints/command-center" element={<ComplaintsCommandCenter />} />
                 <Route path="complaints/new" element={<ComplaintWizard />} />
                 <Route path="complaints/new-simple" element={<AdminFileComplaint />} />
+                <Route path="complaints/:id" element={<ComplaintCaseFile />} />
+                <Route path="complaints/:id/hearing/:hid" element={<HearingWorkspace />} />
                 <Route path="form-engine" element={<FormEngine />} />
                 <Route path="form-engine/:id" element={<FormTemplateEditor />} />
                 <Route path="form-engine/:id/fill" element={<FormFill />} />
