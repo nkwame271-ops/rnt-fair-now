@@ -462,8 +462,16 @@ export default function ComplaintsCommandCenter() {
                 )}
                 {rows.map((r) => {
                   const stage = (r.current_stage ?? r.status ?? "submitted").toLowerCase();
-                  const complainant = r.placeholder_complainant_name ?? (r.tenant_user_id ? "Registered user" : "—");
-                  const respondent = r.placeholder_respondent_name ?? r.landlord_name ?? "—";
+                  const complainant =
+                    r.placeholder_complainant_name ??
+                    (r.tenant_user_id && nameMap[r.tenant_user_id]) ??
+                    (r.case_kind === "landlord_complaint" && r.created_by_user_id && nameMap[r.created_by_user_id]) ??
+                    (r.tenant_user_id || r.created_by_user_id ? "Registered user" : "—");
+                  const respondent =
+                    r.placeholder_respondent_name ??
+                    (r.respondent_user_id && nameMap[r.respondent_user_id]) ??
+                    r.landlord_name ??
+                    "—";
                   return (
                     <TableRow key={r.id} className="hover:bg-muted/40">
                       <TableCell className="font-mono text-xs">
