@@ -615,20 +615,28 @@ const ComplaintWizard = () => {
       )}
 
       {/* Navigation */}
-      <div className="flex justify-between gap-2">
+      <div className="flex justify-between gap-2 flex-wrap">
         <Button variant="outline" onClick={() => setStepIdx((i) => Math.max(0, i - 1))} disabled={stepIdx === 0}>
           <ChevronLeft className="h-4 w-4 mr-1" /> Back
         </Button>
-        {stepIdx < STEPS.length - 1 ? (
-          <Button onClick={() => setStepIdx((i) => Math.min(STEPS.length - 1, i + 1))} disabled={!canNext}>
-            Next <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-        ) : (
-          <Button onClick={submitForReview} disabled={submitting}>
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-            Submit for Review
-          </Button>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          {stepIdx >= 3 && stepIdx < STEPS.length - 1 && (
+            <Button variant="secondary" onClick={submitForReview} disabled={submitting}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+              Submit for Review
+            </Button>
+          )}
+          {stepIdx < STEPS.length - 1 ? (
+            <Button onClick={() => setStepIdx((i) => Math.min(STEPS.length - 1, i + 1))} disabled={!canNext}>
+              Next <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          ) : (
+            <Button onClick={submitForReview} disabled={submitting}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+              Submit for Review
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
