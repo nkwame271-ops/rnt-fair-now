@@ -1,102 +1,91 @@
-
 ## Goal
 
-Make Form 7 (Complaint) and Form 33 (Summons) generate PDFs that match the official Rent Control layouts shown in your samples, and rebuild the complaint intake UI so capturing those fields is fast and pleasant — not a wall of inputs.
+Make Form 7, Form 33 (and Form 32A) generate as **official Rent Control branded legal documents** — not field lists — with a per-complaint editable Form Editor and full version history attached to every complaint record.
 
-## What's wrong today
+## What's broken today
 
-- **Form 7 / Form 33 PDFs**: rendered from a generic `form_templates` schema with loose label-matching. Fields like multiple respondents, premises house number, agreement expiry, deposit, occupancy duration, GPS for complainant address, CAR case number, hearing officer/venue are not modeled — so the PDFs don't look like the samples.
-- **Intake UI**: single long page, no grouping of "additional details", no support for multiple complainants/respondents, no GPS capture for complainant address, no agreement/deposit fields. Too painful for officers doing paper-to-digital intake.
+- "Generate Form 7" runs silently from complaint data with no editor — admin can't fix names, narrative, hearing details, signature block, etc. before the PDF is produced.
+- Form 33 is only triggered when a hearing is scheduled; no manual "Generate Form 33" entry-point inside the complaint record.
+- The Form Engine's generic field-list renderer still gets used for some statutory forms — output looks like a key/value dump, not the legal template in the references.
+- No support for Form 32A at all.
+- Documents tab shows generated PDFs but lacks Preview / Regenerate / per-version actions and a clean "Complaint Documents" hub with the four canonical downloads (Profile, Form 7, Form 33, Form 32A).
 
-## Scope (frontend + form generators only — no workflow changes)
+## Scope
 
-### 1. Data model additions (one migration)
+Frontend + PDF generators + a tiny schema add. No workflow / RLS / notification changes.
 
-Add nullable columns to `public.complaints` to back the official forms:
+### 1. Documents hub on the complaint record
 
-- `complainants jsonb` — array of `{name, phone, address, gps_lat, gps_lng}` (primary complainant still mirrored to existing placeholder columns for back-compat)
-- `respondents jsonb` — array of `{name, phone}` (primary mirrored to existing columns)
-- `premises_house_no text`, `premises_town text` (kept separate from free-form `property_address`)
-- `complainant_address text`, `complainant_gps_lat numeric`, `complainant_gps_lng numeric`
-- `agreement_expiry_date date`, `deposit_amount numeric`, `occupied_months int`, `tenants_intent text` (renew / vacate / other)
-- `relief_sought text` (e.g. "Eject tenants immediately")
-- `case_number text` — the CAR-style number ("CAR 2734/2026"). Auto-generated on first hearing schedule from a small sequence helper; editable by admin.
-- `hearing_venue text`, `hearing_officer_name text`, `summons_issued_at timestamptz`
-
-All optional; existing flows keep working.
-
-### 2. New modern intake UI — `AdminFileComplaint.tsx` (full rewrite of the page, same route)
-
-A **2-column, sectioned form** with progressive disclosure:
+Replace the current Documents tab with a sectioned hub:
 
 ```text
-┌─ Header (sticky) ─────────────────────────────────┐
-│ File Complaint • [Save Draft] [File Complaint]    │
-├──────────────────────┬────────────────────────────┤
-│ LEFT (primary)       │ RIGHT (live Form 7 preview)│
-│  • Parties           │  Mini PDF-style preview    │
-│  • Premises          │  updating as you type      │
-│  • Complaint summary │                            │
-│  • Office & docket   │                            │
-└──────────────────────┴────────────────────────────┘
+Documents
+├─ Quick downloads
+│   • Download Complaint Profile
+│   • Generate / Regenerate Form 7
+│   • Generate / Regenerate Form 33
+│   • Generate / Regenerate Form 32A
+└─ Generated documents (versioned list)
+    Form 7  v3  [Preview] [Download] [Regenerate] [History]
+    Form 33 v1  …
+    Form 32A v2 …
 ```
 
-UX rules to keep it light:
-- **Single-click "Add another complainant/respondent"** chips, not nested cards
-- **GPS capture** button on each complainant address (uses existing geolocation pattern)
-- **"More details" collapsible** per section — agreement date, deposit, occupancy months, intent live behind a single expander so the form looks short by default
-- **Smart defaults**: office auto-picked from region, case number left blank until hearing scheduled, relief sought has 4 quick chips ("Eject", "Refund deposit", "Repair", "Other")
-- **Autosave draft** to `localStorage` keyed by admin user (no schema change)
-- **Sticky submit bar** with inline validation summary (no toast spam)
+Each "Generate …" button opens the **Form Editor modal** for that form. Each existing version exposes Preview (signed URL in a dialog), Download, Regenerate (re-opens editor pre-filled from the latest version's `form_data_json`), and History (lists previous versions with download links).
 
-### 3. Form 7 PDF generator — purpose-built
+### 2. Form Editor (modal, one per form)
 
-New module `src/lib/pdf/form7.ts` (uses existing `jspdf` already in the project) that renders the exact layout from the sample:
+Full-screen `Dialog` titled "Form 7", "Form 33" or "Form 32A".
 
-- Header: "FORM 7 — Complaint Against Conduct of Landlord/Tenant/Person Interested in Premises", "Under Rent Regulation 19(1)"
-- Numbered fields exactly matching the sample (Complainant, Address, Respondents list, Premises, Summary bullets, Stamp box)
-- Bulleted summary auto-composed from: monthly rent, agreement expiry, intent, deposit, occupancy months, free-form description, relief sought
-- Footer with ticket number, filing date, and a placeholder for the office stamp
+Layout: **left = editable fields, right = live PDF preview** (re-uses the form's renderer to a data-URI iframe; same pattern as `Form7LivePreview`).
 
-Replaces the generic `autoGenerateForm7` path for `form_7`; the `form_templates` row stays for backwards compat but isn't used.
+Editable variables:
 
-### 4. Form 33 PDF generator — purpose-built
+- Form 7: case reference, case number, complainant name + postal address + telephone, respondent name/address (multi), tenant name, landlord name, premises address + house number, complaint category, **complaint statement (textarea, prefilled but fully editable)**, signature name, signature date, stamp text, rent office, footer slogan.
+- Form 33: case prefix ("CA"), case number, "complainants VRS respondent" line, rent office, rent officer, person summoned (To:), complaint category (bold/underlined), hearing time, hearing date, hearing venue, **summons paragraph (textarea, fully editable with sensible default body)**, issued office, issued date.
+- Form 32A: case number, parties, complainant/respondent particulars, hearing reference, decision/order body (textarea), issued office, issued date, signature name.
 
-New module `src/lib/pdf/form33.ts`:
+Save flow:
+- "Save Draft" → upserts `complaint_documents` row with `status='draft'`, `form_data_json` = current editor state, no PDF.
+- "Generate" → renders PDF via the form-specific renderer, uploads to `form-outputs/complaints/{caseId}/form-{n}-v{ver}.pdf`, inserts a new `complaint_documents` row (`status='finalized'`, `version_number = max+1`, `form_data_json` saved alongside) and closes.
 
-- Header: "FORM 33 — Summons to Persons Against Whom Complaints Have Been Made", "Under Regulation 38(2) (Rent Regulation, 1964 LI 369)"
-- Case Number: `case_number` (auto-issued on first hearing schedule if blank)
-- Parties: multi-line list of complainants vs respondent
-- Rent Officer for: office name/region
-- Person Summoned: respondent name (one summons per respondent — loop if >1)
-- Nature of Complaint, Appearance Date + Time, Issued At, Date Issued
+### 3. Official document templates (PDF generators)
 
-Trigger remains in `ComplaintCaseFile.tsx` when a hearing is scheduled; output saved as `draft` in `complaint_documents` so the officer can edit/finalize before sending.
+All three render legal-document layouts, never field lists.
 
-### 5. Case File tweaks
+- `src/lib/pdf/form7.ts` — rewritten to match the reference image: REPUBLIC OF GHANA header strip with Rent Control logo + faint diagonal watermark, centered `FORM 7`, heading, legal references (`Rent Regulation 13` / `Rent Regulation, 1964 (LI 369)`), the six numbered fields, narrative paragraph block, right-aligned signature + date area, stamp box, centered footer "We Promote Peace & Reconcile Parties".
+- `src/lib/pdf/form33.ts` — rewritten: top-left `CA <case number>`, top-right `<complainants> VRS <respondent>`, horizontal rule, centered `FORM 33`, heading, legal refs, "Rent Officer for <office>" + "To: <name>" block, "Whereas your attendance is necessary…" intro, centered bold-underlined complaint category, summons paragraph (uses editor's body verbatim), Issue line, centered stamp + signature area, watermark.
+- `src/lib/pdf/form32a.ts` — new, same branded shell as Form 33 with the decision/order body.
 
-- Show generated Form 7 with a **"Preview / Download / Regenerate"** row (uses new generator)
-- Show Form 33 draft per respondent with the same row
-- Display `case_number` prominently once issued; add inline "Edit case number" for admins
+Shared helpers in `src/lib/pdf/_brand.ts`: header strip, watermark, footer, signature/stamp box, A4 layout primitives — so the three forms look identical in chrome.
 
-## Out of scope
+Logo: import `public/placeholder.svg` for now if no real Rent Control mark is bundled; rendered into the PDF as a small image via jsPDF (`addImage`). Watermark is the same image at 0.06 alpha rotated 30°.
 
-- Workflow/state machine changes
-- Notifications/SMS changes
-- Rich-text document editor (TipTap) — keep as-is for free-form rulings
-- Backend RLS changes (current policies already cover the new columns)
+### 4. Template routing
 
-## Technical notes
+`complaint_documents.form_type` already exists (`form_7` / `form_33`; add `form_32a`). The Documents hub and Form Editor call the per-form renderer directly — the generic `generateDynamicFormPdf` is bypassed for these three form types. Existing `form_templates` rows are ignored for Form 7/33/32A.
 
-- Migration adds nullable columns only — no destructive changes, no policy rewrites.
-- PDF generators use `jspdf` + `jspdf-autotable` (already installed). No new deps.
-- Live preview component reuses the same `form7.ts` render but to a hidden canvas → image via `jspdf`'s `output('datauristring')`.
-- Case number sequence: `case_number_seq` int sequence + a small SQL helper `issue_case_number()` returning `CAR <n>/<YYYY>`.
-- Storage path unchanged: `complaints/{caseId}/form-7-v{n}.pdf`, `complaints/{caseId}/form-33-v{n}.pdf`.
+### 5. Data model
 
-## Files
+Migration only adds what's missing:
 
-- **Migration**: new columns on `complaints` + `case_number_seq` sequence + `issue_case_number()` function
-- **Created**: `src/lib/pdf/form7.ts`, `src/lib/pdf/form33.ts`, `src/components/regulator/Form7LivePreview.tsx`
-- **Rewritten**: `src/pages/regulator/AdminFileComplaint.tsx`
-- **Updated**: `src/lib/complaintForms.ts` (route Form 7/33 to new generators), `src/pages/regulator/ComplaintCaseFile.tsx` (case number display, regenerate buttons)
+- `complaint_documents.form_data_json jsonb` (nullable) — stores the exact editor state used to render this version, so Regenerate can pre-fill from any past version.
+- Allow `'form_32a'` in any existing CHECK on `form_type` (drop+recreate the constraint if present, otherwise no-op).
+- `complaint_documents.document_title text` already covered by existing `title` — reuse.
+
+No new tables, no RLS changes (existing policies already cover insert/select for admins on complaint_documents).
+
+### 6. Files
+
+- **Created**
+  - `src/lib/pdf/_brand.ts` — branded chrome (header, footer, watermark, signature block)
+  - `src/lib/pdf/form32a.ts`
+  - `src/components/regulator/FormEditorDialog.tsx` — generic editor shell + per-form field sets + live preview
+  - `src/components/regulator/ComplaintDocumentsHub.tsx` — the new Documents tab content
+- **Rewritten**
+  - `src/lib/pdf/form7.ts` (legal-document layout, branding, narrative paragraph)
+  - `src/lib/pdf/form33.ts` (CA header, VRS line, branded chrome, editable summons body)
+  - `src/lib/complaintForms.ts` (accept `form_data_json` from editor; insert with that JSON; support form_32a)
+- **Updated**
+  - `src/pages/regulator/ComplaintCaseFile.tsx` — Documents tab swapped for `ComplaintDocumentsHub`
+- **Migration** — `complaint_documents.form_data_json` + form_type CHECK extension
