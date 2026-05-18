@@ -77,6 +77,7 @@ const RegulatorProperties = lazy(() => import("./pages/regulator/RegulatorProper
 const RegulatorComplaints = lazy(() => import("./pages/regulator/RegulatorComplaints"));
 const AdminFileComplaint = lazy(() => import("./pages/regulator/AdminFileComplaint"));
 const ComplaintsCommandCenter = lazy(() => import("./pages/regulator/ComplaintsCommandCenter"));
+const ComplaintWizard = lazy(() => import("./pages/regulator/ComplaintWizard"));
 const FormEngine = lazy(() => import("./pages/regulator/FormEngine"));
 const FormTemplateEditor = lazy(() => import("./pages/regulator/FormTemplateEditor"));
 const FormFill = lazy(() => import("./pages/regulator/FormFill"));
