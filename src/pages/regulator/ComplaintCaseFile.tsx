@@ -525,6 +525,13 @@ const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
       });
       if (error) throw error;
       await transitionStage({ caseId: complaint.id, toStage: outcome, reason: "Decision recorded" });
+      const evt = outcome === "settled" ? "settled" : outcome === "closed" ? "closed" : "decided";
+      await notifyComplaintParties({
+        event: evt as any,
+        data: { ref: complaint.ticket_number || complaint.complaint_code },
+        recipients: complaintRecipients(complaint),
+        link: `/regulator/complaints/${complaint.id}`,
+      });
       toast({ title: "Decision recorded" });
       onOpenChange(false); onSaved();
     } catch (e: any) { toast({ title: e.message, variant: "destructive" }); }
