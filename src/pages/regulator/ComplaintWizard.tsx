@@ -559,7 +559,7 @@ const ComplaintWizard = () => {
                     <input type="checkbox" checked={checked} onChange={() =>
                       setSelectedForms((arr) => arr.includes(f.id) ? arr.filter((x) => x !== f.id) : [...arr, f.id])
                     } />
-                    <span className="text-sm"><strong>{f.form_number}</strong> — {f.title}</span>
+                    <span className="text-sm"><strong>{f.form_number}</strong> — {f.form_name}</span>
                   </label>
                 );
               })}
