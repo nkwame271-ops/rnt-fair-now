@@ -418,24 +418,35 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
     setSaving(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
-      const { error } = await supabase.from("complaint_hearings").insert({
+      const { data: hearing, error } = await supabase.from("complaint_hearings").insert({
         case_id: complaint.id, case_kind: "complaint",
         scheduled_at: new Date(when).toISOString(),
         room_id: roomId || null, officer_user_id: officerId || null,
         priority, status: "scheduled", created_by: auth.user?.id,
-      });
+      }).select("id").single();
       if (error) throw error;
       await supabase.from("complaints").update({ next_hearing_at: new Date(when).toISOString() }).eq("id", complaint.id);
       await transitionStage({ caseId: complaint.id, toStage: "scheduled", reason: "Hearing scheduled" });
+
+      // Auto-generate Form 33 draft — non-blocking
+      try {
+        const { generateForm33Draft } = await import("@/lib/complaintForms");
+        const venueName = rooms.find((r: any) => r.id === roomId)?.name;
+        await generateForm33Draft(complaint.id, complaint, {
+          scheduled_at: new Date(when).toISOString(),
+          venue: venueName,
+        });
+      } catch (e) { console.warn("Form 33 auto-generate failed", e); }
+
       await notifyComplaintParties({
         event: "scheduled",
         data: { ref: complaint.ticket_number || complaint.complaint_code, when: new Date(when).toLocaleString() },
         recipients: complaintRecipients(complaint),
         link: `/regulator/complaints/${complaint.id}`,
       });
-      toast({ title: "Hearing scheduled" });
+      toast({ title: "Hearing scheduled", description: "Form 33 draft created — edit and finalize from the Documents tab." });
       onOpenChange(false); onSaved();
-    } catch (e: any) { toast({ title: e.message, variant: "destructive" }); }
+    } catch (e: any) { toast({ title: e.message || "Failed to schedule", variant: "destructive" }); }
     finally { setSaving(false); }
   };
   return (
