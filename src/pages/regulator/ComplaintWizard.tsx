@@ -266,27 +266,53 @@ const ComplaintWizard = () => {
   };
 
   const submitForReview = async () => {
-    if (!complaintTypeId) return toast({ title: "Complaint type required", variant: "destructive" });
-    if (!address) return toast({ title: "Property address required", variant: "destructive" });
-    if (!description) return toast({ title: "Description required", variant: "destructive" });
-    if (!officeId) return toast({ title: "Office required", variant: "destructive" });
-    if (!(complainant?.full_name || phName.c)) return toast({ title: "Complainant required", variant: "destructive" });
-    if (!(respondent?.full_name || phName.r)) return toast({ title: "Respondent required", variant: "destructive" });
+    const missing: string[] = [];
+    if (!complaintTypeId) missing.push("Complaint type");
+    if (!address) missing.push("Property address");
+    if (!description) missing.push("Description");
+    if (!officeId) missing.push("Office");
+    if (!(complainant?.full_name || phName.c)) missing.push("Complainant");
+    if (!(respondent?.full_name || phName.r)) missing.push("Respondent");
+    if (missing.length) {
+      toast({
+        title: "Can't submit — missing fields",
+        description: missing.join(", "),
+        variant: "destructive",
+      });
+      // Jump to first relevant step
+      if (missing.includes("Complaint type")) setStepIdx(0);
+      else if (missing.includes("Complainant") || missing.includes("Respondent")) setStepIdx(1);
+      else if (missing.includes("Property address") || missing.includes("Office")) setStepIdx(2);
+      else if (missing.includes("Description")) setStepIdx(3);
+      return;
+    }
 
     setSubmitting(true);
     try {
       const pk = await saveDraft(true);
-      if (!pk) return;
+      if (!pk) {
+        toast({ title: "Could not save draft", description: "Submission aborted.", variant: "destructive" });
+        return;
+      }
       const { error } = await supabase
         .from("complaints")
         .update({ status: "submitted" })
         .eq("id", pk);
       if (error) throw error;
-      await transitionStage({ caseId: pk, toStage: "submitted", reason: "Submitted via wizard" });
-      toast({ title: "Submitted for review", description: ticketNumber || "" });
+      try {
+        await transitionStage({ caseId: pk, toStage: "submitted", reason: "Submitted via wizard" });
+      } catch (te: any) {
+        console.warn("transitionStage failed (non-fatal)", te);
+      }
+      toast({ title: "Submitted for review", description: ticketNumber || "Complaint sent to office" });
       navigate("/regulator/complaints/command-center");
     } catch (e: any) {
-      toast({ title: "Submission failed", description: e.message, variant: "destructive" });
+      console.error("Submit for Review failed", e);
+      toast({
+        title: "Submission failed",
+        description: e?.message || e?.details || "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -589,20 +615,28 @@ const ComplaintWizard = () => {
       )}
 
       {/* Navigation */}
-      <div className="flex justify-between gap-2">
+      <div className="flex justify-between gap-2 flex-wrap">
         <Button variant="outline" onClick={() => setStepIdx((i) => Math.max(0, i - 1))} disabled={stepIdx === 0}>
           <ChevronLeft className="h-4 w-4 mr-1" /> Back
         </Button>
-        {stepIdx < STEPS.length - 1 ? (
-          <Button onClick={() => setStepIdx((i) => Math.min(STEPS.length - 1, i + 1))} disabled={!canNext}>
-            Next <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-        ) : (
-          <Button onClick={submitForReview} disabled={submitting}>
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-            Submit for Review
-          </Button>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          {stepIdx >= 3 && stepIdx < STEPS.length - 1 && (
+            <Button variant="secondary" onClick={submitForReview} disabled={submitting}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+              Submit for Review
+            </Button>
+          )}
+          {stepIdx < STEPS.length - 1 ? (
+            <Button onClick={() => setStepIdx((i) => Math.min(STEPS.length - 1, i + 1))} disabled={!canNext}>
+              Next <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          ) : (
+            <Button onClick={submitForReview} disabled={submitting}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+              Submit for Review
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

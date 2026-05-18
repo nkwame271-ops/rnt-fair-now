@@ -18,7 +18,7 @@ import {
   Plus,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { signStorageUrl } from "@/lib/signStorageUrl";
+import { supabase } from "@/integrations/supabase/client";
 import FormEditorDialog from "./FormEditorDialog";
 import { StatutoryFormType } from "@/lib/complaintForms";
 import { generateComplaintPdf } from "@/lib/generateComplaintPdf";
@@ -43,6 +43,24 @@ const FORM_DESCS: Record<StatutoryFormType, string> = {
   form_32a: "Order / Decision of Rent Officer",
 };
 
+// Resolve a stored file_url to a signed URL. Handles:
+//   - full https URLs from supabase storage
+//   - bare paths like "complaints/{id}/form-7-v1.pdf" (assumed in form-outputs bucket)
+//   - "bucket/path" combos
+async function resolvePdfUrl(stored: string): Promise<string | null> {
+  if (!stored) return null;
+  if (/^https?:\/\//i.test(stored)) return stored;
+  // Treat as bare storage path inside the form-outputs bucket
+  const { data, error } = await supabase.storage
+    .from("form-outputs")
+    .createSignedUrl(stored, 3600);
+  if (error || !data?.signedUrl) {
+    console.error("Failed to sign storage URL", stored, error);
+    return null;
+  }
+  return data.signedUrl;
+}
+
 export default function ComplaintDocumentsHub({
   complaint,
   officeName,
@@ -62,16 +80,14 @@ export default function ComplaintDocumentsHub({
     setEditor({ open: true, type, initial });
 
   const openPdf = async (path: string) => {
-    const url = await signStorageUrl(
-      path.includes("/") ? path : `form-outputs/${path}`
-    );
+    const url = await resolvePdfUrl(path);
     if (url) window.open(url, "_blank");
+    else toast({ title: "Could not open document", description: "File not found in storage.", variant: "destructive" });
   };
   const previewPdf = async (path: string) => {
-    const url = await signStorageUrl(
-      path.includes("/") ? path : `form-outputs/${path}`
-    );
+    const url = await resolvePdfUrl(path);
     if (url) setPreviewUrl(url);
+    else toast({ title: "Could not preview", description: "File not found in storage.", variant: "destructive" });
   };
 
   const downloadProfile = async () => {

@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, FileText, History, CheckCircle2, Loader2, Download, Sparkles } from "lucide-react";
+import { ArrowLeft, Save, FileText, History, CheckCircle2, Loader2, Download, Sparkles, BookmarkPlus, RefreshCw } from "lucide-react";
 import RichTextEditor from "@/components/regulator/RichTextEditor";
 import { logComplaintAction } from "@/lib/complaintAudit";
 import { notifyComplaintParties } from "@/lib/complaintNotify";
+import { applyTemplatePlaceholders, buildComplaintContext } from "@/lib/templatePlaceholders";
 
 const FORM_TYPES = [
   { value: "summons", label: "Summons" },
@@ -68,6 +69,7 @@ const ComplaintDocumentEditor = () => {
   const [complaint, setComplaint] = useState<any>(null);
   const [doc, setDoc] = useState<any>(null);
   const [versions, setVersions] = useState<any[]>([]);
+  const [globalTemplates, setGlobalTemplates] = useState<any[]>([]);
   const [title, setTitle] = useState("");
   const [formType, setFormType] = useState(formTypeParam || "summons");
   const [html, setHtml] = useState("");
@@ -77,16 +79,22 @@ const ComplaintDocumentEditor = () => {
   const [finalOpen, setFinalOpen] = useState(false);
   const [changeReason, setChangeReason] = useState("");
   const [notifyOnFinalize, setNotifyOnFinalize] = useState(true);
+  const [templateOriginId, setTemplateOriginId] = useState<string | null>(null);
+  const [saveTplOpen, setSaveTplOpen] = useState(false);
+  const [tplMeta, setTplMeta] = useState({ form_name: "", form_number: "", category: "", description: "" });
+  const [savingTpl, setSavingTpl] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     (async () => {
-      const [cRes, dRes] = await Promise.all([
+      const [cRes, dRes, tRes] = await Promise.all([
         supabase.from("complaints").select("*").eq("id", id).maybeSingle(),
         supabase.from("complaint_documents").select("*").eq("case_id", id).order("generated_at", { ascending: false }),
+        supabase.from("form_templates").select("id, form_name, form_number, body_html, category").eq("status", "active").order("form_name"),
       ]);
       setComplaint(cRes.data);
       setVersions(dRes.data || []);
+      setGlobalTemplates(tRes.data || []);
 
       const target = docId
         ? (dRes.data || []).find((d: any) => d.id === docId)
@@ -98,8 +106,9 @@ const ComplaintDocumentEditor = () => {
         setTitle(target.title || "");
         setHtml(target.body_html || "");
         setJson(target.body_json);
+        setTemplateOriginId((target as any).template_origin_id || null);
       } else {
-        // Fresh draft from template
+        // Fresh draft from built-in template
         const ctx = {
           ticket_number: cRes.data?.ticket_number,
           title: cRes.data?.complaint_title,
@@ -115,6 +124,69 @@ const ComplaintDocumentEditor = () => {
     })();
     // eslint-disable-next-line
   }, [id, docId]);
+
+  // Apply a global template (from Form Engine) to the current document
+  const applyGlobalTemplate = (templateId: string) => {
+    const t = globalTemplates.find((x) => x.id === templateId);
+    if (!t) return;
+    if (html && !confirm(`Replace current content with the "${t.form_name}" template?`)) return;
+    const ctx = buildComplaintContext(complaint);
+    setHtml(applyTemplatePlaceholders(t.body_html || "", ctx));
+    setFormType(t.form_number || `tpl_${t.id.slice(0, 8)}`);
+    setTitle(`${t.form_name} — ${complaint?.ticket_number || ""}`);
+    setTemplateOriginId(t.id);
+    toast({ title: "Template applied", description: t.form_name });
+  };
+
+  const saveAsGlobalTemplate = async () => {
+    if (!html.trim()) {
+      toast({ title: "Nothing to save", description: "Add content first.", variant: "destructive" });
+      return;
+    }
+    if (!tplMeta.form_name.trim()) {
+      toast({ title: "Template name required", variant: "destructive" });
+      return;
+    }
+    setSavingTpl(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const { data, error } = await supabase.from("form_templates").insert({
+        form_name: tplMeta.form_name,
+        form_number: tplMeta.form_number || tplMeta.form_name.toLowerCase().replace(/\W+/g, "_"),
+        category: tplMeta.category || null,
+        description: tplMeta.description || null,
+        status: "active",
+        body_html: html,
+        created_by: u.user?.id,
+      } as any).select().single();
+      if (error) throw error;
+      setGlobalTemplates((arr) => [...arr, data]);
+      setTemplateOriginId(data.id);
+      toast({ title: "Saved as global template", description: data.form_name });
+      setSaveTplOpen(false);
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e.message || String(e), variant: "destructive" });
+    } finally {
+      setSavingTpl(false);
+    }
+  };
+
+  const updateGlobalTemplate = async () => {
+    if (!templateOriginId) return;
+    setSavingTpl(true);
+    try {
+      const { error } = await supabase.from("form_templates")
+        .update({ body_html: html } as any)
+        .eq("id", templateOriginId);
+      if (error) throw error;
+      toast({ title: "Global template updated" });
+    } catch (e: any) {
+      toast({ title: "Update failed", description: e.message || String(e), variant: "destructive" });
+    } finally {
+      setSavingTpl(false);
+    }
+  };
+
 
   const finalized = doc?.status === "finalized";
 
@@ -183,6 +255,7 @@ const ComplaintDocumentEditor = () => {
         body_json: json,
         status: "draft",
         edited_by: u.user?.id,
+        template_origin_id: templateOriginId,
       };
       let saved;
       if (doc) {

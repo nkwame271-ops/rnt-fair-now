@@ -497,6 +497,7 @@ export type Database = {
           id: string
           metadata: Json | null
           status: string
+          template_origin_id: string | null
           title: string | null
           version_number: number
         }
@@ -517,6 +518,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           status?: string
+          template_origin_id?: string | null
           title?: string | null
           version_number?: number
         }
@@ -537,10 +539,19 @@ export type Database = {
           id?: string
           metadata?: Json | null
           status?: string
+          template_origin_id?: string | null
           title?: string | null
           version_number?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "complaint_documents_template_origin_id_fkey"
+            columns: ["template_origin_id"]
+            isOneToOne: false
+            referencedRelation: "form_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       complaint_fee_bands: {
         Row: {
@@ -1796,9 +1807,12 @@ export type Database = {
       }
       form_templates: {
         Row: {
+          body_html: string | null
+          category: string | null
           created_at: string
           created_by: string | null
           department: string | null
+          description: string | null
           effective_date: string | null
           form_name: string
           form_number: string | null
@@ -1811,9 +1825,12 @@ export type Database = {
           version: string
         }
         Insert: {
+          body_html?: string | null
+          category?: string | null
           created_at?: string
           created_by?: string | null
           department?: string | null
+          description?: string | null
           effective_date?: string | null
           form_name: string
           form_number?: string | null
@@ -1826,9 +1843,12 @@ export type Database = {
           version?: string
         }
         Update: {
+          body_html?: string | null
+          category?: string | null
           created_at?: string
           created_by?: string | null
           department?: string | null
+          description?: string | null
           effective_date?: string | null
           form_name?: string
           form_number?: string | null
