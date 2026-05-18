@@ -102,10 +102,10 @@ const ComplaintDocumentEditor = () => {
         // Fresh draft from template
         const ctx = {
           ticket_number: cRes.data?.ticket_number,
-          title: cRes.data?.title,
+          title: cRes.data?.complaint_title,
           description: cRes.data?.description,
-          complainant_name: cRes.data?.complainant_name,
-          respondent_name: cRes.data?.respondent_name,
+          complainant_name: cRes.data?.placeholder_complainant_name || "",
+          respondent_name: cRes.data?.placeholder_respondent_name || cRes.data?.landlord_name || "",
           property_address: cRes.data?.property_address,
         };
         const tpl = TEMPLATES[formType] || TEMPLATES.general;
@@ -129,10 +129,10 @@ const ComplaintDocumentEditor = () => {
     if (!confirm("Replace current content with the template for this form type?")) return;
     const ctx = {
       ticket_number: complaint.ticket_number,
-      title: complaint.title,
+      title: complaint.complaint_title,
       description: complaint.description,
-      complainant_name: complaint.complainant_name,
-      respondent_name: complaint.respondent_name,
+      complainant_name: complaint.placeholder_complainant_name || "",
+      respondent_name: complaint.placeholder_respondent_name || complaint.landlord_name || "",
       property_address: complaint.property_address,
     };
     const tpl = TEMPLATES[formType] || TEMPLATES.general;
@@ -202,7 +202,7 @@ const ComplaintDocumentEditor = () => {
       setDoc(saved);
       await logComplaintAction({
         caseId: id, action: "document_saved",
-        details: { form_type: formType, version: saved.version_number, title },
+        newValue: { form_type: formType, version: saved.version_number, title },
       });
       toast({ title: "Draft saved", description: `Version ${saved.version_number}` });
     } catch (e: any) {
@@ -257,15 +257,17 @@ const ComplaintDocumentEditor = () => {
 
       await logComplaintAction({
         caseId: id, action: "document_finalized",
-        details: { form_type: formType, version: doc.version_number, title },
+        newValue: { form_type: formType, version: doc.version_number, title },
       });
 
       if (notifyOnFinalize) {
         await notifyComplaintParties({
-          caseId: id,
           event: formType === "summons" ? "summons_generated" : "document_ready",
-          title: `Document ready: ${title}`,
-          body: `A ${FORM_TYPES.find(f => f.value === formType)?.label || formType} has been issued for your case.`,
+          data: { ref: complaint.ticket_number || "", form: FORM_TYPES.find(f => f.value === formType)?.label || formType },
+          recipients: [
+            { userId: complaint.tenant_user_id, phone: complaint.placeholder_complainant_phone },
+            { userId: complaint.respondent_user_id, phone: complaint.placeholder_respondent_phone },
+          ],
           link: `/regulator/complaints/${id}`,
         });
       }
