@@ -133,11 +133,15 @@ const ComplaintWorkspace = ({
             </Select>
           </div>
         )}
-        {allowPayment && (
-          <Button size="sm" variant="outline" onClick={() => setPaymentOpen(true)} className="ml-auto">
-            Set Type & Request Payment
-          </Button>
-        )}
+        {allowPayment && (() => {
+          const paid = ["paid", "completed", "success"].includes((currentStatus || "").toLowerCase());
+          const hasRequest = ["pending_payment", "paid", "completed", "success"].includes((currentStatus || "").toLowerCase());
+          return (
+            <Button size="sm" variant="outline" onClick={() => setPaymentOpen(true)} className="ml-auto">
+              {paid ? "Request Additional Payment" : hasRequest ? "Update Payment Request" : "Set Type & Request Payment"}
+            </Button>
+          );
+        })()}
       </div>
 
       <div className="space-y-2">

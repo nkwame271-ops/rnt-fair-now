@@ -315,13 +315,23 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
     y += 10;
 
     terms.forEach((term, i) => {
-      const numberedTerm = `${i + 1}. ${term}`;
-      const lines = doc.splitTextToSize(numberedTerm, w - 45);
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      checkPage(lines.length * 5 + 5);
-      doc.text(lines, 20, y);
-      y += lines.length * 5 + 3;
+      const rawLines = String(term ?? "").replace(/\r\n/g, "\n").split("\n");
+      rawLines.forEach((rawLine, idx) => {
+        // Preserve leading whitespace as indentation (each space ≈ 1.6mm)
+        const leading = rawLine.match(/^[ \t]*/)?.[0] ?? "";
+        const indentMm = Math.min(leading.replace(/\t/g, "    ").length * 1.6, 30);
+        const body = rawLine.slice(leading.length);
+        const prefix = idx === 0 ? `${i + 1}. ` : "";
+        const text = prefix + body;
+        const xStart = 20 + indentMm + (idx === 0 ? 0 : 6); // continuation lines hang under text
+        const wrapped = doc.splitTextToSize(text, w - 25 - indentMm - (idx === 0 ? 0 : 6));
+        checkPage(wrapped.length * 5 + 2);
+        doc.text(wrapped, xStart, y);
+        y += wrapped.length * 5;
+      });
+      y += 3;
     });
   }
 
