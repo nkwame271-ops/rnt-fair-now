@@ -1763,7 +1763,7 @@ export type Database = {
           id: string
           pdf_url: string | null
           status: string
-          template_id: string
+          template_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1774,7 +1774,7 @@ export type Database = {
           id?: string
           pdf_url?: string | null
           status?: string
-          template_id: string
+          template_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1785,7 +1785,7 @@ export type Database = {
           id?: string
           pdf_url?: string | null
           status?: string
-          template_id?: string
+          template_id?: string | null
           updated_at?: string
         }
         Relationships: [

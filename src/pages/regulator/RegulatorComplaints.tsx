@@ -213,7 +213,11 @@ const RegulatorComplaints = () => {
       .order("created_at", { ascending: false });
 
     if (data && data.length > 0) {
-      const tenantIds = [...new Set(data.map((c: any) => c.tenant_user_id))];
+      const tenantIds = [...new Set(data.map((c: any) => c.tenant_user_id).filter(Boolean))];
+      if (tenantIds.length === 0) {
+        setComplaints(data);
+        return;
+      }
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id, full_name, phone, email, ghana_card_no, nationality, occupation")
