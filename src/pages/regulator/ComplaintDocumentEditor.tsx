@@ -206,6 +206,7 @@ const ComplaintDocumentEditor = () => {
         body_json: json,
         status: "draft",
         edited_by: u.user?.id,
+        template_origin_id: templateOriginId,
       };
       let saved;
       if (doc) {
