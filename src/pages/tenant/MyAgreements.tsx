@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import RatingDialog from "@/components/RatingDialog";
 import DigitalSignatureDialog from "@/components/DigitalSignatureDialog";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 
 interface CustomFieldDef {
   label: string;
