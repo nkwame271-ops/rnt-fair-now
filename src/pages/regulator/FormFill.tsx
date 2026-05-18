@@ -71,18 +71,28 @@ const FormFill = () => {
   });
 
   const download = () => {
-    const blob = buildPdf();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `${tpl.form_number || tpl.form_name}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const blob = buildPdf();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${tpl.form_number || tpl.form_name}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      console.error("download pdf", e);
+      toast({ title: "Download failed", description: e.message || String(e), variant: "destructive" });
+    }
   };
 
   const preview = () => {
-    const blob = buildPdf();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
+    try {
+      const blob = buildPdf();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (e: any) {
+      console.error("preview pdf", e);
+      toast({ title: "Preview failed", description: e.message || String(e), variant: "destructive" });
+    }
   };
 
   const generateAndAttach = async () => {
