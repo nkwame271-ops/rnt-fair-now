@@ -90,11 +90,13 @@ const ComplaintWizard = () => {
   // Load lookups + draft
   useEffect(() => {
     (async () => {
-      const [{ data: types }, { data: offs }, { data: forms }] = await Promise.all([
-        supabase.from("complaint_types").select("*").eq("active", true).order("display_order"),
-        supabase.from("offices").select("*").order("name"),
-        supabase.from("form_templates").select("id, form_number, title").eq("active", true).order("form_number"),
-      ]);
+      const { data: types } = await supabase.from("complaint_types").select("*").eq("active", true).order("display_order");
+      const { data: offs } = await supabase.from("offices").select("*").order("name");
+      const { data: forms } = await supabase
+        .from("form_templates")
+        .select("id, form_number, form_name")
+        .eq("status", "active")
+        .order("form_number");
       setComplaintTypes(types || []);
       setOffices(offs || []);
       setFormTemplates(forms || []);
