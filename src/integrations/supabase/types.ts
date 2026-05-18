@@ -481,6 +481,8 @@ export type Database = {
       }
       complaint_documents: {
         Row: {
+          body_html: string | null
+          body_json: Json | null
           case_id: string
           case_kind: string
           change_reason: string | null
@@ -494,9 +496,12 @@ export type Database = {
           id: string
           metadata: Json | null
           status: string
+          title: string | null
           version_number: number
         }
         Insert: {
+          body_html?: string | null
+          body_json?: Json | null
           case_id: string
           case_kind?: string
           change_reason?: string | null
@@ -510,9 +515,12 @@ export type Database = {
           id?: string
           metadata?: Json | null
           status?: string
+          title?: string | null
           version_number?: number
         }
         Update: {
+          body_html?: string | null
+          body_json?: Json | null
           case_id?: string
           case_kind?: string
           change_reason?: string | null
@@ -526,6 +534,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           status?: string
+          title?: string | null
           version_number?: number
         }
         Relationships: []
