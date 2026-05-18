@@ -565,6 +565,13 @@ const RegulatorComplaints = () => {
 
   const canScheduleComplaint = (c: any) => c.payment_status === "paid" && confirmedComplaintIds.has(c.id);
 
+  // Payment-gated status transitions. Until paid, complaint stays "submitted".
+  const PAYMENT_ALLOWED_BEFORE_PAID = new Set(["submitted", "awaiting_payment", "pending_payment", "closed"]);
+  const canChangeStatus = (c: any, newStatus: string) => {
+    if (c.payment_status === "paid") return true;
+    return PAYMENT_ALLOWED_BEFORE_PAID.has(newStatus);
+  };
+
   const updateLandlordComplaintStatus = async (id: string, newStatus: string) => {
     await supabase.from("landlord_complaints").update({ status: newStatus } as any).eq("id", id);
     toast.success(`Status updated to ${newStatus}`);
