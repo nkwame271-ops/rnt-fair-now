@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { SkeletonCardList } from "@/components/ui/skeleton";
+import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 
 interface CustomFieldDef {
   label: string;
