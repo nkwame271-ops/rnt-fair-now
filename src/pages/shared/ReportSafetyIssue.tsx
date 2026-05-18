@@ -49,8 +49,9 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
       if (files) {
         for (const file of Array.from(files)) {
           const path = `${user.id}/${Date.now()}_${file.name}`;
-          const { error } = await supabase.storage.from("safety-evidence").upload(path, file);
-          if (!error) evidence_urls.push(path);
+          const { error: upErr } = await supabase.storage.from("safety-evidence").upload(path, file);
+          if (upErr) console.warn("Evidence upload failed", upErr);
+          else evidence_urls.push(path);
         }
       }
       const { data, error } = await supabase.functions.invoke("submit-safety-report", {
@@ -70,11 +71,13 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
         },
       });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       toast.success(`Report submitted — Ticket ${data.ticket_number}`);
       navigate(backTo);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to submit report");
+    } catch (err: any) {
+      console.error("safety submit error", err);
+      const msg = err?.message || err?.error || "Could not reach safety service";
+      toast.error(`Failed to submit report: ${msg}`);
     } finally {
       setSubmitting(false);
     }
