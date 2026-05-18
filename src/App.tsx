@@ -221,6 +221,7 @@ const App = () => (
                 <Route path="properties" element={<RegulatorProperties />} />
                 <Route path="complaints" element={<RegulatorComplaints />} />
                 <Route path="complaints/command-center" element={<ComplaintsCommandCenter />} />
+                <Route path="complaints/schedule" element={<HearingSchedule />} />
                 <Route path="complaints/new" element={<ComplaintWizard />} />
                 <Route path="complaints/new-simple" element={<AdminFileComplaint />} />
                 <Route path="complaints/:id" element={<ComplaintCaseFile />} />
