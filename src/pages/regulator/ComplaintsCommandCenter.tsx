@@ -63,6 +63,7 @@ type ComplaintRow = {
   tenant_user_id: string | null;
   respondent_user_id: string | null;
   complaint_title: string | null;
+  case_kind: "complaint" | "landlord_complaint";
 };
 
 const PAGE_SIZE = 50;
