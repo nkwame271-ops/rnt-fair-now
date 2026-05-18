@@ -138,6 +138,55 @@ const ComplaintDocumentEditor = () => {
     toast({ title: "Template applied", description: t.form_name });
   };
 
+  const saveAsGlobalTemplate = async () => {
+    if (!html.trim()) {
+      toast({ title: "Nothing to save", description: "Add content first.", variant: "destructive" });
+      return;
+    }
+    if (!tplMeta.form_name.trim()) {
+      toast({ title: "Template name required", variant: "destructive" });
+      return;
+    }
+    setSavingTpl(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const { data, error } = await supabase.from("form_templates").insert({
+        form_name: tplMeta.form_name,
+        form_number: tplMeta.form_number || tplMeta.form_name.toLowerCase().replace(/\W+/g, "_"),
+        category: tplMeta.category || null,
+        description: tplMeta.description || null,
+        status: "active",
+        body_html: html,
+        created_by: u.user?.id,
+      } as any).select().single();
+      if (error) throw error;
+      setGlobalTemplates((arr) => [...arr, data]);
+      setTemplateOriginId(data.id);
+      toast({ title: "Saved as global template", description: data.form_name });
+      setSaveTplOpen(false);
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e.message || String(e), variant: "destructive" });
+    } finally {
+      setSavingTpl(false);
+    }
+  };
+
+  const updateGlobalTemplate = async () => {
+    if (!templateOriginId) return;
+    setSavingTpl(true);
+    try {
+      const { error } = await supabase.from("form_templates")
+        .update({ body_html: html } as any)
+        .eq("id", templateOriginId);
+      if (error) throw error;
+      toast({ title: "Global template updated" });
+    } catch (e: any) {
+      toast({ title: "Update failed", description: e.message || String(e), variant: "destructive" });
+    } finally {
+      setSavingTpl(false);
+    }
+  };
+
 
   const finalized = doc?.status === "finalized";
 
