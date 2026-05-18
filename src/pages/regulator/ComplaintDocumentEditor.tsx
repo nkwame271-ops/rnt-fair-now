@@ -432,10 +432,40 @@ const ComplaintDocumentEditor = () => {
           </Card>
 
           {!finalized && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" onClick={applyTemplate}>
                 <FileText className="h-4 w-4 mr-1" /> Reset from template
               </Button>
+
+              {globalTemplates.length > 0 && (
+                <Select value="" onValueChange={(v) => applyGlobalTemplate(v)}>
+                  <SelectTrigger className="h-9 w-[240px]">
+                    <SelectValue placeholder="Apply global template…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {globalTemplates.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.form_name}{t.category ? ` · ${t.category}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              <Button variant="outline" size="sm" onClick={() => {
+                setTplMeta({ form_name: title || "", form_number: "", category: "", description: "" });
+                setSaveTplOpen(true);
+              }}>
+                <BookmarkPlus className="h-4 w-4 mr-1" /> Save as Global Template
+              </Button>
+
+              {templateOriginId && (
+                <Button variant="outline" size="sm" onClick={updateGlobalTemplate} disabled={savingTpl}>
+                  {savingTpl ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                  Update Global Template
+                </Button>
+              )}
+
               <Button variant="outline" size="sm" onClick={() => aiPolish("improve")} disabled={aiBusy}>
                 {aiBusy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
                 AI: Improve
