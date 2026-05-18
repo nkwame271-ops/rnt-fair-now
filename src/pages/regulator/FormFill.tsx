@@ -102,27 +102,27 @@ const FormFill = () => {
       const blob = buildPdf();
       const path = `${tpl.id}/${Date.now()}-${(tpl.form_number || "form").replace(/\W/g, "_")}.pdf`;
       const { error: upErr } = await supabase.storage.from("form-outputs").upload(path, blob, { contentType: "application/pdf", upsert: false });
-      if (upErr) throw upErr;
+      if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
 
       const payload = { template_id: tpl.id, complaint_id: complaintId, data, status: "finalized", pdf_url: path };
       const res = submissionId
         ? await supabase.from("form_submissions").update(payload).eq("id", submissionId).select("id").single()
         : await supabase.from("form_submissions").insert(payload).select("id").single();
-      if (res.error) throw res.error;
+      if (res.error) throw new Error(`Save failed: ${res.error.message}`);
       setSubmissionId(res.data!.id);
 
       if (complaintId) {
         const { data: c, error: readErr } = await supabase.from("complaints").select("evidence_urls").eq("id", complaintId).single();
-        if (readErr) throw readErr;
+        if (readErr) throw new Error(`Complaint read failed: ${readErr.message}`);
         const urls = [...((c?.evidence_urls as string[]) || []), path];
         const { error: updErr } = await supabase.from("complaints").update({ evidence_urls: urls }).eq("id", complaintId);
-        if (updErr) throw updErr;
+        if (updErr) throw new Error(`Complaint update failed: ${updErr.message}`);
       }
 
-      toast({ title: "PDF generated", description: complaintId ? "Attached to complaint." : "Saved." });
+      toast({ title: "PDF generated", description: complaintId ? "Attached to complaint." : `Saved to ${path}` });
     } catch (e: any) {
       console.error("generateAndAttach", e);
-      toast({ title: "Generation failed", description: e.message || String(e), variant: "destructive" });
+      toast({ title: "Generation failed", description: e?.message || String(e), variant: "destructive" });
     } finally {
       setBusy(false);
     }

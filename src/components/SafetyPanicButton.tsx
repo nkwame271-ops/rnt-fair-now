@@ -48,15 +48,17 @@ const SafetyPanicButton = ({ role }: Props) => {
         },
       });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       if (!silent) {
         toast.success(`🚨 Alert sent — Ticket ${data.ticket_number}`, { duration: 8000 });
       }
       setOpen(false);
       setType(null);
       setSilent(false);
-    } catch (err) {
-      toast.error("Failed to send alert. Try Call Police directly.");
-      console.error(err);
+    } catch (err: any) {
+      console.error("panic alert failed", err);
+      const msg = err?.message || err?.error || "Try Call Police directly.";
+      toast.error(`Failed to send alert: ${msg}`);
     } finally {
       setSubmitting(false);
     }

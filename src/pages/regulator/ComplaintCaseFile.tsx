@@ -206,11 +206,24 @@ const ComplaintCaseFile = () => {
 
         <TabsContent value="documents" className="mt-4">
           <Card><CardContent className="pt-6 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Compose summons, rulings, and notices with the WYSIWYG editor. Each save creates a draft; finalize to lock and notify parties.</p>
-              <Button size="sm" onClick={() => navigate(`/regulator/complaints/${id}/documents/new`)}>
-                <Plus className="h-4 w-4 mr-1" /> New Document
-              </Button>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-sm text-muted-foreground">Statutory forms (Form 7, Form 33), summons, rulings, and notices. Each save creates a new version; finalize to lock and notify parties.</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={async () => {
+                  try {
+                    const { autoGenerateForm7 } = await import("@/lib/complaintForms");
+                    const res = await autoGenerateForm7(c.id, c);
+                    if ((res as any).skipped) toast({ title: "Form 7 already finalized" });
+                    else toast({ title: "Form 7 generated" });
+                    load();
+                  } catch (e: any) {
+                    toast({ title: "Form 7 failed", description: e?.message, variant: "destructive" });
+                  }
+                }}>Generate Form 7</Button>
+                <Button size="sm" onClick={() => navigate(`/regulator/complaints/${id}/documents/new`)}>
+                  <Plus className="h-4 w-4 mr-1" /> New Document
+                </Button>
+              </div>
             </div>
             {docs.length === 0 && <p className="text-sm text-muted-foreground">No documents generated yet.</p>}
             {docs.map((d) => (
@@ -232,7 +245,7 @@ const ComplaintCaseFile = () => {
                     e.stopPropagation();
                     const url = await signStorageUrl(d.file_url.includes("/") ? d.file_url : `form-outputs/${d.file_url}`);
                     if (url) window.open(url, "_blank");
-                  }}>Open File</Button>
+                  }}>Open PDF</Button>
                 )}
               </div>
             ))}
@@ -418,24 +431,35 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
     setSaving(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
-      const { error } = await supabase.from("complaint_hearings").insert({
+      const { data: hearing, error } = await supabase.from("complaint_hearings").insert({
         case_id: complaint.id, case_kind: "complaint",
         scheduled_at: new Date(when).toISOString(),
         room_id: roomId || null, officer_user_id: officerId || null,
         priority, status: "scheduled", created_by: auth.user?.id,
-      });
+      }).select("id").single();
       if (error) throw error;
       await supabase.from("complaints").update({ next_hearing_at: new Date(when).toISOString() }).eq("id", complaint.id);
       await transitionStage({ caseId: complaint.id, toStage: "scheduled", reason: "Hearing scheduled" });
+
+      // Auto-generate Form 33 draft — non-blocking
+      try {
+        const { generateForm33Draft } = await import("@/lib/complaintForms");
+        const venueName = rooms.find((r: any) => r.id === roomId)?.name;
+        await generateForm33Draft(complaint.id, complaint, {
+          scheduled_at: new Date(when).toISOString(),
+          venue: venueName,
+        });
+      } catch (e) { console.warn("Form 33 auto-generate failed", e); }
+
       await notifyComplaintParties({
         event: "scheduled",
         data: { ref: complaint.ticket_number || complaint.complaint_code, when: new Date(when).toLocaleString() },
         recipients: complaintRecipients(complaint),
         link: `/regulator/complaints/${complaint.id}`,
       });
-      toast({ title: "Hearing scheduled" });
+      toast({ title: "Hearing scheduled", description: "Form 33 draft created — edit and finalize from the Documents tab." });
       onOpenChange(false); onSaved();
-    } catch (e: any) { toast({ title: e.message, variant: "destructive" }); }
+    } catch (e: any) { toast({ title: e.message || "Failed to schedule", variant: "destructive" }); }
     finally { setSaving(false); }
   };
   return (

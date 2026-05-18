@@ -100,13 +100,17 @@ Deno.serve(async (req) => {
 
     if (insErr) throw insErr;
 
-    // Audit log
-    await admin.from("safety_audit_log").insert({
-      report_id: inserted.id,
-      actor_user_id: user.id,
-      action: "created",
-      details: { report_kind, emergency_type, is_silent: !!is_silent },
-    });
+    // Audit log (non-fatal)
+    try {
+      await admin.from("safety_audit_log").insert({
+        report_id: inserted.id,
+        actor_user_id: user.id,
+        action: "created",
+        details: { report_kind, emergency_type, is_silent: !!is_silent },
+      });
+    } catch (e) {
+      console.error("Safety audit log failed", e);
+    }
 
     // Fan-out SMS to safety contacts (best-effort, non-blocking)
     try {

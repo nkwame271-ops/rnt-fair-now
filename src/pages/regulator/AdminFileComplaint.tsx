@@ -142,6 +142,13 @@ const AdminFileComplaint = () => {
         .select("id, ticket_number, complaint_code")
         .single();
       if (error) throw error;
+      if (!created) throw new Error("Complaint was created but could not be read back. Check admin_staff permissions.");
+
+      // Auto-generate Form 7 — non-blocking
+      try {
+        const { autoGenerateForm7 } = await import("@/lib/complaintForms");
+        await autoGenerateForm7(created.id, { ...insertPayload, id: created.id, ticket_number: created.ticket_number });
+      } catch (e) { console.warn("Form 7 auto-generate failed", e); }
 
       // SMS — non-blocking
       const sendSms = async (phone: string, message: string) => {
@@ -172,9 +179,11 @@ const AdminFileComplaint = () => {
       }
 
       toast({ title: "Complaint filed", description: `Ticket ${ticket}` });
-      navigate("/regulator/complaints");
+      navigate(`/regulator/complaints/${created.id}`);
     } catch (e: any) {
-      toast({ title: "Failed to file complaint", description: e.message, variant: "destructive" });
+      const msg = e?.message || e?.details || e?.hint || JSON.stringify(e) || "Unknown error";
+      console.error("File complaint failed", e);
+      toast({ title: "Failed to file complaint", description: msg, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }

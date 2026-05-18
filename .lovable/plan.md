@@ -1,149 +1,78 @@
-# Complaint Management Module — Upgrade Plan
+# Triage & Fix Plan — Complaints, Forms, Safety
 
-This is a large, multi-phase upgrade. Existing complaint tables, fees, and workflows stay intact. New capabilities are layered on top: new admin roles, a Command Center dashboard, a tabbed Case File, a Hearing Workspace, versioned documents, and an audit log. Built in 5 phases so each is testable before the next.
+This batch covers six distinct issues. I'll fix the blocking bugs first, then layer in the Form 7 / Form 33 auto-generation flow on top of the existing Document Editor (Phase 6) so we don't duplicate work.
 
-## Scope guardrails
+## 1. Admin → File Complaint silently fails
 
-- Tenant / landlord / NUGS complaint filing pages stay as-is.
-- Existing `complaints` and `landlord_complaints` tables stay — we extend, never rename.
-- Existing Form Engine (templates + submissions) keeps working; we add versioning + WYSIWYG on top of it.
-- Existing assignment, scheduling, payment, and receipt flows keep working; new UIs read the same data.
+Likely cause (confirmed against RLS):
+- `INSERT` policy `Admin staff can file complaints` only allows users present in `admin_staff`. NUGS-only or regulator-without-admin_staff rows fail with no useful toast because the catch reads `e.message` which can be empty for RLS rejections.
+- Even when insert succeeds, the chained `.select("id, ticket_number, complaint_code")` requires a SELECT policy; non-regulator admins fail here.
 
----
+Fix:
+- Wrap `submit()` in `AdminFileComplaint.tsx` with a clearer error pipeline (always surface `error.message || error.details || error.hint`).
+- After insert, if the post-insert select returns nothing/error, re-fetch with `admin_staff`-scoped query, falling back to a service-side fetch using returned `id` if available.
+- Add a new RLS policy: `Admin staff read complaints they filed` so the returning `select` resolves.
+- Stenographers don't currently have an `admin_staff` row in some envs — verify by surfacing a friendly "Your account is not in admin_staff; ask Super Admin to add you" error rather than a silent failure.
 
-## Phase 1 — Roles, schema, and audit foundation
+## 2. Form 7 auto-generation on complaint filing
 
-New `admin_role` enum stored on `admin_staff`:
-`stenographer | case_admin | adjudicating_officer | main_admin | super_admin`.
+Workflow:
+- After a successful complaint insert in `AdminFileComplaint.tsx` and the wizard (`ComplaintWizard.tsx`), call a new helper `autoGenerateForm7(caseId, complaint)` that:
+  1. Loads the canonical `form_templates` row where `form_number = 'Form 7'`.
+  2. Builds a `form_submissions` row with `data` pre-filled from the complaint (parties, address, region, ticket, description, date).
+  3. Renders the PDF via existing `generateDynamicFormPdf`, uploads to `form-outputs/<caseId>/form-7-v1.pdf`.
+  4. Inserts a `complaint_documents` row (`form_type='form_7'`, `version_number=1`, `status='final'`, `pdf_url=path`) so the Case File → Documents tab shows it immediately.
+- Idempotent: skip if a `complaint_documents` row with `form_type='form_7'` already exists for the case.
 
-Each role gets a `has_admin_role(uid, role)` security-definer function used by RLS.
+## 3. Form 33 generation on hearing scheduling
 
-New tables (all RLS-protected, scoped to office where applicable):
+Trigger point: existing **Schedule Hearing** action in `ComplaintCaseFile.tsx`.
+- After `complaint_hearings` insert succeeds, call `generateForm33(caseId, hearing)`:
+  - Pre-fill respondent name, case number, hearing date/time, venue (room name), parties.
+  - Save as a *draft* `complaint_documents` row so the admin can edit variable fields before finalizing.
+- Add an "Edit & Finalize Form 33" button on the Documents tab that opens `ComplaintDocumentEditor` with `form_type=form_33` and the draft pre-loaded.
 
-- `complaint_status_history` — every status change with `changed_by, previous_status, new_status, reason, changed_at`.
-- `complaint_audit_log` — `actor_id/name/role, case_id, action, old_value, new_value, ip, user_agent, created_at`.
-- `complaint_documents` — versioned generated documents:
-  `case_id, form_type, version_number, status (draft|under_review|finalized|voided|replaced), generated_by, edited_by, finalized_by, file_url, change_reason, generated_at, finalized_at`. Unique on `(case_id, form_type, version_number)`.
-- `complaint_witnesses` — name, phone, email, address, side (complainant|respondent), expected_testimony.
-- `complaint_notes` — author, role, note_type (`internal|official_proceedings`), body, edit_history jsonb.
-- `complaint_hearings` — scheduled_date, scheduled_time, room_id, officer_user_id, status (`scheduled|ongoing|completed|adjourned|cancelled`), attendance jsonb, outcome.
-- `hearing_rooms` — office_id, name, capacity, active.
-- `complaint_decisions` — case_id, outcome (`settled|adjourned|dismissed|withdrawn|decided|...`), decision_summary, orders, payment_orders, compliance_deadline, document_id, officer_user_id, recorded_at.
+## 4. Complaint Documents Section
 
-Light extensions to `complaints` / `landlord_complaints`:
-`complaint_title, claim_amount_internal, internal_notes, current_stage, last_activity_at, created_by_user_id` (back-fillable).
+`ComplaintCaseFile.tsx` already has a Documents tab from Phase 6. Enhance it:
+- Group items: **Statutory Forms (Form 7, Form 33)**, **Evidence**, **Receipts**, **Other Documents**.
+- Each row: badge for status (draft/final), Download PDF, Regenerate (rebuilds PDF from latest data, bumps version), Edit (opens WYSIWYG / FormFill).
+- Pull receipts from `receipts` table keyed by complaint payment.
 
-Triggers:
+## 5. Form Engine — Generate & Delete
 
-- `complaint_status_history` populated automatically on `status` change.
-- `last_activity_at` bumped on insert/update of related child rows.
+`FormFill.tsx` Generate button:
+- `generateAndAttach` already exists. Bug: when called without a `complaintId`, it tries to update `form_submissions` then exits with no toast on path errors. Add explicit error toasts on every catch branch and a visible "Saved to outputs" success state with link to the file.
 
----
+`FormEngine.tsx` Delete button:
+- Inspect template list delete; ensure it calls `supabase.from('form_templates').delete().eq('id', id)` inside a confirmed AlertDialog and refreshes the list state on success. Add toast feedback for both success and RLS-blocked failures.
 
-## Phase 2 — Complaints Command Center + upgraded list
+## 6. Safety & Emergency submission failures
 
-New page `/regulator/complaints/command-center` becomes the default complaints landing.
+Likely cause: `submit-safety-report` edge function works against the schema, but the SMS fan-out hits the failing Arkesel V2/V1 endpoints (see logs: `Your are not allowed to use this Sender ID`). The fan-out is wrapped in `try/catch` so it should not fail the function — but the `notify admins` insert into `notifications` may fail if no admin rows or column mismatch, and that block is NOT wrapped properly in all paths.
 
-- Summary cards: New / Draft / Submitted / Assigned / Hearings Today / Adjourned / Settled / Decided / Overdue / Awaiting Documents / Awaiting Assignment.
-- Filters: region, district, office, complaint type, status, officer, hearing room, date range, created_by, assigned_officer.
-- Quick actions: New Complaint, Search Case, Generate Report, View Hearing Schedule, Open Form Templates, Open Pending Assignments.
+Fix:
+- Audit `submit-safety-report/index.ts`: wrap every best-effort side-effect in its own try/catch returning success regardless. Only the core `safety_reports` insert and `safety_audit_log` insert determine success.
+- Frontend: surface the real error in the toast (`err.message`) instead of a generic message.
+- Verify the `safety-evidence` bucket upload doesn't 403 for the user (RLS on storage). Add a pre-check.
 
-Upgraded list table (replaces current list contents but lives on the same route to avoid breakage):
+## Technical Section
 
-- Columns: Case Ref, Date Received, Type, Complainant, Respondent, Office, Assigned Officer, Hearing Date, Status, Created By, Last Activity, Actions.
-- Color-coded status badges driven by `current_stage`.
-- Row actions: View Case, Continue Draft, Assign, Schedule, Generate Documents, Evaluate, Print Case File.
-- Global search by case ref, party name, phone, address, officer, form number, payment ref.
+Files touched:
+- `src/pages/regulator/AdminFileComplaint.tsx` — error surfacing, auto-Form-7 trigger.
+- `src/pages/regulator/ComplaintWizard.tsx` — auto-Form-7 trigger.
+- `src/pages/regulator/ComplaintCaseFile.tsx` — auto-Form-33 on hearing schedule, Documents tab grouping & actions.
+- `src/pages/regulator/FormFill.tsx` — error toasts on Generate.
+- `src/pages/regulator/FormEngine.tsx` — wire Delete with confirm + feedback.
+- `src/pages/shared/ReportSafetyIssue.tsx` — show real error message.
+- `src/components/SafetyPanicButton.tsx` — show real error message.
+- `supabase/functions/submit-safety-report/index.ts` — defensive try/catch around side-effects.
+- `src/lib/complaintForms.ts` *(new)* — `autoGenerateForm7`, `generateForm33`, `attachAsComplaintDocument` helpers.
+- Migration: new RLS policy `Admin staff read complaints they filed` on `public.complaints` and a CHECK that statutory `Form 7` / `Form 33` rows exist in `form_templates` (seed if missing).
 
----
+Rollout order: migration → safety edge-function fix → frontend bug fixes → Form 7/33 auto-attach → Documents tab grouping.
 
-## Phase 3 — Complaint Creation Wizard (Stenographer)
-
-New `/regulator/complaints/new` 8-step wizard wrapping the existing Admin-Assisted intake plus the missing fields.
-
-Steps: Type → Parties → Property → Details → Evidence → Witnesses → Forms → Review.
-
-- Each step persists to a draft (`status='draft'`) so stenographers can resume.
-- Narrative box gets helper buttons (Improve grammar / Formalize / Insert clause) backed by `lovable-ai` (`legal-assistant` style call with role=stenographer).
-- File uploads tagged with visibility (`internal | party_visible | document_only`) using existing `application-evidence` bucket plus `visibility` metadata column.
-- Step 7 lists active `form_templates` matched to the chosen complaint type and lets the stenographer generate any.
-- "Submit for Review" flips status to `submitted` and notifies office's Case Admins.
-
----
-
-## Phase 4 — Case File + Hearing Workspace + Decisions
-
-New `/regulator/complaints/:id` tabbed Case File:
-
-`Overview | Parties | Property | Complaint | Evidence | Witnesses | Forms | Hearings | Notes | Payments | Ledger | Activity Log | Decision`.
-
-Each tab reads from existing tables plus the Phase-1 additions; no destructive migration of legacy rows.
-
-Quick actions sidebar: Edit Draft, Assign Case, Schedule Hearing, Generate Form, Add Hearing Note, Record Attendance, Record Settlement, Record Decision, Close Case — gated by role.
-
-Hearing Workspace `/regulator/complaints/:id/hearing/:hearingId` — three-pane:
-
-- Left: case summary, parties, property, key amount, documents.
-- Center: live hearing notes (autosaved), attendance toggles, directions, next steps.
-- Right: forms, evidence, witnesses, previous hearing notes, payment/ledger.
-
-Decision flow writes to `complaint_decisions`, auto-generates a Decision PDF from a `decision` template, attaches as a finalized `complaint_documents` row, and flips `current_stage` to `decided | settled | dismissed | withdrawn | closed`.
-
-Assignment screen shows officer workload (cases today / week / pending / next slot) computed from `complaint_hearings`.
-
----
-
-## Phase 5 — Form Engine v2 (versioning + Word-style editor) + Schedule + Notifications
-
-Form Engine update (no breaking changes to existing templates):
-
-- WYSIWYG editor (TipTap) replacing the current JSON schema editor for body content; existing schema still supported for autofilled fields.
-- Insertable blocks: text, table, placeholder, logo, watermark image, header, footer, signature block, stamp area, page number, case ref, date, officer name, office name, party names, complaint type, hearing date/time, QR/verification URL.
-- Finalize action: creates a `complaint_documents` row at the next `version_number`, marks status `finalized`, locks. Subsequent edits create v2/v3 with `change_reason`.
-- Preview / Edit / Save Draft / Generate PDF / Download / Print / Attach to Case.
-
-Hearing Schedule `/regulator/complaints/schedule`:
-
-- Day / Week / Month views (reuse existing calendar component).
-- Officer view, Room view, Office view.
-- Color codes: green completed, blue scheduled, orange pending reschedule, red cancelled, grey adjourned, purple ongoing.
-- Filters: region, district, office, officer, room, date, status.
-
-Notifications:
-
-- Extend existing `notifications` table writes + `send-sms` calls for: complaint submitted, case assigned, hearing scheduled/rescheduled, summons generated, document ready, adjourned, settlement recorded, decision issued, case closed.
-- Internal notes never sent over SMS.
-
----
-
-## Technical notes
-
-```text
-Routes added
-/regulator/complaints/command-center
-/regulator/complaints/new                  (8-step wizard)
-/regulator/complaints/:id                  (tabbed Case File)
-/regulator/complaints/:id/hearing/:hid     (Hearing Workspace)
-/regulator/complaints/schedule
-/regulator/form-engine/:id/edit-wysiwyg
-```
-
-```text
-RLS pattern (example)
-- stenographer:    INSERT/UPDATE on complaints WHERE created_by_user_id = auth.uid() AND status IN (draft, submitted)
-- case_admin:      ALL on complaints WHERE office_id IN (admin_staff.office_ids)
-- adjudicating:    SELECT on complaints assigned to them; INSERT on hearings/notes/decisions
-- super_admin:     ALL
-```
-
-- All existing edge functions (`send-sms`, `paystack-*`, complaint payment basket, etc.) untouched.
-- New audit-log writes happen via a single shared helper `logComplaintAction()` called from each mutator.
-- Document versioning is enforced in DB (unique constraint) and surfaced in UI as a Versions drawer per form.
-
----
-
-## What ships in this loop
-
-If you approve, I'll start with **Phase 1 (schema + roles + audit)** and **Phase 2 (Command Center + upgraded list)** in the next message — that alone is a meaningful, shippable improvement. Phases 3–5 follow in subsequent messages so each can be reviewed.
-
-Reply "approve" to proceed, or tell me which phases to reorder, drop, or expand.
+After implementation I'll verify by:
+- Filing a test complaint as an admin and confirming ticket toast + dashboard entry.
+- Scheduling a hearing and seeing Form 33 draft appear.
+- Triggering a Safety report and seeing the real error or success.
