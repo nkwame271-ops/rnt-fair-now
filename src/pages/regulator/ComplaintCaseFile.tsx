@@ -206,11 +206,24 @@ const ComplaintCaseFile = () => {
 
         <TabsContent value="documents" className="mt-4">
           <Card><CardContent className="pt-6 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Compose summons, rulings, and notices with the WYSIWYG editor. Each save creates a draft; finalize to lock and notify parties.</p>
-              <Button size="sm" onClick={() => navigate(`/regulator/complaints/${id}/documents/new`)}>
-                <Plus className="h-4 w-4 mr-1" /> New Document
-              </Button>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-sm text-muted-foreground">Statutory forms (Form 7, Form 33), summons, rulings, and notices. Each save creates a new version; finalize to lock and notify parties.</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={async () => {
+                  try {
+                    const { autoGenerateForm7 } = await import("@/lib/complaintForms");
+                    const res = await autoGenerateForm7(c.id, c);
+                    if ((res as any).skipped) toast({ title: "Form 7 already finalized" });
+                    else toast({ title: "Form 7 generated" });
+                    load();
+                  } catch (e: any) {
+                    toast({ title: "Form 7 failed", description: e?.message, variant: "destructive" });
+                  }
+                }}>Generate Form 7</Button>
+                <Button size="sm" onClick={() => navigate(`/regulator/complaints/${id}/documents/new`)}>
+                  <Plus className="h-4 w-4 mr-1" /> New Document
+                </Button>
+              </div>
             </div>
             {docs.length === 0 && <p className="text-sm text-muted-foreground">No documents generated yet.</p>}
             {docs.map((d) => (
@@ -232,7 +245,7 @@ const ComplaintCaseFile = () => {
                     e.stopPropagation();
                     const url = await signStorageUrl(d.file_url.includes("/") ? d.file_url : `form-outputs/${d.file_url}`);
                     if (url) window.open(url, "_blank");
-                  }}>Open File</Button>
+                  }}>Open PDF</Button>
                 )}
               </div>
             ))}
