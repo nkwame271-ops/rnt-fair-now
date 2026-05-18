@@ -77,7 +77,7 @@ export default function ComplaintDocumentsHub({
   const downloadProfile = async () => {
     setBusyProfile(true);
     try {
-      const doc = generateComplaintPdf({
+      generateComplaintPdf({
         complaintCode: complaint.complaint_code || complaint.ticket_number || complaint.id,
         ticketNumber: complaint.ticket_number,
         filedAt: complaint.created_at,
@@ -104,9 +104,6 @@ export default function ComplaintDocumentsHub({
         evidenceUrls: complaint.evidence_urls || [],
         officeName,
       });
-      doc.save(
-        `complaint-${complaint.ticket_number || complaint.id}-profile.pdf`
-      );
     } catch (e: any) {
       toast({
         title: "Could not generate profile",
