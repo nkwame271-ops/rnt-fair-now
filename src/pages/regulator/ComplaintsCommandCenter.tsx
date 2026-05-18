@@ -134,12 +134,20 @@ export default function ComplaintsCommandCenter() {
       const todayStart = startOfDay(new Date()).toISOString();
       const todayEnd = endOfDay(new Date()).toISOString();
 
-      const countFor = async (filter: (q: any) => any) => {
-        const q = supabase
-          .from("complaints")
-          .select("id", { count: "exact", head: true });
+      const countFor = async (
+        table: "complaints" | "landlord_complaints",
+        filter: (q: any) => any,
+      ) => {
+        const q = supabase.from(table).select("id", { count: "exact", head: true });
         const { count } = await filter(q);
         return count ?? 0;
+      };
+      const sumBoth = async (filter: (q: any) => any) => {
+        const [a, b] = await Promise.all([
+          countFor("complaints", filter),
+          countFor("landlord_complaints", filter),
+        ]);
+        return a + b;
       };
 
       const [
@@ -154,20 +162,20 @@ export default function ComplaintsCommandCenter() {
         awaitingAssign,
         awaitingDocs,
       ] = await Promise.all([
-        countFor((q) => q.eq("current_stage", "draft")),
-        countFor((q) => q.eq("current_stage", "submitted")),
-        countFor((q) => q.eq("current_stage", "under_review")),
-        countFor((q) => q.eq("current_stage", "assigned")),
-        countFor((q) =>
+        sumBoth((q) => q.eq("current_stage", "draft")),
+        sumBoth((q) => q.eq("current_stage", "submitted")),
+        sumBoth((q) => q.eq("current_stage", "under_review")),
+        sumBoth((q) => q.eq("current_stage", "assigned")),
+        sumBoth((q) =>
           q.gte("next_hearing_at", todayStart).lte("next_hearing_at", todayEnd),
         ),
-        countFor((q) => q.eq("current_stage", "adjourned")),
-        countFor((q) => q.eq("current_stage", "settled")),
-        countFor((q) => q.eq("current_stage", "decided")),
-        countFor((q) =>
+        sumBoth((q) => q.eq("current_stage", "adjourned")),
+        sumBoth((q) => q.eq("current_stage", "settled")),
+        sumBoth((q) => q.eq("current_stage", "decided")),
+        sumBoth((q) =>
           q.eq("current_stage", "submitted").is("assigned_officer_user_id", null),
         ),
-        countFor((q) => q.eq("current_stage", "pending_documents")),
+        sumBoth((q) => q.eq("current_stage", "pending_documents")),
       ]);
       return {
         draft,
