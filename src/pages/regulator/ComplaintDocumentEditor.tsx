@@ -69,6 +69,7 @@ const ComplaintDocumentEditor = () => {
   const [complaint, setComplaint] = useState<any>(null);
   const [doc, setDoc] = useState<any>(null);
   const [versions, setVersions] = useState<any[]>([]);
+  const [globalTemplates, setGlobalTemplates] = useState<any[]>([]);
   const [title, setTitle] = useState("");
   const [formType, setFormType] = useState(formTypeParam || "summons");
   const [html, setHtml] = useState("");
@@ -78,16 +79,22 @@ const ComplaintDocumentEditor = () => {
   const [finalOpen, setFinalOpen] = useState(false);
   const [changeReason, setChangeReason] = useState("");
   const [notifyOnFinalize, setNotifyOnFinalize] = useState(true);
+  const [templateOriginId, setTemplateOriginId] = useState<string | null>(null);
+  const [saveTplOpen, setSaveTplOpen] = useState(false);
+  const [tplMeta, setTplMeta] = useState({ form_name: "", form_number: "", category: "", description: "" });
+  const [savingTpl, setSavingTpl] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     (async () => {
-      const [cRes, dRes] = await Promise.all([
+      const [cRes, dRes, tRes] = await Promise.all([
         supabase.from("complaints").select("*").eq("id", id).maybeSingle(),
         supabase.from("complaint_documents").select("*").eq("case_id", id).order("generated_at", { ascending: false }),
+        supabase.from("form_templates").select("id, form_name, form_number, body_html, category").eq("status", "active").order("form_name"),
       ]);
       setComplaint(cRes.data);
       setVersions(dRes.data || []);
+      setGlobalTemplates(tRes.data || []);
 
       const target = docId
         ? (dRes.data || []).find((d: any) => d.id === docId)
@@ -99,8 +106,9 @@ const ComplaintDocumentEditor = () => {
         setTitle(target.title || "");
         setHtml(target.body_html || "");
         setJson(target.body_json);
+        setTemplateOriginId((target as any).template_origin_id || null);
       } else {
-        // Fresh draft from template
+        // Fresh draft from built-in template
         const ctx = {
           ticket_number: cRes.data?.ticket_number,
           title: cRes.data?.complaint_title,
@@ -116,6 +124,20 @@ const ComplaintDocumentEditor = () => {
     })();
     // eslint-disable-next-line
   }, [id, docId]);
+
+  // Apply a global template (from Form Engine) to the current document
+  const applyGlobalTemplate = (templateId: string) => {
+    const t = globalTemplates.find((x) => x.id === templateId);
+    if (!t) return;
+    if (html && !confirm(`Replace current content with the "${t.form_name}" template?`)) return;
+    const ctx = buildComplaintContext(complaint);
+    setHtml(applyTemplatePlaceholders(t.body_html || "", ctx));
+    setFormType(t.form_number || `tpl_${t.id.slice(0, 8)}`);
+    setTitle(`${t.form_name} — ${complaint?.ticket_number || ""}`);
+    setTemplateOriginId(t.id);
+    toast({ title: "Template applied", description: t.form_name });
+  };
+
 
   const finalized = doc?.status === "finalized";
 
