@@ -327,7 +327,7 @@ const EvidenceRow = ({ path }: { path: string }) => {
       <span className="truncate">{path.split("/").pop()}</span>
       <Button size="sm" variant="outline" disabled={opening} onClick={async () => {
         setOpening(true);
-        const url = await signStorageUrl("application-evidence", path);
+        const url = await signStorageUrl(`application-evidence/${path}`);
         setOpening(false);
         if (url) window.open(url, "_blank");
         else toast({ title: "File not found", variant: "destructive" });
