@@ -76,6 +76,7 @@ const RegulatorLandlords = lazy(() => import("./pages/regulator/RegulatorLandlor
 const RegulatorProperties = lazy(() => import("./pages/regulator/RegulatorProperties"));
 const RegulatorComplaints = lazy(() => import("./pages/regulator/RegulatorComplaints"));
 const AdminFileComplaint = lazy(() => import("./pages/regulator/AdminFileComplaint"));
+const ComplaintsCommandCenter = lazy(() => import("./pages/regulator/ComplaintsCommandCenter"));
 const FormEngine = lazy(() => import("./pages/regulator/FormEngine"));
 const FormTemplateEditor = lazy(() => import("./pages/regulator/FormTemplateEditor"));
 const FormFill = lazy(() => import("./pages/regulator/FormFill"));
@@ -215,6 +216,7 @@ const App = () => (
                 <Route path="landlords" element={<RegulatorLandlords />} />
                 <Route path="properties" element={<RegulatorProperties />} />
                 <Route path="complaints" element={<RegulatorComplaints />} />
+                <Route path="complaints/command-center" element={<ComplaintsCommandCenter />} />
                 <Route path="complaints/new" element={<AdminFileComplaint />} />
                 <Route path="form-engine" element={<FormEngine />} />
                 <Route path="form-engine/:id" element={<FormTemplateEditor />} />
