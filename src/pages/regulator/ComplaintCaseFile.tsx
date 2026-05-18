@@ -216,51 +216,13 @@ const ComplaintCaseFile = () => {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-4">
-          <Card><CardContent className="pt-6 space-y-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <p className="text-sm text-muted-foreground">Statutory forms (Form 7, Form 33), summons, rulings, and notices. Each save creates a new version; finalize to lock and notify parties.</p>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={async () => {
-                  try {
-                    const { autoGenerateForm7 } = await import("@/lib/complaintForms");
-                    const res = await autoGenerateForm7(c.id, c);
-                    if ((res as any).skipped) toast({ title: "Form 7 already finalized" });
-                    else toast({ title: "Form 7 generated" });
-                    load();
-                  } catch (e: any) {
-                    toast({ title: "Form 7 failed", description: e?.message, variant: "destructive" });
-                  }
-                }}>Generate Form 7</Button>
-                <Button size="sm" onClick={() => navigate(`/regulator/complaints/${id}/documents/new`)}>
-                  <Plus className="h-4 w-4 mr-1" /> New Document
-                </Button>
-              </div>
-            </div>
-            {docs.length === 0 && <p className="text-sm text-muted-foreground">No documents generated yet.</p>}
-            {docs.map((d) => (
-              <div key={d.id} className="flex items-center justify-between rounded border p-3 text-sm hover:bg-accent">
-                <button className="text-left flex-1" onClick={() => navigate(`/regulator/complaints/${id}/documents/${d.id}`)}>
-                  <div className="flex items-center gap-2">
-                    <FileSignature className="h-4 w-4" />
-                    <strong>{d.title || d.form_type}</strong>
-                    <Badge variant="outline">v{d.version_number}</Badge>
-                    <Badge variant={d.status === "finalized" ? "default" : "secondary"}>{d.status}</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {d.form_type} · {new Date(d.generated_at).toLocaleString()}
-                  </p>
-                  {d.change_reason && <p className="text-xs italic text-muted-foreground mt-1">"{d.change_reason}"</p>}
-                </button>
-                {d.file_url && (
-                  <Button size="sm" variant="outline" onClick={async (e) => {
-                    e.stopPropagation();
-                    const url = await signStorageUrl(d.file_url.includes("/") ? d.file_url : `form-outputs/${d.file_url}`);
-                    if (url) window.open(url, "_blank");
-                  }}>Open PDF</Button>
-                )}
-              </div>
-            ))}
-          </CardContent></Card>
+          <ComplaintDocumentsHub
+            complaint={c}
+            officeName={offices.find((o) => o.id === c.office_id)?.name}
+            docs={docs}
+            onChanged={load}
+            onOpenGenericNew={() => navigate(`/regulator/complaints/${id}/documents/new`)}
+          />
         </TabsContent>
 
         <TabsContent value="hearings" className="mt-4">
