@@ -289,6 +289,37 @@ export default function ComplaintsCommandCenter() {
     staleTime: 30_000,
   });
 
+  // ---- Fetch profile names for complainants/respondents referenced by user_id ----
+  const userIds = useMemo(() => {
+    const ids = new Set<string>();
+    rows.forEach((r) => {
+      if (r.tenant_user_id) ids.add(r.tenant_user_id);
+      if (r.respondent_user_id) ids.add(r.respondent_user_id);
+      if (r.case_kind === "landlord_complaint" && r.created_by_user_id) {
+        ids.add(r.created_by_user_id);
+      }
+    });
+    return Array.from(ids);
+  }, [rows]);
+
+  const { data: nameMap = {} } = useQuery({
+    queryKey: ["complaint-cc-names", userIds.sort().join(",")],
+    enabled: userIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+      if (error) throw error;
+      const m: Record<string, string> = {};
+      (data ?? []).forEach((p: any) => {
+        if (p.user_id && p.full_name) m[p.user_id] = p.full_name;
+      });
+      return m;
+    },
+    staleTime: 60_000,
+  });
+
   // ---- Distinct values for type/region filters (derived) ----
   const distinct = useMemo(() => {
     const types = new Set<string>();
