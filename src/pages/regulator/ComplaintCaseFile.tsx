@@ -354,6 +354,13 @@ const AssignDialog = ({ open, onOpenChange, complaint, offices, admins, onSaved 
       }).eq("id", complaint.id);
       await transitionStage({ caseId: complaint.id, toStage: "assigned", reason: "Assigned to officer" });
       await logComplaintAction({ caseId: complaint.id, action: "assign", newValue: { officeId, officerId } });
+      const officerName = admins.find((a: any) => a.user_id === officerId)?.full_name || "an officer";
+      await notifyComplaintParties({
+        event: "assigned",
+        data: { ref: complaint.ticket_number || complaint.complaint_code, officer: officerName },
+        recipients: complaintRecipients(complaint),
+        link: `/regulator/complaints/${complaint.id}`,
+      });
       toast({ title: "Case assigned" });
       onOpenChange(false);
       onSaved();
