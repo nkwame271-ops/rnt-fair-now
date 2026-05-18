@@ -138,7 +138,7 @@ export default function ComplaintsCommandCenter() {
         table: "complaints" | "landlord_complaints",
         filter: (q: any) => any,
       ) => {
-        const q = supabase.from(table).select("id", { count: "exact", head: true });
+        const q = supabase.from(table).select("id", { count: "exact", head: true }).eq("payment_status", "paid");
         const { count } = await filter(q);
         return count ?? 0;
       };
@@ -212,6 +212,7 @@ export default function ComplaintsCommandCenter() {
         let q: any = supabase
           .from(table)
           .select(cols)
+          .eq("payment_status", "paid")
           .order("last_activity_at", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false })
           .limit(PAGE_SIZE);

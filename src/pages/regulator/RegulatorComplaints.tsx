@@ -565,6 +565,13 @@ const RegulatorComplaints = () => {
 
   const canScheduleComplaint = (c: any) => c.payment_status === "paid" && confirmedComplaintIds.has(c.id);
 
+  // Payment-gated status transitions. Until paid, complaint stays "submitted".
+  const PAYMENT_ALLOWED_BEFORE_PAID = new Set(["submitted", "awaiting_payment", "pending_payment", "closed"]);
+  const canChangeStatus = (c: any, newStatus: string) => {
+    if (c.payment_status === "paid") return true;
+    return PAYMENT_ALLOWED_BEFORE_PAID.has(newStatus);
+  };
+
   const updateLandlordComplaintStatus = async (id: string, newStatus: string) => {
     await supabase.from("landlord_complaints").update({ status: newStatus } as any).eq("id", id);
     toast.success(`Status updated to ${newStatus}`);
@@ -826,6 +833,10 @@ const RegulatorComplaints = () => {
                       <div className="flex items-center gap-3 pt-3 border-t border-border flex-wrap">
                         <span className="text-sm font-medium text-muted-foreground">Update status:</span>
                         <Select value={c.status} onValueChange={(v) => {
+                          if (!canChangeStatus(c, v)) {
+                            toast.error("Complainant must pay the filing fee before the status can be updated.");
+                            return;
+                          }
                           if (v === "schedule_complainant") {
                             if (!canScheduleComplaint(c)) {
                               toast.error("Confirm the payment in the Receipts page before scheduling.");
@@ -963,6 +974,10 @@ const RegulatorComplaints = () => {
               <div className="flex items-center gap-3 pt-2 border-t border-border flex-wrap">
                 <span className="text-sm font-medium text-muted-foreground">Status:</span>
                 <Select value={c.status} onValueChange={(v) => {
+                  if (!canChangeStatus(c, v)) {
+                    toast.error("Complainant must pay the filing fee before the status can be updated.");
+                    return;
+                  }
                   if (v === "schedule_complainant") {
                     if (!canScheduleComplaint(c)) {
                       toast.error("Confirm the payment in the Receipts page before scheduling.");
