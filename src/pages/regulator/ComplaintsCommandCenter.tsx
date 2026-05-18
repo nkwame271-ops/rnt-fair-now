@@ -212,6 +212,7 @@ export default function ComplaintsCommandCenter() {
         let q: any = supabase
           .from(table)
           .select(cols)
+          .eq("payment_status", "paid")
           .order("last_activity_at", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false })
           .limit(PAGE_SIZE);
