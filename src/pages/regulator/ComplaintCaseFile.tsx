@@ -18,6 +18,9 @@ import {
 import { STAGE_LABELS, STAGE_BADGE_CLASS, transitionStage, logComplaintAction } from "@/lib/complaintAudit";
 import { notifyComplaintParties, complaintRecipients } from "@/lib/complaintNotify";
 import { signStorageUrl } from "@/lib/signStorageUrl";
+import ComplaintDocumentsHub from "@/components/regulator/ComplaintDocumentsHub";
+import FormEditorDialog from "@/components/regulator/FormEditorDialog";
+import { StatutoryFormType } from "@/lib/complaintForms";
 
 const ComplaintCaseFile = () => {
   const { id } = useParams<{ id: string }>();
