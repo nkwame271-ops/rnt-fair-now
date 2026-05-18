@@ -78,6 +78,8 @@ const RegulatorComplaints = lazy(() => import("./pages/regulator/RegulatorCompla
 const AdminFileComplaint = lazy(() => import("./pages/regulator/AdminFileComplaint"));
 const ComplaintsCommandCenter = lazy(() => import("./pages/regulator/ComplaintsCommandCenter"));
 const ComplaintWizard = lazy(() => import("./pages/regulator/ComplaintWizard"));
+const ComplaintCaseFile = lazy(() => import("./pages/regulator/ComplaintCaseFile"));
+const HearingWorkspace = lazy(() => import("./pages/regulator/HearingWorkspace"));
 const FormEngine = lazy(() => import("./pages/regulator/FormEngine"));
 const FormTemplateEditor = lazy(() => import("./pages/regulator/FormTemplateEditor"));
 const FormFill = lazy(() => import("./pages/regulator/FormFill"));
