@@ -833,6 +833,10 @@ const RegulatorComplaints = () => {
                       <div className="flex items-center gap-3 pt-3 border-t border-border flex-wrap">
                         <span className="text-sm font-medium text-muted-foreground">Update status:</span>
                         <Select value={c.status} onValueChange={(v) => {
+                          if (!canChangeStatus(c, v)) {
+                            toast.error("Complainant must pay the filing fee before the status can be updated.");
+                            return;
+                          }
                           if (v === "schedule_complainant") {
                             if (!canScheduleComplaint(c)) {
                               toast.error("Confirm the payment in the Receipts page before scheduling.");
