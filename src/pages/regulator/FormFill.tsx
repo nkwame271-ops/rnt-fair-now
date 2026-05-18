@@ -101,8 +101,32 @@ const FormFill = () => {
     try {
       const blob = buildPdf();
       const path = `${tpl.id}/${Date.now()}-${(tpl.form_number || "form").replace(/\W/g, "_")}.pdf`;
-      const { error: upErr } = await supabase.storage.from("form-outputs").upload(path, blob, { contentType: "application/pdf" });
+      const { error: upErr } = await supabase.storage.from("form-outputs").upload(path, blob, { contentType: "application/pdf", upsert: false });
       if (upErr) throw upErr;
+
+      const payload = { template_id: tpl.id, complaint_id: complaintId, data, status: "finalized", pdf_url: path };
+      const res = submissionId
+        ? await supabase.from("form_submissions").update(payload).eq("id", submissionId).select("id").single()
+        : await supabase.from("form_submissions").insert(payload).select("id").single();
+      if (res.error) throw res.error;
+      setSubmissionId(res.data!.id);
+
+      if (complaintId) {
+        const { data: c, error: readErr } = await supabase.from("complaints").select("evidence_urls").eq("id", complaintId).single();
+        if (readErr) throw readErr;
+        const urls = [...((c?.evidence_urls as string[]) || []), path];
+        const { error: updErr } = await supabase.from("complaints").update({ evidence_urls: urls }).eq("id", complaintId);
+        if (updErr) throw updErr;
+      }
+
+      toast({ title: "PDF generated", description: complaintId ? "Attached to complaint." : "Saved." });
+    } catch (e: any) {
+      console.error("generateAndAttach", e);
+      toast({ title: "Generation failed", description: e.message || String(e), variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
 
       const payload = { template_id: tpl.id, complaint_id: complaintId, data, status: "finalized", pdf_url: path };
       const res = submissionId
