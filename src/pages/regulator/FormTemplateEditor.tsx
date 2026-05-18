@@ -8,15 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Save, ArrowLeft, Trash2 } from "lucide-react";
+import { Save, ArrowLeft, Trash2, Eye } from "lucide-react";
+import RichTextEditor from "@/components/regulator/RichTextEditor";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const FormTemplateEditor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [tpl, setTpl] = useState<any>(null);
-  const [schemaText, setSchemaText] = useState("");
-  const [layoutText, setLayoutText] = useState("");
+  const [bodyHtml, setBodyHtml] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -24,31 +26,38 @@ const FormTemplateEditor = () => {
       const { data, error } = await supabase.from("form_templates").select("*").eq("id", id).single();
       if (error) return toast({ title: "Load failed", description: error.message, variant: "destructive" });
       setTpl(data);
-      setSchemaText(JSON.stringify(data.schema, null, 2));
-      setLayoutText(JSON.stringify(data.layout, null, 2));
+      // Backwards-compat: pull body_html from new column, else fall back to legacy schema.body_html if migrated
+      const initial = (data as any).body_html
+        || (data as any)?.schema?.body_html
+        || "";
+      setBodyHtml(initial);
     })();
   }, [id]);
 
   const save = async () => {
     if (!tpl) return;
-    let schema, layout;
-    try { schema = JSON.parse(schemaText); } catch (e: any) { return toast({ title: "Invalid schema JSON", description: e.message, variant: "destructive" }); }
-    try { layout = JSON.parse(layoutText); } catch (e: any) { return toast({ title: "Invalid layout JSON", description: e.message, variant: "destructive" }); }
     setSaving(true);
     const { error } = await supabase.from("form_templates").update({
-      form_name: tpl.form_name, form_number: tpl.form_number,
-      regulation_ref: tpl.regulation_ref, department: tpl.department,
-      version: tpl.version, effective_date: tpl.effective_date,
-      status: tpl.status, schema, layout,
-    }).eq("id", tpl.id);
+      form_name: tpl.form_name,
+      form_number: tpl.form_number,
+      regulation_ref: tpl.regulation_ref,
+      department: tpl.department,
+      version: tpl.version,
+      effective_date: tpl.effective_date,
+      status: tpl.status,
+      description: tpl.description,
+      category: tpl.category,
+      body_html: bodyHtml,
+    } as any).eq("id", tpl.id);
     setSaving(false);
     if (error) return toast({ title: "Save failed", description: error.message, variant: "destructive" });
-    toast({ title: "Saved" });
+    toast({ title: "Template saved" });
   };
 
   const remove = async () => {
     if (!confirm("Delete this template?")) return;
-    await supabase.from("form_templates").delete().eq("id", id);
+    const { error } = await supabase.from("form_templates").delete().eq("id", id);
+    if (error) return toast({ title: "Delete failed", description: error.message, variant: "destructive" });
     navigate("/regulator/form-engine");
   };
 
@@ -57,31 +66,41 @@ const FormTemplateEditor = () => {
   const set = (k: string, v: any) => setTpl({ ...tpl, [k]: v });
 
   return (
-    <div className="container max-w-5xl py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/regulator/form-engine")}><ArrowLeft className="h-4 w-4 mr-1" /> Back</Button>
+    <div className="container max-w-6xl py-6 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/regulator/form-engine")}>
+          <ArrowLeft className="h-4 w-4 mr-1" /> Back
+        </Button>
         <div className="flex gap-2">
-          <Button variant="destructive" size="sm" onClick={remove}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
-          <Button onClick={save} disabled={saving}><Save className="h-4 w-4 mr-1" /> Save</Button>
+          <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
+            <Eye className="h-4 w-4 mr-1" /> Preview
+          </Button>
+          <Button variant="destructive" size="sm" onClick={remove}>
+            <Trash2 className="h-4 w-4 mr-1" /> Delete
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            <Save className="h-4 w-4 mr-1" /> Save
+          </Button>
         </div>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Metadata</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Metadata</CardTitle></CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
           <div><Label>Form Name</Label><Input value={tpl.form_name || ""} onChange={(e) => set("form_name", e.target.value)} /></div>
-          <div><Label>Form Number</Label><Input value={tpl.form_number || ""} onChange={(e) => set("form_number", e.target.value)} /></div>
+          <div><Label>Form Number / Code</Label><Input value={tpl.form_number || ""} onChange={(e) => set("form_number", e.target.value)} placeholder="e.g. hearing_notice or FORM-14" /></div>
           <div><Label>Regulation Ref</Label><Input value={tpl.regulation_ref || ""} onChange={(e) => set("regulation_ref", e.target.value)} /></div>
-          <div><Label>Department</Label><Input value={tpl.department || ""} onChange={(e) => set("department", e.target.value)} /></div>
+          <div><Label>Category</Label><Input value={tpl.category || ""} onChange={(e) => set("category", e.target.value)} placeholder="Summons, Ruling, Notice…" /></div>
           <div><Label>Version</Label><Input value={tpl.version || ""} onChange={(e) => set("version", e.target.value)} /></div>
           <div><Label>Effective Date</Label><Input type="date" value={tpl.effective_date || ""} onChange={(e) => set("effective_date", e.target.value)} /></div>
+          <div className="sm:col-span-2"><Label>Description (internal)</Label><Textarea rows={2} value={tpl.description || ""} onChange={(e) => set("description", e.target.value)} /></div>
           <div>
             <Label>Status</Label>
             <Select value={tpl.status} onValueChange={(v) => set("status", v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="active">Active (available in complaints)</SelectItem>
                 <SelectItem value="retired">Retired</SelectItem>
               </SelectContent>
             </Select>
@@ -91,26 +110,32 @@ const FormTemplateEditor = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Schema (sections + fields)</CardTitle>
+          <CardTitle className="text-base">Document Body</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Edit the JSON structure. Field types: text, number, date, dropdown, checkbox, long_text, file, signature, stamp, table, autofill.
-            Auto-fill sources: complaint, complainant_profile, respondent_profile, property, tenancy, appointment, office, officer.
+            Use the rich editor below. Placeholders like <code>{"{{ticket_number}}"}</code>,{" "}
+            <code>{"{{complainant_name}}"}</code>, <code>{"{{respondent_name}}"}</code>,{" "}
+            <code>{"{{property_address}}"}</code>, <code>{"{{title}}"}</code>,{" "}
+            <code>{"{{description}}"}</code>, <code>{"{{today}}"}</code> are auto-filled when used in a complaint.
           </p>
         </CardHeader>
         <CardContent>
-          <Textarea value={schemaText} onChange={(e) => setSchemaText(e.target.value)} rows={20} className="font-mono text-xs" />
+          <RichTextEditor
+            value={bodyHtml}
+            onChange={(html) => setBodyHtml(html)}
+            placeholder="Compose the reusable document template…"
+          />
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Layout (PDF rendering)</CardTitle>
-          <p className="text-xs text-muted-foreground">page_size, title_position, header, footer, signature_area, stamp_area, include_qr.</p>
-        </CardHeader>
-        <CardContent>
-          <Textarea value={layoutText} onChange={(e) => setLayoutText(e.target.value)} rows={8} className="font-mono text-xs" />
-        </CardContent>
-      </Card>
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{tpl.form_name} — Preview</DialogTitle></DialogHeader>
+          <div
+            className="prose prose-sm max-w-none p-6 border rounded-md bg-background"
+            dangerouslySetInnerHTML={{ __html: bodyHtml || "<p class='text-muted-foreground'>Empty template</p>" }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
