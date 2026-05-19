@@ -746,6 +746,97 @@ Deno.serve(async (req) => {
         callbackPath = isLandlordComplaint ? "/landlord/complaints?status=success" : "/tenant/my-cases?status=success";
         metadata = { ...metadata, complaintId, isLandlordComplaint, basket_items: (basketRows || []).map((r: any) => r.id) };
       }
+    } else if (type === "admin_complaint_filing") {
+      // Officer-initiated filing fee checkout from Admin Portal File Complaint review stage.
+      // The officer authenticates and opens checkout on behalf of the named payer.
+      const { complaintId, payerEmail, payerPhone, payerName, payerRole } = body;
+      if (!complaintId) throw new Error("complaintId is required");
+
+      // Authorize: caller must be staff (any admin row)
+      const { data: staffRow } = await supabaseAdmin
+        .from("admin_staff")
+        .select("user_id, admin_type")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!staffRow) throw new Error("Only Rent Control staff may open this checkout");
+
+      const { data: complaint } = await supabaseAdmin
+        .from("complaints")
+        .select("id, status, payment_status, filing_fee_paid, region, office_id, complainant_user_id, tenant_user_id, complainant_role")
+        .eq("id", complaintId)
+        .maybeSingle();
+      if (!complaint) throw new Error("Complaint not found");
+      if (complaint.filing_fee_paid) throw new Error("Filing fee has already been paid for this complaint");
+
+      const { data: basketRows } = await supabaseAdmin
+        .from("complaint_basket_items")
+        .select("id, kind, label, amount, igf_pct, admin_pct, platform_pct, is_nugs_revenue, fee_scope, paid_at")
+        .eq("complaint_id", complaintId)
+        .eq("complaint_table", "complaints")
+        .is("paid_at", null)
+        .order("created_at");
+      const unpaidRows = Array.isArray(basketRows) ? basketRows : [];
+      if (unpaidRows.length === 0) {
+        throw new Error("No unpaid basket items — set the fee type before opening checkout");
+      }
+      totalAmount = unpaidRows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+      if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+        throw new Error("Basket total must be greater than zero");
+      }
+
+      officeId = complaint.office_id || await resolveOffice(supabaseAdmin, { region: complaint.region });
+      caseType = "complaint";
+      relatedComplaintId = complaintId;
+
+      // Per-item splits (mirrors the complaint_fee branch)
+      const perItemSplits: any[] = [];
+      for (const row of unpaidRows) {
+        const amt = Number(row.amount) || 0;
+        const igf = +(amt * (Number(row.igf_pct) || 0) / 100).toFixed(2);
+        const adm = +(amt * (Number(row.admin_pct) || 0) / 100).toFixed(2);
+        const plat = +(amt * (Number(row.platform_pct) || 0) / 100).toFixed(2);
+        const adminRecipient = row.is_nugs_revenue ? "nugs" : "admin";
+        const adminLabel = row.is_nugs_revenue ? "NUGS" : "Admin";
+        if (igf > 0) perItemSplits.push({ recipient: "rent_control", amount: igf, description: `${row.label} (IGF)`, complaint_basket_item_id: row.id });
+        if (adm > 0) perItemSplits.push({ recipient: adminRecipient, amount: adm, description: `${row.label} (${adminLabel})`, complaint_basket_item_id: row.id, is_nugs_revenue: !!row.is_nugs_revenue });
+        if (plat > 0) perItemSplits.push({ recipient: "platform", amount: plat, description: `${row.label} (Platform)`, complaint_basket_item_id: row.id });
+      }
+      splitPlan = perItemSplits;
+
+      // Bring the complaint into the standard payment-pending state so finalize-payment treats it identically.
+      await supabaseAdmin
+        .from("complaints")
+        .update({
+          payment_status: "pending",
+          outstanding_amount: totalAmount,
+          basket_total: totalAmount,
+          // keep status as draft_awaiting_filing_payment until finalize flips to ready_for_scheduling
+        })
+        .eq("id", complaintId);
+
+      description = `Filing Fee — ${payerName || "Payer"} (GH₵ ${totalAmount.toFixed(2)})`;
+      reference = `admincomp_${complaintId}_${Date.now()}`;
+      callbackPath = `/regulator/complaints/${complaintId}?status=success`;
+      metadata = {
+        ...metadata,
+        complaintId,
+        filed_by_admin: true,
+        admin_user_id: userId,
+        payer_name: payerName || null,
+        payer_phone: payerPhone || null,
+        payer_email: payerEmail || null,
+        payer_role: payerRole || complaint.complainant_role || null,
+        basket_items: unpaidRows.map((r: any) => r.id),
+      };
+
+      // Route finalize-payment through the standard complaint_fee path
+      (body as any).type = "complaint_fee";
+
+      // If a payer email was provided, use it so the Paystack receipt goes to them
+      const isValidEmailFn = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && !e.endsWith(".local");
+      if (payerEmail && isValidEmailFn(payerEmail) && profile) {
+        (profile as any).email = payerEmail;
+      }
     } else if (type === "listing_fee") {
       const { propertyId } = body;
       if (!propertyId) throw new Error("propertyId is required");
