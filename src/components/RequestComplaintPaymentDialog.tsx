@@ -27,12 +27,19 @@ interface Props {
   initialClaimAmount?: number | null;
   /** When "nugs", fee rules are restricted to fixed-fee types and basket items are tagged as NUGS revenue. */
   feeScope?: "nugs" | "rent_control";
+  /** "send_request" (default) notifies the complainant via their portal.
+   *  "officer_checkout" saves the basket and opens Paystack checkout directly for the officer. */
+  mode?: "send_request" | "officer_checkout";
+  /** Pre-fill payer details when mode === "officer_checkout". */
+  defaultPayerName?: string;
+  defaultPayerPhone?: string;
+  defaultPayerRole?: string;
   onRequested?: () => void;
 }
 
 const newUid = () => (crypto?.randomUUID?.() ?? `b_${Date.now()}_${Math.random().toString(36).slice(2)}`);
 
-const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, complaintTable, linkedPropertyId, monthlyRent: monthlyRentProp, initialClaimAmount, feeScope = "rent_control", onRequested }: Props) => {
+const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, complaintTable, linkedPropertyId, monthlyRent: monthlyRentProp, initialClaimAmount, feeScope = "rent_control", mode = "send_request", defaultPayerName, defaultPayerPhone, defaultPayerRole, onRequested }: Props) => {
   const { user } = useAuth();
   const [types, setTypes] = useState<ComplaintTypeRow[]>([]);
   const [fixedMap, setFixedMap] = useState<Record<string, FixedFeeRow>>({});
@@ -57,6 +64,19 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
   const [manualPlatform, setManualPlatform] = useState("0");
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Officer-checkout payer details
+  const [payerName, setPayerName] = useState<string>(defaultPayerName || "");
+  const [payerPhone, setPayerPhone] = useState<string>(defaultPayerPhone || "");
+  const [payerEmail, setPayerEmail] = useState<string>("");
+
+  useEffect(() => {
+    if (open && mode === "officer_checkout") {
+      setPayerName(defaultPayerName || "");
+      setPayerPhone(defaultPayerPhone || "");
+      setPayerEmail("");
+    }
+  }, [open, mode, defaultPayerName, defaultPayerPhone]);
 
   useEffect(() => {
     if (!open) return;
@@ -288,13 +308,18 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
       const { error: insErr } = await (supabase.from("complaint_basket_items") as any).insert(rows);
       if (insErr) throw insErr;
 
-      // Update parent complaint with totals + state
+      // Update parent complaint with totals + state.
+      // In officer_checkout mode the complaint stays as draft_awaiting_filing_payment
+      // until finalize-payment flips it to ready_for_scheduling — this keeps it out
+      // of Complaint Management until the filing fee actually clears.
       const updatePayload: any = {
         outstanding_amount: totals.total,
         basket_total: totals.total,
         payment_status: "pending",
-        status: "pending_payment",
       };
+      if (mode !== "officer_checkout") {
+        updatePayload.status = "pending_payment";
+      }
       // Keep complaint_type_id pointing at the first fee_rule item (legacy display)
       const firstFeeRule = basket.find((b) => b.kind === "fee_rule");
       if (firstFeeRule?.complaint_type_id) {
@@ -327,6 +352,34 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
           totals,
         },
       });
+
+      if (mode === "officer_checkout") {
+        // Validate payer details
+        if (!payerName.trim()) { toast.error("Payer name is required"); setSubmitting(false); return; }
+        if (!payerPhone.trim() || payerPhone.replace(/\D/g, "").length < 9) { toast.error("Payer mobile number is required"); setSubmitting(false); return; }
+
+        // Open Paystack checkout directly using the officer's session
+        const { data: checkout, error: ckErr } = await supabase.functions.invoke("paystack-checkout", {
+          body: {
+            type: "admin_complaint_filing",
+            complaintId,
+            payerName: payerName.trim(),
+            payerPhone: payerPhone.trim(),
+            payerEmail: payerEmail.trim() || undefined,
+            payerRole: defaultPayerRole || null,
+          },
+        });
+        if (ckErr) throw ckErr;
+        if (!checkout?.ok || !checkout?.authorization_url) {
+          throw new Error(checkout?.error || "Could not open checkout");
+        }
+        toast.success("Opening secure checkout…");
+        onRequested?.();
+        onOpenChange(false);
+        // Redirect officer's browser to Paystack hosted page (handles mobile money number entry)
+        window.location.href = checkout.authorization_url;
+        return;
+      }
 
       toast.success("Payment request sent to the complainant");
       onRequested?.();
@@ -525,6 +578,35 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
             )}
           </div>
 
+          {/* Officer-checkout payer details */}
+          {mode === "officer_checkout" && (
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-3">
+              <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-primary" /> Payer Details
+                {defaultPayerRole && (
+                  <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/10 text-primary">{defaultPayerRole}</span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground -mt-1">
+                The mobile money number is entered on the secure Paystack page after you continue.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Payer name *</Label>
+                  <Input value={payerName} onChange={(e) => setPayerName(e.target.value)} placeholder="Full name on the payment" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Payer mobile number *</Label>
+                  <Input value={payerPhone} onChange={(e) => setPayerPhone(e.target.value)} placeholder="0XXXXXXXXX" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Payer email (optional)</Label>
+                <Input type="email" value={payerEmail} onChange={(e) => setPayerEmail(e.target.value)} placeholder="For Paystack receipt" />
+              </div>
+            </div>
+          )}
+
           {/* Totals */}
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1">
             <div className="flex items-center justify-between">
@@ -541,7 +623,9 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={submitting || basket.length === 0 || totals.total <= 0}>
-            {submitting ? "Sending..." : "Request Payment"}
+            {submitting
+              ? (mode === "officer_checkout" ? "Opening checkout…" : "Sending…")
+              : (mode === "officer_checkout" ? "Open Checkout & Pay" : "Request Payment")}
           </Button>
         </div>
       </DialogContent>

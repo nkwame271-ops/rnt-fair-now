@@ -452,14 +452,14 @@ const AdminFileComplaint = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between bg-warning/5 border border-warning/30 rounded-lg p-3">
                   <div className="text-sm">
-                    <p className="font-medium text-foreground">Payment requested — awaiting clearance</p>
+                    <p className="font-medium text-foreground">Basket set — awaiting payment</p>
                     <p className="text-xs text-muted-foreground">Status: {paymentStatus} · Total GHS {basketTotal.toFixed(2)}</p>
                     <p className="text-[11px] text-muted-foreground italic mt-1">
-                      The {complainantRole === "tenant" ? "tenant" : complainantRole === "landlord" ? "landlord" : "complainant"} will see this fee in their portal and can pay via Paystack. This page will update automatically.
+                      You can re-open the basket to edit, then continue to the secure mobile money checkout.
                     </p>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => setPaymentOpen(true)}>
-                    Update Fee Request
+                    Edit Basket & Pay
                   </Button>
                 </div>
               </div>
@@ -467,15 +467,15 @@ const AdminFileComplaint = () => {
               <div className="flex items-center justify-between bg-muted/40 border border-dashed border-border rounded-lg p-3">
                 <div className="text-sm">
                   <p className="font-medium text-foreground">No fee set yet</p>
-                  <p className="text-xs text-muted-foreground">Select the fee type and request payment from the complainant before submitting.</p>
+                  <p className="text-xs text-muted-foreground">Pick the fee type, name the payer, then open the secure mobile money checkout.</p>
                 </div>
                 <Button size="sm" onClick={() => setPaymentOpen(true)}>
-                  <CreditCard className="h-4 w-4 mr-1.5" /> Set Fee Type & Request Payment
+                  <CreditCard className="h-4 w-4 mr-1.5" /> Set Fee & Open Checkout
                 </Button>
               </div>
             )}
             <p className="text-[11px] text-muted-foreground">
-              The complaint will only appear in <strong>Complaint Management</strong> after the filing fee is paid. Paid items are locked and cannot be requested again from the case file.
+              The complaint only appears in <strong>Complaint Management</strong> after the filing fee is paid. Paid items are locked and cannot be requested again from the case file.
             </p>
           </CardContent>
         </Card>
@@ -488,6 +488,10 @@ const AdminFileComplaint = () => {
         complaintTable="complaints"
         monthlyRent={rentAmount ? Number(rentAmount) : null}
         feeScope="rent_control"
+        mode="officer_checkout"
+        defaultPayerName={complainants[0]?.name || ""}
+        defaultPayerPhone={complainants[0]?.phone || ""}
+        defaultPayerRole={complainantRole}
         onRequested={() => {
           // Refresh status immediately
           if (draftComplaintId) {
