@@ -351,6 +351,20 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         </DialogHeader>
 
         <div className="space-y-5">
+          {/* Already paid items (locked) */}
+          {paidItems.length > 0 && (
+            <div className="space-y-2 bg-success/5 border border-success/30 rounded-lg p-3">
+              <Label className="text-xs font-semibold text-success uppercase tracking-wide">Already paid (locked)</Label>
+              {paidItems.map((p) => (
+                <div key={p.id} className="flex items-center justify-between text-sm">
+                  <span className="text-foreground truncate">{p.label}</span>
+                  <span className="font-semibold text-foreground tabular-nums">GH₵ {p.amount.toFixed(2)}</span>
+                </div>
+              ))}
+              <p className="text-[10px] text-muted-foreground italic">These charges were paid via the Admin Portal at filing and cannot be re-requested.</p>
+            </div>
+          )}
+
           {/* Basket */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
