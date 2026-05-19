@@ -829,6 +829,8 @@ Deno.serve(async (req) => {
         payer_phone: payerPhone || null,
         payer_email: payerEmail || null,
         payer_role: payerRole || complaint.complainant_role || null,
+        complainant_role: complaint.complainant_role || payerRole || null,
+        isLandlordComplaint: (complaint.complainant_role === "landlord") || (payerRole === "landlord"),
         basket_items: unpaidRows.map((r: any) => r.id),
       };
 
