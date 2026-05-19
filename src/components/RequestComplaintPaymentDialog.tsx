@@ -40,6 +40,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
   const [percentMap, setPercentMap] = useState<Record<string, PercentageRow>>({});
 
   const [basket, setBasket] = useState<BasketItem[]>([]);
+  const [paidItems, setPaidItems] = useState<Array<{ id: string; label: string; amount: number; paid_at: string }>>([]);
 
   // Add-fee-rule state
   const [pickedTypeId, setPickedTypeId] = useState<string>("");
