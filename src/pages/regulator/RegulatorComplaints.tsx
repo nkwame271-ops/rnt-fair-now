@@ -210,6 +210,7 @@ const RegulatorComplaints = () => {
     const { data } = await supabase
       .from("complaints")
       .select("*, complaint_property:complaint_properties(id, monthly_rent)")
+      .neq("status", "draft_awaiting_filing_payment")
       .order("created_at", { ascending: false });
 
     if (data && data.length > 0) {
