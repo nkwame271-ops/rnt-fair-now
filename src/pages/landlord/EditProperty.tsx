@@ -43,6 +43,7 @@ interface EditableUnit {
   has_polytank: boolean;
   amenities: string[];
   custom_amenities: string;
+  isNew?: boolean;
 }
 
 const amenityOptions = ["Security", "Parking", "Balcony", "Compound", "AC", "Generator", "Pool", "Gym"];
