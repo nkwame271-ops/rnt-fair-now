@@ -192,6 +192,28 @@ const AdminFileComplaint = () => {
       const primaryC = complainants[0];
       const primaryR = respondents[0];
 
+      // Resolve complainant phone -> user_id so the complaint appears in their portal.
+      const normalizePhone = (raw?: string) => {
+        if (!raw) return null;
+        let d = raw.replace(/\D/g, "");
+        if (d.length === 10 && d.startsWith("0")) d = "233" + d.substring(1);
+        else if (d.length === 9) d = "233" + d;
+        return d.length >= 9 ? d : null;
+      };
+      let complainantUserId: string | null = null;
+      const cNorm = normalizePhone(primaryC.phone);
+      if (cNorm) {
+        try {
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("user_id, phone")
+            .or(`phone.eq.${cNorm},phone.eq.0${cNorm.substring(3)},phone.eq.${cNorm.substring(3)}`)
+            .limit(1)
+            .maybeSingle();
+          complainantUserId = prof?.user_id || null;
+        } catch (e) { /* ignore */ }
+      }
+
       const payload: any = {
         complaint_code: code,
         complaint_type: ct?.label || "Other",
@@ -215,6 +237,8 @@ const AdminFileComplaint = () => {
         placeholder_complainant_phone: primaryC.phone || null,
         placeholder_respondent_name: primaryR.name,
         placeholder_respondent_phone: primaryR.phone || null,
+        complainant_user_id: complainantUserId,
+        tenant_user_id: complainantRole === "tenant" ? complainantUserId : null,
         // New official-form fields
         complainants,
         respondents,
@@ -229,6 +253,7 @@ const AdminFileComplaint = () => {
         tenants_intent: tenantsIntent || null,
         relief_sought: reliefSought || null,
       };
+
 
       const { data: created, error } = await supabase
         .from("complaints")
