@@ -24,6 +24,7 @@ import {
   GraduationCap,
   Wrench,
   Siren,
+  Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -105,6 +106,7 @@ const allNavItems = [
   { to: "/regulator/office-payout-settings", label: "Payout Settings", icon: Settings },
   { to: "/regulator/payment-errors", label: "Payment Errors", icon: AlertTriangle },
   { to: "/regulator/student-revenue", label: "Student Revenue", icon: GraduationCap, superAdminOnly: true },
+  { to: "/regulator/payment-reconciliation", label: "Payment Reconciliation", icon: Wallet, mainAdminOnly: true },
   { to: "/regulator/resolution-centre", label: "Resolution Centre", icon: Wrench, superAdminOnly: true },
   { to: "/regulator/super-admin", label: "Super Admin", icon: Crown, superAdminOnly: true },
 ];
@@ -137,6 +139,7 @@ const RegulatorLayout = () => {
   const navItems = allNavItems.filter(item => {
     // Super Admin Only items
     if ((item as any).superAdminOnly && !profile?.isSuperAdmin) return false;
+    if ((item as any).mainAdminOnly && !profile?.isMainAdmin && !profile?.isSuperAdmin) return false;
     // Super admin sees everything
     if (profile?.isSuperAdmin) return true;
     // No admin profile record (legacy/fallback) — show all

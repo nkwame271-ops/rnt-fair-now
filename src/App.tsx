@@ -107,6 +107,7 @@ const OfficePayoutSettings = lazy(() => import("./pages/regulator/OfficePayoutSe
 const PaymentErrors = lazy(() => import("./pages/regulator/PaymentErrors"));
 const SuperAdminDashboard = lazy(() => import("./pages/regulator/SuperAdminDashboard"));
 const ResolutionCentre = lazy(() => import("./pages/regulator/ResolutionCentre"));
+const PaymentReconciliationCentre = lazy(() => import("./pages/regulator/PaymentReconciliationCentre"));
 const StudentRevenue = lazy(() => import("./pages/regulator/StudentRevenue"));
 const EscalatedStudentComplaints = lazy(() => import("./pages/regulator/EscalatedStudentComplaints"));
 const RegulatorReceipts = lazy(() => import("./pages/regulator/RegulatorReceipts"));
@@ -248,6 +249,7 @@ const App = () => (
                 <Route path="engine-room" element={<ErrorBoundary section="Engine Room"><EngineRoom /></ErrorBoundary>} />
                 <Route path="super-admin" element={<ErrorBoundary section="Super Admin Dashboard"><SuperAdminDashboard /></ErrorBoundary>} />
                 <Route path="resolution-centre" element={<ErrorBoundary section="Resolution Centre"><ResolutionCentre /></ErrorBoundary>} />
+                <Route path="payment-reconciliation" element={<ErrorBoundary section="Payment Reconciliation"><PaymentReconciliationCentre /></ErrorBoundary>} />
                 <Route path="student-revenue" element={<ErrorBoundary section="Student Revenue"><StudentRevenue /></ErrorBoundary>} />
                 <Route path="rent-assessments" element={<RegulatorRentAssessments />} />
                 <Route path="terminations" element={<RegulatorTerminations />} />
