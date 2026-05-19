@@ -399,23 +399,108 @@ const AdminFileComplaint = () => {
             <FileText className="h-5 w-5 text-primary shrink-0" />
             <div className="min-w-0">
               <h1 className="text-lg font-semibold truncate">File Complaint</h1>
-              <p className="text-xs text-muted-foreground truncate">Admin intake — Form 7 generated automatically</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {stage === "details"
+                  ? "Step 1 of 2 — Capture complaint details"
+                  : `Step 2 of 2 — Review & Payment${draftTicket ? ` · ${draftTicket}` : ""}`}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {errors.length > 0 && (
-              <Badge variant="outline" className="hidden md:inline-flex text-xs">
-                {errors.length} field{errors.length === 1 ? "" : "s"} missing
-              </Badge>
+            {stage === "details" ? (
+              <>
+                {errors.length > 0 && (
+                  <Badge variant="outline" className="hidden md:inline-flex text-xs">
+                    {errors.length} field{errors.length === 1 ? "" : "s"} missing
+                  </Badge>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => navigate("/regulator/complaints")}>Cancel</Button>
+                <Button onClick={createDraft} disabled={submitting || errors.length > 0} size="sm">
+                  {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Continue to Review & Payment
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" onClick={backToDetails}>
+                  <ArrowLeft className="h-4 w-4 mr-1" /> Back to details
+                </Button>
+                <Button onClick={finalizeSubmission} disabled={!filingPaid || finalizing} size="sm">
+                  {finalizing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {filingPaid ? "Submit Complaint" : "Awaiting Payment…"}
+                </Button>
+              </>
             )}
-            <Button variant="ghost" size="sm" onClick={() => navigate("/regulator/complaints")}>Cancel</Button>
-            <Button onClick={submit} disabled={submitting || errors.length > 0} size="sm">
-              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              File Complaint
-            </Button>
           </div>
         </div>
       </div>
+
+      {stage === "review" && draftComplaintId && (
+        <Card className="mb-4 border-primary/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-primary" /> Filing Fee Payment
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {filingPaid ? (
+              <div className="flex items-center gap-2 text-sm text-success font-medium bg-success/5 border border-success/30 rounded-lg p-3">
+                <CheckCircle2 className="h-4 w-4" />
+                Filing fee received (GHS {basketTotal.toFixed(2)}). You may now submit the complaint to Complaint Management.
+              </div>
+            ) : basketTotal > 0 ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between bg-warning/5 border border-warning/30 rounded-lg p-3">
+                  <div className="text-sm">
+                    <p className="font-medium text-foreground">Payment requested — awaiting clearance</p>
+                    <p className="text-xs text-muted-foreground">Status: {paymentStatus} · Total GHS {basketTotal.toFixed(2)}</p>
+                    <p className="text-[11px] text-muted-foreground italic mt-1">
+                      The {complainantRole === "tenant" ? "tenant" : complainantRole === "landlord" ? "landlord" : "complainant"} will see this fee in their portal and can pay via Paystack. This page will update automatically.
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setPaymentOpen(true)}>
+                    Update Fee Request
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between bg-muted/40 border border-dashed border-border rounded-lg p-3">
+                <div className="text-sm">
+                  <p className="font-medium text-foreground">No fee set yet</p>
+                  <p className="text-xs text-muted-foreground">Select the fee type and request payment from the complainant before submitting.</p>
+                </div>
+                <Button size="sm" onClick={() => setPaymentOpen(true)}>
+                  <CreditCard className="h-4 w-4 mr-1.5" /> Set Fee Type & Request Payment
+                </Button>
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              The complaint will only appear in <strong>Complaint Management</strong> after the filing fee is paid. Paid items are locked and cannot be requested again from the case file.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <RequestComplaintPaymentDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        complaintId={draftComplaintId || ""}
+        complaintTable="complaints"
+        monthlyRent={rentAmount ? Number(rentAmount) : null}
+        feeScope="rent_control"
+        onRequested={() => {
+          // Refresh status immediately
+          if (draftComplaintId) {
+            supabase.from("complaints").select("payment_status, basket_total").eq("id", draftComplaintId).maybeSingle().then(({ data }) => {
+              if (data) {
+                setPaymentStatus(data.payment_status || "pending");
+                setBasketTotal(Number(data.basket_total || 0));
+              }
+            });
+          }
+        }}
+      />
+
 
       <div className="grid lg:grid-cols-[1fr_440px] gap-4">
         {/* LEFT: form */}
