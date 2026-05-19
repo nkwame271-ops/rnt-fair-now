@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft, Save, Lock, AlertTriangle, Building2, ExternalLink } from "lucide-react";
+import { Loader2, ArrowLeft, Save, Lock, AlertTriangle, Building2, ExternalLink, PlusCircle, Trash2 } from "lucide-react";
 import { regions, areasByRegion } from "@/data/dummyData";
 import {
   resolveGhanaPostGps,
@@ -20,6 +20,8 @@ import {
   type ResolvedGps,
 } from "@/lib/locationValidation";
 import { parseGPS } from "@/lib/gpsUtils";
+import PropertyLocationPicker from "@/components/PropertyLocationPicker";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const unitTypePresets = [
   "Single Room", "Chamber & Hall", "1-Bedroom", "2-Bedroom", "3-Bedroom",
@@ -41,6 +43,7 @@ interface EditableUnit {
   has_polytank: boolean;
   amenities: string[];
   custom_amenities: string;
+  isNew?: boolean;
 }
 
 const amenityOptions = ["Security", "Parking", "Balcony", "Compound", "AC", "Generator", "Pool", "Gym"];
@@ -162,6 +165,33 @@ const EditProperty = () => {
     setUnits(updated);
   };
 
+  const addUnit = () => {
+    setUnits([
+      ...units,
+      {
+        id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        unit_name: `Unit ${units.length + 1}`,
+        unit_type: "",
+        monthly_rent: 0,
+        bedroom_count: "",
+        bathroom_count: "",
+        has_toilet_bathroom: false,
+        has_kitchen: false,
+        water_available: false,
+        electricity_available: false,
+        has_borehole: false,
+        has_polytank: false,
+        amenities: [],
+        custom_amenities: "",
+        isNew: true,
+      },
+    ]);
+  };
+
+  const removeNewUnit = (i: number) => {
+    setUnits(units.filter((_, idx) => idx !== i));
+  };
+
   const toggleAmenity = (i: number, amenity: string) => {
     const unit = units[i];
     const newAmenities = unit.amenities.includes(amenity)
@@ -187,6 +217,7 @@ const EditProperty = () => {
           ghana_post_gps: ghanaPostGps || null,
           ghana_post_gps_lat: gpsState.kind === "resolved" ? gpsState.data.lat : null,
           ghana_post_gps_lng: gpsState.kind === "resolved" ? gpsState.data.lng : null,
+          gps_location: gpsLocation || null,
           location_distance_m: distanceInfo?.meters ?? null,
           location_review_required:
             distanceInfo?.level === "review" ||
@@ -216,6 +247,28 @@ const EditProperty = () => {
 
     // Save unit changes
     for (const unit of units) {
+      if (unit.isNew) {
+        if (!unit.unit_type) {
+          toast.error(`New unit "${unit.unit_name}" needs a Unit Type. Skipped.`);
+          continue;
+        }
+        const { error: insErr } = await supabase.from("units").insert({
+          property_id: id!,
+          unit_name: unit.unit_name,
+          unit_type: unit.unit_type,
+          monthly_rent: unit.monthly_rent || 0,
+          has_toilet_bathroom: unit.has_toilet_bathroom,
+          has_kitchen: unit.has_kitchen,
+          water_available: unit.water_available,
+          electricity_available: unit.electricity_available,
+          has_borehole: unit.has_borehole,
+          has_polytank: unit.has_polytank,
+          amenities: unit.amenities,
+          custom_amenities: unit.custom_amenities || null,
+        } as any);
+        if (insErr) toast.error(`Failed to add ${unit.unit_name}: ${insErr.message}`);
+        continue;
+      }
       const { error: unitErr } = await supabase.from("units").update({
         unit_name: unit.unit_name,
         unit_type: unit.unit_type,
@@ -384,16 +437,59 @@ const EditProperty = () => {
             </div>
           )}
         </div>
+
+        {/* Map location picker — editable when not locked */}
+        {!locationLocked && (
+          <div className="pt-2">
+            <Label className="text-sm font-medium mb-2 block">Map Location (live location or pin on map)</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Updating the pin or using your live location will overwrite the stored GPS coordinates for this property.
+            </p>
+            <ErrorBoundary section="Property Location Map">
+              <PropertyLocationPicker
+                region={region}
+                value={gpsLocation}
+                required={false}
+                ghanaPostGps={ghanaPostGps}
+                onLocationChange={(loc) => {
+                  setGpsLocation(loc ? `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}` : "");
+                  if (loc?.address && !address) setAddress(loc.address);
+                }}
+                onGhanaPostGpsChange={setGhanaPostGps}
+              />
+            </ErrorBoundary>
+          </div>
+        )}
       </div>
 
       {/* Units Section */}
-      {units.length > 0 && (
+      {(
         <div className="bg-card rounded-xl p-6 border border-border space-y-4">
-          <h2 className="font-semibold text-card-foreground flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-primary" /> Units ({units.length})
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-card-foreground flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" /> Units ({units.length})
+            </h2>
+            <Button type="button" variant="outline" size="sm" onClick={addUnit}>
+              <PlusCircle className="h-4 w-4 mr-1" /> Add Unit
+            </Button>
+          </div>
+          {units.length === 0 && (
+            <p className="text-xs text-muted-foreground">No units yet. Click "Add Unit" to create one.</p>
+          )}
           {units.map((unit, i) => (
             <div key={unit.id} className="bg-muted rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                {unit.isNew ? (
+                  <Badge variant="default" className="text-[10px]">New — unsaved</Badge>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">Saved unit</span>
+                )}
+                {unit.isNew && (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeNewUnit(i)} className="text-destructive h-7">
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                  </Button>
+                )}
+              </div>
               <div className="flex items-end gap-3 flex-wrap">
                 <div className="space-y-1 flex-1 min-w-[120px]">
                   <Label className="text-xs">Unit Name</Label>
@@ -435,15 +531,18 @@ const EditProperty = () => {
                 <div className="space-y-1 w-32">
                   <Label className="text-xs flex items-center gap-1">
                     Rent (GH₵)
-                    <Lock className="h-3 w-3 text-muted-foreground" />
+                    {!unit.isNew && <Lock className="h-3 w-3 text-muted-foreground" />}
                   </Label>
                   <Input
                     type="number"
                     value={unit.monthly_rent}
-                    readOnly
-                    className="bg-muted cursor-not-allowed"
+                    onChange={(e) => unit.isNew && updateUnit(i, { monthly_rent: parseFloat(e.target.value) || 0 })}
+                    readOnly={!unit.isNew}
+                    className={!unit.isNew ? "bg-muted cursor-not-allowed" : ""}
                   />
-                  <p className="text-[10px] text-muted-foreground">Rent is managed by Rent Control. Use Rent Increase Application to request a change.</p>
+                  {!unit.isNew && (
+                    <p className="text-[10px] text-muted-foreground">Rent is managed by Rent Control. Use Rent Increase Application to request a change.</p>
+                  )}
                 </div>
               </div>
 

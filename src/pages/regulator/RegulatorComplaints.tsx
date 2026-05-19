@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2, FileDown, GraduationCap, BarChart3 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -624,9 +624,10 @@ const RegulatorComplaints = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
-            <AlertTriangle className="h-7 w-7 text-warning" /> Complaints Management
+            <AlertTriangle className="h-7 w-7 text-warning" /> Complaint Management
           </h1>
-          <p className="text-muted-foreground mt-1">{filtered.length} tenant complaints • {landlordComplaints.length} landlord complaints</p>
+          <p className="text-xs uppercase tracking-wide text-warning font-semibold mt-1">Case Records & Caseworker Desk</p>
+          <p className="text-muted-foreground mt-1">Full case files, parties, evidence and assignments. {filtered.length} tenant complaints • {landlordComplaints.length} landlord complaints. For live SLA & KPI view see <Link to="/regulator/complaints/command-center" className="underline font-medium">Command Center</Link>.</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           {(profile?.isMainAdmin || profile?.isSuperAdmin) && (

@@ -338,8 +338,9 @@ export default function ComplaintsCommandCenter() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Complaints Command Center</h1>
+          <p className="text-xs uppercase tracking-wide text-primary font-semibold mt-1">Live Operations Dashboard</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Track, assign, and resolve every complaint moving through the Rent Control case desk.
+            Real-time SLA, workload and KPI view across all complaints. For full case records and tenant/landlord details, use <Link to="/regulator/complaints" className="underline font-medium">Complaint Management</Link>.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
