@@ -308,13 +308,18 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
       const { error: insErr } = await (supabase.from("complaint_basket_items") as any).insert(rows);
       if (insErr) throw insErr;
 
-      // Update parent complaint with totals + state
+      // Update parent complaint with totals + state.
+      // In officer_checkout mode the complaint stays as draft_awaiting_filing_payment
+      // until finalize-payment flips it to ready_for_scheduling — this keeps it out
+      // of Complaint Management until the filing fee actually clears.
       const updatePayload: any = {
         outstanding_amount: totals.total,
         basket_total: totals.total,
         payment_status: "pending",
-        status: "pending_payment",
       };
+      if (mode !== "officer_checkout") {
+        updatePayload.status = "pending_payment";
+      }
       // Keep complaint_type_id pointing at the first fee_rule item (legacy display)
       const firstFeeRule = basket.find((b) => b.kind === "fee_rule");
       if (firstFeeRule?.complaint_type_id) {
