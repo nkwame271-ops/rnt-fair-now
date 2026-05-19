@@ -246,6 +246,28 @@ const EditProperty = () => {
 
     // Save unit changes
     for (const unit of units) {
+      if (unit.isNew) {
+        if (!unit.unit_type) {
+          toast.error(`New unit "${unit.unit_name}" needs a Unit Type. Skipped.`);
+          continue;
+        }
+        const { error: insErr } = await supabase.from("units").insert({
+          property_id: id!,
+          unit_name: unit.unit_name,
+          unit_type: unit.unit_type,
+          monthly_rent: unit.monthly_rent || 0,
+          has_toilet_bathroom: unit.has_toilet_bathroom,
+          has_kitchen: unit.has_kitchen,
+          water_available: unit.water_available,
+          electricity_available: unit.electricity_available,
+          has_borehole: unit.has_borehole,
+          has_polytank: unit.has_polytank,
+          amenities: unit.amenities,
+          custom_amenities: unit.custom_amenities || null,
+        } as any);
+        if (insErr) toast.error(`Failed to add ${unit.unit_name}: ${insErr.message}`);
+        continue;
+      }
       const { error: unitErr } = await supabase.from("units").update({
         unit_name: unit.unit_name,
         unit_type: unit.unit_type,
