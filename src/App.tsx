@@ -120,6 +120,7 @@ const TenantReportSafety = lazy(() => import("./pages/tenant/ReportSafety"));
 const LandlordReportSafety = lazy(() => import("./pages/landlord/ReportSafety"));
 const NugsReportSafety = lazy(() => import("./pages/nugs/ReportSafety"));
 const MySafetyReports = lazy(() => import("./pages/shared/MySafetyReports"));
+const ReportMissingPayment = lazy(() => import("./pages/shared/ReportMissingPayment"));
 
 // NUGS pages (hidden monitoring portal)
 const NugsDashboard = lazy(() => import("./pages/nugs/NugsDashboard"));
