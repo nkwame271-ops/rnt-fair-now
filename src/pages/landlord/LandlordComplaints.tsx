@@ -130,15 +130,36 @@ const LandlordComplaints = () => {
   }, [user]);
 
   const fetchComplaints = async () => {
-    const { data } = await supabase
-      .from("landlord_complaints")
-      .select("*")
-      .eq("landlord_user_id", user!.id)
-      .order("created_at", { ascending: false });
-    setComplaints(data || []);
+    // Pull complaints from BOTH tables: ones landlord filed themselves AND
+    // ones the admin filed on their behalf (linked via complainant_user_id).
+    const [{ data: own }, { data: adminFiled }] = await Promise.all([
+      supabase
+        .from("landlord_complaints")
+        .select("*")
+        .eq("landlord_user_id", user!.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("complaints")
+        .select("*")
+        .eq("complainant_user_id", user!.id)
+        .order("created_at", { ascending: false }),
+    ]);
+    const tagged = [
+      ...((own || []).map((r: any) => ({ ...r, __table: "landlord_complaints" }))),
+      ...((adminFiled || []).map((r: any) => ({
+        ...r,
+        __table: "complaints",
+        // Normalise display fields used in the card
+        tenant_name: r.tenant_name || r.placeholder_respondent_name || r.landlord_name,
+      }))),
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    setComplaints(tagged);
 
-    if (data && data.length > 0) {
-      const ids = data.map((c: any) => c.id);
+    if (tagged.length > 0) {
+      const lcIds = tagged.filter((c) => c.__table === "landlord_complaints").map((c: any) => c.id);
+      const cIds = tagged.filter((c) => c.__table === "complaints").map((c: any) => c.id);
+      const ids = tagged.map((c: any) => c.id);
+
       const { data: schedules } = await supabase
         .from("complaint_schedules")
         .select("*")
@@ -150,21 +171,31 @@ const LandlordComplaints = () => {
         setScheduleMap(map);
       }
 
-      const payIds = data.filter((c: any) => c.payment_status === "pending" && Number(c.outstanding_amount) > 0).map((c: any) => c.id);
-      if (payIds.length > 0) {
+      const payIdsLc = tagged.filter((c: any) => c.__table === "landlord_complaints" && c.payment_status === "pending" && Number(c.outstanding_amount) > 0).map((c: any) => c.id);
+      const payIdsC = tagged.filter((c: any) => c.__table === "complaints" && c.payment_status === "pending" && Number(c.outstanding_amount) > 0).map((c: any) => c.id);
+      const bm: Record<string, any[]> = {};
+      if (payIdsLc.length > 0) {
         const { data: items } = await (supabase.from("complaint_basket_items") as any)
           .select("id, complaint_id, label, amount, kind")
-          .in("complaint_id", payIds)
+          .in("complaint_id", payIdsLc)
           .eq("complaint_table", "landlord_complaints")
           .order("created_at");
-        const bm: Record<string, any[]> = {};
         (items || []).forEach((it: any) => { (bm[it.complaint_id] ||= []).push(it); });
-        setBasketMap(bm);
       }
+      if (payIdsC.length > 0) {
+        const { data: items } = await (supabase.from("complaint_basket_items") as any)
+          .select("id, complaint_id, label, amount, kind")
+          .in("complaint_id", payIdsC)
+          .eq("complaint_table", "complaints")
+          .order("created_at");
+        (items || []).forEach((it: any) => { (bm[it.complaint_id] ||= []).push(it); });
+      }
+      setBasketMap(bm);
     }
 
     setLoading(false);
   };
+
 
   const handlePayNow = async (complaint: any) => {
     setPaying(complaint.id);
