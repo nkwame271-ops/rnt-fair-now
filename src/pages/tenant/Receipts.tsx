@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, Receipt, Filter } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import PaymentReceipt from "@/components/PaymentReceipt";
@@ -10,24 +12,46 @@ const Receipts = () => {
   const [receipts, setReceipts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
 
+  const fetchReceipts = async () => {
+    if (!user) return;
+    let query = supabase
+      .from("payment_receipts")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (filter !== "all") query = query.eq("payment_type", filter);
+    const { data } = await query;
+    setReceipts(data || []);
+    setLoading(false);
+  };
+
+  // Auto-confirm any pending Paystack reference when landing on this page
   useEffect(() => {
     if (!user) return;
-    const fetchReceipts = async () => {
-      let query = supabase
-        .from("payment_receipts")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (filter !== "all") query = query.eq("payment_type", filter);
-
-      const { data } = await query;
-      setReceipts(data || []);
-      setLoading(false);
-    };
-    fetchReceipts();
+    const reference =
+      searchParams.get("reference") ||
+      searchParams.get("trxref") ||
+      sessionStorage.getItem("pendingPaymentReference");
+    if (reference) {
+      (async () => {
+        try {
+          const { data } = await supabase.functions.invoke("verify-payment", { body: { reference } });
+          if (data?.verified) toast.success("Payment confirmed — receipt available below.");
+        } catch (_) { /* ignore */ }
+        sessionStorage.removeItem("pendingPaymentReference");
+        setSearchParams({}, { replace: true });
+        await new Promise((r) => setTimeout(r, 1200));
+        await fetchReceipts();
+        setTimeout(() => fetchReceipts(), 3000);
+      })();
+    } else {
+      fetchReceipts();
+    }
   }, [user, filter]);
+
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
