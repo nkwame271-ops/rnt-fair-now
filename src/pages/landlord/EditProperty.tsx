@@ -217,6 +217,7 @@ const EditProperty = () => {
           ghana_post_gps: ghanaPostGps || null,
           ghana_post_gps_lat: gpsState.kind === "resolved" ? gpsState.data.lat : null,
           ghana_post_gps_lng: gpsState.kind === "resolved" ? gpsState.data.lng : null,
+          gps_location: gpsLocation || null,
           location_distance_m: distanceInfo?.meters ?? null,
           location_review_required:
             distanceInfo?.level === "review" ||
