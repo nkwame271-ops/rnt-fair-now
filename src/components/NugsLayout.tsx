@@ -59,6 +59,7 @@ const studentNav = [
   { to: "/nugs/invite-landlord", label: "Invite Landlord", icon: UserPlus, featureKey: "student_invite_landlord" },
   { to: "/nugs/report-safety", label: "Report Safety Issue", icon: Siren },
   { to: "/nugs/my-safety-reports", label: "My Safety Reports", icon: ShieldAlert },
+  { to: "/nugs/report-missing-payment", label: "Payment Help", icon: ShieldAlert },
   { to: "/nugs/profile", label: "My Profile", icon: UserCircle },
 ];
 
