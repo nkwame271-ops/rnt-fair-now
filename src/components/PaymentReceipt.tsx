@@ -91,12 +91,12 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
         `).join("")}
       </div>` : "";
 
-    const splitsHtml = showSplits ? `
+    const splitsHtml = (showSplits && visibleSplits.length > 0) ? `
       <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-top:16px;">
         <div style="background:#f3f4f6;padding:8px 16px;font-size:11px;font-weight:600;color:#6b7280;display:flex;justify-content:space-between;text-transform:uppercase;">
           <span>Recipient</span><span>Amount</span>
         </div>
-        ${splits.map(s => `
+        ${visibleSplits.map(s => `
           <div style="padding:10px 16px;display:flex;justify-content:space-between;font-size:13px;border-top:1px solid #e5e7eb;">
             <span style="color:#111827;">${recipientLabels[s.recipient] || s.recipient}</span>
             <span style="font-weight:600;color:#111827;">${formatGHSDecimal(s.amount)}</span>
@@ -259,7 +259,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(17, 24, 39);
       pdf.setFontSize(10);
-      splits.forEach(s => {
+      visibleSplits.forEach(s => {
         pdf.text(recipientLabels[s.recipient] || s.recipient, margin + 8, y + 14);
         pdf.text(formatGHSDecimal(s.amount), pageW - margin - 8, y + 14, { align: "right" });
         y += 22;
@@ -271,7 +271,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(12);
     pdf.setTextColor(17, 24, 39);
-    pdf.text(showSplits ? "Total" : "Total Paid", margin + 8, y + 18);
+    pdf.text((showSplits && visibleSplits.length > 0) ? "Total" : "Total Paid", margin + 8, y + 18);
     pdf.setTextColor(37, 99, 235);
     pdf.text(formatGHSDecimal(totalAmount), pageW - margin - 8, y + 18, { align: "right" });
     y += 44;
@@ -340,13 +340,13 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
       )}
 
       {/* Recipient split breakdown */}
-      {showSplits ? (
+      {(showSplits && visibleSplits.length > 0) ? (
         <div className="border border-border rounded-lg overflow-hidden">
           <div className="bg-muted px-4 py-2 text-xs font-semibold text-muted-foreground flex justify-between">
             <span>Recipient</span>
             <span>Amount</span>
           </div>
-          {splits.map((s, i) => (
+          {visibleSplits.map((s, i) => (
             <div key={i} className="px-4 py-2.5 flex justify-between text-sm border-t border-border">
               <span className="text-card-foreground">{recipientLabels[s.recipient] || s.recipient}</span>
               <span className="font-semibold text-card-foreground">{formatGHSDecimal(s.amount)}</span>
