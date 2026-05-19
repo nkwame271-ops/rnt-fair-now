@@ -82,9 +82,13 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
       (p || []).forEach((r: PercentageRow) => { pm[r.complaint_type_id] = r; });
       setPercentMap(pm);
 
-      // Hydrate basket from existing rows if any
-      if (Array.isArray(existing) && existing.length > 0) {
-        setBasket(existing.map((r: any) => ({
+      // Hydrate basket: separate paid (locked) from unpaid (editable)
+      const allRows = Array.isArray(existing) ? existing : [];
+      const unpaidRows = allRows.filter((r: any) => !r.paid_at);
+      const paidRows = allRows.filter((r: any) => !!r.paid_at);
+      setPaidItems(paidRows.map((r: any) => ({ id: r.id, label: r.label, amount: Number(r.amount) || 0, paid_at: r.paid_at })));
+      if (unpaidRows.length > 0) {
+        setBasket(unpaidRows.map((r: any) => ({
           uid: newUid(),
           dbId: r.id,
           kind: r.kind,
