@@ -29,6 +29,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { formatGHSDecimal } from "@/lib/formatters";
+import UserProofReviewTab from "@/components/regulator/UserProofReviewTab";
 
 /**
  * Payment Reconciliation & Recovery Centre
