@@ -107,6 +107,7 @@ const OfficePayoutSettings = lazy(() => import("./pages/regulator/OfficePayoutSe
 const PaymentErrors = lazy(() => import("./pages/regulator/PaymentErrors"));
 const SuperAdminDashboard = lazy(() => import("./pages/regulator/SuperAdminDashboard"));
 const ResolutionCentre = lazy(() => import("./pages/regulator/ResolutionCentre"));
+const PaymentReconciliationCentre = lazy(() => import("./pages/regulator/PaymentReconciliationCentre"));
 const StudentRevenue = lazy(() => import("./pages/regulator/StudentRevenue"));
 const EscalatedStudentComplaints = lazy(() => import("./pages/regulator/EscalatedStudentComplaints"));
 const RegulatorReceipts = lazy(() => import("./pages/regulator/RegulatorReceipts"));
