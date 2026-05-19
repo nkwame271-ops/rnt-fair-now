@@ -756,11 +756,18 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
     }
     if (complaintId) {
       const { data: rcpt } = await supabaseAdmin.from("payment_receipts").select("id").eq("escrow_transaction_id", escrow.id).maybeSingle();
-      const updates: any = { status: "ready_for_scheduling", payment_status: "paid", receipt_id: rcpt?.id || null };
+      const updates: any = { status: "ready_for_scheduling", payment_status: "paid", receipt_id: rcpt?.id || null, filing_fee_paid: true, filing_fee_paid_at: new Date().toISOString() };
       const { data: tUpd } = await supabaseAdmin.from("complaints").update(updates).eq("id", complaintId).select("id").maybeSingle();
       if (!tUpd) {
-        await supabaseAdmin.from("landlord_complaints").update(updates).eq("id", complaintId);
+        // landlord_complaints does not carry filing_fee_paid yet — strip those fields
+        const { filing_fee_paid, filing_fee_paid_at, ...lcUpdates } = updates;
+        await supabaseAdmin.from("landlord_complaints").update(lcUpdates).eq("id", complaintId);
       }
+      // Lock currently-unpaid basket items so they are not re-requested
+      await supabaseAdmin.from("complaint_basket_items")
+        .update({ paid_at: new Date().toISOString() })
+        .eq("complaint_id", complaintId)
+        .is("paid_at", null);
     }
   } else if (paymentType === "viewing_fee") {
     const viewingRequestId = meta?.viewingRequestId;
