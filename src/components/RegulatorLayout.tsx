@@ -139,6 +139,7 @@ const RegulatorLayout = () => {
   const navItems = allNavItems.filter(item => {
     // Super Admin Only items
     if ((item as any).superAdminOnly && !profile?.isSuperAdmin) return false;
+    if ((item as any).mainAdminOnly && !profile?.isMainAdmin && !profile?.isSuperAdmin) return false;
     // Super admin sees everything
     if (profile?.isSuperAdmin) return true;
     // No admin profile record (legacy/fallback) — show all
