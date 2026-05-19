@@ -73,7 +73,7 @@ export const GHANA_REGIONS_OFFICES: { region: string; offices: { id: string; nam
   {
     region: "Greater Accra",
     offices: [
-      { id: "accra_central", name: "ACCRA Central Office (HQ)" },
+      { id: "accra_central", name: "Accra Regional Office (HQ) Ghana Highway Authority" },
       { id: "adenta", name: "Adenta" },
       { id: "weija", name: "Weija" },
       { id: "adjen_kotoku", name: "Adjen Kotoku" },

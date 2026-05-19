@@ -69,8 +69,8 @@ export function prefillForm7(c: any, officeName?: string): Form7Data {
     case_number: c.case_number || "",
     ticket_number: c.ticket_number,
     complainant_name: primaryC.name || c.placeholder_complainant_name || c.complainant_name || "",
-    complainant_postal_address: primaryC.address || c.complainant_address || "",
-    complainant_telephone: primaryC.phone || c.placeholder_complainant_phone || "",
+    complainant_postal_address: primaryC.address || c.complainant_address || c.property_address || "",
+    complainant_telephone: primaryC.phone || c.placeholder_complainant_phone || c.complainant_phone || "",
     respondent_name_address: respondentText,
     premises_address: c.property_address || "",
     premises_house_no: c.premises_house_no || "",
@@ -89,6 +89,7 @@ export function prefillForm7(c: any, officeName?: string): Form7Data {
 export function prefillForm33(c: any, officeName?: string, hearing?: { scheduled_at?: string; venue?: string; officer_name?: string }): Form33Data {
   const complainants = Array.isArray(c.complainants) ? c.complainants : [];
   const respondents = Array.isArray(c.respondents) ? c.respondents : [];
+  const primaryC = complainants[0] || {};
   const cNames = complainants.map((x: any) => x.name).filter(Boolean).join(", ")
     || c.placeholder_complainant_name || c.complainant_name || "Complainant";
   const rNames = respondents.map((x: any) => x.name).filter(Boolean).join(", ")
@@ -113,6 +114,10 @@ export function prefillForm33(c: any, officeName?: string, hearing?: { scheduled
     stamp_text: "Rent Control Department",
     footer_slogan: "We Promote Peace & Reconcile Parties",
     ticket_number: c.ticket_number,
+    complainant_name: primaryC.name || c.placeholder_complainant_name || c.complainant_name || "",
+    complainant_phone: primaryC.phone || c.placeholder_complainant_phone || c.complainant_phone || "",
+    complainant_address: primaryC.address || c.complainant_address || c.property_address || "",
+    body_font_size: 10,
   };
 }
 

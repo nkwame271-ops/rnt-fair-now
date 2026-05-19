@@ -140,6 +140,17 @@ export default function FormEditorDialog({
                   <Field label="Complaint category" value={data.complaint_category} onChange={(v: any) => set("complaint_category", v)} />
                 </div>
                 <Field label="Parties line (Complainant VRS Respondent)" value={data.parties_line} onChange={(v: any) => set("parties_line", v)} />
+
+                {/* Complainant basics (prefilled, editable) */}
+                <div className="rounded-md border border-border bg-muted/40 p-3 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Complainant — basic details</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Complainant name" value={data.complainant_name} onChange={(v: any) => set("complainant_name", v)} />
+                    <Field label="Complainant phone" value={data.complainant_phone} onChange={(v: any) => set("complainant_phone", v)} />
+                  </div>
+                  <Area label="Complainant address" value={data.complainant_address} rows={2} onChange={(v: any) => set("complainant_address", v)} />
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Rent office" value={data.rent_office} onChange={(v: any) => set("rent_office", v)} />
                   <Field label="Rent officer" value={data.rent_officer} onChange={(v: any) => set("rent_officer", v)} />
@@ -150,7 +161,50 @@ export default function FormEditorDialog({
                   <Field label="Hearing time" value={data.hearing_time} onChange={(v: any) => set("hearing_time", v)} />
                   <Field label="Hearing venue" value={data.hearing_venue} onChange={(v: any) => set("hearing_venue", v)} />
                 </div>
-                <Area label="Summons paragraph (editable)" value={data.summons_paragraph} rows={6} onChange={(v: any) => set("summons_paragraph", v)} />
+                {data.hearing_date && (
+                  <p className="text-xs text-muted-foreground">
+                    Selected day: <span className="font-semibold text-foreground">{
+                      (() => {
+                        const dt = new Date(data.hearing_date);
+                        if (isNaN(dt.getTime())) return "—";
+                        return dt.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+                      })()
+                    }</span>
+                  </p>
+                )}
+                <Area label="Summons paragraph (leave blank to use the auto-generated bolded version)" value={data.summons_paragraph} rows={6} onChange={(v: any) => set("summons_paragraph", v)} />
+
+                {/* Body font size */}
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center justify-between">
+                    <span>Letter body font size</span>
+                    <span className="text-muted-foreground">{data.body_font_size || 10}pt</span>
+                  </Label>
+                  <input
+                    type="range"
+                    min={9}
+                    max={18}
+                    step={1}
+                    value={data.body_font_size || 10}
+                    onChange={(e) => set("body_font_size", parseInt(e.target.value, 10))}
+                    className="w-full accent-primary"
+                  />
+                  <div className="flex gap-1">
+                    {[10, 12, 14, 16].map((sz) => (
+                      <Button
+                        key={sz}
+                        type="button"
+                        variant={(data.body_font_size || 10) === sz ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => set("body_font_size", sz)}
+                      >
+                        {sz}pt
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Issued office" value={data.issued_office} onChange={(v: any) => set("issued_office", v)} />
                   <Field label="Issued date" type="date" value={(data.issued_date || "").slice(0, 10)} onChange={(v: any) => set("issued_date", v)} />
