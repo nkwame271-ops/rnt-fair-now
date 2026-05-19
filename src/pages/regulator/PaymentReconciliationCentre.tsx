@@ -329,10 +329,17 @@ const PaymentReconciliationCentre = () => {
           <TabsTrigger value="gaps">
             <AlertTriangle className="h-4 w-4 mr-1" /> Reconciliation Gaps ({gaps?.length ?? 0})
           </TabsTrigger>
+          <TabsTrigger value="user_proofs">
+            <FileText className="h-4 w-4 mr-1" /> User-Submitted Proofs
+          </TabsTrigger>
           <TabsTrigger value="audit">
             <History className="h-4 w-4 mr-1" /> Audit Trail
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="user_proofs" className="mt-3">
+          <UserProofReviewTab />
+        </TabsContent>
 
         <TabsContent value="gaps" className="mt-3">
           <Card className="p-3">
