@@ -91,9 +91,25 @@ const HearingWorkspace = () => {
     finally { setSaving(false); }
   };
 
-  if (loading || !c || !h) {
+  if (loading) {
     return <div className="flex items-center justify-center h-96"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
+  if (!h) {
+    return (
+      <div className="container max-w-3xl py-10 text-center space-y-3">
+        <p className="text-sm text-muted-foreground">This hearing record could not be found. It may have been removed.</p>
+        <Button variant="outline" size="sm" onClick={() => navigate("/regulator/complaints/schedule")}>
+          <ChevronLeft className="h-4 w-4 mr-1" /> Back to Hearing Schedule
+        </Button>
+      </div>
+    );
+  }
+  if (!c) {
+    // Hearing exists but its case row could not be loaded — still let the officer work.
+    // (Most often a permissions edge case or a manually deleted complaint.)
+  }
+  const cc = c || { ticket_number: hid?.slice(0, 8), complaint_title: "Case", complaint_type: "—", property_address: "—", region: "—", placeholder_complainant_name: "—", placeholder_complainant_phone: "—", placeholder_respondent_name: "—", placeholder_respondent_phone: "—", landlord_name: "—", evidence_urls: [] };
+
 
   return (
     <div className="container max-w-7xl py-4 space-y-3">
