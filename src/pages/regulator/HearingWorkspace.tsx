@@ -141,9 +141,9 @@ const HearingWorkspace = () => {
         <div className="lg:col-span-3 space-y-3">
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Case</CardTitle></CardHeader>
             <CardContent className="text-xs space-y-1">
-              <p><strong>{cc.complaint_title || c.complaint_type}</strong></p>
+              <p><strong>{cc.complaint_title || cc.complaint_type}</strong></p>
               <p className="text-muted-foreground">{cc.property_address}, {cc.region}</p>
-              {cc.rent_amount && <p>Rent: GHS {Number(c.rent_amount).toLocaleString()}</p>}
+              {cc.rent_amount && <p>Rent: GHS {Number(cc.rent_amount).toLocaleString()}</p>}
             </CardContent>
           </Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-1"><Users className="h-4 w-4" /> Parties</CardTitle></CardHeader>
@@ -154,7 +154,7 @@ const HearingWorkspace = () => {
               </div>
               <div>
                 <Badge variant="secondary">Respondent</Badge>
-                <p className="mt-1">{cc.placeholder_respondent_name || c.landlord_name} · {cc.placeholder_respondent_phone || "—"}</p>
+                <p className="mt-1">{cc.placeholder_respondent_name || cc.landlord_name} · {cc.placeholder_respondent_phone || "—"}</p>
               </div>
             </CardContent>
           </Card>
