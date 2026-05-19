@@ -425,21 +425,56 @@ const AssignDialog = ({ open, onOpenChange, complaint, offices, admins, onSaved 
 
 const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved }: any) => {
   const [when, setWhen] = useState("");
-  const [roomId, setRoomId] = useState<string>("");
+  const [roomNumber, setRoomNumber] = useState<string>("");
   const [officerId, setOfficerId] = useState(complaint.assigned_officer_user_id || "");
   const [priority, setPriority] = useState("normal");
   const [saving, setSaving] = useState(false);
+  const [assignedOfficers, setAssignedOfficers] = useState<any[]>([]);
+
+  // Populate the officer dropdown from the case's "Assigned To" list (complaint_assignments).
+  useEffect(() => {
+    if (!open || !complaint?.id) return;
+    (async () => {
+      const { data: assigns } = await (supabase.from("complaint_assignments") as any)
+        .select("assigned_to, unassigned_at")
+        .eq("complaint_id", complaint.id);
+      const activeIds: string[] = (assigns || [])
+        .filter((a: any) => !a.unassigned_at)
+        .map((a: any) => a.assigned_to);
+      const historicalIds: string[] = (assigns || []).map((a: any) => a.assigned_to);
+      const ids = Array.from(new Set([...activeIds, ...historicalIds, complaint.assigned_officer_user_id].filter(Boolean)));
+      if (ids.length === 0) { setAssignedOfficers([]); return; }
+      const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);
+      const nameMap = new Map((profs || []).map((p: any) => [p.user_id, p.full_name]));
+      // Merge with admin_staff records to expose admin_type/office where available
+      setAssignedOfficers(
+        ids.map((uid) => {
+          const a = (admins || []).find((x: any) => x.user_id === uid);
+          return { user_id: uid, full_name: nameMap.get(uid) || a?.full_name || "Staff", admin_type: a?.admin_type, active: activeIds.includes(uid) };
+        })
+      );
+    })();
+  }, [open, complaint?.id, admins]);
+
   const save = async () => {
     if (!when) return toast({ title: "Pick a date/time", variant: "destructive" });
     setSaving(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
+      // Map numbered room (1-10) to an entry in hearing_rooms by name when present, otherwise persist the label only.
+      let roomId: string | null = null;
+      if (roomNumber) {
+        const want = `Room ${roomNumber}`;
+        const match = (rooms || []).find((r: any) => (r.name || "").toLowerCase() === want.toLowerCase());
+        roomId = match?.id || null;
+      }
       const { data: hearing, error } = await supabase.from("complaint_hearings").insert({
         case_id: complaint.id, case_kind: "complaint",
         scheduled_at: new Date(when).toISOString(),
-        room_id: roomId || null, officer_user_id: officerId || null,
+        room_id: roomId, room_label: roomNumber ? `Room ${roomNumber}` : null,
+        officer_user_id: officerId || null,
         priority, status: "scheduled", created_by: auth.user?.id,
-      }).select("id").single();
+      } as any).select("id").single();
       if (error) throw error;
       await supabase.from("complaints").update({ next_hearing_at: new Date(when).toISOString() }).eq("id", complaint.id);
       await transitionStage({ caseId: complaint.id, toStage: "scheduled", reason: "Hearing scheduled" });
@@ -447,10 +482,9 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
       // Auto-generate Form 33 draft — non-blocking
       try {
         const { generateForm33Draft } = await import("@/lib/complaintForms");
-        const venueName = rooms.find((r: any) => r.id === roomId)?.name;
         await generateForm33Draft(complaint.id, complaint, {
           scheduled_at: new Date(when).toISOString(),
-          venue: venueName,
+          venue: roomNumber ? `Room ${roomNumber}` : undefined,
         });
       } catch (e) { console.warn("Form 33 auto-generate failed", e); }
 
@@ -472,16 +506,35 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
         <div className="space-y-3">
           <div><Label>Date & Time</Label><Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} /></div>
           <div><Label>Room</Label>
-            <Select value={roomId} onValueChange={setRoomId}>
-              <SelectTrigger><SelectValue placeholder="Select room (optional)" /></SelectTrigger>
-              <SelectContent>{rooms.map((r: any) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
+            <Select value={roomNumber} onValueChange={setRoomNumber}>
+              <SelectTrigger><SelectValue placeholder="Select room number" /></SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                  <SelectItem key={n} value={String(n)}>Room {n}</SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
           <div><Label>Officer</Label>
             <Select value={officerId} onValueChange={setOfficerId}>
-              <SelectTrigger><SelectValue placeholder="Select officer" /></SelectTrigger>
-              <SelectContent>{admins.map((a: any) => <SelectItem key={a.user_id} value={a.user_id}>{a.full_name}</SelectItem>)}</SelectContent>
+              <SelectTrigger>
+                <SelectValue placeholder={assignedOfficers.length === 0 ? "Assign the case from Complaint Management first" : "Select officer"} />
+              </SelectTrigger>
+              <SelectContent>
+                {assignedOfficers.length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    No officers assigned to this case. Use “Assigned to” in Complaint Management.
+                  </div>
+                ) : (
+                  assignedOfficers.map((a: any) => (
+                    <SelectItem key={a.user_id} value={a.user_id}>
+                      {a.full_name}{a.active ? "" : " · past"}{a.admin_type === "main_admin" ? " · Main" : ""}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
             </Select>
+            <p className="text-[10px] text-muted-foreground mt-1">Officer list is sourced from the case’s “Assigned To” list in Complaint Management.</p>
           </div>
           <div><Label>Priority</Label>
             <Select value={priority} onValueChange={setPriority}>
@@ -502,6 +555,7 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
     </Dialog>
   );
 };
+
 
 const NoteDialog = ({ open, onOpenChange, caseId, onSaved }: any) => {
   const [content, setContent] = useState("");
