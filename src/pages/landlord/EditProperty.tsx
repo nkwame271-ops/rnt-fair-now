@@ -437,6 +437,29 @@ const EditProperty = () => {
             </div>
           )}
         </div>
+
+        {/* Map location picker — editable when not locked */}
+        {!locationLocked && (
+          <div className="pt-2">
+            <Label className="text-sm font-medium mb-2 block">Map Location (live location or pin on map)</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Updating the pin or using your live location will overwrite the stored GPS coordinates for this property.
+            </p>
+            <ErrorBoundary section="Property Location Map">
+              <PropertyLocationPicker
+                region={region}
+                value={gpsLocation}
+                required={false}
+                ghanaPostGps={ghanaPostGps}
+                onLocationChange={(loc) => {
+                  setGpsLocation(loc ? `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}` : "");
+                  if (loc?.address && !address) setAddress(loc.address);
+                }}
+                onGhanaPostGpsChange={setGhanaPostGps}
+              />
+            </ErrorBoundary>
+          </div>
+        )}
       </div>
 
       {/* Units Section */}
