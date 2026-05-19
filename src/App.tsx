@@ -249,6 +249,7 @@ const App = () => (
                 <Route path="engine-room" element={<ErrorBoundary section="Engine Room"><EngineRoom /></ErrorBoundary>} />
                 <Route path="super-admin" element={<ErrorBoundary section="Super Admin Dashboard"><SuperAdminDashboard /></ErrorBoundary>} />
                 <Route path="resolution-centre" element={<ErrorBoundary section="Resolution Centre"><ResolutionCentre /></ErrorBoundary>} />
+                <Route path="payment-reconciliation" element={<ErrorBoundary section="Payment Reconciliation"><PaymentReconciliationCentre /></ErrorBoundary>} />
                 <Route path="student-revenue" element={<ErrorBoundary section="Student Revenue"><StudentRevenue /></ErrorBoundary>} />
                 <Route path="rent-assessments" element={<RegulatorRentAssessments />} />
                 <Route path="terminations" element={<RegulatorTerminations />} />
