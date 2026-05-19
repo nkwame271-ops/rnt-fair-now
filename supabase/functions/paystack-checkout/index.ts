@@ -649,7 +649,7 @@ Deno.serve(async (req) => {
       let isLandlordComplaint = false;
       const { data: tComp } = await supabaseAdmin
         .from("complaints")
-        .select("id, status, payment_status, tenant_user_id, complainant_user_id, region, office_id, outstanding_amount")
+        .select("id, status, payment_status, tenant_user_id, complainant_user_id, complainant_role, region, office_id, outstanding_amount")
         .eq("id", complaintId)
         .maybeSingle();
       if (tComp) {
@@ -665,9 +665,12 @@ Deno.serve(async (req) => {
       }
 
       if (!complaint) throw new Error("Complaint not found");
+      const isLandlordComplainantOnTenantTable = !isLandlordComplaint && complaint.complainant_role === "landlord";
       const ownerId = isLandlordComplaint
         ? complaint.landlord_user_id
-        : (complaint.tenant_user_id || complaint.complainant_user_id);
+        : (isLandlordComplainantOnTenantTable
+            ? complaint.complainant_user_id
+            : (complaint.tenant_user_id || complaint.complainant_user_id));
       if (ownerId !== userId) throw new Error("Unauthorized");
 
       if (complaint.payment_status !== "pending" || complaint.status !== "pending_payment") {
