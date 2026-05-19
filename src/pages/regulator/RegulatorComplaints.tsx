@@ -340,8 +340,9 @@ const RegulatorComplaints = () => {
     return c.complaint_code?.toLowerCase().includes(s) || c.landlord_name?.toLowerCase().includes(s) || c.complaint_type?.toLowerCase().includes(s) || c._tenantProfile?.full_name?.toLowerCase().includes(s);
   });
 
-  const studentComplaintCount = complaints.filter(isStudentRow).length;
+  const studentComplaintCount = canSeeStudentComplaints ? complaints.filter(isStudentRow).length : 0;
   const tenantComplaintCount = complaints.filter((c) => !isStudentRow(c)).length;
+
 
   const exportCSV = () => {
     const headers = ["Code", "Tenant", "Phone", "Type", "Landlord", "Address", "Region", "Status", "Payment Status", "Assigned Staff", "Filed", "Description"];
