@@ -49,6 +49,13 @@ const recipientLabels: Record<string, string> = {
 
 const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentType, description, splits, status, qrCodeData, showSplits = true, complaintId, complaintTable }: ReceiptProps) => {
   const [basket, setBasket] = useState<BasketLine[] | null>(null);
+  const { profile } = useAdminProfile();
+  // Platform split is internal — only Super Admins ever see it.
+  const isSuperAdmin = !!profile?.isSuperAdmin;
+  const visibleSplits = useMemo(
+    () => (isSuperAdmin ? splits : (splits || []).filter((s) => s.recipient !== "platform")),
+    [splits, isSuperAdmin]
+  );
 
   useEffect(() => {
     if (paymentType !== "complaint_fee" || !complaintId || !complaintTable) { setBasket(null); return; }
@@ -61,6 +68,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
       setBasket((data as BasketLine[]) || []);
     })();
   }, [complaintId, complaintTable, paymentType]);
+
 
   const buildPrintHtml = async () => {
     const qrDataUrl = await QRCode.toDataURL(qrCodeData || receiptNumber, { width: 160, margin: 1 });
