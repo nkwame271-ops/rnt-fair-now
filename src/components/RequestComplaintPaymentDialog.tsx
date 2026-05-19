@@ -262,11 +262,12 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
 
     setSubmitting(true);
     try {
-      // Wipe existing basket items for this complaint, then re-insert (atomic from app POV)
+      // Wipe ONLY unpaid existing basket items for this complaint, then re-insert
       await (supabase.from("complaint_basket_items") as any)
         .delete()
         .eq("complaint_id", complaintId)
-        .eq("complaint_table", complaintTable);
+        .eq("complaint_table", complaintTable)
+        .is("paid_at", null);
 
       const rows = basket.map((it) => ({
         complaint_id: complaintId,
