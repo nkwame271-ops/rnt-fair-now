@@ -531,15 +531,18 @@ const EditProperty = () => {
                 <div className="space-y-1 w-32">
                   <Label className="text-xs flex items-center gap-1">
                     Rent (GH₵)
-                    <Lock className="h-3 w-3 text-muted-foreground" />
+                    {!unit.isNew && <Lock className="h-3 w-3 text-muted-foreground" />}
                   </Label>
                   <Input
                     type="number"
                     value={unit.monthly_rent}
-                    readOnly
-                    className="bg-muted cursor-not-allowed"
+                    onChange={(e) => unit.isNew && updateUnit(i, { monthly_rent: parseFloat(e.target.value) || 0 })}
+                    readOnly={!unit.isNew}
+                    className={!unit.isNew ? "bg-muted cursor-not-allowed" : ""}
                   />
-                  <p className="text-[10px] text-muted-foreground">Rent is managed by Rent Control. Use Rent Increase Application to request a change.</p>
+                  {!unit.isNew && (
+                    <p className="text-[10px] text-muted-foreground">Rent is managed by Rent Control. Use Rent Increase Application to request a change.</p>
+                  )}
                 </div>
               </div>
 
