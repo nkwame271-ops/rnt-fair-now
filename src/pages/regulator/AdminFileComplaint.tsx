@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, FileText, Plus, X, MapPin, ChevronDown } from "lucide-react";
+import { Loader2, FileText, Plus, X, MapPin, ChevronDown, CreditCard, CheckCircle2, ArrowLeft } from "lucide-react";
 import Form7LivePreview from "@/components/regulator/Form7LivePreview";
+import RequestComplaintPaymentDialog from "@/components/RequestComplaintPaymentDialog";
 import type { Form7Data, Form7Party } from "@/lib/pdf/form7";
 
 type Role = "tenant" | "landlord" | "interested_person";
