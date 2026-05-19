@@ -119,15 +119,18 @@ const LandlordComplaints = () => {
     })();
   }, [user]);
 
-  // Realtime: refresh when admin requests payment / status changes
+  // Realtime: refresh when admin requests payment / status changes (both tables)
   useEffect(() => {
     if (!user) return;
     const channel = supabase
-      .channel(`landlord_complaints:${user.id}`)
+      .channel(`landlord_complaints_all:${user.id}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "landlord_complaints", filter: `landlord_user_id=eq.${user.id}` }, () => fetchComplaints())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "complaints", filter: `complainant_user_id=eq.${user.id}` }, () => fetchComplaints())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "complaints", filter: `complainant_user_id=eq.${user.id}` }, () => fetchComplaints())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [user]);
+
 
   const fetchComplaints = async () => {
     // Pull complaints from BOTH tables: ones landlord filed themselves AND
