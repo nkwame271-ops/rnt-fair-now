@@ -380,6 +380,7 @@ export type Database = {
           is_nugs_revenue: boolean
           kind: string
           label: string
+          paid_at: string | null
           platform_pct: number
         }
         Insert: {
@@ -397,6 +398,7 @@ export type Database = {
           is_nugs_revenue?: boolean
           kind: string
           label: string
+          paid_at?: string | null
           platform_pct?: number
         }
         Update: {
@@ -414,6 +416,7 @@ export type Database = {
           is_nugs_revenue?: boolean
           kind?: string
           label?: string
+          paid_at?: string | null
           platform_pct?: number
         }
         Relationships: [
@@ -1098,6 +1101,8 @@ export type Database = {
           escalation_reason: string | null
           evidence_urls: string[] | null
           filed_by_admin: boolean
+          filing_fee_paid: boolean
+          filing_fee_paid_at: string | null
           gps_confirmed: boolean
           gps_confirmed_at: string | null
           gps_location: string | null
@@ -1170,6 +1175,8 @@ export type Database = {
           escalation_reason?: string | null
           evidence_urls?: string[] | null
           filed_by_admin?: boolean
+          filing_fee_paid?: boolean
+          filing_fee_paid_at?: string | null
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
@@ -1242,6 +1249,8 @@ export type Database = {
           escalation_reason?: string | null
           evidence_urls?: string[] | null
           filed_by_admin?: boolean
+          filing_fee_paid?: boolean
+          filing_fee_paid_at?: string | null
           gps_confirmed?: boolean
           gps_confirmed_at?: string | null
           gps_location?: string | null
