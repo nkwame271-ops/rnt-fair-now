@@ -34,14 +34,17 @@ const HearingWorkspace = () => {
   const load = async () => {
     if (!id || !hid) return;
     setLoading(true);
-    const [cRes, hRes, wRes, dRes, prevRes] = await Promise.all([
+    // Case may be in either complaints or landlord_complaints — try both.
+    const [cTen, cLand, hRes, wRes, dRes, prevRes] = await Promise.all([
       supabase.from("complaints").select("*").eq("id", id).maybeSingle(),
+      supabase.from("landlord_complaints").select("*").eq("id", id).maybeSingle(),
       supabase.from("complaint_hearings").select("*").eq("id", hid).maybeSingle(),
       supabase.from("complaint_witnesses").select("*").eq("case_id", id),
       supabase.from("complaint_documents").select("*").eq("case_id", id).order("generated_at", { ascending: false }),
       supabase.from("complaint_notes").select("*").eq("complaint_id", id).order("created_at", { ascending: false }).limit(10),
     ]);
-    setC(cRes.data); setH(hRes.data);
+    setC(cTen.data || cLand.data || null);
+    setH(hRes.data);
     setWitnesses(wRes.data || []); setDocs(dRes.data || []);
     setPrevNotes(prevRes.data || []);
     if (hRes.data) {
@@ -53,6 +56,7 @@ const HearingWorkspace = () => {
     }
     setLoading(false);
   };
+
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id, hid]);
 
