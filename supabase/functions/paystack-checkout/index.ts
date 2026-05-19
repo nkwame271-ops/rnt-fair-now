@@ -683,7 +683,7 @@ Deno.serve(async (req) => {
 
       // Detect if filer is a student — switch to student_complaint_fee for isolated revenue
       let isStudentComplaint = false;
-      if (!isLandlordComplaint) {
+      if (!isLandlordComplaint && !isLandlordComplainantOnTenantTable) {
         const { data: filerTenant } = await supabaseAdmin
           .from("tenants")
           .select("is_student")
