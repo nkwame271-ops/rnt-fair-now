@@ -1,91 +1,127 @@
-## Goal
+## Manual Payment Confirmation Module
 
-Make Form 7, Form 33 (and Form 32A) generate as **official Rent Control branded legal documents** — not field lists — with a per-complaint editable Form Editor and full version history attached to every complaint record.
+A user-facing flow for cases where Paystack charged the user but the platform never received/processed the callback (bad network, dropped webhook, browser closed). Users upload the Paystack SMS or email receipt, the system AI-verifies authenticity, cross-checks it against Paystack's API, and surfaces it to admins for **manual approval only**.
 
-## What's broken today
+### Goals
+- Give every user (tenant, landlord, NUGS, admin) one obvious place to say "I paid but the system didn't notice."
+- Reduce fraud risk by combining AI receipt analysis + live Paystack `/transaction/verify` lookup before an admin sees it.
+- Keep final fulfillment in admin hands — AI never auto-approves.
 
-- "Generate Form 7" runs silently from complaint data with no editor — admin can't fix names, narrative, hearing details, signature block, etc. before the PDF is produced.
-- Form 33 is only triggered when a hearing is scheduled; no manual "Generate Form 33" entry-point inside the complaint record.
-- The Form Engine's generic field-list renderer still gets used for some statutory forms — output looks like a key/value dump, not the legal template in the references.
-- No support for Form 32A at all.
-- Documents tab shows generated PDFs but lacks Preview / Regenerate / per-version actions and a clean "Complaint Documents" hub with the four canonical downloads (Profile, Form 7, Form 33, Form 32A).
+---
 
-## Scope
+### 1. User-facing: "Report a Missing Payment"
 
-Frontend + PDF generators + a tiny schema add. No workflow / RLS / notification changes.
+A new page `src/pages/shared/ReportMissingPayment.tsx` reachable from:
+- Tenant, Landlord, NUGS sidebars ("Payment Help")
+- A persistent banner on every payment-failure / pending-payment screen ("Paid but not showing? Report it here")
+- The Floating Action Hub
 
-### 1. Documents hub on the complaint record
+The form asks for:
+1. **Reference / transaction ID** they were given (optional — many users won't have it)
+2. **Amount paid** and **date/time**
+3. **What were you paying for?** (dropdown: complaint fee, rent card, tenancy registration, viewing fee, etc.) + optional related case/property ID
+4. **Upload proof** — screenshot of Paystack SMS or the email receipt (image or PDF, stored in a new `payment-proofs` bucket, private)
+5. **Optional notes** (e.g. "I got the SMS at 2:14pm but the page reloaded")
 
-Replace the current Documents tab with a sectioned hub:
+A short explainer at the top tells the user *plainly*: *"Bad networks can sometimes interrupt payment confirmation. If your bank or Paystack confirmed the charge but our system hasn't, upload your receipt below. An officer will verify and credit your account — usually within a few hours."*
 
-```text
-Documents
-├─ Quick downloads
-│   • Download Complaint Profile
-│   • Generate / Regenerate Form 7
-│   • Generate / Regenerate Form 33
-│   • Generate / Regenerate Form 32A
-└─ Generated documents (versioned list)
-    Form 7  v3  [Preview] [Download] [Regenerate] [History]
-    Form 33 v1  …
-    Form 32A v2 …
-```
+On submit → row inserted into `payment_proof_submissions` with status `pending_ai_review`, and an edge function `verify-payment-proof` is invoked.
 
-Each "Generate …" button opens the **Form Editor modal** for that form. Each existing version exposes Preview (signed URL in a dialog), Download, Regenerate (re-opens editor pre-filled from the latest version's `form_data_json`), and History (lists previous versions with download links).
+---
 
-### 2. Form Editor (modal, one per form)
+### 2. AI + Paystack verification pipeline
 
-Full-screen `Dialog` titled "Form 7", "Form 33" or "Form 32A".
+New edge function `verify-payment-proof`:
 
-Layout: **left = editable fields, right = live PDF preview** (re-uses the form's renderer to a data-URI iframe; same pattern as `Form7LivePreview`).
+1. **OCR / parse** the uploaded image with **Lovable AI Gateway** (`google/gemini-2.5-flash` — multimodal, cheap, accurate on receipts). The model extracts: merchant name, amount, currency, reference/transaction ID, date, last-4 of card, recipient/account.
+2. **Authenticity heuristics** (returned by the same AI call as a structured JSON verdict):
+   - Sender claims to be Paystack / a known Ghanaian bank
+   - Amount and date look plausible
+   - Reference format matches Paystack's pattern
+   - Visual tampering signs (mismatched fonts, edited pixels) → flagged
+3. **Live Paystack cross-check** — if a reference was extracted or supplied, call `https://api.paystack.co/transaction/verify/{ref}`. Possible outcomes:
+   - `success` + amount matches → **`ai_verified_high_confidence`** (green)
+   - `success` but amount or email mismatches user record → **`needs_admin_review`** (amber)
+   - `failed` / `abandoned` → **`ai_rejected_paystack_says_unpaid`** (red)
+   - reference missing or not found → **`needs_admin_review`** (amber, AI confidence shown)
+4. Write the AI verdict, extracted fields, and Paystack response into the submission row + audit log.
+5. Notify all admins with `reconcile_payment` permission via in-app notification + email.
 
-Editable variables:
+**The function NEVER fulfills the payment itself.** Its only output is a verdict for the admin.
 
-- Form 7: case reference, case number, complainant name + postal address + telephone, respondent name/address (multi), tenant name, landlord name, premises address + house number, complaint category, **complaint statement (textarea, prefilled but fully editable)**, signature name, signature date, stamp text, rent office, footer slogan.
-- Form 33: case prefix ("CA"), case number, "complainants VRS respondent" line, rent office, rent officer, person summoned (To:), complaint category (bold/underlined), hearing time, hearing date, hearing venue, **summons paragraph (textarea, fully editable with sensible default body)**, issued office, issued date.
-- Form 32A: case number, parties, complainant/respondent particulars, hearing reference, decision/order body (textarea), issued office, issued date, signature name.
+---
 
-Save flow:
-- "Save Draft" → upserts `complaint_documents` row with `status='draft'`, `form_data_json` = current editor state, no PDF.
-- "Generate" → renders PDF via the form-specific renderer, uploads to `form-outputs/complaints/{caseId}/form-{n}-v{ver}.pdf`, inserts a new `complaint_documents` row (`status='finalized'`, `version_number = max+1`, `form_data_json` saved alongside) and closes.
+### 3. Admin review queue (inside Payment Reconciliation Centre)
 
-### 3. Official document templates (PDF generators)
+Add a new tab **"User-Submitted Proofs"** to `src/pages/regulator/PaymentReconciliationCentre.tsx`.
 
-All three render legal-document layouts, never field lists.
+Each row shows:
+- User name, role, contact
+- What they paid for + linked case/property
+- AI verdict badge (green / amber / red) + confidence score
+- Paystack live status side-by-side
+- The uploaded image (zoomable) + extracted fields
+- Buttons:
+  - **Approve & Reconcile** → opens the existing reconciliation modal pre-filled with the verified reference, then runs the existing `reconcile-payment` pipeline. Officer must be selected.
+  - **Reject** → requires a reason (free text + dropdown: "Paystack says unpaid", "Receipt appears edited", "Duplicate submission", "Wrong service", "Other"). User is notified by SMS + email.
+  - **Request more info** → sends the user a templated message asking for the reference number, bank, etc.
 
-- `src/lib/pdf/form7.ts` — rewritten to match the reference image: REPUBLIC OF GHANA header strip with Rent Control logo + faint diagonal watermark, centered `FORM 7`, heading, legal references (`Rent Regulation 13` / `Rent Regulation, 1964 (LI 369)`), the six numbered fields, narrative paragraph block, right-aligned signature + date area, stamp box, centered footer "We Promote Peace & Reconcile Parties".
-- `src/lib/pdf/form33.ts` — rewritten: top-left `CA <case number>`, top-right `<complainants> VRS <respondent>`, horizontal rule, centered `FORM 33`, heading, legal refs, "Rent Officer for <office>" + "To: <name>" block, "Whereas your attendance is necessary…" intro, centered bold-underlined complaint category, summons paragraph (uses editor's body verbatim), Issue line, centered stamp + signature area, watermark.
-- `src/lib/pdf/form32a.ts` — new, same branded shell as Form 33 with the decision/order body.
+All actions write to `payment_reconciliation_audit_log` (already exists) with a new `actor_action` of `user_proof_approved` / `user_proof_rejected` / `user_proof_info_requested`.
 
-Shared helpers in `src/lib/pdf/_brand.ts`: header strip, watermark, footer, signature/stamp box, A4 layout primitives — so the three forms look identical in chrome.
+A small banner at the top: *"AI assists with verification but never approves payments. Every credit on this page is your decision."*
 
-Logo: import `public/placeholder.svg` for now if no real Rent Control mark is bundled; rendered into the PDF as a small image via jsPDF (`addImage`). Watermark is the same image at 0.06 alpha rotated 30°.
+---
 
-### 4. Template routing
+### 4. Database (new migration)
 
-`complaint_documents.form_type` already exists (`form_7` / `form_33`; add `form_32a`). The Documents hub and Form Editor call the per-form renderer directly — the generic `generateDynamicFormPdf` is bypassed for these three form types. Existing `form_templates` rows are ignored for Form 7/33/32A.
+Add one new table:
 
-### 5. Data model
+`payment_proof_submissions`
+- `user_id`, `service_type`, `related_case_id`, `related_property_id`
+- `claimed_amount`, `claimed_reference`, `claimed_paid_at`, `notes`
+- `proof_file_path` (storage path in `payment-proofs` bucket)
+- `ai_verdict` (enum: `pending`, `ai_verified_high_confidence`, `needs_admin_review`, `ai_rejected_paystack_says_unpaid`, `ai_rejected_appears_fake`)
+- `ai_confidence` (0-1), `ai_extracted_fields` (jsonb), `ai_reasoning` (text)
+- `paystack_lookup_status`, `paystack_lookup_response` (jsonb)
+- `submission_status` (enum: `pending_ai_review`, `awaiting_admin`, `approved`, `rejected`, `info_requested`)
+- `reviewed_by_admin_id`, `reviewed_at`, `review_decision`, `review_notes`
+- `resulting_fulfillment_id` (FK → `payment_fulfillments`, set on approval)
 
-Migration only adds what's missing:
+RLS:
+- Users can insert their own row and read their own rows
+- Admins with `reconcile_payment` permission (or `is_main_admin`/`is_super_admin`) can read/update all
 
-- `complaint_documents.form_data_json jsonb` (nullable) — stores the exact editor state used to render this version, so Regenerate can pre-fill from any past version.
-- Allow `'form_32a'` in any existing CHECK on `form_type` (drop+recreate the constraint if present, otherwise no-op).
-- `complaint_documents.document_title text` already covered by existing `title` — reuse.
+New storage bucket `payment-proofs` (private), with RLS limiting reads to owner + admins.
 
-No new tables, no RLS changes (existing policies already cover insert/select for admins on complaint_documents).
+---
 
-### 6. Files
+### 5. Technical details
 
-- **Created**
-  - `src/lib/pdf/_brand.ts` — branded chrome (header, footer, watermark, signature block)
-  - `src/lib/pdf/form32a.ts`
-  - `src/components/regulator/FormEditorDialog.tsx` — generic editor shell + per-form field sets + live preview
-  - `src/components/regulator/ComplaintDocumentsHub.tsx` — the new Documents tab content
-- **Rewritten**
-  - `src/lib/pdf/form7.ts` (legal-document layout, branding, narrative paragraph)
-  - `src/lib/pdf/form33.ts` (CA header, VRS line, branded chrome, editable summons body)
-  - `src/lib/complaintForms.ts` (accept `form_data_json` from editor; insert with that JSON; support form_32a)
-- **Updated**
-  - `src/pages/regulator/ComplaintCaseFile.tsx` — Documents tab swapped for `ComplaintDocumentsHub`
-- **Migration** — `complaint_documents.form_data_json` + form_type CHECK extension
+**Files to create**
+- `supabase/migrations/...` — new table, bucket, RLS
+- `supabase/functions/verify-payment-proof/index.ts` — AI + Paystack pipeline
+- `src/pages/shared/ReportMissingPayment.tsx` — user form
+- `src/components/regulator/UserProofReviewTab.tsx` — admin queue + review modal
+
+**Files to edit**
+- `src/App.tsx` — route `/report-missing-payment` (shared across roles)
+- `src/components/TenantLayout.tsx`, `LandlordLayout.tsx`, `NugsLayout.tsx` — sidebar entry "Payment Help"
+- `src/components/FloatingActionHub.tsx` — quick-action button
+- `src/pages/regulator/PaymentReconciliationCentre.tsx` — add new tab
+- `src/components/RegulatorLayout.tsx` — (no change; existing Payment Reconciliation entry already covers it)
+
+**AI model**: `google/gemini-2.5-flash` via Lovable AI Gateway — multimodal, no extra key required. Prompt returns strict JSON; fallback to `needs_admin_review` if parsing fails.
+
+**Safety guarantees**
+- Approval funnels through the existing idempotent `finalizePayment` pipeline → no double-fulfillment.
+- Uploads scoped to 5 MB, image/pdf only, virus-safe (server-side mime check).
+- Rate limit: max 5 pending submissions per user.
+
+---
+
+### What I will NOT change
+- Existing Paystack webhook, checkout, or reconciliation logic
+- The admin-only reconciliation flow you already approved
+- Role/permission model (just uses existing `reconcile_payment` permission)
+
+Ready to implement once you approve.
