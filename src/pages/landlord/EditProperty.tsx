@@ -463,13 +463,33 @@ const EditProperty = () => {
       </div>
 
       {/* Units Section */}
-      {units.length > 0 && (
+      {(
         <div className="bg-card rounded-xl p-6 border border-border space-y-4">
-          <h2 className="font-semibold text-card-foreground flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-primary" /> Units ({units.length})
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-card-foreground flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" /> Units ({units.length})
+            </h2>
+            <Button type="button" variant="outline" size="sm" onClick={addUnit}>
+              <PlusCircle className="h-4 w-4 mr-1" /> Add Unit
+            </Button>
+          </div>
+          {units.length === 0 && (
+            <p className="text-xs text-muted-foreground">No units yet. Click "Add Unit" to create one.</p>
+          )}
           {units.map((unit, i) => (
             <div key={unit.id} className="bg-muted rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                {unit.isNew ? (
+                  <Badge variant="default" className="text-[10px]">New — unsaved</Badge>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">Saved unit</span>
+                )}
+                {unit.isNew && (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeNewUnit(i)} className="text-destructive h-7">
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                  </Button>
+                )}
+              </div>
               <div className="flex items-end gap-3 flex-wrap">
                 <div className="space-y-1 flex-1 min-w-[120px]">
                   <Label className="text-xs">Unit Name</Label>
