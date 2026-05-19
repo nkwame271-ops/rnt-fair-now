@@ -573,6 +573,35 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
             )}
           </div>
 
+          {/* Officer-checkout payer details */}
+          {mode === "officer_checkout" && (
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-3">
+              <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-primary" /> Payer Details
+                {defaultPayerRole && (
+                  <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/10 text-primary">{defaultPayerRole}</span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground -mt-1">
+                The mobile money number is entered on the secure Paystack page after you continue.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Payer name *</Label>
+                  <Input value={payerName} onChange={(e) => setPayerName(e.target.value)} placeholder="Full name on the payment" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Payer mobile number *</Label>
+                  <Input value={payerPhone} onChange={(e) => setPayerPhone(e.target.value)} placeholder="0XXXXXXXXX" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Payer email (optional)</Label>
+                <Input type="email" value={payerEmail} onChange={(e) => setPayerEmail(e.target.value)} placeholder="For Paystack receipt" />
+              </div>
+            </div>
+          )}
+
           {/* Totals */}
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1">
             <div className="flex items-center justify-between">
@@ -589,7 +618,9 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={submitting || basket.length === 0 || totals.total <= 0}>
-            {submitting ? "Sending..." : "Request Payment"}
+            {submitting
+              ? (mode === "officer_checkout" ? "Opening checkout…" : "Sending…")
+              : (mode === "officer_checkout" ? "Open Checkout & Pay" : "Request Payment")}
           </Button>
         </div>
       </DialogContent>
