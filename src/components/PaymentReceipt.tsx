@@ -86,7 +86,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
               <span style="color:#111827;font-weight:500;">${b.label}${b.kind === "manual_adjustment" ? ' <span style="font-size:9px;text-transform:uppercase;font-weight:600;color:#b45309;background:#fef3c7;padding:1px 6px;border-radius:3px;margin-left:6px;">Manual</span>' : ''}</span>
               <span style="font-weight:600;color:#111827;">${formatGHSDecimal(b.amount)}</span>
             </div>
-            <div style="font-size:10px;color:#6b7280;margin-top:2px;">IGF ${b.igf_pct}% · Admin ${b.admin_pct}% · Platform ${b.platform_pct}%</div>
+            <div style="font-size:10px;color:#6b7280;margin-top:2px;">IGF ${b.igf_pct}% · Admin ${b.admin_pct}%${isSuperAdmin ? ` · Platform ${b.platform_pct}%` : ""}</div>
           </div>
         `).join("")}
       </div>` : "";
