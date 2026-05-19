@@ -122,7 +122,7 @@ const HearingWorkspace = () => {
             <CalendarClock className="h-5 w-5" /> Hearing Workspace
           </h1>
           <p className="text-xs text-muted-foreground">
-            {c.ticket_number} · {new Date(h.scheduled_at).toLocaleString()} ·{" "}
+            {cc.ticket_number} · {new Date(h.scheduled_at).toLocaleString()} ·{" "}
             <Badge variant="outline">{statusVal}</Badge>
           </p>
         </div>
@@ -141,20 +141,20 @@ const HearingWorkspace = () => {
         <div className="lg:col-span-3 space-y-3">
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Case</CardTitle></CardHeader>
             <CardContent className="text-xs space-y-1">
-              <p><strong>{c.complaint_title || c.complaint_type}</strong></p>
-              <p className="text-muted-foreground">{c.property_address}, {c.region}</p>
-              {c.rent_amount && <p>Rent: GHS {Number(c.rent_amount).toLocaleString()}</p>}
+              <p><strong>{cc.complaint_title || c.complaint_type}</strong></p>
+              <p className="text-muted-foreground">{cc.property_address}, {cc.region}</p>
+              {cc.rent_amount && <p>Rent: GHS {Number(c.rent_amount).toLocaleString()}</p>}
             </CardContent>
           </Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-1"><Users className="h-4 w-4" /> Parties</CardTitle></CardHeader>
             <CardContent className="text-xs space-y-2">
               <div>
                 <Badge variant="default">Complainant</Badge>
-                <p className="mt-1">{c.placeholder_complainant_name || "Registered"} · {c.placeholder_complainant_phone || "—"}</p>
+                <p className="mt-1">{cc.placeholder_complainant_name || "Registered"} · {cc.placeholder_complainant_phone || "—"}</p>
               </div>
               <div>
                 <Badge variant="secondary">Respondent</Badge>
-                <p className="mt-1">{c.placeholder_respondent_name || c.landlord_name} · {c.placeholder_respondent_phone || "—"}</p>
+                <p className="mt-1">{cc.placeholder_respondent_name || c.landlord_name} · {cc.placeholder_respondent_phone || "—"}</p>
               </div>
             </CardContent>
           </Card>
@@ -222,8 +222,8 @@ const HearingWorkspace = () => {
         <div className="lg:col-span-3 space-y-3">
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-1"><Paperclip className="h-4 w-4" /> Evidence</CardTitle></CardHeader>
             <CardContent className="text-xs space-y-1 max-h-48 overflow-auto">
-              {(c.evidence_urls || []).length === 0 && <p className="text-muted-foreground">None.</p>}
-              {(c.evidence_urls || []).map((p: string) => (
+              {(cc.evidence_urls || []).length === 0 && <p className="text-muted-foreground">None.</p>}
+              {(cc.evidence_urls || []).map((p: string) => (
                 <button key={p} className="block text-left text-primary hover:underline truncate w-full" onClick={async () => {
                   const url = await signStorageUrl(`application-evidence/${p}`);
                   if (url) window.open(url, "_blank");
