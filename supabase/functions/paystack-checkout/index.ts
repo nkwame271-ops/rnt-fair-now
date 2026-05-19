@@ -649,7 +649,7 @@ Deno.serve(async (req) => {
       let isLandlordComplaint = false;
       const { data: tComp } = await supabaseAdmin
         .from("complaints")
-        .select("id, status, payment_status, tenant_user_id, complainant_user_id, region, office_id, outstanding_amount")
+        .select("id, status, payment_status, tenant_user_id, complainant_user_id, complainant_role, region, office_id, outstanding_amount")
         .eq("id", complaintId)
         .maybeSingle();
       if (tComp) {
@@ -665,9 +665,12 @@ Deno.serve(async (req) => {
       }
 
       if (!complaint) throw new Error("Complaint not found");
+      const isLandlordComplainantOnTenantTable = !isLandlordComplaint && complaint.complainant_role === "landlord";
       const ownerId = isLandlordComplaint
         ? complaint.landlord_user_id
-        : (complaint.tenant_user_id || complaint.complainant_user_id);
+        : (isLandlordComplainantOnTenantTable
+            ? complaint.complainant_user_id
+            : (complaint.tenant_user_id || complaint.complainant_user_id));
       if (ownerId !== userId) throw new Error("Unauthorized");
 
       if (complaint.payment_status !== "pending" || complaint.status !== "pending_payment") {
@@ -680,7 +683,7 @@ Deno.serve(async (req) => {
 
       // Detect if filer is a student — switch to student_complaint_fee for isolated revenue
       let isStudentComplaint = false;
-      if (!isLandlordComplaint) {
+      if (!isLandlordComplaint && !isLandlordComplainantOnTenantTable) {
         const { data: filerTenant } = await supabaseAdmin
           .from("tenants")
           .select("is_student")
@@ -743,8 +746,8 @@ Deno.serve(async (req) => {
 
         description = `Complaint Filing Fee (GH₵ ${totalAmount.toFixed(2)})`;
         reference = `comp_${complaintId}_${Date.now()}`;
-        callbackPath = isLandlordComplaint ? "/landlord/complaints?status=success" : "/tenant/my-cases?status=success";
-        metadata = { ...metadata, complaintId, isLandlordComplaint, basket_items: (basketRows || []).map((r: any) => r.id) };
+        callbackPath = (isLandlordComplaint || isLandlordComplainantOnTenantTable) ? "/landlord/complaints?status=success" : "/tenant/my-cases?status=success";
+        metadata = { ...metadata, complaintId, isLandlordComplaint: isLandlordComplaint || isLandlordComplainantOnTenantTable, complainant_role: complaint.complainant_role || (isLandlordComplaint ? "landlord" : null), basket_items: (basketRows || []).map((r: any) => r.id) };
       }
     } else if (type === "admin_complaint_filing") {
       // Officer-initiated filing fee checkout from Admin Portal File Complaint review stage.
@@ -826,6 +829,8 @@ Deno.serve(async (req) => {
         payer_phone: payerPhone || null,
         payer_email: payerEmail || null,
         payer_role: payerRole || complaint.complainant_role || null,
+        complainant_role: complaint.complainant_role || payerRole || null,
+        isLandlordComplaint: (complaint.complainant_role === "landlord") || (payerRole === "landlord"),
         basket_items: unpaidRows.map((r: any) => r.id),
       };
 
