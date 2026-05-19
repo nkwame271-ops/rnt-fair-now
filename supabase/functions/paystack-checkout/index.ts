@@ -746,8 +746,8 @@ Deno.serve(async (req) => {
 
         description = `Complaint Filing Fee (GH₵ ${totalAmount.toFixed(2)})`;
         reference = `comp_${complaintId}_${Date.now()}`;
-        callbackPath = isLandlordComplaint ? "/landlord/complaints?status=success" : "/tenant/my-cases?status=success";
-        metadata = { ...metadata, complaintId, isLandlordComplaint, basket_items: (basketRows || []).map((r: any) => r.id) };
+        callbackPath = (isLandlordComplaint || isLandlordComplainantOnTenantTable) ? "/landlord/complaints?status=success" : "/tenant/my-cases?status=success";
+        metadata = { ...metadata, complaintId, isLandlordComplaint: isLandlordComplaint || isLandlordComplainantOnTenantTable, complainant_role: complaint.complainant_role || (isLandlordComplaint ? "landlord" : null), basket_items: (basketRows || []).map((r: any) => r.id) };
       }
     } else if (type === "admin_complaint_filing") {
       // Officer-initiated filing fee checkout from Admin Portal File Complaint review stage.
