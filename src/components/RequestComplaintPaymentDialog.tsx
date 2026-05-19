@@ -348,6 +348,34 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         },
       });
 
+      if (mode === "officer_checkout") {
+        // Validate payer details
+        if (!payerName.trim()) { toast.error("Payer name is required"); setSubmitting(false); return; }
+        if (!payerPhone.trim() || payerPhone.replace(/\D/g, "").length < 9) { toast.error("Payer mobile number is required"); setSubmitting(false); return; }
+
+        // Open Paystack checkout directly using the officer's session
+        const { data: checkout, error: ckErr } = await supabase.functions.invoke("paystack-checkout", {
+          body: {
+            type: "admin_complaint_filing",
+            complaintId,
+            payerName: payerName.trim(),
+            payerPhone: payerPhone.trim(),
+            payerEmail: payerEmail.trim() || undefined,
+            payerRole: defaultPayerRole || null,
+          },
+        });
+        if (ckErr) throw ckErr;
+        if (!checkout?.ok || !checkout?.authorization_url) {
+          throw new Error(checkout?.error || "Could not open checkout");
+        }
+        toast.success("Opening secure checkout…");
+        onRequested?.();
+        onOpenChange(false);
+        // Redirect officer's browser to Paystack hosted page (handles mobile money number entry)
+        window.location.href = checkout.authorization_url;
+        return;
+      }
+
       toast.success("Payment request sent to the complainant");
       onRequested?.();
       onOpenChange(false);
