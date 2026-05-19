@@ -3293,6 +3293,87 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_proof_submissions: {
+        Row: {
+          ai_confidence: number | null
+          ai_extracted_fields: Json | null
+          ai_reasoning: string | null
+          ai_verdict: Database["public"]["Enums"]["payment_proof_ai_verdict"]
+          claimed_amount: number | null
+          claimed_paid_at: string | null
+          claimed_reference: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          paystack_lookup_response: Json | null
+          paystack_lookup_status: string | null
+          proof_file_path: string
+          related_case_id: string | null
+          related_property_id: string | null
+          resulting_fulfillment_id: string | null
+          review_decision: string | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by_admin_id: string | null
+          service_type: string
+          submission_status: Database["public"]["Enums"]["payment_proof_submission_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_extracted_fields?: Json | null
+          ai_reasoning?: string | null
+          ai_verdict?: Database["public"]["Enums"]["payment_proof_ai_verdict"]
+          claimed_amount?: number | null
+          claimed_paid_at?: string | null
+          claimed_reference?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paystack_lookup_response?: Json | null
+          paystack_lookup_status?: string | null
+          proof_file_path: string
+          related_case_id?: string | null
+          related_property_id?: string | null
+          resulting_fulfillment_id?: string | null
+          review_decision?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by_admin_id?: string | null
+          service_type: string
+          submission_status?: Database["public"]["Enums"]["payment_proof_submission_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_extracted_fields?: Json | null
+          ai_reasoning?: string | null
+          ai_verdict?: Database["public"]["Enums"]["payment_proof_ai_verdict"]
+          claimed_amount?: number | null
+          claimed_paid_at?: string | null
+          claimed_reference?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paystack_lookup_response?: Json | null
+          paystack_lookup_status?: string | null
+          proof_file_path?: string
+          related_case_id?: string | null
+          related_property_id?: string | null
+          resulting_fulfillment_id?: string | null
+          review_decision?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by_admin_id?: string | null
+          service_type?: string
+          submission_status?: Database["public"]["Enums"]["payment_proof_submission_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       payment_receipts: {
         Row: {
           admin_confirmed_at: string | null
@@ -6147,6 +6228,18 @@ export type Database = {
         | "abandoned"
         | "reconciliation_required"
         | "manually_reconciled"
+      payment_proof_ai_verdict:
+        | "pending"
+        | "ai_verified_high_confidence"
+        | "needs_admin_review"
+        | "ai_rejected_paystack_says_unpaid"
+        | "ai_rejected_appears_fake"
+      payment_proof_submission_status:
+        | "pending_ai_review"
+        | "awaiting_admin"
+        | "approved"
+        | "rejected"
+        | "info_requested"
       payment_receipt_status:
         | "auto_generated"
         | "manually_reconciled"
@@ -6328,6 +6421,20 @@ export const Constants = {
         "abandoned",
         "reconciliation_required",
         "manually_reconciled",
+      ],
+      payment_proof_ai_verdict: [
+        "pending",
+        "ai_verified_high_confidence",
+        "needs_admin_review",
+        "ai_rejected_paystack_says_unpaid",
+        "ai_rejected_appears_fake",
+      ],
+      payment_proof_submission_status: [
+        "pending_ai_review",
+        "awaiting_admin",
+        "approved",
+        "rejected",
+        "info_requested",
       ],
       payment_receipt_status: [
         "auto_generated",

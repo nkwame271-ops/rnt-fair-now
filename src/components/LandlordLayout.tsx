@@ -56,6 +56,7 @@ const navItems = [
   { to: "/landlord/invite-tenant", label: "Invite Tenant", icon: UserPlus },
   { to: "/landlord/report-safety", label: "Report Safety Issue", icon: Siren },
   { to: "/landlord/my-safety-reports", label: "My Safety Reports", icon: ShieldAlert },
+  { to: "/landlord/report-missing-payment", label: "Payment Help", icon: ShieldAlert },
   { to: "/landlord/profile", label: "My Profile", icon: UserCircle },
   { to: "/landlord/rent-increase-request", label: "Rent Increase", icon: Wallet, featureKey: "rent_increase" },
   { to: "/landlord/feedback", label: "Beta Feedback", icon: MessageSquare, featureKey: "landlord_feedback" },

@@ -49,6 +49,7 @@ const navItems = [
   { to: "/tenant/messages", label: "Messages", icon: MessageCircle, featureKey: "tenant_messages" },
   { to: "/tenant/report-safety", label: "Report Safety Issue", icon: Siren },
   { to: "/tenant/my-safety-reports", label: "My Safety Reports", icon: ShieldAlert },
+  { to: "/tenant/report-missing-payment", label: "Payment Help", icon: ShieldAlert },
   { to: "/tenant/invite-landlord", label: "Invite Landlord", icon: UserPlus },
   { to: "/tenant/profile", label: "My Profile", icon: UserCircle },
 ];

@@ -120,6 +120,7 @@ const TenantReportSafety = lazy(() => import("./pages/tenant/ReportSafety"));
 const LandlordReportSafety = lazy(() => import("./pages/landlord/ReportSafety"));
 const NugsReportSafety = lazy(() => import("./pages/nugs/ReportSafety"));
 const MySafetyReports = lazy(() => import("./pages/shared/MySafetyReports"));
+const ReportMissingPayment = lazy(() => import("./pages/shared/ReportMissingPayment"));
 
 // NUGS pages (hidden monitoring portal)
 const NugsDashboard = lazy(() => import("./pages/nugs/NugsDashboard"));
@@ -184,6 +185,7 @@ const App = () => (
                 <Route path="invite-landlord" element={<InviteLandlord />} />
                 <Route path="report-safety" element={<TenantReportSafety />} />
                 <Route path="my-safety-reports" element={<MySafetyReports />} />
+                <Route path="report-missing-payment" element={<ReportMissingPayment />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
@@ -211,6 +213,7 @@ const App = () => (
                 <Route path="invite-tenant" element={<InviteTenant />} />
                 <Route path="report-safety" element={<LandlordReportSafety />} />
                 <Route path="my-safety-reports" element={<MySafetyReports />} />
+                <Route path="report-missing-payment" element={<ReportMissingPayment />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="feedback" element={<LandlordFeedback />} />
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
@@ -290,6 +293,7 @@ const App = () => (
                 <Route path="invite-landlord" element={<InviteLandlord />} />
                 <Route path="report-safety" element={<NugsReportSafety />} />
                 <Route path="my-safety-reports" element={<MySafetyReports />} />
+                <Route path="report-missing-payment" element={<ReportMissingPayment />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
