@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, FileText, Plus, X, MapPin, ChevronDown } from "lucide-react";
+import { Loader2, FileText, Plus, X, MapPin, ChevronDown, CreditCard, CheckCircle2, ArrowLeft } from "lucide-react";
 import Form7LivePreview from "@/components/regulator/Form7LivePreview";
+import RequestComplaintPaymentDialog from "@/components/RequestComplaintPaymentDialog";
 import type { Form7Data, Form7Party } from "@/lib/pdf/form7";
 
 type Role = "tenant" | "landlord" | "interested_person";
@@ -24,6 +25,16 @@ const INTENTS = ["Renew agreement", "Vacate premises", "Negotiate new terms", "U
 const AdminFileComplaint = () => {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
+  const [stage, setStage] = useState<"details" | "review">("details");
+
+  // Draft complaint id created on entering Review stage
+  const [draftComplaintId, setDraftComplaintId] = useState<string | null>(null);
+  const [draftTicket, setDraftTicket] = useState<string | null>(null);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [filingPaid, setFilingPaid] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<string>("awaiting");
+  const [basketTotal, setBasketTotal] = useState<number>(0);
+  const [finalizing, setFinalizing] = useState(false);
 
   // Roles
   const [complainantRole, setComplainantRole] = useState<Role>("tenant");
@@ -172,7 +183,8 @@ const AdminFileComplaint = () => {
     return e;
   }, [complainants, respondents, address, region, complaintTypeId, description, officeId]);
 
-  const submit = async () => {
+  // Step 1 — create complaint as draft (gated until filing fee paid)
+  const createDraft = async () => {
     if (errors.length) return toast({ title: "Missing required fields", description: errors.join(", "), variant: "destructive" });
     setSubmitting(true);
     try {
@@ -192,7 +204,6 @@ const AdminFileComplaint = () => {
       const primaryC = complainants[0];
       const primaryR = respondents[0];
 
-      // Resolve complainant phone -> user_id so the complaint appears in their portal.
       const normalizePhone = (raw?: string) => {
         if (!raw) return null;
         let d = raw.replace(/\D/g, "");
@@ -218,14 +229,16 @@ const AdminFileComplaint = () => {
         complaint_code: code,
         complaint_type: ct?.label || "Other",
         complaint_type_id: complaintTypeId,
-        landlord_name: respondentRole === "landlord" ? primaryR.name : primaryR.name,
+        landlord_name: primaryR.name,
         property_address: address,
         region,
         description,
         evidence_urls: evidenceUrls,
         office_id: officeId,
-        status: "submitted",
+        // Gated state — hidden from Complaint Management until filing fee paid
+        status: "draft_awaiting_filing_payment",
         payment_status: "awaiting",
+        filing_fee_paid: false,
         gps_confirmed: false,
         filed_by_admin: true,
         admin_filer_user_id: adminId,
@@ -239,7 +252,6 @@ const AdminFileComplaint = () => {
         placeholder_respondent_phone: primaryR.phone || null,
         complainant_user_id: complainantUserId,
         tenant_user_id: complainantRole === "tenant" ? complainantUserId : null,
-        // New official-form fields
         complainants,
         respondents,
         premises_house_no: premisesHouseNo || null,
@@ -254,30 +266,84 @@ const AdminFileComplaint = () => {
         relief_sought: reliefSought || null,
       };
 
-
       const { data: created, error } = await supabase
         .from("complaints")
         .insert(payload)
-        .select("id, ticket_number, created_at")
+        .select("id, ticket_number")
         .single();
       if (error) throw error;
 
-      // Auto-generate official Form 7 (non-blocking)
-      try {
-        const { autoGenerateForm7 } = await import("@/lib/complaintForms");
-        await autoGenerateForm7(created.id, { ...payload, id: created.id, ticket_number: created.ticket_number, created_at: created.created_at });
-      } catch (e) { console.warn("Form 7 auto-generate failed", e); }
-
-      localStorage.removeItem(DRAFT_KEY);
-      toast({ title: "Complaint filed", description: `Ticket ${created.ticket_number}` });
-      navigate(`/regulator/complaints/${created.id}`);
+      setDraftComplaintId(created.id);
+      setDraftTicket(created.ticket_number);
+      setStage("review");
+      toast({ title: "Draft created", description: "Set the fee type and request payment to finalise." });
     } catch (e: any) {
       const msg = e?.message || e?.details || e?.hint || "Unknown error";
-      console.error("File complaint failed", e);
-      toast({ title: "Failed to file complaint", description: msg, variant: "destructive" });
+      console.error("Create draft failed", e);
+      toast({ title: "Could not create draft", description: msg, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Poll the draft complaint to detect payment + basket total
+  useEffect(() => {
+    if (stage !== "review" || !draftComplaintId) return;
+    let cancelled = false;
+    const tick = async () => {
+      const { data } = await supabase
+        .from("complaints")
+        .select("filing_fee_paid, payment_status, basket_total")
+        .eq("id", draftComplaintId)
+        .maybeSingle();
+      if (cancelled || !data) return;
+      setFilingPaid(!!data.filing_fee_paid);
+      setPaymentStatus(data.payment_status || "awaiting");
+      setBasketTotal(Number(data.basket_total || 0));
+    };
+    tick();
+    const ch = supabase
+      .channel(`draft-complaint-${draftComplaintId}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "complaints", filter: `id=eq.${draftComplaintId}` }, () => tick())
+      .subscribe();
+    const intv = setInterval(tick, 8000);
+    return () => { cancelled = true; clearInterval(intv); supabase.removeChannel(ch); };
+  }, [stage, draftComplaintId]);
+
+  // Step 2 — promote draft into the real Complaint Management queue
+  const finalizeSubmission = async () => {
+    if (!draftComplaintId) return;
+    if (!filingPaid) { toast({ title: "Awaiting payment", description: "Wait for the filing fee to clear before submitting." }); return; }
+    setFinalizing(true);
+    try {
+      const { data: cur } = await supabase
+        .from("complaints")
+        .select("*")
+        .eq("id", draftComplaintId)
+        .single();
+      // finalize-payment already flipped status to ready_for_scheduling on payment.
+      // Ensure status is at least 'submitted' for downstream visibility.
+      if (cur && cur.status === "draft_awaiting_filing_payment") {
+        await supabase.from("complaints").update({ status: "submitted" }).eq("id", draftComplaintId);
+      }
+      try {
+        const { autoGenerateForm7 } = await import("@/lib/complaintForms");
+        await autoGenerateForm7(draftComplaintId, cur);
+      } catch (e) { console.warn("Form 7 auto-generate failed", e); }
+      localStorage.removeItem(DRAFT_KEY);
+      toast({ title: "Complaint submitted", description: `Ticket ${draftTicket || ""}` });
+      navigate(`/regulator/complaints/${draftComplaintId}`);
+    } catch (e: any) {
+      toast({ title: "Failed to submit", description: e.message || String(e), variant: "destructive" });
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  // Allow user to cancel the draft and edit again
+  const backToDetails = async () => {
+    // Keep draft row but go back to details editor
+    setStage("details");
   };
 
   const PartyEditor = ({ which }: { which: "c" | "r" }) => {
@@ -333,23 +399,108 @@ const AdminFileComplaint = () => {
             <FileText className="h-5 w-5 text-primary shrink-0" />
             <div className="min-w-0">
               <h1 className="text-lg font-semibold truncate">File Complaint</h1>
-              <p className="text-xs text-muted-foreground truncate">Admin intake — Form 7 generated automatically</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {stage === "details"
+                  ? "Step 1 of 2 — Capture complaint details"
+                  : `Step 2 of 2 — Review & Payment${draftTicket ? ` · ${draftTicket}` : ""}`}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {errors.length > 0 && (
-              <Badge variant="outline" className="hidden md:inline-flex text-xs">
-                {errors.length} field{errors.length === 1 ? "" : "s"} missing
-              </Badge>
+            {stage === "details" ? (
+              <>
+                {errors.length > 0 && (
+                  <Badge variant="outline" className="hidden md:inline-flex text-xs">
+                    {errors.length} field{errors.length === 1 ? "" : "s"} missing
+                  </Badge>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => navigate("/regulator/complaints")}>Cancel</Button>
+                <Button onClick={createDraft} disabled={submitting || errors.length > 0} size="sm">
+                  {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Continue to Review & Payment
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" onClick={backToDetails}>
+                  <ArrowLeft className="h-4 w-4 mr-1" /> Back to details
+                </Button>
+                <Button onClick={finalizeSubmission} disabled={!filingPaid || finalizing} size="sm">
+                  {finalizing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {filingPaid ? "Submit Complaint" : "Awaiting Payment…"}
+                </Button>
+              </>
             )}
-            <Button variant="ghost" size="sm" onClick={() => navigate("/regulator/complaints")}>Cancel</Button>
-            <Button onClick={submit} disabled={submitting || errors.length > 0} size="sm">
-              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              File Complaint
-            </Button>
           </div>
         </div>
       </div>
+
+      {stage === "review" && draftComplaintId && (
+        <Card className="mb-4 border-primary/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-primary" /> Filing Fee Payment
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {filingPaid ? (
+              <div className="flex items-center gap-2 text-sm text-success font-medium bg-success/5 border border-success/30 rounded-lg p-3">
+                <CheckCircle2 className="h-4 w-4" />
+                Filing fee received (GHS {basketTotal.toFixed(2)}). You may now submit the complaint to Complaint Management.
+              </div>
+            ) : basketTotal > 0 ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between bg-warning/5 border border-warning/30 rounded-lg p-3">
+                  <div className="text-sm">
+                    <p className="font-medium text-foreground">Payment requested — awaiting clearance</p>
+                    <p className="text-xs text-muted-foreground">Status: {paymentStatus} · Total GHS {basketTotal.toFixed(2)}</p>
+                    <p className="text-[11px] text-muted-foreground italic mt-1">
+                      The {complainantRole === "tenant" ? "tenant" : complainantRole === "landlord" ? "landlord" : "complainant"} will see this fee in their portal and can pay via Paystack. This page will update automatically.
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setPaymentOpen(true)}>
+                    Update Fee Request
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between bg-muted/40 border border-dashed border-border rounded-lg p-3">
+                <div className="text-sm">
+                  <p className="font-medium text-foreground">No fee set yet</p>
+                  <p className="text-xs text-muted-foreground">Select the fee type and request payment from the complainant before submitting.</p>
+                </div>
+                <Button size="sm" onClick={() => setPaymentOpen(true)}>
+                  <CreditCard className="h-4 w-4 mr-1.5" /> Set Fee Type & Request Payment
+                </Button>
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              The complaint will only appear in <strong>Complaint Management</strong> after the filing fee is paid. Paid items are locked and cannot be requested again from the case file.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <RequestComplaintPaymentDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        complaintId={draftComplaintId || ""}
+        complaintTable="complaints"
+        monthlyRent={rentAmount ? Number(rentAmount) : null}
+        feeScope="rent_control"
+        onRequested={() => {
+          // Refresh status immediately
+          if (draftComplaintId) {
+            supabase.from("complaints").select("payment_status, basket_total").eq("id", draftComplaintId).maybeSingle().then(({ data }) => {
+              if (data) {
+                setPaymentStatus(data.payment_status || "pending");
+                setBasketTotal(Number(data.basket_total || 0));
+              }
+            });
+          }
+        }}
+      />
+
 
       <div className="grid lg:grid-cols-[1fr_440px] gap-4">
         {/* LEFT: form */}

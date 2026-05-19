@@ -40,6 +40,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
   const [percentMap, setPercentMap] = useState<Record<string, PercentageRow>>({});
 
   const [basket, setBasket] = useState<BasketItem[]>([]);
+  const [paidItems, setPaidItems] = useState<Array<{ id: string; label: string; amount: number; paid_at: string }>>([]);
 
   // Add-fee-rule state
   const [pickedTypeId, setPickedTypeId] = useState<string>("");
@@ -81,9 +82,13 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
       (p || []).forEach((r: PercentageRow) => { pm[r.complaint_type_id] = r; });
       setPercentMap(pm);
 
-      // Hydrate basket from existing rows if any
-      if (Array.isArray(existing) && existing.length > 0) {
-        setBasket(existing.map((r: any) => ({
+      // Hydrate basket: separate paid (locked) from unpaid (editable)
+      const allRows = Array.isArray(existing) ? existing : [];
+      const unpaidRows = allRows.filter((r: any) => !r.paid_at);
+      const paidRows = allRows.filter((r: any) => !!r.paid_at);
+      setPaidItems(paidRows.map((r: any) => ({ id: r.id, label: r.label, amount: Number(r.amount) || 0, paid_at: r.paid_at })));
+      if (unpaidRows.length > 0) {
+        setBasket(unpaidRows.map((r: any) => ({
           uid: newUid(),
           dbId: r.id,
           kind: r.kind,
@@ -257,11 +262,12 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
 
     setSubmitting(true);
     try {
-      // Wipe existing basket items for this complaint, then re-insert (atomic from app POV)
+      // Wipe ONLY unpaid existing basket items for this complaint, then re-insert
       await (supabase.from("complaint_basket_items") as any)
         .delete()
         .eq("complaint_id", complaintId)
-        .eq("complaint_table", complaintTable);
+        .eq("complaint_table", complaintTable)
+        .is("paid_at", null);
 
       const rows = basket.map((it) => ({
         complaint_id: complaintId,
@@ -345,6 +351,20 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         </DialogHeader>
 
         <div className="space-y-5">
+          {/* Already paid items (locked) */}
+          {paidItems.length > 0 && (
+            <div className="space-y-2 bg-success/5 border border-success/30 rounded-lg p-3">
+              <Label className="text-xs font-semibold text-success uppercase tracking-wide">Already paid (locked)</Label>
+              {paidItems.map((p) => (
+                <div key={p.id} className="flex items-center justify-between text-sm">
+                  <span className="text-foreground truncate">{p.label}</span>
+                  <span className="font-semibold text-foreground tabular-nums">GH₵ {p.amount.toFixed(2)}</span>
+                </div>
+              ))}
+              <p className="text-[10px] text-muted-foreground italic">These charges were paid via the Admin Portal at filing and cannot be re-requested.</p>
+            </div>
+          )}
+
           {/* Basket */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
