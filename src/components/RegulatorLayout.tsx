@@ -59,7 +59,7 @@ const PREFETCH_MAP: Record<string, { key: string; fetcher: () => Promise<unknown
   "/regulator/complaints": {
     key: "prefetch:complaints",
     fetcher: async () =>
-      (await supabase.from("complaints").select("id, complaint_code, complaint_type, status, payment_status, tenant_user_id, created_at, office_id").order("created_at", { ascending: false }).range(0, 24)).data,
+      (await supabase.from("complaints").select("id, complaint_code, complaint_type, status, payment_status, tenant_user_id, created_at, office_id").neq("status", "draft_awaiting_filing_payment").order("created_at", { ascending: false }).range(0, 24)).data,
   },
   "/regulator/agreements": {
     key: "prefetch:agreements",
