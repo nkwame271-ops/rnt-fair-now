@@ -1079,6 +1079,7 @@ export type Database = {
           complainant_gps_lat: number | null
           complainant_gps_lng: number | null
           complainant_role: string | null
+          complainant_user_id: string | null
           complainants: Json | null
           complaint_code: string
           complaint_property_id: string | null
@@ -1150,6 +1151,7 @@ export type Database = {
           complainant_gps_lat?: number | null
           complainant_gps_lng?: number | null
           complainant_role?: string | null
+          complainant_user_id?: string | null
           complainants?: Json | null
           complaint_code: string
           complaint_property_id?: string | null
@@ -1221,6 +1223,7 @@ export type Database = {
           complainant_gps_lat?: number | null
           complainant_gps_lng?: number | null
           complainant_role?: string | null
+          complainant_user_id?: string | null
           complainants?: Json | null
           complaint_code?: string
           complaint_property_id?: string | null
