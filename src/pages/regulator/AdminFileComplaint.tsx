@@ -25,6 +25,16 @@ const INTENTS = ["Renew agreement", "Vacate premises", "Negotiate new terms", "U
 const AdminFileComplaint = () => {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
+  const [stage, setStage] = useState<"details" | "review">("details");
+
+  // Draft complaint id created on entering Review stage
+  const [draftComplaintId, setDraftComplaintId] = useState<string | null>(null);
+  const [draftTicket, setDraftTicket] = useState<string | null>(null);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [filingPaid, setFilingPaid] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<string>("awaiting");
+  const [basketTotal, setBasketTotal] = useState<number>(0);
+  const [finalizing, setFinalizing] = useState(false);
 
   // Roles
   const [complainantRole, setComplainantRole] = useState<Role>("tenant");
