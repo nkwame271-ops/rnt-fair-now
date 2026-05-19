@@ -747,6 +747,7 @@ export type Database = {
           priority: string | null
           reschedule_reason: string | null
           room_id: string | null
+          room_label: string | null
           scheduled_at: string
           status: string
           updated_at: string
@@ -764,6 +765,7 @@ export type Database = {
           priority?: string | null
           reschedule_reason?: string | null
           room_id?: string | null
+          room_label?: string | null
           scheduled_at: string
           status?: string
           updated_at?: string
@@ -781,6 +783,7 @@ export type Database = {
           priority?: string | null
           reschedule_reason?: string | null
           room_id?: string | null
+          room_label?: string | null
           scheduled_at?: string
           status?: string
           updated_at?: string

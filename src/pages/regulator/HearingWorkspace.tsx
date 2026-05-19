@@ -34,14 +34,17 @@ const HearingWorkspace = () => {
   const load = async () => {
     if (!id || !hid) return;
     setLoading(true);
-    const [cRes, hRes, wRes, dRes, prevRes] = await Promise.all([
+    // Case may be in either complaints or landlord_complaints — try both.
+    const [cTen, cLand, hRes, wRes, dRes, prevRes] = await Promise.all([
       supabase.from("complaints").select("*").eq("id", id).maybeSingle(),
+      supabase.from("landlord_complaints").select("*").eq("id", id).maybeSingle(),
       supabase.from("complaint_hearings").select("*").eq("id", hid).maybeSingle(),
       supabase.from("complaint_witnesses").select("*").eq("case_id", id),
       supabase.from("complaint_documents").select("*").eq("case_id", id).order("generated_at", { ascending: false }),
       supabase.from("complaint_notes").select("*").eq("complaint_id", id).order("created_at", { ascending: false }).limit(10),
     ]);
-    setC(cRes.data); setH(hRes.data);
+    setC(cTen.data || cLand.data || null);
+    setH(hRes.data);
     setWitnesses(wRes.data || []); setDocs(dRes.data || []);
     setPrevNotes(prevRes.data || []);
     if (hRes.data) {
@@ -53,6 +56,7 @@ const HearingWorkspace = () => {
     }
     setLoading(false);
   };
+
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id, hid]);
 
@@ -87,9 +91,25 @@ const HearingWorkspace = () => {
     finally { setSaving(false); }
   };
 
-  if (loading || !c || !h) {
+  if (loading) {
     return <div className="flex items-center justify-center h-96"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
+  if (!h) {
+    return (
+      <div className="container max-w-3xl py-10 text-center space-y-3">
+        <p className="text-sm text-muted-foreground">This hearing record could not be found. It may have been removed.</p>
+        <Button variant="outline" size="sm" onClick={() => navigate("/regulator/complaints/schedule")}>
+          <ChevronLeft className="h-4 w-4 mr-1" /> Back to Hearing Schedule
+        </Button>
+      </div>
+    );
+  }
+  if (!c) {
+    // Hearing exists but its case row could not be loaded — still let the officer work.
+    // (Most often a permissions edge case or a manually deleted complaint.)
+  }
+  const cc = c || { ticket_number: hid?.slice(0, 8), complaint_title: "Case", complaint_type: "—", property_address: "—", region: "—", placeholder_complainant_name: "—", placeholder_complainant_phone: "—", placeholder_respondent_name: "—", placeholder_respondent_phone: "—", landlord_name: "—", evidence_urls: [] };
+
 
   return (
     <div className="container max-w-7xl py-4 space-y-3">
@@ -102,7 +122,7 @@ const HearingWorkspace = () => {
             <CalendarClock className="h-5 w-5" /> Hearing Workspace
           </h1>
           <p className="text-xs text-muted-foreground">
-            {c.ticket_number} · {new Date(h.scheduled_at).toLocaleString()} ·{" "}
+            {cc.ticket_number} · {new Date(h.scheduled_at).toLocaleString()} ·{" "}
             <Badge variant="outline">{statusVal}</Badge>
           </p>
         </div>
@@ -121,20 +141,20 @@ const HearingWorkspace = () => {
         <div className="lg:col-span-3 space-y-3">
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Case</CardTitle></CardHeader>
             <CardContent className="text-xs space-y-1">
-              <p><strong>{c.complaint_title || c.complaint_type}</strong></p>
-              <p className="text-muted-foreground">{c.property_address}, {c.region}</p>
-              {c.rent_amount && <p>Rent: GHS {Number(c.rent_amount).toLocaleString()}</p>}
+              <p><strong>{cc.complaint_title || cc.complaint_type}</strong></p>
+              <p className="text-muted-foreground">{cc.property_address}, {cc.region}</p>
+              {cc.rent_amount && <p>Rent: GHS {Number(cc.rent_amount).toLocaleString()}</p>}
             </CardContent>
           </Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-1"><Users className="h-4 w-4" /> Parties</CardTitle></CardHeader>
             <CardContent className="text-xs space-y-2">
               <div>
                 <Badge variant="default">Complainant</Badge>
-                <p className="mt-1">{c.placeholder_complainant_name || "Registered"} · {c.placeholder_complainant_phone || "—"}</p>
+                <p className="mt-1">{cc.placeholder_complainant_name || "Registered"} · {cc.placeholder_complainant_phone || "—"}</p>
               </div>
               <div>
                 <Badge variant="secondary">Respondent</Badge>
-                <p className="mt-1">{c.placeholder_respondent_name || c.landlord_name} · {c.placeholder_respondent_phone || "—"}</p>
+                <p className="mt-1">{cc.placeholder_respondent_name || cc.landlord_name} · {cc.placeholder_respondent_phone || "—"}</p>
               </div>
             </CardContent>
           </Card>
@@ -202,8 +222,8 @@ const HearingWorkspace = () => {
         <div className="lg:col-span-3 space-y-3">
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-1"><Paperclip className="h-4 w-4" /> Evidence</CardTitle></CardHeader>
             <CardContent className="text-xs space-y-1 max-h-48 overflow-auto">
-              {(c.evidence_urls || []).length === 0 && <p className="text-muted-foreground">None.</p>}
-              {(c.evidence_urls || []).map((p: string) => (
+              {(cc.evidence_urls || []).length === 0 && <p className="text-muted-foreground">None.</p>}
+              {(cc.evidence_urls || []).map((p: string) => (
                 <button key={p} className="block text-left text-primary hover:underline truncate w-full" onClick={async () => {
                   const url = await signStorageUrl(`application-evidence/${p}`);
                   if (url) window.open(url, "_blank");

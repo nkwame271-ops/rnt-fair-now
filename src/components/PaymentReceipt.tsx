@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import QRCode from "qrcode";
 import jsPDF from "jspdf";
@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Printer, Download } from "lucide-react";
 import { formatGHSDecimal } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+
 
 interface Split {
   recipient: string;
@@ -47,6 +49,13 @@ const recipientLabels: Record<string, string> = {
 
 const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentType, description, splits, status, qrCodeData, showSplits = true, complaintId, complaintTable }: ReceiptProps) => {
   const [basket, setBasket] = useState<BasketLine[] | null>(null);
+  const { profile } = useAdminProfile();
+  // Platform split is internal — only Super Admins ever see it.
+  const isSuperAdmin = !!profile?.isSuperAdmin;
+  const visibleSplits = useMemo(
+    () => (isSuperAdmin ? splits : (splits || []).filter((s) => s.recipient !== "platform")),
+    [splits, isSuperAdmin]
+  );
 
   useEffect(() => {
     if (paymentType !== "complaint_fee" || !complaintId || !complaintTable) { setBasket(null); return; }
@@ -59,6 +68,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
       setBasket((data as BasketLine[]) || []);
     })();
   }, [complaintId, complaintTable, paymentType]);
+
 
   const buildPrintHtml = async () => {
     const qrDataUrl = await QRCode.toDataURL(qrCodeData || receiptNumber, { width: 160, margin: 1 });
@@ -76,17 +86,17 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
               <span style="color:#111827;font-weight:500;">${b.label}${b.kind === "manual_adjustment" ? ' <span style="font-size:9px;text-transform:uppercase;font-weight:600;color:#b45309;background:#fef3c7;padding:1px 6px;border-radius:3px;margin-left:6px;">Manual</span>' : ''}</span>
               <span style="font-weight:600;color:#111827;">${formatGHSDecimal(b.amount)}</span>
             </div>
-            <div style="font-size:10px;color:#6b7280;margin-top:2px;">IGF ${b.igf_pct}% · Admin ${b.admin_pct}% · Platform ${b.platform_pct}%</div>
+            <div style="font-size:10px;color:#6b7280;margin-top:2px;">IGF ${b.igf_pct}% · Admin ${b.admin_pct}%${isSuperAdmin ? ` · Platform ${b.platform_pct}%` : ""}</div>
           </div>
         `).join("")}
       </div>` : "";
 
-    const splitsHtml = showSplits ? `
+    const splitsHtml = (showSplits && visibleSplits.length > 0) ? `
       <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-top:16px;">
         <div style="background:#f3f4f6;padding:8px 16px;font-size:11px;font-weight:600;color:#6b7280;display:flex;justify-content:space-between;text-transform:uppercase;">
           <span>Recipient</span><span>Amount</span>
         </div>
-        ${splits.map(s => `
+        ${visibleSplits.map(s => `
           <div style="padding:10px 16px;display:flex;justify-content:space-between;font-size:13px;border-top:1px solid #e5e7eb;">
             <span style="color:#111827;">${recipientLabels[s.recipient] || s.recipient}</span>
             <span style="font-weight:600;color:#111827;">${formatGHSDecimal(s.amount)}</span>
@@ -230,7 +240,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
         pdf.text(formatGHSDecimal(b.amount), pageW - margin - 8, y + 14, { align: "right" });
         pdf.setFontSize(8);
         pdf.setTextColor(107, 114, 128);
-        pdf.text(`IGF ${b.igf_pct}% · Admin ${b.admin_pct}% · Platform ${b.platform_pct}%`, margin + 8, y + 26);
+        pdf.text(`IGF ${b.igf_pct}% · Admin ${b.admin_pct}%${isSuperAdmin ? ` · Platform ${b.platform_pct}%` : ""}`, margin + 8, y + 26);
         pdf.setTextColor(17, 24, 39);
         y += 32;
       });
@@ -249,7 +259,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(17, 24, 39);
       pdf.setFontSize(10);
-      splits.forEach(s => {
+      visibleSplits.forEach(s => {
         pdf.text(recipientLabels[s.recipient] || s.recipient, margin + 8, y + 14);
         pdf.text(formatGHSDecimal(s.amount), pageW - margin - 8, y + 14, { align: "right" });
         y += 22;
@@ -261,7 +271,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(12);
     pdf.setTextColor(17, 24, 39);
-    pdf.text(showSplits ? "Total" : "Total Paid", margin + 8, y + 18);
+    pdf.text((showSplits && visibleSplits.length > 0) ? "Total" : "Total Paid", margin + 8, y + 18);
     pdf.setTextColor(37, 99, 235);
     pdf.text(formatGHSDecimal(totalAmount), pageW - margin - 8, y + 18, { align: "right" });
     y += 44;
@@ -322,7 +332,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
                 <span className="font-semibold text-card-foreground">{formatGHSDecimal(b.amount)}</span>
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                IGF {b.igf_pct}% · Admin {b.admin_pct}% · Platform {b.platform_pct}%
+                IGF {b.igf_pct}% · Admin {b.admin_pct}%{isSuperAdmin ? ` · Platform ${b.platform_pct}%` : ""}
               </div>
             </div>
           ))}
@@ -330,13 +340,13 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
       )}
 
       {/* Recipient split breakdown */}
-      {showSplits ? (
+      {(showSplits && visibleSplits.length > 0) ? (
         <div className="border border-border rounded-lg overflow-hidden">
           <div className="bg-muted px-4 py-2 text-xs font-semibold text-muted-foreground flex justify-between">
             <span>Recipient</span>
             <span>Amount</span>
           </div>
-          {splits.map((s, i) => (
+          {visibleSplits.map((s, i) => (
             <div key={i} className="px-4 py-2.5 flex justify-between text-sm border-t border-border">
               <span className="text-card-foreground">{recipientLabels[s.recipient] || s.recipient}</span>
               <span className="font-semibold text-card-foreground">{formatGHSDecimal(s.amount)}</span>
