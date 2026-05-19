@@ -27,12 +27,19 @@ interface Props {
   initialClaimAmount?: number | null;
   /** When "nugs", fee rules are restricted to fixed-fee types and basket items are tagged as NUGS revenue. */
   feeScope?: "nugs" | "rent_control";
+  /** "send_request" (default) notifies the complainant via their portal.
+   *  "officer_checkout" saves the basket and opens Paystack checkout directly for the officer. */
+  mode?: "send_request" | "officer_checkout";
+  /** Pre-fill payer details when mode === "officer_checkout". */
+  defaultPayerName?: string;
+  defaultPayerPhone?: string;
+  defaultPayerRole?: string;
   onRequested?: () => void;
 }
 
 const newUid = () => (crypto?.randomUUID?.() ?? `b_${Date.now()}_${Math.random().toString(36).slice(2)}`);
 
-const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, complaintTable, linkedPropertyId, monthlyRent: monthlyRentProp, initialClaimAmount, feeScope = "rent_control", onRequested }: Props) => {
+const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, complaintTable, linkedPropertyId, monthlyRent: monthlyRentProp, initialClaimAmount, feeScope = "rent_control", mode = "send_request", defaultPayerName, defaultPayerPhone, defaultPayerRole, onRequested }: Props) => {
   const { user } = useAuth();
   const [types, setTypes] = useState<ComplaintTypeRow[]>([]);
   const [fixedMap, setFixedMap] = useState<Record<string, FixedFeeRow>>({});
