@@ -65,6 +65,19 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Officer-checkout payer details
+  const [payerName, setPayerName] = useState<string>(defaultPayerName || "");
+  const [payerPhone, setPayerPhone] = useState<string>(defaultPayerPhone || "");
+  const [payerEmail, setPayerEmail] = useState<string>("");
+
+  useEffect(() => {
+    if (open && mode === "officer_checkout") {
+      setPayerName(defaultPayerName || "");
+      setPayerPhone(defaultPayerPhone || "");
+      setPayerEmail("");
+    }
+  }, [open, mode, defaultPayerName, defaultPayerPhone]);
+
   useEffect(() => {
     if (!open) return;
     (async () => {
