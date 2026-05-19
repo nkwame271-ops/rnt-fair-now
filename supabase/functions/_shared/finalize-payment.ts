@@ -460,7 +460,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       rent_card_bulk: { title: "Rent Cards Purchased", body: `${meta.quantity || 1} Rent Card(s) purchased successfully for GH₵ ${amountPaid.toFixed(2)}.`, link: "/landlord/rent-cards" },
       rent_card: { title: "Rent Card Purchased", body: `Rent Card purchased for GH₵ ${amountPaid.toFixed(2)}.`, link: "/landlord/rent-cards" },
       add_tenant_fee: { title: "Add Tenant Fee Paid", body: `Add tenant fee of GH₵ ${amountPaid.toFixed(2)} confirmed.`, link: "/landlord/add-tenant" },
-      complaint_fee: { title: "Complaint Filed", body: `Your complaint filing fee of GH₵ ${amountPaid.toFixed(2)} has been confirmed. Your case is now under review.`, link: "/tenant/my-cases" },
+      complaint_fee: { title: "Complaint Filed", body: `Your complaint filing fee of GH₵ ${amountPaid.toFixed(2)} has been confirmed. Your case is now under review.`, link: (meta?.isLandlordComplaint || meta?.complainant_role === "landlord") ? "/landlord/complaints" : "/tenant/my-cases" },
       viewing_fee: { title: "Viewing Request Sent", body: `Your viewing fee of GH₵ ${amountPaid.toFixed(2)} has been confirmed.`, link: "/tenant/marketplace" },
       agreement_sale: { title: "Agreement Form Purchased", body: `Agreement form purchased for GH₵ ${amountPaid.toFixed(2)}.`, link: "/landlord/agreements" },
       termination_fee: { title: "Termination Fee Paid", body: `Termination request fee of GH₵ ${amountPaid.toFixed(2)} confirmed.`, link: "/tenant/termination" },
