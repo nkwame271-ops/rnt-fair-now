@@ -183,7 +183,8 @@ const AdminFileComplaint = () => {
     return e;
   }, [complainants, respondents, address, region, complaintTypeId, description, officeId]);
 
-  const submit = async () => {
+  // Step 1 — create complaint as draft (gated until filing fee paid)
+  const createDraft = async () => {
     if (errors.length) return toast({ title: "Missing required fields", description: errors.join(", "), variant: "destructive" });
     setSubmitting(true);
     try {
@@ -203,7 +204,6 @@ const AdminFileComplaint = () => {
       const primaryC = complainants[0];
       const primaryR = respondents[0];
 
-      // Resolve complainant phone -> user_id so the complaint appears in their portal.
       const normalizePhone = (raw?: string) => {
         if (!raw) return null;
         let d = raw.replace(/\D/g, "");
@@ -229,14 +229,16 @@ const AdminFileComplaint = () => {
         complaint_code: code,
         complaint_type: ct?.label || "Other",
         complaint_type_id: complaintTypeId,
-        landlord_name: respondentRole === "landlord" ? primaryR.name : primaryR.name,
+        landlord_name: primaryR.name,
         property_address: address,
         region,
         description,
         evidence_urls: evidenceUrls,
         office_id: officeId,
-        status: "submitted",
+        // Gated state — hidden from Complaint Management until filing fee paid
+        status: "draft_awaiting_filing_payment",
         payment_status: "awaiting",
+        filing_fee_paid: false,
         gps_confirmed: false,
         filed_by_admin: true,
         admin_filer_user_id: adminId,
@@ -250,7 +252,6 @@ const AdminFileComplaint = () => {
         placeholder_respondent_phone: primaryR.phone || null,
         complainant_user_id: complainantUserId,
         tenant_user_id: complainantRole === "tenant" ? complainantUserId : null,
-        // New official-form fields
         complainants,
         respondents,
         premises_house_no: premisesHouseNo || null,
@@ -265,30 +266,84 @@ const AdminFileComplaint = () => {
         relief_sought: reliefSought || null,
       };
 
-
       const { data: created, error } = await supabase
         .from("complaints")
         .insert(payload)
-        .select("id, ticket_number, created_at")
+        .select("id, ticket_number")
         .single();
       if (error) throw error;
 
-      // Auto-generate official Form 7 (non-blocking)
-      try {
-        const { autoGenerateForm7 } = await import("@/lib/complaintForms");
-        await autoGenerateForm7(created.id, { ...payload, id: created.id, ticket_number: created.ticket_number, created_at: created.created_at });
-      } catch (e) { console.warn("Form 7 auto-generate failed", e); }
-
-      localStorage.removeItem(DRAFT_KEY);
-      toast({ title: "Complaint filed", description: `Ticket ${created.ticket_number}` });
-      navigate(`/regulator/complaints/${created.id}`);
+      setDraftComplaintId(created.id);
+      setDraftTicket(created.ticket_number);
+      setStage("review");
+      toast({ title: "Draft created", description: "Set the fee type and request payment to finalise." });
     } catch (e: any) {
       const msg = e?.message || e?.details || e?.hint || "Unknown error";
-      console.error("File complaint failed", e);
-      toast({ title: "Failed to file complaint", description: msg, variant: "destructive" });
+      console.error("Create draft failed", e);
+      toast({ title: "Could not create draft", description: msg, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Poll the draft complaint to detect payment + basket total
+  useEffect(() => {
+    if (stage !== "review" || !draftComplaintId) return;
+    let cancelled = false;
+    const tick = async () => {
+      const { data } = await supabase
+        .from("complaints")
+        .select("filing_fee_paid, payment_status, basket_total")
+        .eq("id", draftComplaintId)
+        .maybeSingle();
+      if (cancelled || !data) return;
+      setFilingPaid(!!data.filing_fee_paid);
+      setPaymentStatus(data.payment_status || "awaiting");
+      setBasketTotal(Number(data.basket_total || 0));
+    };
+    tick();
+    const ch = supabase
+      .channel(`draft-complaint-${draftComplaintId}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "complaints", filter: `id=eq.${draftComplaintId}` }, () => tick())
+      .subscribe();
+    const intv = setInterval(tick, 8000);
+    return () => { cancelled = true; clearInterval(intv); supabase.removeChannel(ch); };
+  }, [stage, draftComplaintId]);
+
+  // Step 2 — promote draft into the real Complaint Management queue
+  const finalizeSubmission = async () => {
+    if (!draftComplaintId) return;
+    if (!filingPaid) { toast({ title: "Awaiting payment", description: "Wait for the filing fee to clear before submitting." }); return; }
+    setFinalizing(true);
+    try {
+      const { data: cur } = await supabase
+        .from("complaints")
+        .select("*")
+        .eq("id", draftComplaintId)
+        .single();
+      // finalize-payment already flipped status to ready_for_scheduling on payment.
+      // Ensure status is at least 'submitted' for downstream visibility.
+      if (cur && cur.status === "draft_awaiting_filing_payment") {
+        await supabase.from("complaints").update({ status: "submitted" }).eq("id", draftComplaintId);
+      }
+      try {
+        const { autoGenerateForm7 } = await import("@/lib/complaintForms");
+        await autoGenerateForm7(draftComplaintId, cur);
+      } catch (e) { console.warn("Form 7 auto-generate failed", e); }
+      localStorage.removeItem(DRAFT_KEY);
+      toast({ title: "Complaint submitted", description: `Ticket ${draftTicket || ""}` });
+      navigate(`/regulator/complaints/${draftComplaintId}`);
+    } catch (e: any) {
+      toast({ title: "Failed to submit", description: e.message || String(e), variant: "destructive" });
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  // Allow user to cancel the draft and edit again
+  const backToDetails = async () => {
+    // Keep draft row but go back to details editor
+    setStage("details");
   };
 
   const PartyEditor = ({ which }: { which: "c" | "r" }) => {
