@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import QRCode from "qrcode";
 import jsPDF from "jspdf";
@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Printer, Download } from "lucide-react";
 import { formatGHSDecimal } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
+
 
 interface Split {
   recipient: string;
