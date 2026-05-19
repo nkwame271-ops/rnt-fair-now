@@ -165,6 +165,33 @@ const EditProperty = () => {
     setUnits(updated);
   };
 
+  const addUnit = () => {
+    setUnits([
+      ...units,
+      {
+        id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        unit_name: `Unit ${units.length + 1}`,
+        unit_type: "",
+        monthly_rent: 0,
+        bedroom_count: "",
+        bathroom_count: "",
+        has_toilet_bathroom: false,
+        has_kitchen: false,
+        water_available: false,
+        electricity_available: false,
+        has_borehole: false,
+        has_polytank: false,
+        amenities: [],
+        custom_amenities: "",
+        isNew: true,
+      },
+    ]);
+  };
+
+  const removeNewUnit = (i: number) => {
+    setUnits(units.filter((_, idx) => idx !== i));
+  };
+
   const toggleAmenity = (i: number, amenity: string) => {
     const unit = units[i];
     const newAmenities = unit.amenities.includes(amenity)
