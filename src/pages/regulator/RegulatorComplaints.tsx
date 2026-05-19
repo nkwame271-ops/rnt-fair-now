@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, Download, Search, ChevronDown, ChevronUp, Clock, User, MapPin, FileText, CalendarDays, Plus, X, Trash2, FileDown, GraduationCap, BarChart3 } from "lucide-react";
 import { Input } from "@/components/ui/input";
