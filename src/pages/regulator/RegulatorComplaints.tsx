@@ -305,10 +305,15 @@ const RegulatorComplaints = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // A complaint is "student" only when we have explicit confirmation. Missing tenant
-  // records fall through to the Tenant tab so rows are never invisible everywhere.
-  const isStudentRow = (c: any) => c._tenantRecord?.is_student === true || !!c._tenantRecord?.school;
+  // A complaint is "student" when ANY signal indicates a student origin: NUGS school tag,
+  // NUGS assignment, or a tenant record marked as student / linked to a school.
+  const isStudentRow = (c: any) =>
+    !!c?.nugs_school ||
+    !!c?.assigned_nugs_user_id ||
+    c?._tenantRecord?.is_student === true ||
+    !!c?._tenantRecord?.school;
   const isSubAdmin = !!profile && !profile.isMainAdmin && !profile.isSuperAdmin;
+  const canSeeStudentComplaints = !!profile?.isSuperAdmin;
 
   // Force non-super admins off the Student tab
   useEffect(() => {
@@ -322,11 +327,14 @@ const RegulatorComplaints = () => {
     !isSubAdmin || (assignedComplaintIds !== null && assignedComplaintIds.has(c.id));
 
   const filtered = complaints.filter((c) => {
+    // Hard rule: only Super Admin ever sees student complaints anywhere.
+    if (isStudentRow(c) && !canSeeStudentComplaints) return false;
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (activeTab === "student" && !isStudentRow(c)) return false;
     if (activeTab === "tenant" && isStudentRow(c)) return false;
     if (officeFilter !== "all" && c.office_id !== officeFilter) return false;
     if (!passesAssignmentScope(c)) return false;
+
     if (!search) return true;
     const s = search.toLowerCase();
     return c.complaint_code?.toLowerCase().includes(s) || c.landlord_name?.toLowerCase().includes(s) || c.complaint_type?.toLowerCase().includes(s) || c._tenantProfile?.full_name?.toLowerCase().includes(s);

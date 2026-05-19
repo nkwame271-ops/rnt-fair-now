@@ -240,7 +240,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
         pdf.text(formatGHSDecimal(b.amount), pageW - margin - 8, y + 14, { align: "right" });
         pdf.setFontSize(8);
         pdf.setTextColor(107, 114, 128);
-        pdf.text(`IGF ${b.igf_pct}% · Admin ${b.admin_pct}% · Platform ${b.platform_pct}%`, margin + 8, y + 26);
+        pdf.text(`IGF ${b.igf_pct}% · Admin ${b.admin_pct}%${isSuperAdmin ? ` · Platform ${b.platform_pct}%` : ""}`, margin + 8, y + 26);
         pdf.setTextColor(17, 24, 39);
         y += 32;
       });
@@ -332,7 +332,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
                 <span className="font-semibold text-card-foreground">{formatGHSDecimal(b.amount)}</span>
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                IGF {b.igf_pct}% · Admin {b.admin_pct}% · Platform {b.platform_pct}%
+                IGF {b.igf_pct}% · Admin {b.admin_pct}%{isSuperAdmin ? ` · Platform ${b.platform_pct}%` : ""}
               </div>
             </div>
           ))}
