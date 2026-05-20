@@ -495,7 +495,6 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       office_id: officeId,
       tenancy_id: escrow.related_tenancy_id || null,
       case_id: receiptCaseId,
-      related_complaint_id: receiptRelatedComplaintId,
     }).select("id").single();
     receiptId = insertedReceipt?.id || null;
   }
