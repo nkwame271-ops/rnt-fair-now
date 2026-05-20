@@ -164,6 +164,8 @@ const ComplaintCaseFile = () => {
         </div>
       </div>
 
+      <PaymentSummaryCard receipts={receipts} basket={basketItems} complaint={c} />
+
       <Tabs defaultValue="overview">
         <TabsList className="flex flex-wrap h-auto">
           <TabsTrigger value="overview"><FileText className="h-4 w-4 mr-1" /> Overview</TabsTrigger>
