@@ -419,6 +419,8 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     .eq("escrow_transaction_id", escrowId)
     .maybeSingle();
 
+  let receiptId: string | null = existingReceipt?.id || null;
+
   if (!existingReceipt) {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
@@ -428,11 +430,62 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
 
     const splitBreakdown = splitPlan.map((s: SplitItem) => ({ recipient: s.recipient, amount: s.amount }));
 
-    await supabaseAdmin.from("payment_receipts").insert({
+    // For complaint_fee payments, re-attribute the receipt to the actual complainant
+    // (not the admin filer) and link it to the case so it appears in their portal
+    // and in the Command Center's case file.
+    let receiptUserId: string = userId;
+    let payerName: string = profile?.full_name || "Customer";
+    let payerEmail: string = profile?.email || "";
+    let receiptCaseId: string | null = null;
+    let receiptRelatedComplaintId: string | null = null;
+
+    if (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") {
+      const complaintId: string | null = meta?.complaintId || escrow.related_complaint_id || null;
+      if (complaintId) {
+        receiptRelatedComplaintId = complaintId;
+        const complaintTable: "complaints" | "landlord_complaints" =
+          meta?.complaint_table === "landlord_complaints" ? "landlord_complaints" : "complaints";
+        // Resolve complainant owner id from the right table
+        let complainantUserId: string | null = null;
+        if (complaintTable === "landlord_complaints") {
+          const { data: lc } = await supabaseAdmin
+            .from("landlord_complaints")
+            .select("landlord_user_id")
+            .eq("id", complaintId)
+            .maybeSingle();
+          complainantUserId = lc?.landlord_user_id || null;
+        } else {
+          const { data: tc } = await supabaseAdmin
+            .from("complaints")
+            .select("complainant_user_id, tenant_user_id")
+            .eq("id", complaintId)
+            .maybeSingle();
+          complainantUserId = tc?.complainant_user_id || tc?.tenant_user_id || null;
+        }
+        if (complainantUserId) receiptUserId = complainantUserId;
+
+        // Resolve case_id from cases table for command-center linkage
+        const { data: caseRow } = await supabaseAdmin
+          .from("cases")
+          .select("id")
+          .eq("related_complaint_id", complaintId)
+          .maybeSingle();
+        receiptCaseId = caseRow?.id || null;
+
+        // When filed by admin, the payer in the receipt is the actual paying party,
+        // not the admin profile.
+        if (meta?.filed_by_admin) {
+          if (meta?.payer_name) payerName = meta.payer_name;
+          if (meta?.payer_email) payerEmail = meta.payer_email;
+        }
+      }
+    }
+
+    const { data: insertedReceipt } = await supabaseAdmin.from("payment_receipts").insert({
       escrow_transaction_id: escrowId,
-      user_id: userId,
-      payer_name: profile?.full_name || "Customer",
-      payer_email: profile?.email || "",
+      user_id: receiptUserId,
+      payer_name: payerName,
+      payer_email: payerEmail,
       total_amount: amountPaid,
       payment_type: paymentType,
       description: meta.description || `Payment for ${paymentType.replace(/_/g, " ")}`,
@@ -441,7 +494,30 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       status: "active",
       office_id: officeId,
       tenancy_id: escrow.related_tenancy_id || null,
-    });
+      case_id: receiptCaseId,
+      related_complaint_id: receiptRelatedComplaintId,
+    }).select("id").single();
+    receiptId = insertedReceipt?.id || null;
+  }
+
+  // Back-fill complaint.receipt_id now that the receipt row definitely exists.
+  if (receiptId && (paymentType === "complaint_fee" || paymentType === "student_complaint_fee")) {
+    const complaintIdForLink: string | null = meta?.complaintId || escrow.related_complaint_id || null;
+    if (complaintIdForLink) {
+      const complaintTableForLink: "complaints" | "landlord_complaints" =
+        meta?.complaint_table === "landlord_complaints" ? "landlord_complaints" : "complaints";
+      const { data: linked } = await supabaseAdmin
+        .from(complaintTableForLink)
+        .update({ receipt_id: receiptId })
+        .eq("id", complaintIdForLink)
+        .select("id")
+        .maybeSingle();
+      // Fallback: try the other table if the metadata hint was wrong
+      if (!linked) {
+        const otherTable = complaintTableForLink === "complaints" ? "landlord_complaints" : "complaints";
+        await supabaseAdmin.from(otherTable).update({ receipt_id: receiptId }).eq("id", complaintIdForLink);
+      }
+    }
   }
 
   // 7. Create notification if missing
