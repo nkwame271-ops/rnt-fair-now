@@ -30,6 +30,7 @@ const AdminFileComplaint = () => {
   // Draft complaint id created on entering Review stage
   const [draftComplaintId, setDraftComplaintId] = useState<string | null>(null);
   const [draftTicket, setDraftTicket] = useState<string | null>(null);
+  const [draftTable, setDraftTable] = useState<"complaints" | "landlord_complaints">("complaints");
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [filingPaid, setFilingPaid] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<string>("awaiting");
