@@ -436,7 +436,8 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     let receiptUserId: string = userId;
     let payerName: string = profile?.full_name || "Customer";
     let payerEmail: string = profile?.email || "";
-    let receiptCaseId: string | null = null;
+    let payerPhone: string | null = null;
+    let receiptCaseId: string | null = escrow.related_complaint_id || null;
 
     if (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") {
       const complaintId: string | null = meta?.complaintId || escrow.related_complaint_id || null;
@@ -463,19 +464,16 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
         }
         if (complainantUserId) receiptUserId = complainantUserId;
 
-        // Resolve case_id from cases table for command-center linkage
-        const { data: caseRow } = await supabaseAdmin
-          .from("cases")
-          .select("id")
-          .eq("related_complaint_id", complaintId)
-          .maybeSingle();
-        receiptCaseId = caseRow?.id || null;
+        // Complaint case files in the app are keyed by complaint id, so receipts must
+        // use that same identifier for the Documents tab + payment summary to resolve.
+        receiptCaseId = complaintId;
 
         // When filed by admin, the payer in the receipt is the actual paying party,
         // not the admin profile.
         if (meta?.filed_by_admin) {
           if (meta?.payer_name) payerName = meta.payer_name;
           if (meta?.payer_email) payerEmail = meta.payer_email;
+          if (meta?.payer_phone) payerPhone = meta.payer_phone;
         }
       }
     }
@@ -485,15 +483,21 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       user_id: receiptUserId,
       payer_name: payerName,
       payer_email: payerEmail,
+      payer_phone: payerPhone,
       total_amount: amountPaid,
       payment_type: paymentType,
       description: meta.description || `Payment for ${paymentType.replace(/_/g, " ")}`,
       split_breakdown: splitBreakdown.length > 0 ? splitBreakdown : null,
       qr_code_data: verifyUrl(`/verify/receipt/${reference}`),
       status: "active",
+      receipt_status: "active",
+      admin_confirmed_at: (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") ? new Date().toISOString() : null,
       office_id: officeId,
       tenancy_id: escrow.related_tenancy_id || null,
       case_id: receiptCaseId,
+      platform_reference: reference,
+      paystack_reference: transactionId,
+      payment_date: new Date().toISOString(),
     }).select("id").single();
     receiptId = insertedReceipt?.id || null;
   }
