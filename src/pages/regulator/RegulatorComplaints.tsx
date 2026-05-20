@@ -471,6 +471,7 @@ const RegulatorComplaints = () => {
     const { data } = await supabase
       .from("landlord_complaints")
       .select("*")
+      .neq("status", "draft_awaiting_filing_payment")
       .order("created_at", { ascending: false });
     if (data && data.length > 0) {
       const landlordIds = [...new Set(data.map((c: any) => c.landlord_user_id))];
