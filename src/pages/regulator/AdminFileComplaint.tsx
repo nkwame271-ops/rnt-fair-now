@@ -515,7 +515,7 @@ const AdminFileComplaint = () => {
         open={paymentOpen}
         onOpenChange={setPaymentOpen}
         complaintId={draftComplaintId || ""}
-        complaintTable="complaints"
+        complaintTable={draftTable}
         monthlyRent={rentAmount ? Number(rentAmount) : null}
         feeScope="rent_control"
         mode="officer_checkout"
@@ -525,7 +525,7 @@ const AdminFileComplaint = () => {
         onRequested={() => {
           // Refresh status immediately
           if (draftComplaintId) {
-            supabase.from("complaints").select("payment_status, basket_total").eq("id", draftComplaintId).maybeSingle().then(({ data }) => {
+            (supabase.from(draftTable) as any).select("payment_status, basket_total").eq("id", draftComplaintId).maybeSingle().then(({ data }: any) => {
               if (data) {
                 setPaymentStatus(data.payment_status || "pending");
                 setBasketTotal(Number(data.basket_total || 0));
