@@ -505,6 +505,7 @@ export type Database = {
           status: string
           template_origin_id: string | null
           title: string | null
+          verification_code: string | null
           version_number: number
         }
         Insert: {
@@ -526,6 +527,7 @@ export type Database = {
           status?: string
           template_origin_id?: string | null
           title?: string | null
+          verification_code?: string | null
           version_number?: number
         }
         Update: {
@@ -547,6 +549,7 @@ export type Database = {
           status?: string
           template_origin_id?: string | null
           title?: string | null
+          verification_code?: string | null
           version_number?: number
         }
         Relationships: [
