@@ -91,6 +91,7 @@ export function renderForm32A(d: Form32AData): jsPDF {
     dateText: fmtDate(d.issued_date || new Date().toISOString()),
   });
 
+  drawQrFooter(doc, d.qr_data_url, d.verification_code);
   drawFooter(doc, d.footer_slogan);
   return doc;
 }
