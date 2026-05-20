@@ -1,9 +1,25 @@
 import { supabase } from "@/integrations/supabase/client";
+import QRCode from "qrcode";
 import { renderForm7, Form7Data } from "@/lib/pdf/form7";
 import { renderForm33, Form33Data } from "@/lib/pdf/form33";
 import { renderForm32A, Form32AData } from "@/lib/pdf/form32a";
 
 export type StatutoryFormType = "form_7" | "form_33" | "form_32a";
+
+/** Public verification URL for a generated statutory form. */
+export function buildFormVerifyUrl(code: string): string {
+  const base = typeof window !== "undefined" ? window.location.origin : "https://www.rentcontrolghana.com";
+  return `${base}/verify/form/${code}`;
+}
+
+function generateVerificationCode(): string {
+  // 8-char uppercase alphanumeric (matches DB trigger format)
+  const arr = new Uint8Array(8);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(arr);
+  else for (let i = 0; i < 8; i++) arr[i] = Math.floor(Math.random() * 256);
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from(arr, (b) => alphabet[b % alphabet.length]).join("");
+}
 
 const uploadPdf = async (caseId: string, formCode: string, version: number, blob: Blob) => {
   const path = `complaints/${caseId}/${formCode}-v${version}-${Date.now()}.pdf`;
