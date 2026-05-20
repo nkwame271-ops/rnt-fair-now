@@ -267,56 +267,84 @@ function normalizePhone(phone: string): string {
   return p;
 }
 
-// ── SMS sender ──
-async function sendSms(phone: string, message: string): Promise<{ ok: boolean; via?: string; error?: string }> {
+// ── SMS sender (with sender ID fallback chain) ──
+const SMS_SENDER_FALLBACKS = ["RentControl", "R Control"];
+
+function isSenderRejection(msg: string): boolean {
+  const m = (msg || "").toLowerCase();
+  return (
+    m.includes("not allowed to use this sender id") ||
+    m.includes('"code":"111"') ||
+    m.includes("code: 111")
+  );
+}
+
+async function trySendWithSender(apiKey: string, normalized: string, message: string, sender: string): Promise<{ ok: boolean; via?: string; error?: string; senderRejected?: boolean }> {
+  let v2Error = "";
+  try {
+    console.log(`Trying Arkesel V2 with sender "${sender}"...`);
+    const res = await fetch("https://api.arkesel.com/api/v2/sms/send", {
+      method: "POST",
+      headers: { "api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ sender, message, recipients: [normalized] }),
+    });
+    const data = await res.json();
+    if (data.status !== "success") throw new Error(data.message || "V2 SMS failed");
+    return { ok: true, via: "v2" };
+  } catch (v2Err) {
+    v2Error = v2Err instanceof Error ? v2Err.message : String(v2Err);
+    console.warn(`V2 failed for "${sender}":`, v2Error, "— trying V1...");
+  }
+  try {
+    const params = new URLSearchParams({
+      action: "send-sms",
+      api_key: apiKey,
+      to: normalized,
+      from: sender,
+      sms: message,
+    });
+    const res = await fetch(`https://sms.arkesel.com/sms/api?${params.toString()}`);
+    const text = await res.text();
+    console.log(`V1 response for "${sender}":`, text);
+    if (!res.ok) throw new Error("V1 HTTP " + res.status + ": " + text);
+    if (text.includes('"code":"111"') || text.toLowerCase().includes("not allowed")) {
+      throw new Error("V1 sender rejected: " + text);
+    }
+    const lower = text.toLowerCase();
+    if (lower.includes("error") || lower.includes("fail")) {
+      throw new Error("V1 reported failure: " + text.slice(0, 120));
+    }
+    return { ok: true, via: "v1" };
+  } catch (v1Err) {
+    const v1Msg = v1Err instanceof Error ? v1Err.message : String(v1Err);
+    const combined = `V2: ${v2Error} | V1: ${v1Msg}`;
+    return { ok: false, error: combined, senderRejected: isSenderRejection(v2Error) || isSenderRejection(v1Msg) };
+  }
+}
+
+async function sendSms(phone: string, message: string): Promise<{ ok: boolean; via?: string; error?: string; sender?: string }> {
   const ARKESEL_API_KEY = Deno.env.get("ARKESEL_API_KEY");
   if (!ARKESEL_API_KEY) {
     console.error("ARKESEL_API_KEY not configured, skipping SMS");
     return { ok: false, error: "ARKESEL_API_KEY not configured" };
   }
   const normalized = normalizePhone(phone);
-  let v2Error = "";
-  // Try V2 first
-  try {
-    console.log("Trying Arkesel V2...");
-    const res = await fetch("https://api.arkesel.com/api/v2/sms/send", {
-      method: "POST",
-      headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ sender: "RentControl", message, recipients: [normalized] }),
-    });
-    const data = await res.json();
-    if (data.status !== "success") throw new Error(data.message || "V2 SMS failed");
-    console.log("V2 SMS succeeded");
-    return { ok: true, via: "v2" };
-  } catch (v2Err) {
-    v2Error = v2Err instanceof Error ? v2Err.message : String(v2Err);
-    console.warn("V2 failed:", v2Error, "— trying V1 fallback...");
-  }
-  // V1 fallback
-  try {
-    const params = new URLSearchParams({
-      action: "send-sms",
-      api_key: ARKESEL_API_KEY,
-      to: normalized,
-      from: "RentControl",
-      sms: message,
-    });
-    const res = await fetch(`https://sms.arkesel.com/sms/api?${params.toString()}`);
-    const text = await res.text();
-    console.log("V1 fallback response:", text);
-    if (!res.ok) throw new Error("V1 HTTP " + res.status + ": " + text);
-    // Arkesel V1 returns plain text; treat 'ok'/'1000' as success markers
-    const lower = text.toLowerCase();
-    if (lower.includes("error") || lower.includes("fail")) {
-      throw new Error("V1 reported failure: " + text.slice(0, 120));
+  let lastError = "";
+  for (const candidate of SMS_SENDER_FALLBACKS) {
+    const result = await trySendWithSender(ARKESEL_API_KEY, normalized, message, candidate);
+    if (result.ok) {
+      console.log(`SMS sent via ${result.via} using sender "${candidate}"`);
+      return { ok: true, via: result.via, sender: candidate };
     }
-    console.log("V1 SMS fallback succeeded");
-    return { ok: true, via: "v1" };
-  } catch (v1Err) {
-    const v1Msg = v1Err instanceof Error ? v1Err.message : String(v1Err);
-    console.error("Both V2 and V1 SMS failed:", v1Msg);
-    return { ok: false, error: `V2: ${v2Error} | V1: ${v1Msg}` };
+    lastError = result.error || "unknown";
+    if (!result.senderRejected) {
+      console.error(`Non-sender failure for "${candidate}", aborting chain:`, lastError);
+      break;
+    }
+    console.warn(`Sender "${candidate}" rejected — trying next...`);
   }
+  console.error("All sender IDs failed:", lastError);
+  return { ok: false, error: lastError };
 }
 
 // ── Email enqueue ──
