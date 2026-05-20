@@ -491,6 +491,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       qr_code_data: verifyUrl(`/verify/receipt/${reference}`),
       status: "active",
       receipt_status: "active",
+      admin_confirmed_at: (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") ? new Date().toISOString() : null,
       office_id: officeId,
       tenancy_id: escrow.related_tenancy_id || null,
       case_id: receiptCaseId,
