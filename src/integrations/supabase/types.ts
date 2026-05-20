@@ -2451,6 +2451,7 @@ export type Database = {
           evidence_urls: string[] | null
           filed_by_admin: boolean
           filing_fee_paid: boolean
+          filing_fee_paid_at: string | null
           gps_confirmed: boolean
           hearing_room_id: string | null
           id: string
@@ -2508,6 +2509,7 @@ export type Database = {
           evidence_urls?: string[] | null
           filed_by_admin?: boolean
           filing_fee_paid?: boolean
+          filing_fee_paid_at?: string | null
           gps_confirmed?: boolean
           hearing_room_id?: string | null
           id?: string
@@ -2565,6 +2567,7 @@ export type Database = {
           evidence_urls?: string[] | null
           filed_by_admin?: boolean
           filing_fee_paid?: boolean
+          filing_fee_paid_at?: string | null
           gps_confirmed?: boolean
           hearing_room_id?: string | null
           id?: string
