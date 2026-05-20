@@ -437,7 +437,6 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     let payerName: string = profile?.full_name || "Customer";
     let payerEmail: string = profile?.email || "";
     let receiptCaseId: string | null = null;
-    let receiptRelatedComplaintId: string | null = null;
 
     if (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") {
       const complaintId: string | null = meta?.complaintId || escrow.related_complaint_id || null;
