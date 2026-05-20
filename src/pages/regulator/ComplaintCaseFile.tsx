@@ -250,6 +250,7 @@ const ComplaintCaseFile = () => {
             complaint={c}
             officeName={offices.find((o) => o.id === c.office_id)?.name}
             docs={docs}
+            receipts={receipts}
             onChanged={load}
             onOpenGenericNew={() => navigate(`/regulator/complaints/${id}/documents/new`)}
           />
