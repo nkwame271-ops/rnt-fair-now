@@ -86,7 +86,7 @@ export default function ComplaintDocumentsHub({
   const [receiptPreview, setReceiptPreview] = useState<any | null>(null);
 
   const complaintTable: "complaints" | "landlord_complaints" =
-    complaint?.complainant_role === "landlord" && complaint?.landlord_id && !complaint?.tenant_id
+    complaint?.landlord_user_id && !complaint?.tenant_user_id
       ? "landlord_complaints"
       : "complaints";
 

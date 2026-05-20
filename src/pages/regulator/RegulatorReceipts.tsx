@@ -11,6 +11,54 @@ import { useAdminScope } from "@/hooks/useAdminScope";
 import { useAuth } from "@/hooks/useAuth";
 import { formatGHSDecimal } from "@/lib/formatters";
 import { toast } from "sonner";
+import jsPDF from "jspdf";
+import QRCode from "qrcode";
+
+/** Render a single receipt row to a PDF blob without expanding the row. */
+async function downloadReceiptPdf(r: any) {
+  const receiptNumber = r.receipt_number || r.id;
+  const date = r.payment_date || r.created_at;
+  const totalAmount = Number(r.total_amount || 0);
+  const status = r.receipt_status || r.status || "active";
+  const qrDataUrl = await QRCode.toDataURL(r.qr_code_data || receiptNumber, { width: 200, margin: 1 });
+  const pdf = new jsPDF({ unit: "pt", format: "a4" });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const margin = 40;
+  let y = margin;
+  pdf.setFont("helvetica", "bold"); pdf.setFontSize(16); pdf.text(receiptNumber, margin, y);
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(107, 114, 128);
+  pdf.text(new Date(date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }), margin, y + 14);
+  const sc = status === "active" ? [22,163,74] : status === "voided" ? [220,38,38] : [107,114,128];
+  pdf.setFillColor(sc[0], sc[1], sc[2]);
+  pdf.roundedRect(pageW - margin - 70, y - 10, 70, 18, 4, 4, "F");
+  pdf.setTextColor(255,255,255); pdf.setFontSize(9); pdf.setFont("helvetica", "bold");
+  pdf.text(String(status).toUpperCase(), pageW - margin - 35, y + 2, { align: "center" });
+  y += 40;
+  pdf.setTextColor(17,24,39); pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(107,114,128);
+  pdf.text("Payer", margin, y); pdf.text("Type", pageW/2, y);
+  pdf.setTextColor(17,24,39); pdf.setFontSize(11);
+  pdf.text(r.payer_name || "—", margin, y + 14);
+  pdf.text(String(r.payment_type || "").replace(/_/g, " "), pageW/2, y + 14);
+  y += 36;
+  pdf.setFontSize(9); pdf.setTextColor(107,114,128); pdf.text("Description", margin, y);
+  pdf.setTextColor(17,24,39); pdf.setFontSize(10);
+  const descLines = pdf.splitTextToSize(r.description || "—", pageW - margin * 2);
+  pdf.text(descLines, margin, y + 14);
+  y += 14 + descLines.length * 12 + 14;
+  pdf.setFillColor(239,246,255); pdf.rect(margin, y, pageW - margin*2, 28, "F");
+  pdf.setFont("helvetica", "bold"); pdf.setFontSize(12); pdf.setTextColor(17,24,39);
+  pdf.text("Total Paid", margin + 8, y + 18);
+  pdf.setTextColor(37,99,235);
+  // formatGHSDecimal is in scope
+  pdf.text(`GHS ${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageW - margin - 8, y + 18, { align: "right" });
+  y += 44;
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(8); pdf.setTextColor(107,114,128);
+  const noteLines = pdf.splitTextToSize("Verified by Rent Control Department. Scan QR to verify authenticity.", pageW - margin*2);
+  pdf.text(noteLines, margin, y);
+  y += noteLines.length * 10 + 12;
+  pdf.addImage(qrDataUrl, "PNG", margin, y, 80, 80);
+  pdf.save(`receipt-${receiptNumber}.pdf`);
+}
 
 interface ReceiptRow {
   id: string;
@@ -300,6 +348,14 @@ const RegulatorReceipts = () => {
                     </Button>
                   )
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={(e) => { e.stopPropagation(); downloadReceiptPdf(r).catch((err) => toast.error(err.message || "Download failed")); }}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1" /> PDF
+                </Button>
                 <button onClick={() => setExpandedId(expanded ? null : r.id)} className="shrink-0">
                   {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 </button>
