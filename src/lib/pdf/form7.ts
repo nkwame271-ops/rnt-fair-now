@@ -171,6 +171,7 @@ export function renderForm7(d: Form7Data): jsPDF {
     dateText: fmtDate(d.signature_date || d.filed_at || new Date().toISOString()),
   });
 
+  drawQrFooter(doc, d.qr_data_url, d.verification_code);
   drawFooter(doc, d.footer_slogan);
   return doc;
 }
