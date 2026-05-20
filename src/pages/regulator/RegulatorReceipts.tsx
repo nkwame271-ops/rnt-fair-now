@@ -348,6 +348,14 @@ const RegulatorReceipts = () => {
                     </Button>
                   )
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={(e) => { e.stopPropagation(); downloadReceiptPdf(r).catch((err) => toast.error(err.message || "Download failed")); }}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1" /> PDF
+                </Button>
                 <button onClick={() => setExpandedId(expanded ? null : r.id)} className="shrink-0">
                   {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 </button>
