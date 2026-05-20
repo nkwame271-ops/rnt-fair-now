@@ -671,3 +671,71 @@ const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
 };
 
 export default ComplaintCaseFile;
+
+function PaymentSummaryCard({ receipts, basket, complaint }: { receipts: any[]; basket: any[]; complaint: any }) {
+  const latest = receipts?.[0];
+  const totalPaid = (receipts || []).reduce((s, r) => s + Number(r.total_amount || 0), 0);
+  const paidBasket = (basket || []).filter((b) => b.paid_at);
+  const unpaidBasket = (basket || []).filter((b) => !b.paid_at);
+  const feeTypes = Array.from(new Set((basket || []).map((b) => b.label).filter(Boolean)));
+  const status = latest?.receipt_status || latest?.status || (paidBasket.length ? "paid" : "pending");
+  const statusClass =
+    status === "active" || status === "paid"
+      ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+      : status === "voided" || status === "failed"
+      ? "bg-rose-100 text-rose-800 border-rose-200"
+      : "bg-amber-100 text-amber-800 border-amber-200";
+
+  if (!latest && (!basket || basket.length === 0)) {
+    return (
+      <Card>
+        <CardContent className="pt-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Payment &amp; Receipt Summary</p>
+            <p className="text-xs text-muted-foreground">No payment recorded yet for this case.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="pt-5 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold">Payment &amp; Receipt Summary</p>
+            <Badge variant="outline" className={statusClass}>{status.toUpperCase()}</Badge>
+            {unpaidBasket.length > 0 && (
+              <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">
+                {unpaidBasket.length} unpaid item(s)
+              </Badge>
+            )}
+          </div>
+          <div className="text-sm font-semibold">
+            Total paid: GHS {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+          {feeTypes.length > 0 && (
+            <Row k="Fee type(s)" v={feeTypes.join(", ")} />
+          )}
+          {latest && <>
+            <Row k="Receipt #" v={latest.receipt_number} />
+            <Row k="Payment ref" v={latest.paystack_reference || latest.platform_reference || "—"} />
+            <Row k="Payer" v={latest.payer_name || "—"} />
+            <Row k="Payer type" v={latest.generated_by_type || complaint.complainant_role || "—"} />
+            <Row k="Payer phone" v={latest.payer_phone || "—"} />
+            <Row k="Payment date" v={latest.payment_date ? new Date(latest.payment_date).toLocaleString("en-GB") : new Date(latest.created_at).toLocaleString("en-GB")} />
+          </>}
+        </div>
+
+        {receipts.length > 1 && (
+          <p className="text-xs text-muted-foreground">+ {receipts.length - 1} earlier receipt(s) available in the Documents tab.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
