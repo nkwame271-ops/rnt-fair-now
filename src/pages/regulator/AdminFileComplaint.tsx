@@ -215,15 +215,29 @@ const AdminFileComplaint = () => {
       let complainantUserId: string | null = null;
       const cNorm = normalizePhone(primaryC.phone);
       if (cNorm) {
+        const last9 = cNorm.substring(3);
+        const variants = [cNorm, `0${last9}`, last9];
+        // Scope the profile lookup to the chosen complainant role so we don't
+        // accidentally pick up a tenant when filing a landlord complaint.
         try {
-          const { data: prof } = await supabase
-            .from("profiles")
-            .select("user_id, phone")
-            .or(`phone.eq.${cNorm},phone.eq.0${cNorm.substring(3)},phone.eq.${cNorm.substring(3)}`)
-            .limit(1)
-            .maybeSingle();
-          complainantUserId = prof?.user_id || null;
-        } catch (e) { /* ignore */ }
+          const roleTable = complainantRole === "landlord" ? "landlords" : "tenants";
+          const { data: roleRows } = await (supabase.from(roleTable) as any)
+            .select("user_id, profiles!inner(user_id, phone)")
+            .or(variants.map((v) => `phone.eq.${v}`).join(","), { referencedTable: "profiles" })
+            .limit(1);
+          complainantUserId = (roleRows as any[])?.[0]?.user_id || null;
+        } catch (e) { /* fall through to plain profile match */ }
+        if (!complainantUserId) {
+          try {
+            const { data: prof } = await supabase
+              .from("profiles")
+              .select("user_id, phone")
+              .or(variants.map((v) => `phone.eq.${v}`).join(","))
+              .limit(1)
+              .maybeSingle();
+            complainantUserId = prof?.user_id || null;
+          } catch (e) { /* ignore */ }
+        }
       }
 
       // Route to the correct table based on who is filing the complaint.
