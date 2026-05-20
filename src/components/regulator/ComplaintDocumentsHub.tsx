@@ -99,22 +99,6 @@ export default function ComplaintDocumentsHub({
     return [];
   };
 
-  const printReceiptRow = (r: any) => {
-    setReceiptPreview(r);
-    // Allow dialog mount; user can press the in-dialog Print button.
-    setTimeout(() => {
-      const btn = document.querySelector<HTMLButtonElement>("[data-receipt-print-btn]");
-      btn?.click();
-    }, 300);
-  };
-  const downloadReceiptRow = (r: any) => {
-    setReceiptPreview(r);
-    setTimeout(() => {
-      const btn = document.querySelector<HTMLButtonElement>("[data-receipt-download-btn]");
-      btn?.click();
-    }, 300);
-  };
-
   const openEditor = (type: StatutoryFormType, initial?: any) =>
     setEditor({ open: true, type, initial });
 
