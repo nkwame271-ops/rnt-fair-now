@@ -9,6 +9,21 @@ const corsHeaders = {
 const ARKESEL_V2_URL = "https://api.arkesel.com/api/v2/sms/send";
 const ARKESEL_V1_URL = "https://sms.arkesel.com/sms/api";
 
+// Ordered fallback chain. Try "RentControl" first; if Arkesel rejects the
+// sender ID (code 111 / "not allowed to use this Sender ID"), fall through
+// to the next entry. Add additional approved IDs here as Arkesel whitelists.
+const SENDER_FALLBACKS = ["RentControl", "R Control"];
+
+function isSenderRejection(msg: string): boolean {
+  const m = (msg || "").toLowerCase();
+  return (
+    m.includes("not allowed to use this sender id") ||
+    m.includes("\"code\":\"111\"") ||
+    m.includes("code: 111") ||
+    m.includes("sender id")
+  );
+}
+
 async function sendViaV2(apiKey: string, phone: string, message: string, sender: string) {
   const res = await fetch(ARKESEL_V2_URL, {
     method: "POST",
@@ -31,9 +46,30 @@ async function sendViaV1(apiKey: string, phone: string, message: string, sender:
   const res = await fetch(`${ARKESEL_V1_URL}?${params.toString()}`);
   const text = await res.text();
   console.log("V1 raw response:", text);
-  // V1 returns "OK" or a JSON with code
   if (!res.ok) throw new Error("V1 HTTP " + res.status + ": " + text);
+  // V1 may return JSON with code 111 even on HTTP 200 in some envs
+  if (text.includes('"code":"111"') || text.toLowerCase().includes("not allowed")) {
+    throw new Error("V1 sender rejected: " + text);
+  }
   return text;
+}
+
+async function trySend(apiKey: string, phone: string, message: string, sender: string) {
+  try {
+    console.log(`Trying V2 with sender "${sender}"...`);
+    await sendViaV2(apiKey, phone, message, sender);
+    return { ok: true as const, via: "v2", sender };
+  } catch (v2Err) {
+    const v2Msg = v2Err instanceof Error ? v2Err.message : String(v2Err);
+    console.warn(`V2 failed for "${sender}":`, v2Msg, "— trying V1...");
+    try {
+      await sendViaV1(apiKey, phone, message, sender);
+      return { ok: true as const, via: "v1", sender };
+    } catch (v1Err) {
+      const v1Msg = v1Err instanceof Error ? v1Err.message : String(v1Err);
+      return { ok: false as const, sender, error: v1Msg, senderRejected: isSenderRejection(v1Msg) || isSenderRejection(v2Msg) };
+    }
+  }
 }
 
 serve(async (req) => {
@@ -56,29 +92,42 @@ serve(async (req) => {
     let normalizedPhone = phone.replace(/\s/g, "").replace(/^0/, "233");
     if (!normalizedPhone.startsWith("233")) normalizedPhone = "233" + normalizedPhone;
 
-    const senderID = sender || "RentControl";
+    // If caller pinned a specific sender, honor it as a one-shot (no chain).
+    // Otherwise walk the fallback chain.
+    const senderChain = sender ? [sender] : SENDER_FALLBACKS;
 
-    // Try V2 first, fallback to V1 on network/DNS error
-    try {
-      console.log("Trying V2 API...");
-      await sendViaV2(ARKESEL_API_KEY, normalizedPhone, message, senderID);
-      console.log("V2 succeeded");
-    } catch (v2Err: unknown) {
-      const v2Msg = v2Err instanceof Error ? v2Err.message : String(v2Err);
-      console.warn("V2 failed:", v2Msg, "— trying V1 fallback...");
-      await sendViaV1(ARKESEL_API_KEY, normalizedPhone, message, senderID);
-      console.log("V1 fallback succeeded");
+    let lastError = "";
+    let usedSender = "";
+    for (const candidate of senderChain) {
+      const result = await trySend(ARKESEL_API_KEY, normalizedPhone, message, candidate);
+      if (result.ok) {
+        usedSender = result.sender;
+        console.log(`SMS sent successfully via ${result.via} using sender "${result.sender}"`);
+        break;
+      }
+      lastError = result.error;
+      if (!result.senderRejected) {
+        // Non-sender error (balance, auth, network) — no point trying another sender
+        console.error(`Non-sender failure for "${candidate}", aborting chain:`, lastError);
+        break;
+      }
+      console.warn(`Sender "${candidate}" rejected by Arkesel — trying next in chain...`);
+    }
+
+    if (!usedSender) {
+      return new Response(
+        JSON.stringify({ success: false, error: lastError || "All sender IDs rejected" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     return new Response(
-      JSON.stringify({ success: true, message: "SMS sent successfully" }),
+      JSON.stringify({ success: true, message: "SMS sent successfully", sender: usedSender }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
     console.error("SMS error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    // ALWAYS return HTTP 200 so supabase-js doesn't surface "non-2xx" errors.
-    // Callers must inspect `success`/`error` in the body.
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
