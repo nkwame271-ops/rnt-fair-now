@@ -831,16 +831,42 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
     if (complaintId) {
       const { data: rcpt } = await supabaseAdmin.from("payment_receipts").select("id").eq("escrow_transaction_id", escrow.id).maybeSingle();
       const updates: any = { status: "ready_for_scheduling", payment_status: "paid", receipt_id: rcpt?.id || null, filing_fee_paid: true, filing_fee_paid_at: new Date().toISOString() };
-      const { data: tUpd } = await supabaseAdmin.from("complaints").update(updates).eq("id", complaintId).select("id").maybeSingle();
-      if (!tUpd) {
-        // landlord_complaints now carries filing_fee_paid / filing_fee_paid_at columns too
-        await supabaseAdmin.from("landlord_complaints").update(updates).eq("id", complaintId);
+      // Prefer the table hinted by checkout metadata; fall back to probe.
+      const preferredTable: "complaints" | "landlord_complaints" =
+        meta?.complaint_table === "landlord_complaints" ? "landlord_complaints" : "complaints";
+      const { data: pUpd } = await supabaseAdmin.from(preferredTable).update(updates).eq("id", complaintId).select("id").maybeSingle();
+      if (!pUpd) {
+        const otherTable = preferredTable === "complaints" ? "landlord_complaints" : "complaints";
+        await supabaseAdmin.from(otherTable).update(updates).eq("id", complaintId);
       }
       // Lock currently-unpaid basket items so they are not re-requested
       await supabaseAdmin.from("complaint_basket_items")
         .update({ paid_at: new Date().toISOString() })
         .eq("complaint_id", complaintId)
         .is("paid_at", null);
+
+      // Notify the complainant so the receipt + case-status change land in their portal.
+      try {
+        let notifyUserId: string | null = null;
+        let link = "/tenant/my-cases";
+        if (preferredTable === "landlord_complaints") {
+          const { data: lc } = await supabaseAdmin.from("landlord_complaints").select("landlord_user_id").eq("id", complaintId).maybeSingle();
+          notifyUserId = lc?.landlord_user_id || null;
+          link = "/landlord/complaints";
+        } else {
+          const { data: tc } = await supabaseAdmin.from("complaints").select("complainant_user_id, tenant_user_id, complainant_role").eq("id", complaintId).maybeSingle();
+          notifyUserId = tc?.complainant_user_id || tc?.tenant_user_id || null;
+          link = tc?.complainant_role === "landlord" ? "/landlord/complaints" : "/tenant/my-cases";
+        }
+        if (notifyUserId) {
+          await supabaseAdmin.from("notifications").insert({
+            user_id: notifyUserId,
+            title: "Filing Fee Confirmed",
+            body: `Filing fee of GH₵ ${amountPaid.toFixed(2)} confirmed. Your case is now under review.`,
+            link,
+          });
+        }
+      } catch (e) { console.error("Complainant notification failed:", e); }
     }
   } else if (paymentType === "viewing_fee") {
     const viewingRequestId = meta?.viewingRequestId;
