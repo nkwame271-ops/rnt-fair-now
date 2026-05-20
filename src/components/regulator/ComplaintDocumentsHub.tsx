@@ -385,6 +385,29 @@ export default function ComplaintDocumentsHub({
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!receiptPreview} onOpenChange={(v) => !v && setReceiptPreview(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Payment Receipt</DialogTitle>
+          </DialogHeader>
+          {receiptPreview && (
+            <PaymentReceipt
+              receiptNumber={receiptPreview.receipt_number}
+              date={receiptPreview.payment_date || receiptPreview.created_at}
+              payerName={receiptPreview.payer_name || "—"}
+              totalAmount={Number(receiptPreview.total_amount || 0)}
+              paymentType={receiptPreview.payment_type}
+              description={receiptPreview.description || ""}
+              splits={parseSplits(receiptPreview.split_breakdown)}
+              status={receiptPreview.receipt_status || receiptPreview.status || "active"}
+              qrCodeData={receiptPreview.qr_code_data || receiptPreview.receipt_number}
+              complaintId={receiptPreview.case_id || complaint?.id}
+              complaintTable={complaintTable}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
