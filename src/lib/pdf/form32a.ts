@@ -14,6 +14,8 @@ export interface Form32AData {
   stamp_text?: string;
   footer_slogan?: string;
   ticket_number?: string;
+  qr_data_url?: string;
+  verification_code?: string;
 }
 
 export function renderForm32A(d: Form32AData): jsPDF {
