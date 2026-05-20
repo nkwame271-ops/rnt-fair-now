@@ -1,4 +1,6 @@
 import { useState } from "react";
+import jsPDF from "jspdf";
+import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +27,7 @@ import FormEditorDialog from "./FormEditorDialog";
 import { StatutoryFormType } from "@/lib/complaintForms";
 import { generateComplaintPdf } from "@/lib/generateComplaintPdf";
 import PaymentReceipt from "@/components/PaymentReceipt";
+import { formatGHSDecimal } from "@/lib/formatters";
 
 interface Props {
   complaint: any;
