@@ -28,6 +28,7 @@ const VerifyRegistration = lazy(() => import("./pages/shared/VerifyRegistration"
 const VerifyTenancy = lazy(() => import("./pages/shared/VerifyTenancy"));
 const VerifyRentCard = lazy(() => import("./pages/shared/VerifyRentCard"));
 const VerifyReceipt = lazy(() => import("./pages/shared/VerifyReceipt"));
+const VerifyForm = lazy(() => import("./pages/shared/VerifyForm"));
 const ProfilePage = lazy(() => import("./pages/shared/ProfilePage"));
 
 // Tenant pages
@@ -164,6 +165,7 @@ const App = () => (
               <Route path="/verify-tenancy/:tenancyId" element={<VerifyTenancy />} />
               <Route path="/verify/rent-card/:token" element={<VerifyRentCard />} />
               <Route path="/verify/receipt/:receiptNumber" element={<VerifyReceipt />} />
+              <Route path="/verify/form/:code" element={<VerifyForm />} />
 
               {/* Tenant Routes */}
               <Route path="/tenant" element={<ProtectedRoute requiredRole="tenant"><TenantLayout /></ProtectedRoute>}>

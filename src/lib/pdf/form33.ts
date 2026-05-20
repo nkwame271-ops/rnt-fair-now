@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, fmtDate, fmtTime } from "./_brand";
+import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, drawQrFooter, fmtDate, fmtTime } from "./_brand";
 
 export interface Form33Data {
   // Top header
@@ -30,6 +30,9 @@ export interface Form33Data {
   complainant_name?: string;
   complainant_phone?: string;
   complainant_address?: string;
+  // Verification (QR rendered in footer band — statutory body untouched)
+  qr_data_url?: string;
+  verification_code?: string;
 }
 
 const ordinalSuffix = (n: number) => {
@@ -249,6 +252,7 @@ export function renderForm33(d: Form33Data): jsPDF {
     dateText: fmtDate(d.issued_date || new Date().toISOString()),
   });
 
+  drawQrFooter(doc, d.qr_data_url, d.verification_code);
   drawFooter(doc, d.footer_slogan);
   return doc;
 }

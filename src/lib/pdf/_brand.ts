@@ -15,6 +15,39 @@ export function drawWatermark(doc: jsPDF, text = "RENT CONTROL") {
   doc.setTextColor(0, 0, 0);
 }
 
+/**
+ * Draw a small QR + caption in the footer-left area (above the footer line).
+ * Safe no-op when qrDataUrl is missing. Statutory body of the document is untouched.
+ */
+export function drawQrFooter(
+  doc: jsPDF,
+  qrDataUrl?: string,
+  code?: string,
+  caption = "Scan to verify"
+) {
+  if (!qrDataUrl) return;
+  const size = 52;
+  const x = MARGIN;
+  const y = A4.H - 36 - size - 6;
+  try {
+    doc.addImage(qrDataUrl, "PNG", x, y, size, size);
+  } catch {
+    return;
+  }
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(80, 80, 80);
+  doc.text(caption, x + size + 6, y + 14);
+  if (code) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(20, 80, 50);
+    doc.text(`Code: ${code}`, x + size + 6, y + 26);
+  }
+  doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "normal");
+}
+
 export function drawHeader(doc: jsPDF, opts: { subtitle?: string } = {}) {
   // Top green strip
   doc.setFillColor(20, 80, 50);

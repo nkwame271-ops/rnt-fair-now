@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, fmtDate } from "./_brand";
+import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, drawQrFooter, fmtDate } from "./_brand";
 
 export interface Form7Party {
   name: string;
@@ -35,6 +35,9 @@ export interface Form7Data {
   property_address?: string;
   description?: string;
   filed_at?: string;
+  // Verification (QR is rendered in the footer band — does not alter statutory body)
+  qr_data_url?: string;
+  verification_code?: string;
 }
 
 const wrapNumbered = (doc: jsPDF, n: number, label: string, value: string, y: number, width: number): number => {
@@ -168,6 +171,7 @@ export function renderForm7(d: Form7Data): jsPDF {
     dateText: fmtDate(d.signature_date || d.filed_at || new Date().toISOString()),
   });
 
+  drawQrFooter(doc, d.qr_data_url, d.verification_code);
   drawFooter(doc, d.footer_slogan);
   return doc;
 }

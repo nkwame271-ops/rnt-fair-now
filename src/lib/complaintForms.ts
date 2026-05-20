@@ -1,9 +1,25 @@
 import { supabase } from "@/integrations/supabase/client";
+import QRCode from "qrcode";
 import { renderForm7, Form7Data } from "@/lib/pdf/form7";
 import { renderForm33, Form33Data } from "@/lib/pdf/form33";
 import { renderForm32A, Form32AData } from "@/lib/pdf/form32a";
 
 export type StatutoryFormType = "form_7" | "form_33" | "form_32a";
+
+/** Public verification URL for a generated statutory form. */
+export function buildFormVerifyUrl(code: string): string {
+  const base = typeof window !== "undefined" ? window.location.origin : "https://www.rentcontrolghana.com";
+  return `${base}/verify/form/${code}`;
+}
+
+function generateVerificationCode(): string {
+  // 8-char uppercase alphanumeric (matches DB trigger format)
+  const arr = new Uint8Array(8);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(arr);
+  else for (let i = 0; i < 8; i++) arr[i] = Math.floor(Math.random() * 256);
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from(arr, (b) => alphabet[b % alphabet.length]).join("");
+}
 
 const uploadPdf = async (caseId: string, formCode: string, version: number, blob: Blob) => {
   const path = `complaints/${caseId}/${formCode}-v${version}-${Date.now()}.pdf`;
@@ -21,7 +37,8 @@ const insertDoc = async (
   status: "draft" | "finalized",
   path: string | null,
   formData: Record<string, any>,
-  metadata: Record<string, any> = {}
+  metadata: Record<string, any> = {},
+  verificationCode?: string
 ) => {
   const { data: existing } = await supabase
     .from("complaint_documents")
@@ -48,6 +65,7 @@ const insertDoc = async (
       change_reason: metadata.change_reason || "Generated from Form Editor",
       metadata,
       form_data_json: formData,
+      ...(verificationCode ? { verification_code: verificationCode } : {}),
     } as any)
     .select("id")
     .single();
@@ -152,19 +170,34 @@ export async function generateStatutoryForm(
   formData: Form7Data | Form33Data | Form32AData,
   opts: { title?: string; metadata?: Record<string, any> } = {}
 ) {
+  // Generate verification code + QR data URL for footer (does not alter statutory body)
+  const verificationCode = generateVerificationCode();
+  const verifyUrl = buildFormVerifyUrl(verificationCode);
+  let qrDataUrl: string | undefined;
+  try {
+    qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 220, margin: 0 });
+  } catch {
+    qrDataUrl = undefined;
+  }
+  const formDataWithQr: any = {
+    ...formData,
+    qr_data_url: qrDataUrl,
+    verification_code: verificationCode,
+  };
+
   let blob: Blob;
   let code: string;
   let defaultTitle: string;
   if (formType === "form_7") {
-    blob = renderForm7(formData as Form7Data).output("blob");
+    blob = renderForm7(formDataWithQr as Form7Data).output("blob");
     code = "form-7";
     defaultTitle = "Form 7 — Complaint";
   } else if (formType === "form_33") {
-    blob = renderForm33(formData as Form33Data).output("blob");
+    blob = renderForm33(formDataWithQr as Form33Data).output("blob");
     code = "form-33";
     defaultTitle = "Form 33 — Summons";
   } else {
-    blob = renderForm32A(formData as Form32AData).output("blob");
+    blob = renderForm32A(formDataWithQr as Form32AData).output("blob");
     code = "form-32a";
     defaultTitle = "Form 32A — Order / Decision";
   }
@@ -178,7 +211,17 @@ export async function generateStatutoryForm(
     .limit(1);
   const nextVersion = (existing?.[0]?.version_number || 0) + 1;
   const path = await uploadPdf(caseId, code, nextVersion, blob);
-  return insertDoc(caseId, formType, opts.title || defaultTitle, "finalized", path, formData as any, opts.metadata || {});
+  // Persist the original formData (without qr_data_url payload bloat) plus verification metadata
+  return insertDoc(
+    caseId,
+    formType,
+    opts.title || defaultTitle,
+    "finalized",
+    path,
+    { ...formData, verification_code: verificationCode, verify_url: verifyUrl } as any,
+    opts.metadata || {},
+    verificationCode
+  );
 }
 
 /* ---- Backwards-compatible helpers used by older call sites ---- */

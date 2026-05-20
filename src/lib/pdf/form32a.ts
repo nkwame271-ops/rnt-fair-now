@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, fmtDate } from "./_brand";
+import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, drawQrFooter, fmtDate } from "./_brand";
 
 export interface Form32AData {
   case_number?: string;
@@ -14,6 +14,8 @@ export interface Form32AData {
   stamp_text?: string;
   footer_slogan?: string;
   ticket_number?: string;
+  qr_data_url?: string;
+  verification_code?: string;
 }
 
 export function renderForm32A(d: Form32AData): jsPDF {
@@ -89,6 +91,7 @@ export function renderForm32A(d: Form32AData): jsPDF {
     dateText: fmtDate(d.issued_date || new Date().toISOString()),
   });
 
+  drawQrFooter(doc, d.qr_data_url, d.verification_code);
   drawFooter(doc, d.footer_slogan);
   return doc;
 }

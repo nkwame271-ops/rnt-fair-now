@@ -16,17 +16,21 @@ import {
   RefreshCw,
   Loader2,
   Plus,
+  Receipt as ReceiptIcon,
+  Printer,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import FormEditorDialog from "./FormEditorDialog";
 import { StatutoryFormType } from "@/lib/complaintForms";
 import { generateComplaintPdf } from "@/lib/generateComplaintPdf";
+import PaymentReceipt from "@/components/PaymentReceipt";
 
 interface Props {
   complaint: any;
   officeName?: string;
   docs: any[];
+  receipts?: any[];
   onChanged: () => void;
   onOpenGenericNew: () => void;
 }
@@ -65,6 +69,7 @@ export default function ComplaintDocumentsHub({
   complaint,
   officeName,
   docs,
+  receipts = [],
   onChanged,
   onOpenGenericNew,
 }: Props) {
