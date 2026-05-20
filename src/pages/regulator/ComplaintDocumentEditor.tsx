@@ -356,8 +356,21 @@ const ComplaintDocumentEditor = () => {
     }
   };
 
-  const exportHtml = () => {
-    const blob = new Blob([`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Georgia,serif;max-width:780px;margin:40px auto;padding:0 24px;line-height:1.5}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:8px;text-align:left}h1,h2{margin-top:1.4em}blockquote{border-left:3px solid #999;padding-left:12px;color:#444}</style></head><body><h1>${title}</h1>${html}</body></html>`], { type: "text/html" });
+  const buildVerifyFooter = async (): Promise<string> => {
+    const code = (doc as any)?.verification_code;
+    if (!code) return "";
+    try {
+      const QRCode = (await import("qrcode")).default;
+      const origin = typeof window !== "undefined" ? window.location.origin : "https://www.rentcontrolghana.com";
+      const url = `${origin}/verify/form/${code}`;
+      const dataUrl = await QRCode.toDataURL(url, { width: 140, margin: 1 });
+      return `<div style="margin-top:32px;padding-top:16px;border-top:1px solid #999;display:flex;align-items:center;gap:16px"><img src="${dataUrl}" alt="QR" width="100" height="100"/><div style="font-size:11px;color:#444"><strong>Verify this document</strong><br/>Code: <code>${code}</code><br/><a href="${url}">${url}</a></div></div>`;
+    } catch { return ""; }
+  };
+
+  const exportHtml = async () => {
+    const footer = await buildVerifyFooter();
+    const blob = new Blob([`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Georgia,serif;max-width:780px;margin:40px auto;padding:0 24px;line-height:1.5}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:8px;text-align:left}h1,h2{margin-top:1.4em}blockquote{border-left:3px solid #999;padding-left:12px;color:#444}</style></head><body><h1>${title}</h1>${html}${footer}</body></html>`], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -366,10 +379,11 @@ const ComplaintDocumentEditor = () => {
     URL.revokeObjectURL(url);
   };
 
-  const printDoc = () => {
+  const printDoc = async () => {
+    const footer = await buildVerifyFooter();
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<!doctype html><html><head><title>${title}</title><style>body{font-family:Georgia,serif;max-width:780px;margin:40px auto;padding:0 24px;line-height:1.5}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:8px;text-align:left}h1,h2{margin-top:1.4em}blockquote{border-left:3px solid #999;padding-left:12px;color:#444}</style></head><body><h1>${title}</h1>${html}<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`);
+    w.document.write(`<!doctype html><html><head><title>${title}</title><style>body{font-family:Georgia,serif;max-width:780px;margin:40px auto;padding:0 24px;line-height:1.5}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:8px;text-align:left}h1,h2{margin-top:1.4em}blockquote{border-left:3px solid #999;padding-left:12px;color:#444}</style></head><body><h1>${title}</h1>${html}${footer}<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`);
     w.document.close();
   };
 
