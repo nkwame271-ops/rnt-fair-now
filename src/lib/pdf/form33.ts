@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, fmtDate, fmtTime } from "./_brand";
+import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, drawQrFooter, fmtDate, fmtTime } from "./_brand";
 
 export interface Form33Data {
   // Top header
