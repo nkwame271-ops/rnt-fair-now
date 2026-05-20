@@ -252,6 +252,7 @@ export function renderForm33(d: Form33Data): jsPDF {
     dateText: fmtDate(d.issued_date || new Date().toISOString()),
   });
 
+  drawQrFooter(doc, d.qr_data_url, d.verification_code);
   drawFooter(doc, d.footer_slogan);
   return doc;
 }
