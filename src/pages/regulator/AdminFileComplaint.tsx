@@ -276,7 +276,9 @@ const AdminFileComplaint = () => {
       setDraftComplaintId(created.id);
       setDraftTicket(created.ticket_number);
       setStage("review");
-      toast({ title: "Draft created", description: "Set the fee type and request payment to finalise." });
+      // Auto-open the Set Fee Type / Request Payment dialog so the officer goes straight to checkout
+      setPaymentOpen(true);
+      toast({ title: "Draft created", description: "Set the fee type and continue to checkout to finalise." });
     } catch (e: any) {
       const msg = e?.message || e?.details || e?.hint || "Unknown error";
       console.error("Create draft failed", e);
