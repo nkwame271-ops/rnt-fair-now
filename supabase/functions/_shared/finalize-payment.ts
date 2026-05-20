@@ -441,7 +441,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     if (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") {
       const complaintId: string | null = meta?.complaintId || escrow.related_complaint_id || null;
       if (complaintId) {
-        receiptRelatedComplaintId = complaintId;
+        // (related_complaint_id is tracked via complaints.receipt_id back-fill below)
         const complaintTable: "complaints" | "landlord_complaints" =
           meta?.complaint_table === "landlord_complaints" ? "landlord_complaints" : "complaints";
         // Resolve complainant owner id from the right table
