@@ -1038,10 +1038,18 @@ const RegulatorComplaints = () => {
                   <Button
                     variant="default"
                     size="sm"
-                    onClick={() => setRequestPaymentFor({ id: c.id, table: "landlord_complaints", rent: c._linkedPropertyRent ?? null, propertyId: c.linked_property_id })}
+                    onClick={() => setFeeChoiceFor({
+                      id: c.id,
+                      table: "landlord_complaints",
+                      rent: c._linkedPropertyRent ?? null,
+                      propertyId: c.linked_property_id,
+                      payerName: c._landlordProfile?.full_name || "",
+                      payerPhone: c._landlordProfile?.phone || "",
+                      payerRole: "landlord",
+                    })}
                   >
                     <CreditCard className="h-3.5 w-3.5 mr-1" />
-                    {c.payment_status === "pending" ? "Update Type / Fee" : "Set Type & Request Payment"}
+                    {c.filing_fee_paid ? "Request Additional Fee" : (c.payment_status === "pending" ? "Update Fee Type" : "Set Fee Type / Request Payment")}
                   </Button>
                 )}
                 <Button
