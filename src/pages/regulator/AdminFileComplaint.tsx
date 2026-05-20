@@ -225,33 +225,31 @@ const AdminFileComplaint = () => {
         } catch (e) { /* ignore */ }
       }
 
-      const payload: any = {
+      // Route to the correct table based on who is filing the complaint.
+      // Landlord complainants → landlord_complaints (Landlord tab in Complaint Management)
+      // Tenant complainants → complaints (Tenant tab in Complaint Management)
+      const targetTable: "complaints" | "landlord_complaints" =
+        complainantRole === "landlord" ? "landlord_complaints" : "complaints";
+
+      const commonSnapshot: any = {
         complaint_code: code,
         complaint_type: ct?.label || "Other",
         complaint_type_id: complaintTypeId,
-        landlord_name: primaryR.name,
         property_address: address,
         region,
         description,
         evidence_urls: evidenceUrls,
         office_id: officeId,
-        // Gated state — hidden from Complaint Management until filing fee paid
         status: "draft_awaiting_filing_payment",
+        current_stage: "draft_awaiting_filing_payment",
         payment_status: "awaiting",
         filing_fee_paid: false,
-        gps_confirmed: false,
         filed_by_admin: true,
         admin_filer_user_id: adminId,
         complainant_role: complainantRole,
         respondent_role: respondentRole,
         physical_docket_ref: docketRef || null,
         rent_amount: rentAmount ? Number(rentAmount) : null,
-        placeholder_complainant_name: primaryC.name,
-        placeholder_complainant_phone: primaryC.phone || null,
-        placeholder_respondent_name: primaryR.name,
-        placeholder_respondent_phone: primaryR.phone || null,
-        complainant_user_id: complainantUserId,
-        tenant_user_id: complainantRole === "tenant" ? complainantUserId : null,
         complainants,
         respondents,
         premises_house_no: premisesHouseNo || null,
@@ -264,14 +262,41 @@ const AdminFileComplaint = () => {
         occupied_months: occupiedMonths ? Number(occupiedMonths) : null,
         tenants_intent: tenantsIntent || null,
         relief_sought: reliefSought || null,
+        gps_confirmed: false,
       };
 
-      const { data: created, error } = await supabase
-        .from("complaints")
+      let payload: any;
+      if (targetTable === "landlord_complaints") {
+        payload = {
+          ...commonSnapshot,
+          landlord_user_id: complainantUserId, // nullable now; placeholder fields cover unregistered landlords
+          tenant_name: primaryR.name, // respondent name field on landlord_complaints
+          placeholder_landlord_name: primaryC.name,
+          placeholder_landlord_phone: primaryC.phone || null,
+          placeholder_respondent_name: primaryR.name,
+          placeholder_respondent_phone: primaryR.phone || null,
+        };
+      } else {
+        payload = {
+          ...commonSnapshot,
+          landlord_name: primaryR.name,
+          placeholder_complainant_name: primaryC.name,
+          placeholder_complainant_phone: primaryC.phone || null,
+          placeholder_respondent_name: primaryR.name,
+          placeholder_respondent_phone: primaryR.phone || null,
+          complainant_user_id: complainantUserId,
+          tenant_user_id: complainantRole === "tenant" ? complainantUserId : null,
+        };
+      }
+
+      const { data: created, error } = await (supabase.from(targetTable) as any)
         .insert(payload)
         .select("id, ticket_number")
         .single();
       if (error) throw error;
+
+      setDraftTable(targetTable);
+
 
       setDraftComplaintId(created.id);
       setDraftTicket(created.ticket_number);
