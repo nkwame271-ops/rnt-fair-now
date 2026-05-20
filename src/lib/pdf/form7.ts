@@ -35,6 +35,9 @@ export interface Form7Data {
   property_address?: string;
   description?: string;
   filed_at?: string;
+  // Verification (QR is rendered in the footer band — does not alter statutory body)
+  qr_data_url?: string;
+  verification_code?: string;
 }
 
 const wrapNumbered = (doc: jsPDF, n: number, label: string, value: string, y: number, width: number): number => {
