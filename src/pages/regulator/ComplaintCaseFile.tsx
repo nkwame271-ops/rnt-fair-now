@@ -73,7 +73,7 @@ const ComplaintCaseFile = () => {
     setCaseKind(resolvedKind);
 
     const [
-      hRes, nRes, wRes, dRes, decRes, hisRes, audRes, offRes, roomRes, staffRes,
+      hRes, nRes, wRes, dRes, decRes, hisRes, audRes, offRes, roomRes, staffRes, rcptRes, basketRes,
     ] = await Promise.all([
       supabase.from("complaint_hearings").select("*").eq("case_id", id).order("scheduled_at", { ascending: false }),
       supabase.from("complaint_notes").select("*").eq("complaint_id", id).order("created_at", { ascending: false }),
@@ -85,6 +85,8 @@ const ComplaintCaseFile = () => {
       supabase.from("offices").select("*").order("name"),
       supabase.from("hearing_rooms").select("*").order("name"),
       supabase.from("admin_staff").select("user_id, admin_type, full_name, office_id"),
+      supabase.from("payment_receipts").select("*").eq("case_id", id).order("created_at", { ascending: false }),
+      (supabase.from("complaint_basket_items") as any).select("*").eq("complaint_id", id).order("created_at"),
     ]);
     setC(cData);
     setHearings(hRes.data || []);
@@ -97,6 +99,8 @@ const ComplaintCaseFile = () => {
     setOffices(offRes.data || []);
     setRooms(roomRes.data || []);
     setAdmins(staffRes.data || []);
+    setReceipts(rcptRes.data || []);
+    setBasketItems((basketRes as any).data || []);
     setLoading(false);
   };
 
