@@ -72,8 +72,24 @@ const ComplaintCaseFile = () => {
     }
     setCaseKind(resolvedKind);
 
+    // Resolve the actual cases row id for this complaint so we can find receipts
+    // that were stored against cases.id (not the complaint id directly).
+    const { data: caseRow } = await supabase
+      .from("cases")
+      .select("id")
+      .eq("related_complaint_id", id)
+      .maybeSingle();
+    const realCaseId = caseRow?.id || null;
+
+    // Find all escrow transactions tied to this complaint (covers admin checkout + tenant flow)
+    const { data: escrowRows } = await supabase
+      .from("escrow_transactions")
+      .select("id")
+      .eq("related_complaint_id", id);
+    const escrowIds = (escrowRows || []).map((r: any) => r.id);
+
     const [
-      hRes, nRes, wRes, dRes, decRes, hisRes, audRes, offRes, roomRes, staffRes, rcptRes, basketRes,
+      hRes, nRes, wRes, dRes, decRes, hisRes, audRes, offRes, roomRes, staffRes, rcptByCaseRes, rcptByEscrowRes, basketRes,
     ] = await Promise.all([
       supabase.from("complaint_hearings").select("*").eq("case_id", id).order("scheduled_at", { ascending: false }),
       supabase.from("complaint_notes").select("*").eq("complaint_id", id).order("created_at", { ascending: false }),
@@ -85,7 +101,14 @@ const ComplaintCaseFile = () => {
       supabase.from("offices").select("*").order("name"),
       supabase.from("hearing_rooms").select("*").order("name"),
       supabase.from("admin_staff").select("user_id, admin_type, full_name, office_id"),
-      supabase.from("payment_receipts").select("*").eq("case_id", id).order("created_at", { ascending: false }),
+      // Receipts linked through the real cases row
+      realCaseId
+        ? supabase.from("payment_receipts").select("*").eq("case_id", realCaseId).order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
+      // Receipts linked through any escrow transaction tied to this complaint
+      escrowIds.length
+        ? supabase.from("payment_receipts").select("*").in("escrow_transaction_id", escrowIds).order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
       (supabase.from("complaint_basket_items") as any).select("*").eq("complaint_id", id).order("created_at"),
     ]);
     setC(cData);
@@ -99,10 +122,44 @@ const ComplaintCaseFile = () => {
     setOffices(offRes.data || []);
     setRooms(roomRes.data || []);
     setAdmins(staffRes.data || []);
-    setReceipts(rcptRes.data || []);
+    // Merge & dedupe receipts found via case_id and via escrow linkage
+    const seen = new Set<string>();
+    const allReceipts = [...(rcptByCaseRes.data || []), ...(rcptByEscrowRes.data || [])].filter((r: any) => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+    setReceipts(allReceipts);
     setBasketItems((basketRes as any).data || []);
     setLoading(false);
   };
+
+  // After Paystack redirect, force-verify the payment so the case state catches up
+  // immediately instead of waiting for the webhook.
+  useEffect(() => {
+    if (!id) return;
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("reference") || params.get("trxref") || sessionStorage.getItem("pendingPaymentReference");
+    if (!ref) return;
+    (async () => {
+      try {
+        await supabase.functions.invoke("verify-payment", { body: { reference: ref } });
+      } catch (e) { console.warn("verify-payment failed", e); }
+      sessionStorage.removeItem("pendingPaymentReference");
+      // Strip the query string so we don't re-trigger on every reload
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("reference");
+        url.searchParams.delete("trxref");
+        url.searchParams.delete("status");
+        window.history.replaceState({}, "", url.toString());
+      } catch {}
+      await new Promise((r) => setTimeout(r, 1200));
+      await load();
+      setTimeout(() => load(), 3000);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
