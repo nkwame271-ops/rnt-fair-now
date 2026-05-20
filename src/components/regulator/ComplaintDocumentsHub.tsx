@@ -69,6 +69,7 @@ export default function ComplaintDocumentsHub({
   complaint,
   officeName,
   docs,
+  receipts = [],
   onChanged,
   onOpenGenericNew,
 }: Props) {
