@@ -145,6 +145,7 @@ const LandlordComplaints = () => {
         .from("complaints")
         .select("*")
         .eq("complainant_user_id", user!.id)
+        .neq("status", "draft_awaiting_filing_payment")
         .order("created_at", { ascending: false }),
     ]);
     const tagged = [

@@ -34,7 +34,7 @@ const TenantDashboard = () => {
       const [profileRes, tenantRes, complaintsRes, tenanciesRes] = await Promise.all([
         supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
         supabase.from("tenants").select("registration_fee_paid").eq("user_id", user.id).maybeSingle(),
-        supabase.from("complaints").select("id", { count: "exact", head: true }).eq("tenant_user_id", user.id).not("status", "in", '("resolved","closed")'),
+        supabase.from("complaints").select("id", { count: "exact", head: true }).eq("tenant_user_id", user.id).not("status", "in", '("resolved","closed","draft_awaiting_filing_payment")'),
         supabase.from("tenancies").select("*, unit:units(unit_name, unit_type, property_id)").eq("tenant_user_id", user.id).in("status", ["active", "pending", "renewal_window", "existing_declared", "awaiting_verification", "verified_existing"]).order("created_at", { ascending: false }),
       ]);
 

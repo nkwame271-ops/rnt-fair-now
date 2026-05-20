@@ -443,7 +443,19 @@ const RegulatorComplaints = () => {
 
   // (activeTab is declared above with URL-param sync)
   const [landlordComplaints, setLandlordComplaints] = useState<any[]>([]);
-  const [requestPaymentFor, setRequestPaymentFor] = useState<{ id: string; table: "complaints" | "landlord_complaints"; rent?: number | null; propertyId?: string | null } | null>(null);
+  type PayTarget = {
+    id: string;
+    table: "complaints" | "landlord_complaints";
+    rent?: number | null;
+    propertyId?: string | null;
+    mode?: "send_request" | "officer_checkout";
+    payerName?: string;
+    payerPhone?: string;
+    payerRole?: string;
+  };
+  const [requestPaymentFor, setRequestPaymentFor] = useState<PayTarget | null>(null);
+  // Pending complaint awaiting officer's choice between "Go to Checkout" and "Request Fee".
+  const [feeChoiceFor, setFeeChoiceFor] = useState<PayTarget | null>(null);
 
   // Realtime: refresh on any complaint update (admin sees paid status instantly)
   useEffect(() => {
@@ -878,10 +890,22 @@ const RegulatorComplaints = () => {
                             variant="default"
                             size="sm"
                             className="ml-2"
-                            onClick={() => setRequestPaymentFor({ id: c.id, table: "complaints", rent: c._activeTenancy?.agreed_rent ?? c.complaint_property?.monthly_rent ?? null, propertyId: c.linked_property_id ?? c.complaint_property_id ?? null })}
+                            onClick={() => setFeeChoiceFor({
+                              id: c.id,
+                              table: "complaints",
+                              rent: c._activeTenancy?.agreed_rent ?? c.complaint_property?.monthly_rent ?? null,
+                              propertyId: c.linked_property_id ?? c.complaint_property_id ?? null,
+                              payerName: c.complainant_role === "landlord"
+                                ? (c.placeholder_complainant_name || c.landlord_name || "")
+                                : (c._tenantProfile?.full_name || c.placeholder_complainant_name || ""),
+                              payerPhone: c.complainant_role === "landlord"
+                                ? (c.placeholder_complainant_phone || "")
+                                : (c._tenantProfile?.phone || c.placeholder_complainant_phone || ""),
+                              payerRole: c.complainant_role || "tenant",
+                            })}
                           >
                             <CreditCard className="h-3.5 w-3.5 mr-1" />
-                            {c.payment_status === "pending" ? "Update Type / Fee" : "Set Type & Request Payment"}
+                            {c.filing_fee_paid ? "Request Additional Fee" : (c.payment_status === "pending" ? "Update Fee Type" : "Set Fee Type / Request Payment")}
                           </Button>
                         )}
                         <Button
@@ -1014,10 +1038,18 @@ const RegulatorComplaints = () => {
                   <Button
                     variant="default"
                     size="sm"
-                    onClick={() => setRequestPaymentFor({ id: c.id, table: "landlord_complaints", rent: c._linkedPropertyRent ?? null, propertyId: c.linked_property_id })}
+                    onClick={() => setFeeChoiceFor({
+                      id: c.id,
+                      table: "landlord_complaints",
+                      rent: c._linkedPropertyRent ?? null,
+                      propertyId: c.linked_property_id,
+                      payerName: c._landlordProfile?.full_name || "",
+                      payerPhone: c._landlordProfile?.phone || "",
+                      payerRole: "landlord",
+                    })}
                   >
                     <CreditCard className="h-3.5 w-3.5 mr-1" />
-                    {c.payment_status === "pending" ? "Update Type / Fee" : "Set Type & Request Payment"}
+                    {c.filing_fee_paid ? "Request Additional Fee" : (c.payment_status === "pending" ? "Update Fee Type" : "Set Fee Type / Request Payment")}
                   </Button>
                 )}
                 <Button
@@ -1086,9 +1118,63 @@ const RegulatorComplaints = () => {
           complaintTable={requestPaymentFor.table}
           monthlyRent={requestPaymentFor.rent ?? null}
           linkedPropertyId={requestPaymentFor.propertyId ?? null}
+          mode={requestPaymentFor.mode || "send_request"}
+          defaultPayerName={requestPaymentFor.payerName}
+          defaultPayerPhone={requestPaymentFor.payerPhone}
+          defaultPayerRole={requestPaymentFor.payerRole}
           onRequested={() => { setRequestPaymentFor(null); fetchComplaints(); fetchLandlordComplaints(); }}
         />
       )}
+
+      {/* Officer choice: pay now in person, or send a request to the user's portal */}
+      <Dialog open={!!feeChoiceFor} onOpenChange={(o) => { if (!o) setFeeChoiceFor(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" /> How will the payer pay?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Choose how this fee will be collected. Update Fee Type stays available for future case-related charges; the basic filing fee will not be requested again if it was already paid at filing.
+            </p>
+            <button
+              type="button"
+              className="w-full text-left rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition p-3"
+              onClick={() => {
+                if (!feeChoiceFor) return;
+                setRequestPaymentFor({ ...feeChoiceFor, mode: "officer_checkout" });
+                setFeeChoiceFor(null);
+              }}
+            >
+              <div className="font-semibold text-sm text-foreground flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-primary" /> Go to Checkout
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Use when the client is physically present. Opens the secure mobile money checkout immediately after setting the fee.
+              </div>
+            </button>
+            <button
+              type="button"
+              className="w-full text-left rounded-lg border border-border hover:bg-muted/40 transition p-3"
+              onClick={() => {
+                if (!feeChoiceFor) return;
+                setRequestPaymentFor({ ...feeChoiceFor, mode: "send_request" });
+                setFeeChoiceFor(null);
+              }}
+            >
+              <div className="font-semibold text-sm text-foreground flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-muted-foreground" /> Request Fee
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Use when the client is not present. Sends the payment request to the {feeChoiceFor?.payerRole === "landlord" ? "landlord" : "tenant"} portal as a Pay Now item.
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+
 
       <ComplaintReportsDialog open={reportsOpen} onOpenChange={setReportsOpen} />
     </div>

@@ -61,6 +61,7 @@ const MyCases = () => {
       .from("complaints")
       .select("*")
       .eq("tenant_user_id", user.id)
+      .neq("status", "draft_awaiting_filing_payment")
       .order("created_at", { ascending: false });
     setComplaints(data || []);
 
