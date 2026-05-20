@@ -273,6 +273,62 @@ export default function ComplaintDocumentsHub({
       <FormSection type="form_33" />
       <FormSection type="form_32a" />
 
+      {/* Payment receipts */}
+      <Card>
+        <CardContent className="pt-5 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <ReceiptIcon className="h-4 w-4 text-primary" />
+              <strong className="text-sm">Payment Receipts</strong>
+              <Badge variant="outline" className="text-[10px]">{receipts.length}</Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Auto-attached on successful payment.
+            </p>
+          </div>
+          {receipts.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No receipts yet for this case.</p>
+          ) : (
+            <div className="space-y-2">
+              {receipts.map((r) => (
+                <div key={r.id} className="flex items-center justify-between rounded border p-3 text-sm flex-wrap gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <ReceiptIcon className="h-4 w-4 text-muted-foreground" />
+                      <strong>{r.receipt_number}</strong>
+                      <Badge variant="outline" className="text-[10px]">{r.payment_type?.replace(/_/g, " ")}</Badge>
+                      <Badge
+                        variant={r.receipt_status === "active" || r.status === "active" ? "default" : "secondary"}
+                        className="text-[10px]"
+                      >
+                        {r.receipt_status || r.status}
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      {r.payer_name || "—"} ·{" "}
+                      {new Date(r.payment_date || r.created_at).toLocaleString()} · GHS{" "}
+                      {Number(r.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" onClick={() => setReceiptPreview(r)} title="Preview">
+                      <Eye className="h-3.5 w-3.5 mr-1" /> Preview
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setReceiptPreview(r)} title="Download (use PDF button in preview)">
+                      <Download className="h-3.5 w-3.5 mr-1" /> Download
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setReceiptPreview(r)} title="Print (use Print button in preview)">
+                      <Printer className="h-3.5 w-3.5 mr-1" /> Print
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
       {/* Other docs */}
       {docs.some((d) => !["form_7", "form_33", "form_32a"].includes(d.form_type)) && (
         <Card>
