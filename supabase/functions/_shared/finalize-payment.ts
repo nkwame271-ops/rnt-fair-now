@@ -437,12 +437,15 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     let payerName: string = profile?.full_name || "Customer";
     let payerEmail: string = profile?.email || "";
     let payerPhone: string | null = null;
-    let receiptCaseId: string | null = escrow.related_complaint_id || null;
+    // case_id MUST reference public.cases(id) — not the complaint id. The FK would otherwise
+    // silently reject the insert.
+    let receiptCaseId: string | null = escrow.case_id || null;
+    let complaintIdForReceipt: string | null = null;
 
     if (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") {
       const complaintId: string | null = meta?.complaintId || escrow.related_complaint_id || null;
       if (complaintId) {
-        // (related_complaint_id is tracked via complaints.receipt_id back-fill below)
+        complaintIdForReceipt = complaintId;
         const complaintTable: "complaints" | "landlord_complaints" =
           meta?.complaint_table === "landlord_complaints" ? "landlord_complaints" : "complaints";
         // Resolve complainant owner id from the right table
@@ -464,9 +467,19 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
         }
         if (complainantUserId) receiptUserId = complainantUserId;
 
-        // Complaint case files in the app are keyed by complaint id, so receipts must
-        // use that same identifier for the Documents tab + payment summary to resolve.
-        receiptCaseId = complaintId;
+        // Backfill: if escrow has no case_id but a real cases row exists for this complaint, use it.
+        if (!receiptCaseId) {
+          const { data: caseRow } = await supabaseAdmin
+            .from("cases")
+            .select("id")
+            .eq("related_complaint_id", complaintId)
+            .maybeSingle();
+          if (caseRow?.id) {
+            receiptCaseId = caseRow.id;
+            // Also patch the escrow so future lookups are linked
+            await supabaseAdmin.from("escrow_transactions").update({ case_id: caseRow.id }).eq("id", escrowId);
+          }
+        }
 
         // When filed by admin, the payer in the receipt is the actual paying party,
         // not the admin profile.
@@ -478,7 +491,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       }
     }
 
-    const { data: insertedReceipt } = await supabaseAdmin.from("payment_receipts").insert({
+    const { data: insertedReceipt, error: receiptErr } = await supabaseAdmin.from("payment_receipts").insert({
       escrow_transaction_id: escrowId,
       user_id: receiptUserId,
       payer_name: payerName,
@@ -499,6 +512,9 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       paystack_reference: transactionId,
       payment_date: new Date().toISOString(),
     }).select("id").single();
+    if (receiptErr) {
+      await logError({ escrow_transaction_id: escrowId, reference, error_stage: "receipt_insert", error_message: receiptErr.message, severity: "critical" });
+    }
     receiptId = insertedReceipt?.id || null;
   }
 
