@@ -443,7 +443,19 @@ const RegulatorComplaints = () => {
 
   // (activeTab is declared above with URL-param sync)
   const [landlordComplaints, setLandlordComplaints] = useState<any[]>([]);
-  const [requestPaymentFor, setRequestPaymentFor] = useState<{ id: string; table: "complaints" | "landlord_complaints"; rent?: number | null; propertyId?: string | null } | null>(null);
+  type PayTarget = {
+    id: string;
+    table: "complaints" | "landlord_complaints";
+    rent?: number | null;
+    propertyId?: string | null;
+    mode?: "send_request" | "officer_checkout";
+    payerName?: string;
+    payerPhone?: string;
+    payerRole?: string;
+  };
+  const [requestPaymentFor, setRequestPaymentFor] = useState<PayTarget | null>(null);
+  // Pending complaint awaiting officer's choice between "Go to Checkout" and "Request Fee".
+  const [feeChoiceFor, setFeeChoiceFor] = useState<PayTarget | null>(null);
 
   // Realtime: refresh on any complaint update (admin sees paid status instantly)
   useEffect(() => {
