@@ -319,8 +319,7 @@ const AdminFileComplaint = () => {
     if (stage !== "review" || !draftComplaintId) return;
     let cancelled = false;
     const tick = async () => {
-      const { data } = await supabase
-        .from("complaints")
+      const { data } = await (supabase.from(draftTable) as any)
         .select("filing_fee_paid, payment_status, basket_total")
         .eq("id", draftComplaintId)
         .maybeSingle();
@@ -332,11 +331,11 @@ const AdminFileComplaint = () => {
     tick();
     const ch = supabase
       .channel(`draft-complaint-${draftComplaintId}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "complaints", filter: `id=eq.${draftComplaintId}` }, () => tick())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: draftTable, filter: `id=eq.${draftComplaintId}` }, () => tick())
       .subscribe();
     const intv = setInterval(tick, 8000);
     return () => { cancelled = true; clearInterval(intv); supabase.removeChannel(ch); };
-  }, [stage, draftComplaintId]);
+  }, [stage, draftComplaintId, draftTable]);
 
   // Step 2 — promote draft into the real Complaint Management queue
   const finalizeSubmission = async () => {
@@ -344,20 +343,22 @@ const AdminFileComplaint = () => {
     if (!filingPaid) { toast({ title: "Awaiting payment", description: "Wait for the filing fee to clear before submitting." }); return; }
     setFinalizing(true);
     try {
-      const { data: cur } = await supabase
-        .from("complaints")
+      const { data: cur } = await (supabase.from(draftTable) as any)
         .select("*")
         .eq("id", draftComplaintId)
         .single();
       // finalize-payment already flipped status to ready_for_scheduling on payment.
       // Ensure status is at least 'submitted' for downstream visibility.
       if (cur && cur.status === "draft_awaiting_filing_payment") {
-        await supabase.from("complaints").update({ status: "submitted" }).eq("id", draftComplaintId);
+        await (supabase.from(draftTable) as any).update({ status: "submitted", current_stage: "submitted" }).eq("id", draftComplaintId);
       }
-      try {
-        const { autoGenerateForm7 } = await import("@/lib/complaintForms");
-        await autoGenerateForm7(draftComplaintId, cur);
-      } catch (e) { console.warn("Form 7 auto-generate failed", e); }
+      // Form 7 auto-generation only applies to the tenant-complainant flow today.
+      if (draftTable === "complaints") {
+        try {
+          const { autoGenerateForm7 } = await import("@/lib/complaintForms");
+          await autoGenerateForm7(draftComplaintId, cur);
+        } catch (e) { console.warn("Form 7 auto-generate failed", e); }
+      }
       localStorage.removeItem(DRAFT_KEY);
       toast({ title: "Complaint submitted", description: `Ticket ${draftTicket || ""}` });
       navigate(`/regulator/complaints/${draftComplaintId}`);
@@ -367,6 +368,7 @@ const AdminFileComplaint = () => {
       setFinalizing(false);
     }
   };
+
 
   // Allow user to cancel the draft and edit again
   const backToDetails = async () => {
