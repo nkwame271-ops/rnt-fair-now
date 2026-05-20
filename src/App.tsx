@@ -28,6 +28,7 @@ const VerifyRegistration = lazy(() => import("./pages/shared/VerifyRegistration"
 const VerifyTenancy = lazy(() => import("./pages/shared/VerifyTenancy"));
 const VerifyRentCard = lazy(() => import("./pages/shared/VerifyRentCard"));
 const VerifyReceipt = lazy(() => import("./pages/shared/VerifyReceipt"));
+const VerifyForm = lazy(() => import("./pages/shared/VerifyForm"));
 const ProfilePage = lazy(() => import("./pages/shared/ProfilePage"));
 
 // Tenant pages
