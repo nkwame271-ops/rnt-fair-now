@@ -80,6 +80,40 @@ export default function ComplaintDocumentsHub({
   }>({ open: false, type: "form_7" });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busyProfile, setBusyProfile] = useState(false);
+  const [receiptPreview, setReceiptPreview] = useState<any | null>(null);
+
+  const complaintTable: "complaints" | "landlord_complaints" =
+    complaint?.complainant_role === "landlord" && complaint?.landlord_id && !complaint?.tenant_id
+      ? "landlord_complaints"
+      : "complaints";
+
+  const parseSplits = (raw: any): Array<{ recipient: string; amount: number }> => {
+    if (!raw) return [];
+    try {
+      const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (Array.isArray(arr)) return arr.map((s: any) => ({ recipient: s.recipient || s.name || "—", amount: Number(s.amount || 0) }));
+      if (typeof arr === "object") {
+        return Object.entries(arr).map(([recipient, amount]) => ({ recipient, amount: Number(amount as any) || 0 }));
+      }
+    } catch {}
+    return [];
+  };
+
+  const printReceiptRow = (r: any) => {
+    setReceiptPreview(r);
+    // Allow dialog mount; user can press the in-dialog Print button.
+    setTimeout(() => {
+      const btn = document.querySelector<HTMLButtonElement>("[data-receipt-print-btn]");
+      btn?.click();
+    }, 300);
+  };
+  const downloadReceiptRow = (r: any) => {
+    setReceiptPreview(r);
+    setTimeout(() => {
+      const btn = document.querySelector<HTMLButtonElement>("[data-receipt-download-btn]");
+      btn?.click();
+    }, 300);
+  };
 
   const openEditor = (type: StatutoryFormType, initial?: any) =>
     setEditor({ open: true, type, initial });
