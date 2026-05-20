@@ -37,7 +37,8 @@ const insertDoc = async (
   status: "draft" | "finalized",
   path: string | null,
   formData: Record<string, any>,
-  metadata: Record<string, any> = {}
+  metadata: Record<string, any> = {},
+  verificationCode?: string
 ) => {
   const { data: existing } = await supabase
     .from("complaint_documents")
@@ -64,6 +65,7 @@ const insertDoc = async (
       change_reason: metadata.change_reason || "Generated from Form Editor",
       metadata,
       form_data_json: formData,
+      ...(verificationCode ? { verification_code: verificationCode } : {}),
     } as any)
     .select("id")
     .single();
