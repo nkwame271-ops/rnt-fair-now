@@ -2428,10 +2428,17 @@ export type Database = {
       }
       landlord_complaints: {
         Row: {
+          admin_filer_user_id: string | null
+          agreement_expiry_date: string | null
           assigned_officer_user_id: string | null
           audio_url: string | null
           basket_total: number | null
           claim_amount: number | null
+          complainant_address: string | null
+          complainant_gps_lat: number | null
+          complainant_gps_lng: number | null
+          complainant_role: string | null
+          complainants: Json | null
           complaint_code: string
           complaint_title: string | null
           complaint_type: string
@@ -2439,32 +2446,57 @@ export type Database = {
           created_at: string
           created_by_user_id: string | null
           current_stage: string
+          deposit_amount: number | null
           description: string
           evidence_urls: string[] | null
+          filed_by_admin: boolean
+          filing_fee_paid: boolean
+          filing_fee_paid_at: string | null
+          gps_confirmed: boolean
           hearing_room_id: string | null
           id: string
           internal_notes: string | null
-          landlord_user_id: string
+          landlord_user_id: string | null
           last_activity_at: string
           linked_property_id: string | null
           linked_unit_id: string | null
           next_hearing_at: string | null
+          occupied_months: number | null
           office_id: string | null
           outstanding_amount: number | null
           payment_status: string
+          physical_docket_ref: string | null
+          placeholder_landlord_name: string | null
+          placeholder_landlord_phone: string | null
+          placeholder_respondent_name: string | null
+          placeholder_respondent_phone: string | null
+          premises_house_no: string | null
+          premises_town: string | null
           property_address: string
           receipt_id: string | null
           region: string
+          relief_sought: string | null
+          rent_amount: number | null
+          respondent_role: string | null
+          respondents: Json | null
           status: string
           tenant_name: string | null
+          tenants_intent: string | null
           ticket_number: string
           updated_at: string
         }
         Insert: {
+          admin_filer_user_id?: string | null
+          agreement_expiry_date?: string | null
           assigned_officer_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
           claim_amount?: number | null
+          complainant_address?: string | null
+          complainant_gps_lat?: number | null
+          complainant_gps_lng?: number | null
+          complainant_role?: string | null
+          complainants?: Json | null
           complaint_code: string
           complaint_title?: string | null
           complaint_type: string
@@ -2472,32 +2504,57 @@ export type Database = {
           created_at?: string
           created_by_user_id?: string | null
           current_stage?: string
+          deposit_amount?: number | null
           description: string
           evidence_urls?: string[] | null
+          filed_by_admin?: boolean
+          filing_fee_paid?: boolean
+          filing_fee_paid_at?: string | null
+          gps_confirmed?: boolean
           hearing_room_id?: string | null
           id?: string
           internal_notes?: string | null
-          landlord_user_id: string
+          landlord_user_id?: string | null
           last_activity_at?: string
           linked_property_id?: string | null
           linked_unit_id?: string | null
           next_hearing_at?: string | null
+          occupied_months?: number | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
+          physical_docket_ref?: string | null
+          placeholder_landlord_name?: string | null
+          placeholder_landlord_phone?: string | null
+          placeholder_respondent_name?: string | null
+          placeholder_respondent_phone?: string | null
+          premises_house_no?: string | null
+          premises_town?: string | null
           property_address: string
           receipt_id?: string | null
           region: string
+          relief_sought?: string | null
+          rent_amount?: number | null
+          respondent_role?: string | null
+          respondents?: Json | null
           status?: string
           tenant_name?: string | null
+          tenants_intent?: string | null
           ticket_number?: string
           updated_at?: string
         }
         Update: {
+          admin_filer_user_id?: string | null
+          agreement_expiry_date?: string | null
           assigned_officer_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
           claim_amount?: number | null
+          complainant_address?: string | null
+          complainant_gps_lat?: number | null
+          complainant_gps_lng?: number | null
+          complainant_role?: string | null
+          complainants?: Json | null
           complaint_code?: string
           complaint_title?: string | null
           complaint_type?: string
@@ -2505,24 +2562,42 @@ export type Database = {
           created_at?: string
           created_by_user_id?: string | null
           current_stage?: string
+          deposit_amount?: number | null
           description?: string
           evidence_urls?: string[] | null
+          filed_by_admin?: boolean
+          filing_fee_paid?: boolean
+          filing_fee_paid_at?: string | null
+          gps_confirmed?: boolean
           hearing_room_id?: string | null
           id?: string
           internal_notes?: string | null
-          landlord_user_id?: string
+          landlord_user_id?: string | null
           last_activity_at?: string
           linked_property_id?: string | null
           linked_unit_id?: string | null
           next_hearing_at?: string | null
+          occupied_months?: number | null
           office_id?: string | null
           outstanding_amount?: number | null
           payment_status?: string
+          physical_docket_ref?: string | null
+          placeholder_landlord_name?: string | null
+          placeholder_landlord_phone?: string | null
+          placeholder_respondent_name?: string | null
+          placeholder_respondent_phone?: string | null
+          premises_house_no?: string | null
+          premises_town?: string | null
           property_address?: string
           receipt_id?: string | null
           region?: string
+          relief_sought?: string | null
+          rent_amount?: number | null
+          respondent_role?: string | null
+          respondents?: Json | null
           status?: string
           tenant_name?: string | null
+          tenants_intent?: string | null
           ticket_number?: string
           updated_at?: string
         }

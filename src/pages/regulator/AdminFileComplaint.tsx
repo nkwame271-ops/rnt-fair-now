@@ -30,6 +30,7 @@ const AdminFileComplaint = () => {
   // Draft complaint id created on entering Review stage
   const [draftComplaintId, setDraftComplaintId] = useState<string | null>(null);
   const [draftTicket, setDraftTicket] = useState<string | null>(null);
+  const [draftTable, setDraftTable] = useState<"complaints" | "landlord_complaints">("complaints");
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [filingPaid, setFilingPaid] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<string>("awaiting");
@@ -225,33 +226,31 @@ const AdminFileComplaint = () => {
         } catch (e) { /* ignore */ }
       }
 
-      const payload: any = {
+      // Route to the correct table based on who is filing the complaint.
+      // Landlord complainants → landlord_complaints (Landlord tab in Complaint Management)
+      // Tenant complainants → complaints (Tenant tab in Complaint Management)
+      const targetTable: "complaints" | "landlord_complaints" =
+        complainantRole === "landlord" ? "landlord_complaints" : "complaints";
+
+      const commonSnapshot: any = {
         complaint_code: code,
         complaint_type: ct?.label || "Other",
         complaint_type_id: complaintTypeId,
-        landlord_name: primaryR.name,
         property_address: address,
         region,
         description,
         evidence_urls: evidenceUrls,
         office_id: officeId,
-        // Gated state — hidden from Complaint Management until filing fee paid
         status: "draft_awaiting_filing_payment",
+        current_stage: "draft_awaiting_filing_payment",
         payment_status: "awaiting",
         filing_fee_paid: false,
-        gps_confirmed: false,
         filed_by_admin: true,
         admin_filer_user_id: adminId,
         complainant_role: complainantRole,
         respondent_role: respondentRole,
         physical_docket_ref: docketRef || null,
         rent_amount: rentAmount ? Number(rentAmount) : null,
-        placeholder_complainant_name: primaryC.name,
-        placeholder_complainant_phone: primaryC.phone || null,
-        placeholder_respondent_name: primaryR.name,
-        placeholder_respondent_phone: primaryR.phone || null,
-        complainant_user_id: complainantUserId,
-        tenant_user_id: complainantRole === "tenant" ? complainantUserId : null,
         complainants,
         respondents,
         premises_house_no: premisesHouseNo || null,
@@ -264,14 +263,41 @@ const AdminFileComplaint = () => {
         occupied_months: occupiedMonths ? Number(occupiedMonths) : null,
         tenants_intent: tenantsIntent || null,
         relief_sought: reliefSought || null,
+        gps_confirmed: false,
       };
 
-      const { data: created, error } = await supabase
-        .from("complaints")
+      let payload: any;
+      if (targetTable === "landlord_complaints") {
+        payload = {
+          ...commonSnapshot,
+          landlord_user_id: complainantUserId, // nullable now; placeholder fields cover unregistered landlords
+          tenant_name: primaryR.name, // respondent name field on landlord_complaints
+          placeholder_landlord_name: primaryC.name,
+          placeholder_landlord_phone: primaryC.phone || null,
+          placeholder_respondent_name: primaryR.name,
+          placeholder_respondent_phone: primaryR.phone || null,
+        };
+      } else {
+        payload = {
+          ...commonSnapshot,
+          landlord_name: primaryR.name,
+          placeholder_complainant_name: primaryC.name,
+          placeholder_complainant_phone: primaryC.phone || null,
+          placeholder_respondent_name: primaryR.name,
+          placeholder_respondent_phone: primaryR.phone || null,
+          complainant_user_id: complainantUserId,
+          tenant_user_id: complainantRole === "tenant" ? complainantUserId : null,
+        };
+      }
+
+      const { data: created, error } = await (supabase.from(targetTable) as any)
         .insert(payload)
         .select("id, ticket_number")
         .single();
       if (error) throw error;
+
+      setDraftTable(targetTable);
+
 
       setDraftComplaintId(created.id);
       setDraftTicket(created.ticket_number);
@@ -293,8 +319,7 @@ const AdminFileComplaint = () => {
     if (stage !== "review" || !draftComplaintId) return;
     let cancelled = false;
     const tick = async () => {
-      const { data } = await supabase
-        .from("complaints")
+      const { data } = await (supabase.from(draftTable) as any)
         .select("filing_fee_paid, payment_status, basket_total")
         .eq("id", draftComplaintId)
         .maybeSingle();
@@ -306,11 +331,11 @@ const AdminFileComplaint = () => {
     tick();
     const ch = supabase
       .channel(`draft-complaint-${draftComplaintId}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "complaints", filter: `id=eq.${draftComplaintId}` }, () => tick())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: draftTable, filter: `id=eq.${draftComplaintId}` }, () => tick())
       .subscribe();
     const intv = setInterval(tick, 8000);
     return () => { cancelled = true; clearInterval(intv); supabase.removeChannel(ch); };
-  }, [stage, draftComplaintId]);
+  }, [stage, draftComplaintId, draftTable]);
 
   // Step 2 — promote draft into the real Complaint Management queue
   const finalizeSubmission = async () => {
@@ -318,20 +343,22 @@ const AdminFileComplaint = () => {
     if (!filingPaid) { toast({ title: "Awaiting payment", description: "Wait for the filing fee to clear before submitting." }); return; }
     setFinalizing(true);
     try {
-      const { data: cur } = await supabase
-        .from("complaints")
+      const { data: cur } = await (supabase.from(draftTable) as any)
         .select("*")
         .eq("id", draftComplaintId)
         .single();
       // finalize-payment already flipped status to ready_for_scheduling on payment.
       // Ensure status is at least 'submitted' for downstream visibility.
       if (cur && cur.status === "draft_awaiting_filing_payment") {
-        await supabase.from("complaints").update({ status: "submitted" }).eq("id", draftComplaintId);
+        await (supabase.from(draftTable) as any).update({ status: "submitted", current_stage: "submitted" }).eq("id", draftComplaintId);
       }
-      try {
-        const { autoGenerateForm7 } = await import("@/lib/complaintForms");
-        await autoGenerateForm7(draftComplaintId, cur);
-      } catch (e) { console.warn("Form 7 auto-generate failed", e); }
+      // Form 7 auto-generation only applies to the tenant-complainant flow today.
+      if (draftTable === "complaints") {
+        try {
+          const { autoGenerateForm7 } = await import("@/lib/complaintForms");
+          await autoGenerateForm7(draftComplaintId, cur);
+        } catch (e) { console.warn("Form 7 auto-generate failed", e); }
+      }
       localStorage.removeItem(DRAFT_KEY);
       toast({ title: "Complaint submitted", description: `Ticket ${draftTicket || ""}` });
       navigate(`/regulator/complaints/${draftComplaintId}`);
@@ -341,6 +368,7 @@ const AdminFileComplaint = () => {
       setFinalizing(false);
     }
   };
+
 
   // Allow user to cancel the draft and edit again
   const backToDetails = async () => {
@@ -487,7 +515,7 @@ const AdminFileComplaint = () => {
         open={paymentOpen}
         onOpenChange={setPaymentOpen}
         complaintId={draftComplaintId || ""}
-        complaintTable="complaints"
+        complaintTable={draftTable}
         monthlyRent={rentAmount ? Number(rentAmount) : null}
         feeScope="rent_control"
         mode="officer_checkout"
@@ -497,7 +525,7 @@ const AdminFileComplaint = () => {
         onRequested={() => {
           // Refresh status immediately
           if (draftComplaintId) {
-            supabase.from("complaints").select("payment_status, basket_total").eq("id", draftComplaintId).maybeSingle().then(({ data }) => {
+            (supabase.from(draftTable) as any).select("payment_status, basket_total").eq("id", draftComplaintId).maybeSingle().then(({ data }: any) => {
               if (data) {
                 setPaymentStatus(data.payment_status || "pending");
                 setBasketTotal(Number(data.basket_total || 0));
