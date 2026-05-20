@@ -763,19 +763,38 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!staffRow) throw new Error("Only Rent Control staff may open this checkout");
 
-      const { data: complaint } = await supabaseAdmin
+      // Try tenant complaints first, then fall back to landlord_complaints
+      let complaint: any = null;
+      let complaintTable: "complaints" | "landlord_complaints" = "complaints";
+      const { data: tComp } = await supabaseAdmin
         .from("complaints")
         .select("id, status, payment_status, filing_fee_paid, region, office_id, complainant_user_id, tenant_user_id, complainant_role")
         .eq("id", complaintId)
         .maybeSingle();
+      if (tComp) {
+        complaint = tComp;
+        complaintTable = "complaints";
+      } else {
+        const { data: lComp } = await supabaseAdmin
+          .from("landlord_complaints")
+          .select("id, status, payment_status, filing_fee_paid, region, office_id, landlord_user_id, admin_filer_user_id, complainant_role")
+          .eq("id", complaintId)
+          .maybeSingle();
+        if (lComp) {
+          complaint = { ...lComp, complainant_user_id: lComp.landlord_user_id, complainant_role: lComp.complainant_role || "landlord" };
+          complaintTable = "landlord_complaints";
+        }
+      }
       if (!complaint) throw new Error("Complaint not found");
       if (complaint.filing_fee_paid) throw new Error("Filing fee has already been paid for this complaint");
+
+      const isLandlordComplaint = complaintTable === "landlord_complaints" || complaint.complainant_role === "landlord";
 
       const { data: basketRows } = await supabaseAdmin
         .from("complaint_basket_items")
         .select("id, kind, label, amount, igf_pct, admin_pct, platform_pct, is_nugs_revenue, fee_scope, paid_at")
         .eq("complaint_id", complaintId)
-        .eq("complaint_table", "complaints")
+        .eq("complaint_table", complaintTable)
         .is("paid_at", null)
         .order("created_at");
       const unpaidRows = Array.isArray(basketRows) ? basketRows : [];
@@ -808,7 +827,7 @@ Deno.serve(async (req) => {
 
       // Bring the complaint into the standard payment-pending state so finalize-payment treats it identically.
       await supabaseAdmin
-        .from("complaints")
+        .from(complaintTable)
         .update({
           payment_status: "pending",
           outstanding_amount: totalAmount,
@@ -823,6 +842,7 @@ Deno.serve(async (req) => {
       metadata = {
         ...metadata,
         complaintId,
+        complaint_table: complaintTable,
         filed_by_admin: true,
         admin_user_id: userId,
         payer_name: payerName || null,
@@ -830,7 +850,7 @@ Deno.serve(async (req) => {
         payer_email: payerEmail || null,
         payer_role: payerRole || complaint.complainant_role || null,
         complainant_role: complaint.complainant_role || payerRole || null,
-        isLandlordComplaint: (complaint.complainant_role === "landlord") || (payerRole === "landlord"),
+        isLandlordComplaint,
         basket_items: unpaidRows.map((r: any) => r.id),
       };
 
