@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, fmtDate } from "./_brand";
+import { A4, MARGIN, drawHeader, drawFooter, drawWatermark, drawSignatureStamp, drawQrFooter, fmtDate } from "./_brand";
 
 export interface Form7Party {
   name: string;
