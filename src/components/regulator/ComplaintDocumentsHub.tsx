@@ -392,7 +392,7 @@ export default function ComplaintDocumentsHub({
                     <Button size="sm" variant="outline" onClick={() => setReceiptPreview(r)} title="Preview">
                       <Eye className="h-3.5 w-3.5 mr-1" /> Preview
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setReceiptPreview(r)} title="Download (use PDF button in preview)">
+                    <Button size="sm" variant="outline" onClick={() => downloadReceiptPdf(r)} title="Download PDF">
                       <Download className="h-3.5 w-3.5 mr-1" /> Download
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setReceiptPreview(r)} title="Print (use Print button in preview)">
