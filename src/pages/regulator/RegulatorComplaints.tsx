@@ -1118,9 +1118,63 @@ const RegulatorComplaints = () => {
           complaintTable={requestPaymentFor.table}
           monthlyRent={requestPaymentFor.rent ?? null}
           linkedPropertyId={requestPaymentFor.propertyId ?? null}
+          mode={requestPaymentFor.mode || "send_request"}
+          defaultPayerName={requestPaymentFor.payerName}
+          defaultPayerPhone={requestPaymentFor.payerPhone}
+          defaultPayerRole={requestPaymentFor.payerRole}
           onRequested={() => { setRequestPaymentFor(null); fetchComplaints(); fetchLandlordComplaints(); }}
         />
       )}
+
+      {/* Officer choice: pay now in person, or send a request to the user's portal */}
+      <Dialog open={!!feeChoiceFor} onOpenChange={(o) => { if (!o) setFeeChoiceFor(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" /> How will the payer pay?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Choose how this fee will be collected. Update Fee Type stays available for future case-related charges; the basic filing fee will not be requested again if it was already paid at filing.
+            </p>
+            <button
+              type="button"
+              className="w-full text-left rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition p-3"
+              onClick={() => {
+                if (!feeChoiceFor) return;
+                setRequestPaymentFor({ ...feeChoiceFor, mode: "officer_checkout" });
+                setFeeChoiceFor(null);
+              }}
+            >
+              <div className="font-semibold text-sm text-foreground flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-primary" /> Go to Checkout
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Use when the client is physically present. Opens the secure mobile money checkout immediately after setting the fee.
+              </div>
+            </button>
+            <button
+              type="button"
+              className="w-full text-left rounded-lg border border-border hover:bg-muted/40 transition p-3"
+              onClick={() => {
+                if (!feeChoiceFor) return;
+                setRequestPaymentFor({ ...feeChoiceFor, mode: "send_request" });
+                setFeeChoiceFor(null);
+              }}
+            >
+              <div className="font-semibold text-sm text-foreground flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-muted-foreground" /> Request Fee
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Use when the client is not present. Sends the payment request to the {feeChoiceFor?.payerRole === "landlord" ? "landlord" : "tenant"} portal as a Pay Now item.
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+
 
       <ComplaintReportsDialog open={reportsOpen} onOpenChange={setReportsOpen} />
     </div>
