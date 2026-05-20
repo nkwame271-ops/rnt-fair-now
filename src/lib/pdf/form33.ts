@@ -30,6 +30,9 @@ export interface Form33Data {
   complainant_name?: string;
   complainant_phone?: string;
   complainant_address?: string;
+  // Verification (QR rendered in footer band — statutory body untouched)
+  qr_data_url?: string;
+  verification_code?: string;
 }
 
 const ordinalSuffix = (n: number) => {
