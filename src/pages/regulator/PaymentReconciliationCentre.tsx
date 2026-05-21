@@ -31,6 +31,7 @@ import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { formatGHSDecimal } from "@/lib/formatters";
 import UserProofReviewTab from "@/components/regulator/UserProofReviewTab";
 import ReceiptDriftTile from "@/components/regulator/ReceiptDriftTile";
+import TransactionExplorer from "@/components/regulator/TransactionExplorer";
 
 /**
  * Payment Reconciliation & Recovery Centre
@@ -329,6 +330,9 @@ const PaymentReconciliationCentre = () => {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
+          <TabsTrigger value="transactions">
+            <Search className="h-4 w-4 mr-1" /> Transactions
+          </TabsTrigger>
           <TabsTrigger value="gaps">
             <AlertTriangle className="h-4 w-4 mr-1" /> Reconciliation Gaps ({gaps?.length ?? 0})
           </TabsTrigger>
@@ -339,6 +343,10 @@ const PaymentReconciliationCentre = () => {
             <History className="h-4 w-4 mr-1" /> Audit Trail
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="transactions" className="mt-3">
+          <TransactionExplorer />
+        </TabsContent>
 
         <TabsContent value="user_proofs" className="mt-3">
           <UserProofReviewTab />
