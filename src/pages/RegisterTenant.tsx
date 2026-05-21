@@ -612,6 +612,7 @@ const RegisterTenant = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

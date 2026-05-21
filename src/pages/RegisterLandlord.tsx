@@ -488,6 +488,7 @@ const RegisterLandlord = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
