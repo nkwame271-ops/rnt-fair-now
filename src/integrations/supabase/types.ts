@@ -6463,6 +6463,7 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      try_finalize_lock: { Args: { p_reference: string }; Returns: boolean }
       unassign_serial_atomic: {
         Args: { p_serial_number: string }
         Returns: Json
