@@ -608,7 +608,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       }
 
       const assignedSet = new Set(assignedCardIds);
-      setPendingCards(prev => prev.filter(c => !assignedSet.has(c.id)));
+      setAllPendingCards(prev => prev.filter(c => !assignedSet.has(c.id)));
       setSelectedCardIds(prev => {
         const next = new Set(prev);
         assignedCardIds.forEach(id => next.delete(id));
