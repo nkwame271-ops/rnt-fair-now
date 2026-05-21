@@ -236,7 +236,7 @@ const ComplaintCaseFile = () => {
         </div>
       </div>
 
-      <PaymentSummaryCard receipts={receipts} basket={basketItems} complaint={c} />
+      <PaymentSummaryCard receipts={receipts} casePayments={casePayments} basket={basketItems} complaint={c} />
 
       <Tabs defaultValue="overview">
         <TabsList className="flex flex-wrap h-auto">
