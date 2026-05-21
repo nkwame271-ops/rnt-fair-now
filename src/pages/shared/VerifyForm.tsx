@@ -21,27 +21,23 @@ export default function VerifyForm() {
   useEffect(() => {
     (async () => {
       if (!code) { setError("No verification code provided"); setLoading(false); return; }
-      const { data, error } = await supabase
-        .from("complaint_documents")
-        .select("form_type, version_number, status, generated_at, finalized_at, title, case_id, case_kind, verification_code")
-        .eq("verification_code", code.toUpperCase())
-        .maybeSingle();
-      if (error) { setError(error.message); setLoading(false); return; }
-      if (!data) { setError("Document not found or verification code is invalid"); setLoading(false); return; }
-      setDoc(data);
-
-      // Pull a minimal slice of case context for the integrity panel.
-      try {
-        const table = data.case_kind === "landlord_complaints" ? "landlord_complaints" : "complaints";
-        const selectCols = table === "landlord_complaints"
-          ? "complaint_code, ticket_number, complaint_type, status, current_stage, created_at, placeholder_landlord_name, tenant_name"
-          : "complaint_code, ticket_number, complaint_type, status, current_stage, created_at, landlord_name, placeholder_complainant_name";
-        const [{ data: c }, { data: caseRow }] = await Promise.all([
-          (supabase.from(table) as any).select(selectCols).eq("id", data.case_id).maybeSingle(),
-          supabase.from("cases").select("case_number").eq("related_complaint_id", data.case_id).maybeSingle(),
-        ]);
-        if (c) setCaseCtx({ ...c, case_number: caseRow?.case_number || null, table });
-      } catch { /* surface only the doc panel if context lookup fails */ }
+      const { data, error } = await supabase.functions.invoke("verify-form", {
+        body: { code: code.toUpperCase() },
+      });
+      if (error) {
+        // functions.invoke surfaces non-2xx as error; try to surface its body message
+        const msg = (error as any)?.context?.error || error.message || "Verification failed";
+        setError(msg === "Document not found" ? "Document not found or verification code is invalid" : msg);
+        setLoading(false);
+        return;
+      }
+      if (!data?.doc) {
+        setError("Document not found or verification code is invalid");
+        setLoading(false);
+        return;
+      }
+      setDoc(data.doc);
+      if (data.caseCtx) setCaseCtx(data.caseCtx);
       setLoading(false);
     })();
   }, [code]);

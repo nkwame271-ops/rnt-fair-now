@@ -1,22 +1,27 @@
 ## Problem
 
-In the admin portal under **Rent Cards → Pending & Assign**, the screen looks empty even though landlords have purchased cards. The data is in the database — `rent_cards` has many rows in `status = 'awaiting_serial'` from recent landlord purchases (PUR-20260521-0703 … 0706, multiple landlords).
+QR codes printed on Forms 7 and 33 point to `https://www.rentcontrolghana.com/verify/form/<CODE>`. The codes ARE saved correctly in `complaint_documents.verification_code` (confirmed in DB — e.g. `EUBHGUZY`, `BU944HHM`, `VUQL3E9S`, etc.). But the verify page reads the table directly from the browser, and `complaint_documents` RLS only permits `admin_staff` rows. Anyone scanning the QR is anonymous, so the SELECT returns zero rows and the page shows "Verification failed. Document not found." The same RLS gate blocks the case-context lookup on `complaints` / `landlord_complaints`.
 
-The reason nothing shows: `PendingPurchases.tsx` requires the admin to **type a query and click Search** before any row is fetched. `pendingCards` starts empty and is only populated by `handleSearch`, which itself filters by Landlord ID / Name / Purchase ID against the search string. With an empty box the list stays blank, so the landlord details never appear.
+## Fix
 
-## Fix (frontend only — `src/pages/regulator/rent-cards/PendingPurchases.tsx`)
+Add a tiny public edge function that takes a verification code, looks the document up with the service-role key, and returns a sanitized payload (document metadata + case context). Point `VerifyForm.tsx` at the function instead of querying tables directly.
 
-1. **Auto-load pending purchases on mount.** Add a `useEffect` that runs `loadPending()` when the component mounts (and when `profile` changes).
-2. **Extract a `loadPending()` helper** from `handleSearch`. It fetches `rent_cards` with `status = 'awaiting_serial'` (paginated in 1 000-row chunks to bypass the Supabase default cap, same pattern already used elsewhere), joins to `profiles` and `landlords` for name + landlord ID, orders by `purchased_at desc`, and stores the result in `pendingCards`.
-3. **Turn the search box into a client-side filter** over the loaded list. Remove the "click Search to fetch" gate; the input narrows `pendingCards` by Landlord ID / Name / Purchase ID as the admin types. Keep an explicit "Refresh" button (replacing the current Search button) so admins can re-pull after a landlord buys new cards.
-4. **Empty state copy** updates from `No pending cards found for "<query>"` to either "No pending purchases" (when nothing is awaiting serial) or "No matches for <query>" (when filter excludes everything).
-5. Preserve existing behaviour for assignment, selection, quota handling, and the post-assign list trimming.
+## Steps
 
-No DB changes, no RLS changes, no edge function changes. No other rent-card screens touched.
+1. **New edge function** `supabase/functions/verify-form/index.ts`
+   - Accepts `GET ?code=XYZ` or `POST { code }`.
+   - Uses `SUPABASE_SERVICE_ROLE_KEY` to:
+     - Look up `complaint_documents` by `verification_code` (uppercased) — return 404 if missing.
+     - Look up the linked row from `complaints` or `landlord_complaints` (based on `case_kind`) selecting only the fields the page already shows.
+     - Look up `cases.case_number` via `related_complaint_id`.
+   - Returns `{ doc, caseCtx }` with only the fields VerifyForm renders.
+   - Standard CORS headers; no JWT verification needed (config: `verify_jwt = false`).
 
-## Verification
+2. **`supabase/config.toml`** — add a `[functions.verify-form]` block with `verify_jwt = false` so anonymous QR scans work.
 
-- Open **Rent Cards → Pending & Assign** as a regulator admin → list of pending purchases (grouped by `PUR-…`) shows landlord name, landlord ID code, purchase date, and card count immediately, without typing anything.
-- Type a landlord ID / name / purchase ID → list narrows in place.
-- Click **Refresh** after a new landlord purchase → new purchase appears.
-- Assign serials → assigned cards disappear from the list, success banner shows, stock counters update (unchanged behaviour).
+3. **`src/pages/shared/VerifyForm.tsx`** — replace the two direct `supabase.from(...)` calls with `supabase.functions.invoke("verify-form", { body: { code } })`. Keep all existing UI / fallbacks.
+
+## Out of scope
+
+- No changes to the PDF rendering, QR generation, code format, or the admin editor flow.
+- No RLS changes on `complaint_documents` (keeps admin-only direct access intact).
