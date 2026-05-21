@@ -15,6 +15,7 @@ import FormField from "@/components/FormField";
 import { formatPhone, isValidPhone } from "@/lib/formatters";
 import { Switch } from "@/components/ui/switch";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import Seo from "@/components/Seo";
 
 const RegisterLandlord = () => {
   const navigate = useNavigate();
@@ -227,6 +228,12 @@ const RegisterLandlord = () => {
   const progressPercent = step === 0 ? 0 : 100;
 
   return (
+    <>
+      <Seo
+        title="Landlord Registration — Rent Control Ghana"
+        description="Register as a landlord with Rent Control Ghana to list properties, manage tenancies, and stay compliant with the Rent Act (Act 220)."
+        canonicalPath="/register/landlord"
+      />
     <div className="min-h-screen bg-background flex">
       {/* Left Panel */}
       <div className="hidden lg:flex lg:w-2/5 gradient-hero items-center justify-center p-12 relative">

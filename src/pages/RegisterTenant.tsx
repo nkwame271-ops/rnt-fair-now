@@ -16,6 +16,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Switch } from "@/components/ui/switch";
 import InstitutionCombobox from "@/components/InstitutionCombobox";
 import { normalizeInstitutionName } from "@/data/ghanaInstitutions";
+import Seo from "@/components/Seo";
 
 const steps = ["Account", "Contact", "Your ID"];
 
@@ -267,6 +268,12 @@ const RegisterTenant = () => {
   const progressPercent = Math.round((Math.min(step, 2) / 2) * 100);
 
   return (
+    <>
+      <Seo
+        title={studentMode ? "Student Registration — Rent Control Ghana" : "Tenant Registration — Rent Control Ghana"}
+        description="Create your Rent Control Ghana account to register tenancies, access fair rent guidance, and file complaints under the Rent Act (Act 220)."
+        canonicalPath={studentMode ? "/register/tenant?student=1" : "/register/tenant"}
+      />
     <div className="min-h-screen bg-background flex">
       {/* Left Panel */}
       <div className="hidden lg:flex lg:w-2/5 gradient-hero items-center justify-center p-12 relative">
