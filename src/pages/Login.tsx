@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPhone } from "@/lib/formatters";
+import Seo from "@/components/Seo";
 
 const Login = () => {
   const [searchParams] = useSearchParams();
@@ -101,6 +102,12 @@ const Login = () => {
   };
 
   return (
+    <>
+      <Seo
+        title={`Sign In — Rent Control Ghana (${isStudent ? "Student" : role === "landlord" ? "Landlord" : "Tenant"})`}
+        description="Sign in to Rent Control Ghana to manage your tenancy, file complaints, register properties, and access services under the Rent Act (Act 220)."
+        canonicalPath={`/login${role ? `?role=${role}` : ""}`}
+      />
     <div className="min-h-screen bg-background flex">
       <div className="hidden lg:flex lg:w-1/2 gradient-hero items-center justify-center p-12 relative">
         <div className="text-primary-foreground max-w-md">
@@ -159,10 +166,11 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {loginMode === "phone" ? (
               <div className="space-y-2">
-                <Label>Phone Number</Label>
+                <Label htmlFor="login-phone">Phone Number</Label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
+                    id="login-phone"
                     type="tel"
                     placeholder="024 555 1234"
                     className="pl-10"
@@ -175,10 +183,11 @@ const Login = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                <Label>Email Address</Label>
+                <Label htmlFor="login-email">Email Address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
+                    id="login-email"
                     type="email"
                     placeholder="you@example.com"
                     className="pl-10"
@@ -191,14 +200,14 @@ const Login = () => {
             )}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Password</Label>
+                <Label htmlFor="login-password">Password</Label>
                 <button type="button" onClick={() => navigate("/forgot-password")} className="text-xs text-primary hover:underline">
                   Forgot password?
                 </button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input type="password" placeholder="••••••••" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <Input id="login-password" type="password" placeholder="••••••••" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
               <p className="text-xs text-muted-foreground">First time? Your temporary password is your full phone number.</p>
             </div>
@@ -226,6 +235,7 @@ const Login = () => {
         </motion.div>
       </div>
     </div>
+    </>
   );
 };
 

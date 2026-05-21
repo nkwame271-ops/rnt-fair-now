@@ -117,7 +117,7 @@ const TenantLayout = () => {
 
       <div className="flex-1 flex flex-col min-w-0 ml-0 w-full">
         <header className="h-14 glass-header flex items-center px-3 sm:px-4 gap-2">
-          <button onClick={() => setMobileOpen(true)} className="md:hidden shrink-0">
+          <button onClick={() => setMobileOpen(true)} aria-label="Open menu" className="md:hidden shrink-0">
             <Menu className="h-5 w-5" />
           </button>
           <span className="font-bold text-sm hidden sm:inline md:hidden">Rent Control</span>
@@ -134,7 +134,7 @@ const TenantLayout = () => {
           </div>
         </main>
         <footer className="border-t border-white/30 bg-transparent px-4 py-2 flex items-center justify-center gap-2">
-          <img src="/cfled-logo.png" alt="CFLED" className="h-5 w-auto opacity-60" />
+          <img src="/cfled-logo.png" alt="CFLED logo" className="h-5 w-auto opacity-60" />
           <span className="text-muted-foreground text-[10px]">Designed by Center for Financial Literacy, E-Commerce and Digitalization</span>
         </footer>
       </div>
