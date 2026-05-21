@@ -748,6 +748,73 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     }
   } catch {}
 
+  // 11. Write to the unified case_payments source of truth + run idempotent reconciliation.
+  // Every payment flow (Dashboard Pay Now, Checkout, Webhook, Manual reconcile) reaches this
+  // helper, so this is the single chokepoint that guarantees a row exists in case_payments
+  // for every paid transaction.
+  try {
+    const isStudentPayment =
+      isStudentRevenue ||
+      paymentType === "student_rent_card_fee" ||
+      (officeId && officeId.toLowerCase().startsWith("nugs"));
+
+    const casePaymentRow: any = {
+      case_id: escrow.case_id || null,
+      student_id: isStudentPayment ? userId : null,
+      payer_user_id: userId,
+      office_id: officeId,
+      escrow_transaction_id: escrowId,
+      payment_reference: reference,
+      payment_provider: "paystack",
+      payment_type: paymentType,
+      amount_paid: amountPaid > 0 ? amountPaid : Number(escrow.total_amount || 0),
+      currency: "GHS",
+      payment_status: "paid",
+      metadata: {
+        paystack_transaction_id: transactionId,
+        complaint_id: escrow.related_complaint_id || null,
+        tenancy_id: escrow.related_tenancy_id || null,
+        property_id: escrow.related_property_id || null,
+      },
+    };
+
+    const { data: upserted, error: upErr } = await supabaseAdmin
+      .from("case_payments")
+      .upsert(casePaymentRow, { onConflict: "payment_reference" })
+      .select("id")
+      .maybeSingle();
+
+    if (upErr) {
+      await logError({ escrow_transaction_id: escrowId, reference, error_stage: "case_payments_upsert", error_message: upErr.message, severity: "warning" });
+    }
+
+    if (upserted?.id && receiptId) {
+      const { data: rcptRow } = await supabaseAdmin
+        .from("payment_receipts")
+        .select("receipt_number")
+        .eq("id", receiptId)
+        .maybeSingle();
+      await supabaseAdmin
+        .from("case_payments")
+        .update({
+          receipt_url: verifyUrl(`/verify/receipt/${reference}`),
+          ...(rcptRow?.receipt_number ? { receipt_number: rcptRow.receipt_number } : {}),
+        })
+        .eq("id", upserted.id);
+    }
+
+    const { error: rpcErr } = await supabaseAdmin.rpc("reconcile_case_payment", {
+      p_payment_reference: reference,
+      p_actor: null,
+      p_notes: `Auto-reconciled by finalize-payment (${paymentType})`,
+    });
+    if (rpcErr) {
+      await logError({ escrow_transaction_id: escrowId, reference, error_stage: "reconcile_case_payment", error_message: rpcErr.message, severity: "warning" });
+    }
+  } catch (cpErr: any) {
+    await logError({ escrow_transaction_id: escrowId, reference, error_stage: "case_payments_block", error_message: cpErr.message || String(cpErr), severity: "warning" });
+  }
+
   return { verified: true, status: "completed" };
 }
 
