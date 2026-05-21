@@ -1,59 +1,71 @@
-## Status: Already Fixed, Now Hardening
+## Transaction Explorer with Lifecycle Drill-Down
 
-Current state is fully synced:
-- 796 paid escrows / 796 receipts / 796 case_payments / 0 unreconciled
-- `finalize-payment.ts` line 506 uses correct enum `auto_generated`
-- `reconcile-payment` line 244 uses correct enum `manually_reconciled`
-- All 4 valid enum values confirmed: `auto_generated`, `manually_reconciled`, `duplicate_blocked`, `voided`
+Add a "Transactions" tab inside **Payment Reconciliation & Recovery Centre** so admins can browse every transaction type, drill into a single transaction, see exactly where it is in the lifecycle, and safely issue a missing receipt only when Paystack has actually confirmed the payment.
 
-But in the last 7 days, `payment_processing_errors` logged **66 `receipt_insert` failures** — the exact silent-fail mode that caused this outage. We need guardrails so this can never recur silently.
+### 1. New "Transactions" tab on Reconciliation Centre
 
-## Plan: Prevent Recurrence
-
-### 1. Database-level guard (migration)
-Add a trigger on `escrow_transactions` that fires when status flips to `success/completed/paid`. If no matching `payment_receipts` row exists within the same transaction context, log a row into a new `receipt_generation_failures` table (does NOT block payment — just records the drift instantly).
+Three-pane layout:
 
 ```text
-escrow paid → trigger checks payment_receipts within 30s window
-            → if missing after webhook completes, row inserted in
-              receipt_generation_failures with reference + reason
+┌─ Transaction Types ──┐ ┌─ Transactions ──────────┐ ┌─ Lifecycle ─────────┐
+│ Rent Card Bulk  608  │ │ ref · payer · amount    │ │ ✓ Paystack verified │
+│ Landlord Reg     84  │ │ ref · payer · amount    │ │ ✓ Escrow finalized  │
+│ Tenant Reg       45  │ │ ...                     │ │ ⚠ Receipt missing   │
+│ Complaint Fee    35  │ │                         │ │ ✓ Splits created    │
+│ Rent Tax Bulk    10  │ │                         │ │ ✗ Not reconciled    │
+│ ...                  │ │                         │ │                     │
+└──────────────────────┘ └─────────────────────────┘ │ [Issue Receipt]     │
+                                                     └─────────────────────┘
 ```
 
-### 2. Self-healing edge function: `receipt-drift-monitor`
-New scheduled edge function (runs every 15 min) that:
-- Finds paid escrows older than 5 min with no receipt
-- Finds paid case_payments with no `receipt_number`
-- Finds paid case_payments with `reconciliation_status <> 'reconciled'`
-- For each: re-runs `finalize-payment` logic to backfill, then logs to `receipt_generation_failures` with outcome
-- Returns counts so it can be wired to a Command Center alert tile
+- Type list comes from `escrow_transactions.payment_type` aggregated with counts.
+- Transactions list is filterable by status (paid / pending / failed) and searchable by reference.
+- Both panes paginate (50/page) to handle the 800+ transactions.
 
-### 3. Hardened receipt insert in `finalize-payment.ts`
-Wrap the receipt insert in retry-with-fallback logic:
-- On insert error, log the EXACT enum value attempted (so future enum changes surface immediately)
-- On any failure, write to new `receipt_generation_failures` table with full payload
-- Escalate severity from `warning` → `critical` for receipt_insert errors so they appear in admin alerts
+### 2. Lifecycle panel (the drop-down the user described)
 
-### 4. Command Center alert tile
-Add a "Receipt Drift" tile to the Super Admin Command Center showing:
-- Paid escrows missing receipts (should always be 0)
-- Unreconciled paid payments (should always be 0)
-- Receipt generation failures in last 24h
-- Direct "Repair Now" button that calls `receipt-drift-monitor`
+For the selected transaction, render an ordered status timeline:
 
-### 5. Frontend safeguard in Receipts pages
-Tenant/Landlord/Regulator Receipts pages already query `payment_receipts`. Add a fallback: if a paid `case_payment` exists with no linked receipt, show it in the list with a "Receipt being generated" badge + auto-trigger drift monitor for that reference. Users never see a missing receipt again.
+| Stage | Source of truth | Pass condition |
+|-------|----------------|---------------|
+| Transaction created | `escrow_transactions` row exists | always |
+| Paystack verified | live call to `reconcile-payment` dry_run | Paystack returns `status=success` |
+| Escrow finalized | `escrow_transactions.status IN (success, completed, paid)` | flagged |
+| Receipt issued | `payment_receipts` row exists | row found |
+| Splits created | `escrow_splits` active rows exist | found |
+| Case payment recorded | `case_payments` row with `payment_status='paid'` | found |
+| Reconciled | `case_payments.reconciliation_status='reconciled'` | flagged |
 
-## Files Changed
+Each row shows: ✓ green, ✗ red, ⏳ amber (pending). Each row is expandable to show timestamp + actor + the underlying record reference.
 
-- `supabase/migrations/<new>.sql` — create `receipt_generation_failures` table + RLS + drift detection function
-- `supabase/functions/receipt-drift-monitor/index.ts` — new scheduled function
-- `supabase/functions/_shared/finalize-payment.ts` — hardened receipt insert with failure logging
-- `src/pages/admin/CommandCenter.tsx` (or equivalent) — receipt drift tile
-- `src/pages/tenant/Receipts.tsx`, `src/pages/landlord/Receipts.tsx`, `src/pages/regulator/RegulatorReceipts.tsx` — fallback display for in-flight receipts
+### 3. Safe "Manually Issue Receipt" button
 
-## Out of Scope
+Button is **enabled only when both** are true:
+- Paystack dry_run confirms the transaction is paid (`verified === true`)
+- `payment_receipts` row is missing for this escrow
 
-- No changes to payment processing flow itself (Paystack verification, escrow writes, reconciliation RPC) — those are working
-- No backfill needed — data is already 100% synced
+When clicked:
+- Calls existing `reconcile-payment` edge function with `action=reconcile` — this is the same idempotent pipeline `receipt-drift-monitor` uses
+- Writes a `payment_reconciliation_audit_log` entry tagged `manual_receipt_issue`
+- Refreshes the lifecycle panel inline
 
-Approve to implement, or tell me which sections to skip.
+If Paystack does NOT confirm success (`verified === false` or unknown reference), the button stays disabled with a tooltip: **"Cannot issue receipt — Paystack has not confirmed this transaction. Receipts can only be issued for verified payments."**
+
+### 4. Reuse, don't duplicate
+
+- No new backend endpoints needed. `reconcile-payment` already supports `dry_run` and `reconcile` actions.
+- No new tables. The Lifecycle panel reads from `escrow_transactions`, `payment_receipts`, `escrow_splits`, `case_payments`, plus the live Paystack dry-run.
+- The existing "Reconciliation Gaps" tab stays for sweeping fixes; the new "Transactions" tab is the per-transaction explorer.
+
+### 5. Files Changed
+
+- `src/pages/regulator/PaymentReconciliationCentre.tsx` — add "Transactions" tab + state
+- `src/components/regulator/TransactionExplorer.tsx` — new three-pane UI
+- `src/components/regulator/TransactionLifecyclePanel.tsx` — lifecycle timeline + safe Issue Receipt button
+- `src/components/regulator/TransactionTypeList.tsx` — left pane, type counts
+
+### Out of Scope
+
+- No edits to payment processing or finalize logic — it works.
+- No new edge functions — `reconcile-payment` already provides what's needed.
+- Tenant/landlord views unchanged.
