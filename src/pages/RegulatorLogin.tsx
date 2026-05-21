@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import Seo from "@/components/Seo";
 
 const RegulatorLogin = () => {
   const navigate = useNavigate();
@@ -52,6 +53,12 @@ const RegulatorLogin = () => {
   };
 
   return (
+    <>
+      <Seo
+        title="Staff Login — Rent Control Department Ghana"
+        description="Authorized access for Rent Control Department staff and NUGS administrators to monitor compliance, review complaints, and manage tenancies."
+        canonicalPath="/regulator/login"
+      />
     <div className="min-h-screen bg-background flex">
       <div className="hidden lg:flex lg:w-1/2 gradient-hero items-center justify-center p-12">
         <div className="text-primary-foreground max-w-md">
@@ -80,17 +87,17 @@ const RegulatorLogin = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label htmlFor="reg-email">Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input type="email" placeholder="admin@rentcontrol.gov.gh" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Input id="reg-email" type="email" placeholder="admin@rentcontrol.gov.gh" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Password</Label>
+              <Label htmlFor="reg-password">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input type="password" placeholder="••••••••" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <Input id="reg-password" type="password" placeholder="••••••••" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
             </div>
             <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={loading}>
@@ -100,6 +107,7 @@ const RegulatorLogin = () => {
         </motion.div>
       </div>
     </div>
+    </>
   );
 };
 
