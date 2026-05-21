@@ -6,10 +6,11 @@ import { renderForm32A, Form32AData } from "@/lib/pdf/form32a";
 
 export type StatutoryFormType = "form_7" | "form_33" | "form_32a";
 
-/** Public verification URL for a generated statutory form. */
+/** Public verification URL for a generated statutory form.
+ * Always uses the canonical production domain so a QR scanned from a printed
+ * document never resolves to a preview/staging origin where the lookup fails. */
 export function buildFormVerifyUrl(code: string): string {
-  const base = typeof window !== "undefined" ? window.location.origin : "https://www.rentcontrolghana.com";
-  return `${base}/verify/form/${code}`;
+  return `https://www.rentcontrolghana.com/verify/form/${code}`;
 }
 
 function generateVerificationCode(): string {

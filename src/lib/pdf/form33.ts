@@ -52,14 +52,17 @@ export function fmtDateWithDay(iso?: string): string {
   return `${weekday}, ${ordinalSuffix(d.getDate())} ${month} ${year}`;
 }
 
-/** Returns just "Wednesday, 16th June" (no year), used in body copy. */
+/** Returns "Wednesday, 16th June 2026 (16/06/2026)" — year is mandatory. */
 export function fmtDayDate(iso?: string): string {
   if (!iso) return "[date]";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   const weekday = d.toLocaleDateString("en-GB", { weekday: "long" });
   const month = d.toLocaleDateString("en-GB", { month: "long" });
-  return `${weekday}, ${ordinalSuffix(d.getDate())} ${month}`;
+  const year = d.getFullYear();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${weekday}, ${ordinalSuffix(d.getDate())} ${month} ${year} (${dd}/${mm}/${year})`;
 }
 
 /** Build the summons sentence as runs so we can bold the day/date/time. */

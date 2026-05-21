@@ -142,7 +142,12 @@ export function drawSignatureStamp(
 export function fmtDate(iso?: string) {
   if (!iso) return "—";
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  if (isNaN(d.getTime())) return iso;
+  // dd/mm/yyyy — year is mandatory on every statutory form.
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 export function fmtTime(iso?: string) {
   if (!iso) return "—";
