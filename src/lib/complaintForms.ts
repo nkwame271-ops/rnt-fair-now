@@ -176,10 +176,12 @@ export async function generateStatutoryForm(
   const verifyUrl = buildFormVerifyUrl(verificationCode);
   let qrDataUrl: string | undefined;
   try {
-    qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 220, margin: 0 });
-  } catch {
+    qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 240, margin: 2, errorCorrectionLevel: "M" });
+  } catch (err) {
+    console.error("generateStatutoryForm: QR generation failed", err);
     qrDataUrl = undefined;
   }
+
   const formDataWithQr: any = {
     ...formData,
     qr_data_url: qrDataUrl,
