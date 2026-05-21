@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
+import { LedgerSyncBadge } from "@/components/regulator/LedgerSyncBadge";
 import { formatGHSDecimal } from "@/lib/formatters";
 import UserProofReviewTab from "@/components/regulator/UserProofReviewTab";
 import ReceiptDriftTile from "@/components/regulator/ReceiptDriftTile";
