@@ -50,6 +50,9 @@ const ComplaintWizard = () => {
   const [aiBusy, setAiBusy] = useState(false);
   const [draftPk, setDraftPk] = useState<string | null>(draftId);
   const [ticketNumber, setTicketNumber] = useState<string | null>(null);
+  // Routed target table — derived from complainantRole until the draft row exists, then locked.
+  const [targetTable, setTargetTable] = useState<"complaints" | "landlord_complaints">("complaints");
+  const [targetLocked, setTargetLocked] = useState(false);
 
   // Step 1 — Type
   const [complaintTypes, setComplaintTypes] = useState<any[]>([]);
