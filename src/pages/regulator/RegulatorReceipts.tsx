@@ -138,24 +138,25 @@ const RegulatorReceipts = () => {
     // Page through receipts in chunks of 1000 to bypass PostgREST's default 1000-row cap.
     const PAGE = 1000;
     const HARD_CAP = 5000; // safety to keep client memory bounded
-    let from = 0;
+    let offset = 0;
     const allReceipts: any[] = [];
-    while (from < (total || 0) && allReceipts.length < HARD_CAP) {
+    while (offset < (total || 0) && allReceipts.length < HARD_CAP) {
       let q = supabase
         .from("payment_receipts")
         .select("id, receipt_number, created_at, payer_name, payer_email, payment_type, total_amount, status, description, qr_code_data, office_id, user_id, escrow_transaction_id, admin_confirmed_at, admin_confirmed_by")
         .not("payment_type", "in", "(student_registration,student_complaint_fee)")
         .order("created_at", { ascending: false })
-        .range(from, from + PAGE - 1);
+        .range(offset, offset + PAGE - 1);
       if (scopeOfficeId) q = q.eq("office_id", scopeOfficeId);
       const { data: page, error } = await q;
       if (error || !page) break;
       allReceipts.push(...page);
       if (page.length < PAGE) break;
-      from += PAGE;
+      offset += PAGE;
     }
     const receipts = allReceipts;
     if (receipts.length === 0) { setRows([]); setLoading(false); return; }
+
 
 
     // Step 2: parallel fetch txns, splits, payer profiles, complaint ticket numbers
