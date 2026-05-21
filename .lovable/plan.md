@@ -1,51 +1,46 @@
 ## Problem
 
-The QR code on Forms 7 and 33 is "not showing":
+`/regulator/complaints/new` opens the **Complaint Wizard** (`src/pages/regulator/ComplaintWizard.tsx`). Its "Complainant > Role" selector accepts `tenant | landlord | interested_person`, but every write path is hard-coded to the `complaints` table — which is the **tenant** queue in Complaint Management. As a result, a landlord-complainant case filed through the wizard is invisible in the Landlord Complaints tab and shows up (incorrectly) under Tenant Complaints once routed through the case file.
 
-- In the **Form Editor live preview** (`PdfLivePreview` inside `FormEditorDialog` and the standalone `Form7LivePreview`), `renderForm7` / `renderForm33` are called directly with the raw editor state. That state never contains `qr_data_url` or `verification_code`, so `drawQrFooter` early-returns and no QR is drawn — the regulator sees a "QR-less" form and assumes it will print that way.
-- In the **finalized PDF** path (`generateStatutoryForm` in `src/lib/complaintForms.ts`), a QR data URL is created via `QRCode.toDataURL(verifyUrl, { width: 220, margin: 0 })`. `margin: 0` removes the scanner quiet zone, and any thrown error in QR generation silently falls through to `qrDataUrl = undefined`, again producing a QR-less PDF without warning.
-- `drawQrFooter` in `src/lib/pdf/_brand.ts` wraps `doc.addImage` in a bare `try { } catch { return; }`, so even a malformed data URL fails silently with no diagnostic.
+DB confirms the bug: multiple recent `complaints` rows have `filed_by_admin = true` and `complainant_role = 'landlord'`, which should never coexist.
 
-## Fix
+`AdminFileComplaint.tsx` (`/regulator/complaints/new-simple`) already routes correctly by computing `targetTable = complainantRole === "landlord" ? "landlord_complaints" : "complaints"` and shaping the insert payload accordingly. The wizard must do the same.
 
-Small, frontend/presentation-only changes — no business logic, no DB, no edge functions.
+## Fix (frontend only)
 
-### 1. Live preview always shows a placeholder QR
+Update **`src/pages/regulator/ComplaintWizard.tsx`** so the chosen complainant role drives every read/write:
 
-In `src/components/regulator/FormEditorDialog.tsx`:
+1. **Target-table state.** Add `const [targetTable, setTargetTable] = useState<"complaints" | "landlord_complaints">("complaints")`. Initial value derived from `complainantRole`. Locked in as soon as a draft row exists (so the user can't flip the role mid-flow and orphan the row). If the role is changed before any draft is saved, recompute `targetTable` from the new role.
 
-- Generate a one-time placeholder QR data URL on mount using `QRCode.toDataURL("https://www.rentcontrolghana.com/verify/form/PREVIEW", { width: 220, margin: 2 })`.
-- Merge `{ qr_data_url: previewQr, verification_code: data.verification_code || "PREVIEW" }` into the object passed to `PdfLivePreview` so the live preview always renders the QR block exactly where it will appear on the finalized PDF.
+2. **Hydration (the `useEffect` on `draftId`)** — try `landlord_complaints` first, fall back to `complaints`; set `targetTable` accordingly. Read placeholder/landlord fields from whichever table won.
 
-Apply the same merge in `src/components/regulator/Form7LivePreview.tsx`.
+3. **`buildPayload`** — split into two shaped payloads:
+   - `complaints` (today's shape, unchanged) for tenant / interested-person complainant.
+   - `landlord_complaints` shape: `landlord_user_id`, `placeholder_landlord_name/phone` for the complainant, `tenant_name` + `placeholder_respondent_name/phone` for the respondent. Mirrors the working block in `AdminFileComplaint.tsx` (lines 284–305).
 
-This guarantees the regulator visually confirms the QR before clicking **Generate PDF**.
+4. **`saveDraft`** — `supabase.from(targetTable).insert(...)` / `.update(...)`. On first successful insert, lock `targetTable`. Witness sync (`complaint_witnesses`) is unchanged since it already keys on `case_id` + `case_kind = "complaint"` and both tables share that contract.
 
-### 2. Harden finalized QR rendering
+5. **`submitForReview`** — `supabase.from(targetTable).update({ status: "submitted" })`. `transitionStage` already accepts the case id; pass `case_kind: targetTable === "landlord_complaints" ? "landlord_complaint" : "complaint"` if the helper supports it (verify and keep current behaviour if not).
 
-In `src/lib/complaintForms.ts > generateStatutoryForm`:
+6. **Form 7 auto-generation** — only run when `targetTable === "complaints"` (matches `AdminFileComplaint.tsx`). Today the wizard's submit doesn't call it; leaving as-is is fine.
 
-- Change `QRCode.toDataURL(verifyUrl, { width: 220, margin: 0 })` to `{ width: 240, margin: 2, errorCorrectionLevel: "M" }` so the QR has a proper quiet zone and is reliably scannable from print.
-- Log a `console.error` (and surface a non-blocking toast in the caller) if QR generation fails, instead of silently dropping it.
-
-In `src/lib/pdf/_brand.ts > drawQrFooter`:
-
-- Keep the safe-no-op behaviour but log the underlying error to the console with the offending data URL prefix, so future regressions are debuggable.
-- Slightly shrink the size from 52pt to 56pt and re-anchor `y` so the QR sits cleanly above the footer divider (no overlap with the slogan or "Generated …" line). Caption text moves with it.
-
-### 3. No statutory body changes
-
-The QR continues to render only in the footer band; the statutory text of Form 7 and Form 33 is untouched.
-
-## Files to edit
-
-- `src/components/regulator/FormEditorDialog.tsx` — inject preview QR into `data` passed to `PdfLivePreview`.
-- `src/components/regulator/Form7LivePreview.tsx` — same preview-QR injection.
-- `src/lib/complaintForms.ts` — bump QR `margin` and add error logging.
-- `src/lib/pdf/_brand.ts` — better diagnostics + tightened QR footer layout.
+7. **Navigation after submit** — `navigate("/regulator/complaints?tab=" + (targetTable === "landlord_complaints" ? "landlord" : "tenant"))` so the officer lands directly on the tab where the case now lives.
 
 ## Out of scope
 
-- Form 32A QR (already uses the same `drawQrFooter`; benefits automatically from the `_brand.ts` tweaks but no editor preview change is requested).
-- Verify-form route (`/verify/form/:code`) — already wired and working.
-- Database / RLS / edge functions.
+- The Tenant File-Complaint page (tenants can only file as tenant — no role choice).
+- Landlord File-Complaint page (already constrained to landlord side).
+- Backfilling the existing misrouted rows in `complaints` (separate cleanup; ask before mutating).
+- `AdminFileComplaint.tsx` — already routes correctly.
+- Database schema, RLS, edge functions, or Complaint Management list/tab queries.
+
+## Files to edit
+
+- `src/pages/regulator/ComplaintWizard.tsx` — all six changes above. No other files need touching.
+
+## Verification
+
+- Filing as **Tenant complainant** → row created in `complaints`, appears under **Tenant Complaints** tab. (Regression check.)
+- Filing as **Landlord complainant** → row created in `landlord_complaints`, appears under **Landlord Complaints** tab, never in Tenant Complaints.
+- Filing as **Interested Person** → stays in `complaints` (current behaviour preserved; no separate tab today).
+- Re-opening an existing draft from either table rehydrates correctly and saves back to the same table.
