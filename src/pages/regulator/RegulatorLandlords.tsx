@@ -68,6 +68,7 @@ interface LandlordFull {
 
 const RegulatorLandlords = () => {
   const [landlords, setLandlords] = useState<LandlordFull[]>([]);
+  const [totalLandlords, setTotalLandlords] = useState(0);
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [loading, setLoading] = useState(true);
@@ -76,13 +77,32 @@ const RegulatorLandlords = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-      const { data: landlordData, error: landlordErr } = await supabase
+      // True total — never bounded by the PostgREST 1000-row page cap.
+      const { count: totalCount } = await supabase
         .from("landlords")
-        .select("landlord_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, created_at")
-        .order("created_at", { ascending: false });
+        .select("user_id", { count: "exact", head: true });
+      setTotalLandlords(totalCount || 0);
 
-      if (landlordErr) { console.error("Landlords fetch error:", landlordErr); toast.error("Failed to load landlords: " + landlordErr.message); setLoading(false); return; }
-      if (!landlordData || landlordData.length === 0) { setLoading(false); return; }
+      // Page through rows so we load every landlord, not just the first 1000.
+      const PAGE = 1000;
+      const collected: any[] = [];
+      let offset = 0;
+      while (offset < (totalCount || 0)) {
+        const { data: page, error: pageErr } = await supabase
+          .from("landlords")
+          .select("landlord_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, created_at")
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE - 1);
+        if (pageErr) { console.error("Landlords fetch error:", pageErr); toast.error("Failed to load landlords: " + pageErr.message); setLoading(false); return; }
+        if (!page || page.length === 0) break;
+        collected.push(...page);
+        if (page.length < PAGE) break;
+        offset += PAGE;
+      }
+      const landlordData = collected;
+      if (landlordData.length === 0) { setLoading(false); return; }
+
+
 
       const userIds = landlordData.map(l => l.user_id);
 
