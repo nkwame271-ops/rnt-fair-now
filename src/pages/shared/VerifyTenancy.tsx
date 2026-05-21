@@ -126,9 +126,9 @@ const VerifyTenancy = () => {
           {/* Property & Unit */}
           {(tenancy.property_name || tenancy.unit_name) && (
             <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-              <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+              <h2 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
                 <Building2 className="h-3 w-3" /> PROPERTY & UNIT
-              </h3>
+              </h2>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {tenancy.property_name && (
                   <div><p className="text-muted-foreground text-xs">Property</p><p className="font-semibold text-foreground">{tenancy.property_name}</p></div>
@@ -171,9 +171,9 @@ const VerifyTenancy = () => {
 
           {/* Signatures */}
           <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+            <h2 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
               <PenLine className="h-3 w-3" /> SIGNATURES
-            </h3>
+            </h2>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-muted-foreground text-xs">Landlord Signed</p>
@@ -193,9 +193,9 @@ const VerifyTenancy = () => {
           {/* Rent Cards */}
           {(tenancy.rent_card_serial || tenancy.rent_card_serial_2) && (
             <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-              <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+              <h2 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
                 <CreditCard className="h-3 w-3" /> RENT CARDS
-              </h3>
+              </h2>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {tenancy.rent_card_serial && (
                   <div>
