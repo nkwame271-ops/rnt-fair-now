@@ -1,102 +1,59 @@
-## Goal
-Restore full financial traceability so every successful payment is accounted for end-to-end: Paystack verification, escrow entry, split ledger rows, unified payment row, receipt, reconciliation log, and complaint/case visibility.
+## Status: Already Fixed, Now Hardening
 
-## What I found
-- **Primary failure:** receipt creation started breaking because the backend now writes `receipt_status = "active"`, but the database enum only allows:
-  - `auto_generated`
-  - `manually_reconciled`
-  - `duplicate_blocked`
-  - `voided`
-- That mismatch has been throwing **critical `receipt_insert` errors** since yesterday.
-- Current live counts show real drift:
-  - **793** paid escrow transactions
-  - **788** paid unified payment rows
-  - **719** receipts
-  - **28** paid escrow rows with no active split ledger rows
-- In the last 24 hours:
-  - **69** paid escrow transactions
-  - **63** got unified payment rows
-  - **0** got receipts
-- The newest **5** paid escrow transactions are missing unified payment rows entirely, and they are the same references failing receipt creation right now.
-- Missing split rows are concentrated in older flows (`rent_card_bulk`, `rent_tax_bulk`, `complaint_fee`, `tenant_registration`, `landlord_registration`, `listing_fee`).
+Current state is fully synced:
+- 796 paid escrows / 796 receipts / 796 case_payments / 0 unreconciled
+- `finalize-payment.ts` line 506 uses correct enum `auto_generated`
+- `reconcile-payment` line 244 uses correct enum `manually_reconciled`
+- All 4 valid enum values confirmed: `auto_generated`, `manually_reconciled`, `duplicate_blocked`, `voided`
 
-## Plan
-### 1) Fix the receipt-status contract at the source
-- Update the shared payment finalization pipeline so auto-created receipts use the correct enum value instead of `active`.
-- Review every backend path that writes or updates receipt status so auto-generated receipts, manual reconciliation receipts, duplicate protection, and voiding all use valid statuses consistently.
-- Keep frontend display logic compatible with both old `status` values and the receipt-status enum values.
+But in the last 7 days, `payment_processing_errors` logged **66 `receipt_insert` failures** — the exact silent-fail mode that caused this outage. We need guardrails so this can never recur silently.
 
-### 2) Repair all paid payments that are missing receipts
-- Backfill receipts for every paid escrow transaction that has no receipt.
-- Ensure each repaired receipt gets:
-  - one receipt number
-  - the correct payer linkage
-  - the correct escrow linkage
-  - the correct complaint/case linkage when applicable
-  - a valid verification URL / QR target
-- Prevent duplicate receipt creation by keying repair on escrow transaction / payment reference.
+## Plan: Prevent Recurrence
 
-### 3) Repair the 5 paid escrow rows missing unified payment rows
-- Backfill missing unified payment records for the recent paid transactions that completed but never fully materialized.
-- Ensure each repaired row includes:
-  - paid status
-  - amount
-  - payment reference
-  - office/student routing
-  - receipt number / receipt URL once receipt repair is complete
-- Re-run idempotent reconciliation only where needed so the ledger remains exact-once.
+### 1. Database-level guard (migration)
+Add a trigger on `escrow_transactions` that fires when status flips to `success/completed/paid`. If no matching `payment_receipts` row exists within the same transaction context, log a row into a new `receipt_generation_failures` table (does NOT block payment — just records the drift instantly).
 
-### 4) Repair the 28 paid escrow rows missing active split ledger rows
-- Rebuild missing active split rows from the escrow metadata split plan for historical transactions.
-- Preserve the existing payout-readiness rules so missing payout setup does not block ledger visibility.
-- Review older edge cases like bulk rent tax and older rent-card flows where split rows were skipped or never posted.
+```text
+escrow paid → trigger checks payment_receipts within 30s window
+            → if missing after webhook completes, row inserted in
+              receipt_generation_failures with reference + reason
+```
 
-### 5) Re-sync all payment surfaces to the repaired source of truth
-- Confirm the user-facing Receipts pages, regulator case file, complaint documents hub, and Student Revenue all continue to read repaired data correctly.
-- Tighten any places still depending too heavily on legacy receipt rows so recent verified payments remain visible even when legacy rows lag.
-- Keep complaint payment visibility consistent between escrow, receipts, and case records.
+### 2. Self-healing edge function: `receipt-drift-monitor`
+New scheduled edge function (runs every 15 min) that:
+- Finds paid escrows older than 5 min with no receipt
+- Finds paid case_payments with no `receipt_number`
+- Finds paid case_payments with `reconciliation_status <> 'reconciled'`
+- For each: re-runs `finalize-payment` logic to backfill, then logs to `receipt_generation_failures` with outcome
+- Returns counts so it can be wired to a Command Center alert tile
 
-### 6) Add verification queries and operational safeguards
-- Add a reusable reconciliation/audit query set to detect:
-  - paid escrow without unified payment row
-  - paid escrow without receipt
-  - paid escrow without active split rows
-  - unified payment rows missing receipt linkage
-  - unreconciled paid payments
-- Improve backend logging so future failures identify the exact stage immediately.
-- Keep the one-time reconciliation guard and exact message behavior for already-reconciled transactions.
+### 3. Hardened receipt insert in `finalize-payment.ts`
+Wrap the receipt insert in retry-with-fallback logic:
+- On insert error, log the EXACT enum value attempted (so future enum changes surface immediately)
+- On any failure, write to new `receipt_generation_failures` table with full payload
+- Escalate severity from `warning` → `critical` for receipt_insert errors so they appear in admin alerts
 
-### 7) Validate end-to-end after repair
-I will verify these outcomes after implementation:
-- a fresh successful payment creates:
-  - escrow entry
-  - active split ledger rows
-  - unified payment row
-  - exactly one receipt
-  - reconciliation log / ledger reference
-- recent broken payments from yesterday/today now appear with receipts
-- regulator complaint documents show repaired receipts again
-- receipt dashboards load historical and current records correctly
-- no new `receipt_insert` enum errors appear in backend logs
-- drift counts reduce to:
-  - **0 paid escrow missing unified payment**
-  - **0 paid escrow missing receipt**
-  - **0 paid escrow missing active split rows**
-  - **0 paid unified payments unreconciled**
+### 4. Command Center alert tile
+Add a "Receipt Drift" tile to the Super Admin Command Center showing:
+- Paid escrows missing receipts (should always be 0)
+- Unreconciled paid payments (should always be 0)
+- Receipt generation failures in last 24h
+- Direct "Repair Now" button that calls `receipt-drift-monitor`
 
-## Technical details
-- **Backend files likely to change**
-  - `supabase/functions/_shared/finalize-payment.ts`
-  - possibly `supabase/functions/reconcile-payment/index.ts` if any receipt-status follow-up is needed
-- **Database work**
-  - data repair for missing receipts, missing unified payment rows, and missing split rows
-  - possibly a small schema migration only if we need stronger constraints or helper functions for durable repair
-- **Frontend files to verify / adjust only if needed**
-  - `src/pages/tenant/Receipts.tsx`
-  - `src/pages/landlord/Receipts.tsx`
-  - `src/pages/regulator/ComplaintCaseFile.tsx`
-  - `src/components/regulator/ComplaintDocumentsHub.tsx`
-  - `src/pages/regulator/StudentRevenue.tsx`
+### 5. Frontend safeguard in Receipts pages
+Tenant/Landlord/Regulator Receipts pages already query `payment_receipts`. Add a fallback: if a paid `case_payment` exists with no linked receipt, show it in the list with a "Receipt being generated" badge + auto-trigger drift monitor for that reference. Users never see a missing receipt again.
 
-## Expected result
-After implementation, every successful payment will be traceable from Paystack to escrow to ledger to receipt, including the missing payments from yesterday and today, with duplicate protection still intact.
+## Files Changed
+
+- `supabase/migrations/<new>.sql` — create `receipt_generation_failures` table + RLS + drift detection function
+- `supabase/functions/receipt-drift-monitor/index.ts` — new scheduled function
+- `supabase/functions/_shared/finalize-payment.ts` — hardened receipt insert with failure logging
+- `src/pages/admin/CommandCenter.tsx` (or equivalent) — receipt drift tile
+- `src/pages/tenant/Receipts.tsx`, `src/pages/landlord/Receipts.tsx`, `src/pages/regulator/RegulatorReceipts.tsx` — fallback display for in-flight receipts
+
+## Out of Scope
+
+- No changes to payment processing flow itself (Paystack verification, escrow writes, reconciliation RPC) — those are working
+- No backfill needed — data is already 100% synced
+
+Approve to implement, or tell me which sections to skip.
