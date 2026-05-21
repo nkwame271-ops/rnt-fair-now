@@ -11,6 +11,7 @@ import heroBg from "@/assets/hero-bg.jpg";
 import rcdLogo from "@/assets/rcd-logo.png";
 import coatOfArms from "@/assets/ghana-coat-of-arms.png";
 import cfledLogo from "@/assets/cfled-logo.png";
+import Seo from "@/components/Seo";
 
 const ContactForm = () => {
   const [name, setName] = useState("");
@@ -229,6 +230,11 @@ const RoleSelect = () => {
 
   return (
     <>
+      <Seo
+        title="Rent Control — Ghana's Official Rent Regulation Platform"
+        description="Register tenancies, file complaints, and manage rentals under Ghana's Rent Act (Act 220). The official Rent Control Department platform for tenants, landlords, and students."
+        canonicalPath="/"
+      />
       <div className="min-h-screen bg-background">
         {/* Hero Section */}
         <div className="relative overflow-hidden">
@@ -250,7 +256,7 @@ const RoleSelect = () => {
                   <p className="text-white/70 text-xs">Ministry of Works & Housing</p>
                 </div>
               </div>
-              <img src={rcdLogo} alt="RCD Logo" className="h-10 w-auto rounded-lg" />
+              <img src={rcdLogo} alt="Rent Control Department logo" className="h-10 w-auto rounded-lg" />
             </div>
 
             {/* Hero content */}
