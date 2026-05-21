@@ -765,7 +765,7 @@ function PaymentSummaryCard({ receipts, casePayments, basket, complaint }: { rec
       ? "bg-rose-100 text-rose-800 border-rose-200"
       : "bg-amber-100 text-amber-800 border-amber-200";
 
-  if (!latest && (!basket || basket.length === 0)) {
+  if (!latest && (!basket || basket.length === 0) && paidCp.length === 0) {
     return (
       <Card>
         <CardContent className="pt-5 flex flex-wrap items-center justify-between gap-3">
