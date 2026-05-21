@@ -106,32 +106,58 @@ const ComplaintWizard = () => {
     })();
   }, []);
 
-  // Hydrate from draft
+  // Keep targetTable in sync with the role until a draft row exists, then lock.
+  useEffect(() => {
+    if (targetLocked) return;
+    setTargetTable(complainantRole === "landlord" ? "landlord_complaints" : "complaints");
+  }, [complainantRole, targetLocked]);
+
+  // Hydrate from draft — try landlord_complaints first, fall back to complaints.
   useEffect(() => {
     if (!draftId) return;
     (async () => {
-      const { data } = await supabase.from("complaints").select("*").eq("id", draftId).maybeSingle();
+      let table: "complaints" | "landlord_complaints" = "complaints";
+      let { data } = await supabase.from("landlord_complaints").select("*").eq("id", draftId).maybeSingle();
+      if (data) {
+        table = "landlord_complaints";
+      } else {
+        const r = await supabase.from("complaints").select("*").eq("id", draftId).maybeSingle();
+        data = r.data;
+      }
       if (!data) return;
+      setTargetTable(table);
+      setTargetLocked(true);
       setTicketNumber((data as any).ticket_number || null);
-      setComplaintTypeId(data.complaint_type_id || "");
-      setComplainantRole((data.complainant_role as Role) || "tenant");
-      setRespondentRole((data.respondent_role as Role) || "landlord");
-      setPhName({
-        c: (data as any).placeholder_complainant_name || "",
-        r: (data as any).placeholder_respondent_name || "",
-      });
-      setPhPhone({
-        c: (data as any).placeholder_complainant_phone || "",
-        r: (data as any).placeholder_respondent_phone || "",
-      });
-      setAddress(data.property_address || "");
-      setRegion(data.region || "");
+      setComplaintTypeId((data as any).complaint_type_id || "");
+      setComplainantRole(((data as any).complainant_role as Role) || (table === "landlord_complaints" ? "landlord" : "tenant"));
+      setRespondentRole(((data as any).respondent_role as Role) || (table === "landlord_complaints" ? "tenant" : "landlord"));
+      if (table === "landlord_complaints") {
+        setPhName({
+          c: (data as any).placeholder_landlord_name || "",
+          r: (data as any).placeholder_respondent_name || (data as any).tenant_name || "",
+        });
+        setPhPhone({
+          c: (data as any).placeholder_landlord_phone || "",
+          r: (data as any).placeholder_respondent_phone || "",
+        });
+      } else {
+        setPhName({
+          c: (data as any).placeholder_complainant_name || "",
+          r: (data as any).placeholder_respondent_name || "",
+        });
+        setPhPhone({
+          c: (data as any).placeholder_complainant_phone || "",
+          r: (data as any).placeholder_respondent_phone || "",
+        });
+      }
+      setAddress((data as any).property_address || "");
+      setRegion((data as any).region || "");
       setRentAmount((data as any).rent_amount ? String((data as any).rent_amount) : "");
-      setOfficeId(data.office_id || "");
+      setOfficeId((data as any).office_id || "");
       setDocketRef((data as any).physical_docket_ref || "");
       setTitle((data as any).complaint_title || "");
-      setDescription(data.description || "");
-      setExistingEvidence((data.evidence_urls as any) || []);
+      setDescription((data as any).description || "");
+      setExistingEvidence(((data as any).evidence_urls as any) || []);
 
       const { data: ws } = await supabase.from("complaint_witnesses").select("*").eq("case_id", draftId);
       setWitnesses((ws || []).map((w: any) => ({
