@@ -35,6 +35,7 @@ const ComplaintCaseFile = () => {
   const [witnesses, setWitnesses] = useState<any[]>([]);
   const [docs, setDocs] = useState<any[]>([]);
   const [receipts, setReceipts] = useState<any[]>([]);
+  const [casePayments, setCasePayments] = useState<any[]>([]);
   const [basketItems, setBasketItems] = useState<any[]>([]);
   const [decision, setDecision] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -89,7 +90,7 @@ const ComplaintCaseFile = () => {
     const escrowIds = (escrowRows || []).map((r: any) => r.id);
 
     const [
-      hRes, nRes, wRes, dRes, decRes, hisRes, audRes, offRes, roomRes, staffRes, rcptByCaseRes, rcptByEscrowRes, basketRes,
+      hRes, nRes, wRes, dRes, decRes, hisRes, audRes, offRes, roomRes, staffRes, rcptByCaseRes, rcptByEscrowRes, basketRes, cpByCaseRes, cpByEscrowRes,
     ] = await Promise.all([
       supabase.from("complaint_hearings").select("*").eq("case_id", id).order("scheduled_at", { ascending: false }),
       supabase.from("complaint_notes").select("*").eq("complaint_id", id).order("created_at", { ascending: false }),
@@ -110,6 +111,13 @@ const ComplaintCaseFile = () => {
         ? supabase.from("payment_receipts").select("*").in("escrow_transaction_id", escrowIds).order("created_at", { ascending: false })
         : Promise.resolve({ data: [] as any[] }),
       (supabase.from("complaint_basket_items") as any).select("*").eq("complaint_id", id).order("created_at"),
+      // Unified case_payments — source of truth for amounts and reconciliation status
+      realCaseId
+        ? (supabase.from("case_payments") as any).select("*").eq("case_id", realCaseId).order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
+      escrowIds.length
+        ? (supabase.from("case_payments") as any).select("*").in("escrow_transaction_id", escrowIds).order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
     ]);
     setC(cData);
     setHearings(hRes.data || []);
@@ -130,6 +138,13 @@ const ComplaintCaseFile = () => {
       return true;
     });
     setReceipts(allReceipts);
+    const seenCp = new Set<string>();
+    const allCp = [...((cpByCaseRes as any).data || []), ...((cpByEscrowRes as any).data || [])].filter((r: any) => {
+      if (seenCp.has(r.id)) return false;
+      seenCp.add(r.id);
+      return true;
+    });
+    setCasePayments(allCp);
     setBasketItems((basketRes as any).data || []);
     setLoading(false);
   };
@@ -221,7 +236,7 @@ const ComplaintCaseFile = () => {
         </div>
       </div>
 
-      <PaymentSummaryCard receipts={receipts} basket={basketItems} complaint={c} />
+      <PaymentSummaryCard receipts={receipts} casePayments={casePayments} basket={basketItems} complaint={c} />
 
       <Tabs defaultValue="overview">
         <TabsList className="flex flex-wrap h-auto">
@@ -729,13 +744,20 @@ const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
 
 export default ComplaintCaseFile;
 
-function PaymentSummaryCard({ receipts, basket, complaint }: { receipts: any[]; basket: any[]; complaint: any }) {
+function PaymentSummaryCard({ receipts, casePayments, basket, complaint }: { receipts: any[]; casePayments: any[]; basket: any[]; complaint: any }) {
   const latest = receipts?.[0];
-  const totalPaid = (receipts || []).reduce((s, r) => s + Number(r.total_amount || 0), 0);
+  const paidCp = (casePayments || []).filter((c) => c.payment_status === "paid");
+  // Prefer the unified case_payments total — it never reports GHS 0.00 when status=paid.
+  const totalFromReceipts = (receipts || []).reduce((s, r) => s + Number(r.total_amount || 0), 0);
+  const totalFromCp = paidCp.reduce((s, c) => s + Number(c.amount_paid || 0), 0);
+  const totalPaid = totalFromCp > 0 ? totalFromCp : totalFromReceipts;
   const paidBasket = (basket || []).filter((b) => b.paid_at);
   const unpaidBasket = (basket || []).filter((b) => !b.paid_at);
   const feeTypes = Array.from(new Set((basket || []).map((b) => b.label).filter(Boolean)));
-  const status = latest?.receipt_status || latest?.status || (paidBasket.length ? "paid" : "pending");
+  const isPaidByCp = paidCp.length > 0;
+  const status = isPaidByCp
+    ? "paid"
+    : latest?.receipt_status || latest?.status || (paidBasket.length ? "paid" : "pending");
   const statusClass =
     status === "active" || status === "paid"
       ? "bg-emerald-100 text-emerald-800 border-emerald-200"
@@ -743,7 +765,7 @@ function PaymentSummaryCard({ receipts, basket, complaint }: { receipts: any[]; 
       ? "bg-rose-100 text-rose-800 border-rose-200"
       : "bg-amber-100 text-amber-800 border-amber-200";
 
-  if (!latest && (!basket || basket.length === 0)) {
+  if (!latest && (!basket || basket.length === 0) && paidCp.length === 0) {
     return (
       <Card>
         <CardContent className="pt-5 flex flex-wrap items-center justify-between gap-3">
