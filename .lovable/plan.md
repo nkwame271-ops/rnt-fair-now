@@ -1,46 +1,111 @@
-## Problem
+## Escrow / Ledger Drift Fix Plan
 
-`/regulator/complaints/new` opens the **Complaint Wizard** (`src/pages/regulator/ComplaintWizard.tsx`). Its "Complainant > Role" selector accepts `tenant | landlord | interested_person`, but every write path is hard-coded to the `complaints` table — which is the **tenant** queue in Complaint Management. As a result, a landlord-complainant case filed through the wizard is invisible in the Landlord Complaints tab and shows up (incorrectly) under Tenant Complaints once routed through the case file.
+### What I found
+- **Receipts are mostly generating correctly now** and recent paid transactions already have:
+  - a `payment_receipts` row
+  - active `escrow_splits`
+  - a reconciled `case_payments` row with `ledger_entry_id`
+- The repeated drift is coming from **escrow release accounting**, not just receipt creation.
+- In the current finalization flow, split rows are being marked **`disbursement_status = 'released'` immediately when a Paystack transfer request is accepted as pending**, instead of waiting for the actual `transfer.success` webhook.
+- That means the platform can show money as already released even when Paystack has only accepted the transfer request, or has not completed it yet.
+- I confirmed this is widespread in live data:
+  - many active split rows are marked `released`
+  - but there is **no matching successful payout transfer** for them yet
+- The office wallet / escrow dashboard currently computes balances from **all active admin splits**, which overstates available or historical balance when release state is wrong.
 
-DB confirms the bug: multiple recent `complaints` rows have `filed_by_admin = true` and `complainant_role = 'landlord'`, which should never coexist.
+### Root cause
+There are **two coupled problems**:
 
-`AdminFileComplaint.tsx` (`/regulator/complaints/new-simple`) already routes correctly by computing `targetTable = complainantRole === "landlord" ? "landlord_complaints" : "complaints"` and shaping the insert payload accordingly. The wizard must do the same.
+1. **Backend status bug**
+   - `finalize-payment.ts` sets split rows to `released` too early.
+   - `finalize-office-attribution.ts` does the same for deferred office attribution payouts.
+   - Correct behavior should be:
+     - transfer initiated → split remains pending/releasing
+     - `transfer.success` webhook → split becomes released
+     - `transfer.failed` / `transfer.reversed` → split stays/reverts to unreleased
 
-## Fix (frontend only)
+2. **Frontend accounting bug**
+   - `EscrowDashboard.tsx` and `OfficeFundRequests.tsx` use broad totals from active `escrow_splits`
+   - they do not strictly separate:
+     - total inflow
+     - unreleased balance
+     - actually released amount
+     - reserved/requested withdrawals
+   - this allows the UI to disagree with the real payout lifecycle.
 
-Update **`src/pages/regulator/ComplaintWizard.tsx`** so the chosen complainant role drives every read/write:
+## Implementation plan
 
-1. **Target-table state.** Add `const [targetTable, setTargetTable] = useState<"complaints" | "landlord_complaints">("complaints")`. Initial value derived from `complainantRole`. Locked in as soon as a draft row exists (so the user can't flip the role mid-flow and orphan the row). If the role is changed before any draft is saved, recompute `targetTable` from the new role.
+### 1) Fix payout-state handling in backend functions
+Update these functions so split release state mirrors actual Paystack completion, not transfer initiation:
+- `supabase/functions/_shared/finalize-payment.ts`
+- `supabase/functions/finalize-office-attribution/index.ts`
 
-2. **Hydration (the `useEffect` on `draftId`)** — try `landlord_complaints` first, fall back to `complaints`; set `targetTable` accordingly. Read placeholder/landlord fields from whichever table won.
+Changes:
+- when transfer request is created successfully:
+  - keep split as **pending_transfer / in-flight**, not released
+  - set `payout_readiness` to a non-final state
+- only `paystack-webhook` on `transfer.success` sets:
+  - `disbursement_status = 'released'`
+  - `released_at`
+  - `payout_readiness = 'released'`
+- failed/reversed transfers remain unreleased and visible for repair
 
-3. **`buildPayload`** — split into two shaped payloads:
-   - `complaints` (today's shape, unchanged) for tenant / interested-person complainant.
-   - `landlord_complaints` shape: `landlord_user_id`, `placeholder_landlord_name/phone` for the complainant, `tenant_name` + `placeholder_respondent_name/phone` for the respondent. Mirrors the working block in `AdminFileComplaint.tsx` (lines 284–305).
+### 2) Repair existing bad split states in the database
+Create a migration to safely normalize historical payout state.
 
-4. **`saveDraft`** — `supabase.from(targetTable).insert(...)` / `.update(...)`. On first successful insert, lock `targetTable`. Witness sync (`complaint_witnesses`) is unchanged since it already keys on `case_id` + `case_kind = "complaint"` and both tables share that contract.
+Repair logic:
+- for active split rows marked `released` **without any successful payout transfer**:
+  - move them back to unreleased/in-flight state based on available payout rows
+- keep rows with real `transfer.success` untouched
+- preserve audit trail; do not delete historical payout data
 
-5. **`submitForReview`** — `supabase.from(targetTable).update({ status: "submitted" })`. `transitionStage` already accepts the case id; pass `case_kind: targetTable === "landlord_complaints" ? "landlord_complaint" : "complaint"` if the helper supports it (verify and keep current behaviour if not).
+This repair is necessary because code-only changes won’t fix already corrupted balances.
 
-6. **Form 7 auto-generation** — only run when `targetTable === "complaints"` (matches `AdminFileComplaint.tsx`). Today the wizard's submit doesn't call it; leaving as-is is fine.
+### 3) Tighten escrow dashboard calculations
+Update `src/pages/regulator/EscrowDashboard.tsx` so each metric comes from a strict definition:
+- **Total Revenue / Inflow** = completed escrow transactions in scope
+- **Allocation totals** = active splits in scope
+- **Actually Released** = only splits with confirmed released state
+- **Office wallet balance** = unreleased office-admin share minus approved/pending office fund requests
+- **Pipeline stats** = distinguish transfer initiated vs transfer completed
 
-7. **Navigation after submit** — `navigate("/regulator/complaints?tab=" + (targetTable === "landlord_complaints" ? "landlord" : "tenant"))` so the officer lands directly on the tab where the case now lives.
+This will stop the dashboard from showing inflated released totals or misleading office balances.
 
-## Out of scope
+### 4) Tighten office wallet/request balance logic
+Update:
+- `src/pages/regulator/OfficeFundRequests.tsx`
+- `supabase/functions/process-office-payout/index.ts`
 
-- The Tenant File-Complaint page (tenants can only file as tenant — no role choice).
-- Landlord File-Complaint page (already constrained to landlord side).
-- Backfilling the existing misrouted rows in `complaints` (separate cleanup; ask before mutating).
-- `AdminFileComplaint.tsx` — already routes correctly.
-- Database schema, RLS, edge functions, or Complaint Management list/tab queries.
+Changes:
+- calculate requestable office balance from **unreleased admin office share only**
+- subtract both pending and approved request reservations where appropriate
+- prevent requests from exceeding real unreleased balance
+- keep approval checks aligned with the same formula used by the UI
 
-## Files to edit
+### 5) Keep reconciliation tools aligned with the corrected model
+Update the recovery/admin tools so they reflect the new accounting truth:
+- `src/components/regulator/TransactionExplorer.tsx`
+- `src/pages/regulator/PaymentReconciliationCentre.tsx` only if needed for labels/status text
 
-- `src/pages/regulator/ComplaintWizard.tsx` — all six changes above. No other files need touching.
+Changes:
+- lifecycle should show transfer initiated vs transfer completed distinctly
+- no UI text should imply funds were released until Paystack confirms success
 
-## Verification
+## Technical notes
+- I do **not** plan to rewrite the whole payment architecture.
+- I will keep the existing centralized finalization pipeline and fix the incorrect payout-state transitions plus the downstream aggregation math.
+- This work likely needs:
+  - **1 migration** for historical split-state repair
+  - **4–6 code file edits** across edge functions and regulator dashboards
+- The fix is targeted at the exact repeating symptom you reported: **receipts appear, but escrow / inflow totals drift and repeat incorrectly**.
 
-- Filing as **Tenant complainant** → row created in `complaints`, appears under **Tenant Complaints** tab. (Regression check.)
-- Filing as **Landlord complainant** → row created in `landlord_complaints`, appears under **Landlord Complaints** tab, never in Tenant Complaints.
-- Filing as **Interested Person** → stays in `complaints` (current behaviour preserved; no separate tab today).
-- Re-opening an existing draft from either table rehydrates correctly and saves back to the same table.
+## Expected outcome
+After this implementation:
+- a payment still creates **one receipt** and **one reconciled ledger update**
+- escrow inflow remains tied to completed transactions
+- released balances only move when Paystack confirms the transfer
+- office wallet balances stop drifting
+- the ledger/escrow view stops showing repeated or inflated counts
+- manual reconciliation remains idempotent and safe
+
+If you approve, I’ll implement the backend state fix first, then the repair migration, then the dashboard/wallet math updates.

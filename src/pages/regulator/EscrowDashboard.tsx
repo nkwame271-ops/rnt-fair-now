@@ -195,7 +195,7 @@ const EscrowDashboard = () => {
         const batchSize = 200;
         for (let i = 0; i < completedIds.length; i += batchSize) {
           const batch = completedIds.slice(i, i + batchSize);
-          let q = supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode, escrow_transaction_id")
+          let q = supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode, escrow_transaction_id, disbursement_status")
             .in("escrow_transaction_id", batch)
             .eq("status", "active");
           if (officeFilter) q = q.eq("office_id", officeFilter);
@@ -209,8 +209,8 @@ const EscrowDashboard = () => {
         return acc;
       }, {});
 
-      const autoReleased = splits.filter((s: any) => s.release_mode === "auto").reduce((sum: number, s: any) => sum + Number(s.amount), 0);
-      const manualReleased = splits.filter((s: any) => s.release_mode === "manual" && s.recipient !== "landlord").reduce((sum: number, s: any) => sum + Number(s.amount), 0);
+      const autoReleased = splits.filter((s: any) => s.release_mode === "auto" && s.disbursement_status === "released").reduce((sum: number, s: any) => sum + Number(s.amount), 0);
+      const manualReleased = splits.filter((s: any) => s.release_mode === "manual" && s.recipient !== "landlord" && s.disbursement_status === "released").reduce((sum: number, s: any) => sum + Number(s.amount), 0);
 
       setStats({
         totalEscrow: completed.reduce((s, t) => s + Number(t.total_amount), 0),
@@ -247,14 +247,14 @@ const EscrowDashboard = () => {
         const officeMap = new Map<string, OfficeRevenue>();
         const officeNames = new Map((await supabase.from("offices").select("id, name")).data?.map(o => [o.id, o.name]) || []);
 
-        const { data: approvedRequests } = await supabase
+        const { data: reservedRequests } = await supabase
           .from("office_fund_requests")
           .select("office_id, amount")
-          .eq("status", "approved");
+          .in("status", ["pending", "approved"]);
 
-        const releasedByOffice = new Map<string, number>();
-        for (const req of (approvedRequests || []) as any[]) {
-          releasedByOffice.set(req.office_id, (releasedByOffice.get(req.office_id) || 0) + Number(req.amount));
+        const reservedByOffice = new Map<string, number>();
+        for (const req of (reservedRequests || []) as any[]) {
+          reservedByOffice.set(req.office_id, (reservedByOffice.get(req.office_id) || 0) + Number(req.amount));
         }
 
         for (const s of splits as any[]) {
@@ -271,13 +271,16 @@ const EscrowDashboard = () => {
           else if (s.recipient === "platform") entry.platform += Number(s.amount);
           else if (s.recipient === "landlord") entry.landlord += Number(s.amount);
           else if (s.recipient === "gra") entry.gra += Number(s.amount);
-          if (s.release_mode === "auto") entry.autoReleased += Number(s.amount);
-          else if (s.recipient !== "landlord") entry.manualReleased += Number(s.amount);
+          if (s.disbursement_status === "released") {
+            if (s.recipient === "admin") entry.released += Number(s.amount);
+            if (s.release_mode === "auto") entry.autoReleased += Number(s.amount);
+            else if (s.recipient !== "landlord") entry.manualReleased += Number(s.amount);
+          }
         }
 
         for (const [oid, entry] of officeMap) {
-          entry.released = releasedByOffice.get(oid) || 0;
-          entry.walletBalance = entry.admin - entry.released;
+          const reserved = reservedByOffice.get(oid) || 0;
+          entry.walletBalance = entry.admin - entry.released - reserved;
         }
 
         setOfficeRevenue(Array.from(officeMap.values()).sort((a, b) => b.total - a.total));

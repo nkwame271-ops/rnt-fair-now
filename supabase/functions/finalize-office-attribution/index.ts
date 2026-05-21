@@ -181,14 +181,10 @@ Deno.serve(async (req) => {
           failure_reason: tData.status ? null : (tData.message || "Transfer failed"),
         });
 
-        if (tData.status && officeSplitIds.length > 0) {
+        if (!tData.status && officeSplitIds.length > 0) {
           await adminClient
             .from("escrow_splits")
-            .update({
-              disbursement_status: "released",
-              released_at: new Date().toISOString(),
-              payout_readiness: "released",
-            })
+            .update({ payout_readiness: "failed" })
             .in("id", officeSplitIds);
         }
       } catch (e: any) {
@@ -202,6 +198,12 @@ Deno.serve(async (req) => {
           paystack_reference: `deferred_err_${Date.now()}`,
           failure_reason: e.message || "Transfer error",
         });
+        if (officeSplitIds.length > 0) {
+          await adminClient
+            .from("escrow_splits")
+            .update({ payout_readiness: "failed" })
+            .in("id", officeSplitIds);
+        }
       }
     } else if (totalOfficeAmount > 0) {
       await adminClient.from("payment_processing_errors").insert({

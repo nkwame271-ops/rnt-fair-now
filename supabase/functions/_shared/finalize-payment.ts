@@ -694,18 +694,10 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
                 failure_reason: tData.status ? null : (tData.message || "Transfer failed"),
               });
 
-              if (split.id) {
-                if (tData.status) {
-                  await supabaseAdmin.from("escrow_splits").update({
-                    disbursement_status: "released",
-                    released_at: new Date().toISOString(),
-                    payout_readiness: "released",
-                  }).eq("id", split.id);
-                } else {
-                  await supabaseAdmin.from("escrow_splits").update({
-                    payout_readiness: "failed",
-                  }).eq("id", split.id);
-                }
+              if (split.id && !tData.status) {
+                await supabaseAdmin.from("escrow_splits").update({
+                  payout_readiness: "failed",
+                }).eq("id", split.id);
               }
             } catch (e: any) {
               await supabaseAdmin.from("payout_transfers").insert({
