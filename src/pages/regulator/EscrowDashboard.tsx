@@ -165,15 +165,35 @@ const EscrowDashboard = () => {
         return query;
       };
 
-      // Escrow transactions
-      let txQuery = supabase.from("escrow_transactions").select("id, status, total_amount, office_id, payment_type, created_at").eq("is_student_revenue", false);
-      if (officeFilter) txQuery = txQuery.eq("office_id", officeFilter);
-      txQuery = applyDateFilter(txQuery);
-      const { data: transactions } = await txQuery;
+      // Paginated fetch helper — works around Supabase's default 1000-row cap
+      const fetchAllPaged = async <T,>(buildQuery: () => any, pageSize = 1000): Promise<T[]> => {
+        const all: T[] = [];
+        let from = 0;
+        for (let i = 0; i < 200; i++) {
+          const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+          if (error) { console.error("Paged fetch error:", error); break; }
+          const rows = (data || []) as T[];
+          all.push(...rows);
+          if (rows.length < pageSize) break;
+          from += pageSize;
+        }
+        return all;
+      };
+
+      // Escrow transactions (paginated to bypass 1000-row default cap)
+      const transactions = await fetchAllPaged<any>(() => {
+        let q = supabase.from("escrow_transactions")
+          .select("id, status, total_amount, office_id, payment_type, created_at")
+          .eq("is_student_revenue", false)
+          .order("created_at", { ascending: false });
+        if (officeFilter) q = q.eq("office_id", officeFilter);
+        q = applyDateFilter(q);
+        return q;
+      });
 
       // Exclude bundle parent transactions from revenue — only child components count
-      const completed = (transactions || []).filter(t => t.status === "completed" && !BUNDLE_PARENT_TYPES.has(t.payment_type));
-      const pending = (transactions || []).filter(t => t.status === "pending");
+      const completed = transactions.filter(t => t.status === "completed" && !BUNDLE_PARENT_TYPES.has(t.payment_type));
+      const pending = transactions.filter(t => t.status === "pending");
 
       const typeAgg = REVENUE_TYPE_CONFIG.map(cfg => {
         const matching = completed.filter(t => cfg.types.includes(t.payment_type));
@@ -191,16 +211,18 @@ const EscrowDashboard = () => {
       const completedIds = completed.map(t => t.id).filter(Boolean);
       let splits: any[] = [];
       if (completedIds.length > 0) {
-        // Supabase .in() has a limit, batch if needed
         const batchSize = 200;
         for (let i = 0; i < completedIds.length; i += batchSize) {
           const batch = completedIds.slice(i, i + batchSize);
-          let q = supabase.from("escrow_splits").select("recipient, amount, office_id, release_mode, escrow_transaction_id, disbursement_status")
-            .in("escrow_transaction_id", batch)
-            .eq("status", "active");
-          if (officeFilter) q = q.eq("office_id", officeFilter);
-          const { data } = await q;
-          if (data) splits.push(...data);
+          const batchSplits = await fetchAllPaged<any>(() => {
+            let q = supabase.from("escrow_splits")
+              .select("recipient, amount, office_id, release_mode, escrow_transaction_id, disbursement_status")
+              .in("escrow_transaction_id", batch)
+              .eq("status", "active");
+            if (officeFilter) q = q.eq("office_id", officeFilter);
+            return q;
+          });
+          splits.push(...batchSplits);
         }
       }
 
@@ -227,12 +249,14 @@ const EscrowDashboard = () => {
         manualReleased,
       });
 
-      // Pipeline stats
-      let payoutsQuery = supabase.from("payout_transfers").select("status, escrow_transaction_id, created_at");
-      payoutsQuery = applyDateFilter(payoutsQuery);
-      const { data: payouts } = await payoutsQuery;
-      const uniqueEscrowsWithPayouts = new Set((payouts || []).map((p: any) => p.escrow_transaction_id));
-      const failedTransfers = (payouts || []).filter((p: any) => p.status === "failed").length;
+      // Pipeline stats (paginated)
+      const payouts = await fetchAllPaged<any>(() => {
+        let q = supabase.from("payout_transfers").select("status, escrow_transaction_id, created_at");
+        q = applyDateFilter(q);
+        return q;
+      });
+      const uniqueEscrowsWithPayouts = new Set(payouts.map((p: any) => p.escrow_transaction_id));
+      const failedTransfers = payouts.filter((p: any) => p.status === "failed").length;
 
       setPipelineStats({
         webhookReceived: completed.length,
