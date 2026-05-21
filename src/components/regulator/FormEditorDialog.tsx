@@ -167,7 +167,11 @@ export default function FormEditorDialog({
                       (() => {
                         const dt = new Date(data.hearing_date);
                         if (isNaN(dt.getTime())) return "—";
-                        return dt.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+                        const weekday = dt.toLocaleDateString("en-GB", { weekday: "long" });
+                        const dd = String(dt.getDate()).padStart(2, "0");
+                        const mm = String(dt.getMonth() + 1).padStart(2, "0");
+                        const yyyy = dt.getFullYear();
+                        return `${weekday}, ${dd}/${mm}/${yyyy}`;
                       })()
                     }</span>
                   </p>

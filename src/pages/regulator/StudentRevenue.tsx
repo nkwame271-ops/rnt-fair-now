@@ -61,20 +61,36 @@ const StudentRevenue = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const { data: txData } = await supabase
-        .from("escrow_transactions")
-        .select("id, reference, payment_type, total_amount, status, payer_user_id, created_at, metadata")
-        .eq("is_student_revenue", true)
+      // Source of truth: unified case_payments tagged as student revenue
+      // (student_id IS NOT NULL OR office is NUGS OR payment_type starts with student_).
+      const { data: cpRows } = await (supabase.from("case_payments") as any)
+        .select("id, escrow_transaction_id, payment_reference, payment_type, amount_paid, payment_status, reconciliation_status, payer_user_id, paid_at, created_at, office_id, student_id, metadata")
+        .or("student_id.not.is.null,payment_type.like.student_%,office_id.ilike.nugs%")
         .order("created_at", { ascending: false })
         .limit(500);
-      setTxns((txData as any[]) || []);
 
-      const ids = ((txData as any[]) || []).map(t => t.id);
-      if (ids.length > 0) {
+      const escrowIds = ((cpRows as any[]) || [])
+        .map((r: any) => r.escrow_transaction_id)
+        .filter(Boolean);
+
+      // Map case_payments → the legacy StudentTxn shape so the existing UI keeps working
+      const mapped: StudentTxn[] = ((cpRows as any[]) || []).map((cp: any) => ({
+        id: cp.escrow_transaction_id || cp.id,
+        reference: cp.payment_reference,
+        payment_type: cp.payment_type,
+        total_amount: Number(cp.amount_paid || 0),
+        status: cp.payment_status === "paid" ? "completed" : cp.payment_status,
+        payer_user_id: cp.payer_user_id || null,
+        created_at: cp.paid_at || cp.created_at,
+        metadata: cp.metadata || {},
+      }));
+      setTxns(mapped);
+
+      if (escrowIds.length > 0) {
         const { data: splitData } = await supabase
           .from("escrow_splits")
           .select("id, escrow_transaction_id, recipient, amount, status, released_at")
-          .in("escrow_transaction_id", ids);
+          .in("escrow_transaction_id", escrowIds);
         setSplits((splitData as any[]) || []);
       } else {
         setSplits([]);
