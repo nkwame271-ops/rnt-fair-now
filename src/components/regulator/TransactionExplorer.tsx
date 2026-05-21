@@ -181,6 +181,7 @@ const TransactionExplorer = () => {
         )}
       </Card>
     </div>
+    </div>
   );
 };
 
@@ -379,7 +380,6 @@ const LifecyclePanel = ({ escrowId, onRepaired }: { escrowId: string; onRepaired
           </div>
         )}
       </div>
-    </div>
     </div>
   );
 };
