@@ -1,111 +1,102 @@
 ## Goal
-Make payment finalization, receipts, complaint progression, reconciliation, and student revenue read from one synchronized source of truth so a verified Paystack payment updates exactly once and appears everywhere it should.
+Restore full financial traceability so every successful payment is accounted for end-to-end: Paystack verification, escrow entry, split ledger rows, unified payment row, receipt, reconciliation log, and complaint/case visibility.
 
 ## What I found
-- There is real data drift already:
-  - `escrow_transactions` paid rows: 786
-  - `case_payments` paid rows: 779
-  - active `payment_receipts`: 719
-- Recent paid references exist in `escrow_transactions` with no matching `case_payments` row.
-- Tenant and landlord **Receipts** pages still read only `payment_receipts`, so any payment that finalized partially or only exists in `case_payments` will not appear.
-- **Student Revenue** still reads `escrow_transactions` + `escrow_splits`, not the unified payment table.
-- Complaint progression depends on receipt/admin-confirmation heuristics in places, so some paid admin-filed complaints remain in “awaiting payer” until manual reconciliation.
-- Historical complaint receipts often have `case_id = null`, which breaks Command Center document attachment.
-- Form verification failure UI exists, but the QR/document path still needs to be normalized so invalid Form 7 / Form 33 scans always land on the failure state.
+- **Primary failure:** receipt creation started breaking because the backend now writes `receipt_status = "active"`, but the database enum only allows:
+  - `auto_generated`
+  - `manually_reconciled`
+  - `duplicate_blocked`
+  - `voided`
+- That mismatch has been throwing **critical `receipt_insert` errors** since yesterday.
+- Current live counts show real drift:
+  - **793** paid escrow transactions
+  - **788** paid unified payment rows
+  - **719** receipts
+  - **28** paid escrow rows with no active split ledger rows
+- In the last 24 hours:
+  - **69** paid escrow transactions
+  - **63** got unified payment rows
+  - **0** got receipts
+- The newest **5** paid escrow transactions are missing unified payment rows entirely, and they are the same references failing receipt creation right now.
+- Missing split rows are concentrated in older flows (`rent_card_bulk`, `rent_tax_bulk`, `complaint_fee`, `tenant_registration`, `landlord_registration`, `listing_fee`).
 
 ## Plan
-### 1) Harden the backend payment finalization path
-- Refactor the shared finalization pipeline so `verify-payment`, `paystack-webhook`, and manual reconciliation all converge on one exact sequence:
-  1. lock/resolve payment by reference
-  2. mark escrow paid once
-  3. upsert `case_payments`
-  4. generate/link exactly one receipt
-  5. run one-time reconciliation
-  6. advance complaint workflow
-- Remove any remaining logic branches that can succeed without fully writing `case_payments` and receipt linkage.
-- Make the finalizer repair partial states for already-paid rows instead of silently skipping them.
+### 1) Fix the receipt-status contract at the source
+- Update the shared payment finalization pipeline so auto-created receipts use the correct enum value instead of `active`.
+- Review every backend path that writes or updates receipt status so auto-generated receipts, manual reconciliation receipts, duplicate protection, and voiding all use valid statuses consistently.
+- Keep frontend display logic compatible with both old `status` values and the receipt-status enum values.
 
-### 2) Strengthen one-time reconciliation protection
-- Upgrade the reconciliation RPC and its callers to treat `case_payments` as the only reconciliation gate.
-- Return the exact message **“Transaction already reconciled”** when a reference is already reconciled.
-- Ensure every reconciliation attempt logs:
-  - reconciled by
-  - reconciliation timestamp
-  - transaction reference
-  - ledger update reference
-  - reconciliation status
-  - webhook/manual source
-- Align manual reconciliation so it never writes ledger state outside the unified payment record.
+### 2) Repair all paid payments that are missing receipts
+- Backfill receipts for every paid escrow transaction that has no receipt.
+- Ensure each repaired receipt gets:
+  - one receipt number
+  - the correct payer linkage
+  - the correct escrow linkage
+  - the correct complaint/case linkage when applicable
+  - a valid verification URL / QR target
+- Prevent duplicate receipt creation by keying repair on escrow transaction / payment reference.
 
-### 3) Repair historical drift with a targeted backend backfill
-- Backfill missing `case_payments` rows for already-paid `escrow_transactions`.
-- Backfill missing receipt linkage and `receipt_number` / `receipt_url` on `case_payments`.
-- Backfill complaint-linked receipt `case_id` using `cases.related_complaint_id` where possible.
-- Re-run reconciliation safely only for rows that are paid but not reconciled, without duplicating ledger updates.
+### 3) Repair the 5 paid escrow rows missing unified payment rows
+- Backfill missing unified payment records for the recent paid transactions that completed but never fully materialized.
+- Ensure each repaired row includes:
+  - paid status
+  - amount
+  - payment reference
+  - office/student routing
+  - receipt number / receipt URL once receipt repair is complete
+- Re-run idempotent reconciliation only where needed so the ledger remains exact-once.
 
-### 4) Fix Receipts everywhere
-- Update tenant and landlord **Receipts** pages to read a merged, deduplicated view of:
-  - current `case_payments`
-  - legacy `payment_receipts`
-- Prefer unified payment data when both exist.
-- Show receipt records immediately after payment verification, without depending on delayed legacy receipt-only queries.
+### 4) Repair the 28 paid escrow rows missing active split ledger rows
+- Rebuild missing active split rows from the escrow metadata split plan for historical transactions.
+- Preserve the existing payout-readiness rules so missing payout setup does not block ledger visibility.
+- Review older edge cases like bulk rent tax and older rent-card flows where split rows were skipped or never posted.
 
-### 5) Fix Command Center payment + receipt visibility
-- Update `ComplaintCaseFile` and `ComplaintDocumentsHub` to prefer `case_payments` for totals and receipt URLs.
-- Keep fallback support for legacy `payment_receipts` so older complaints still display correctly.
-- Ensure complaint filing payments always attach one receipt under:
-  - Command Center → Documents
-  - user dashboard → Receipts
+### 5) Re-sync all payment surfaces to the repaired source of truth
+- Confirm the user-facing Receipts pages, regulator case file, complaint documents hub, and Student Revenue all continue to read repaired data correctly.
+- Tighten any places still depending too heavily on legacy receipt rows so recent verified payments remain visible even when legacy rows lag.
+- Keep complaint payment visibility consistent between escrow, receipts, and case records.
 
-### 6) Fix complaint workflow synchronization
-- Make admin-filed complaint checkout always carry the correct complaint table and complainant role through checkout, finalization, and post-payment updates.
-- Ensure successful paid complaint filings move from `draft_awaiting_filing_payment` / awaiting payer states into the next actionable workflow state automatically, without manual reconciliation.
-- Keep landlord-filed complaints in **Landlord complaints** and tenant-filed complaints in **Tenant complaints** consistently.
+### 6) Add verification queries and operational safeguards
+- Add a reusable reconciliation/audit query set to detect:
+  - paid escrow without unified payment row
+  - paid escrow without receipt
+  - paid escrow without active split rows
+  - unified payment rows missing receipt linkage
+  - unreconciled paid payments
+- Improve backend logging so future failures identify the exact stage immediately.
+- Keep the one-time reconciliation guard and exact message behavior for already-reconciled transactions.
 
-### 7) Fix Student Revenue isolation
-- Refactor the Student Revenue dashboard to read unified paid/reconciled student transactions from `case_payments` first.
-- Keep student receipts isolated to the Student Revenue flow and not mixed into standard office receipt views.
-- Preserve split visibility from `escrow_splits`, but anchor the transaction list and totals on unified payment rows.
-
-### 8) Fix Form 33 date presentation and QR verification failure flow
-- Normalize Form 33 displayed dates to `dd/mm/yyyy` everywhere the user sees them, including the editor-facing selected date text.
-- Ensure invalid Form 7 / Form 33 verification codes always resolve to the existing **Verification failed** page state instead of ambiguous results.
-
-### 9) Validate end-to-end before closing
-I will verify these scenarios after implementation:
-- admin-filed tenant complaint → checkout → receipt in user Receipts + Command Center + complaint advances automatically
-- admin-filed landlord complaint → lands only in Landlord complaints and follows the same paid workflow
-- webhook replay on same reference → no second ledger update, no second receipt, returns “Transaction already reconciled”
-- manual reconciliation on already reconciled row → blocked/idempotent with logged attempt
-- student payment → appears in Student Revenue only with correct totals
-- invalid Form 7 / Form 33 QR → verification failed page
+### 7) Validate end-to-end after repair
+I will verify these outcomes after implementation:
+- a fresh successful payment creates:
+  - escrow entry
+  - active split ledger rows
+  - unified payment row
+  - exactly one receipt
+  - reconciliation log / ledger reference
+- recent broken payments from yesterday/today now appear with receipts
+- regulator complaint documents show repaired receipts again
+- receipt dashboards load historical and current records correctly
+- no new `receipt_insert` enum errors appear in backend logs
+- drift counts reduce to:
+  - **0 paid escrow missing unified payment**
+  - **0 paid escrow missing receipt**
+  - **0 paid escrow missing active split rows**
+  - **0 paid unified payments unreconciled**
 
 ## Technical details
-### Database work
-- Add a migration to tighten reconciliation logging and repair helpers.
-- Add a safe backfill/repair migration for missing unified payment rows and missing complaint receipt case links.
-- Preserve RLS and keep all sensitive writes server-side only.
+- **Backend files likely to change**
+  - `supabase/functions/_shared/finalize-payment.ts`
+  - possibly `supabase/functions/reconcile-payment/index.ts` if any receipt-status follow-up is needed
+- **Database work**
+  - data repair for missing receipts, missing unified payment rows, and missing split rows
+  - possibly a small schema migration only if we need stronger constraints or helper functions for durable repair
+- **Frontend files to verify / adjust only if needed**
+  - `src/pages/tenant/Receipts.tsx`
+  - `src/pages/landlord/Receipts.tsx`
+  - `src/pages/regulator/ComplaintCaseFile.tsx`
+  - `src/components/regulator/ComplaintDocumentsHub.tsx`
+  - `src/pages/regulator/StudentRevenue.tsx`
 
-### Code areas to update
-- `supabase/functions/_shared/finalize-payment.ts`
-- `supabase/functions/verify-payment/index.ts`
-- `supabase/functions/paystack-webhook/index.ts`
-- `supabase/functions/reconcile-payment/index.ts`
-- `src/pages/tenant/Receipts.tsx`
-- `src/pages/landlord/Receipts.tsx`
-- `src/pages/regulator/ComplaintCaseFile.tsx`
-- `src/components/regulator/ComplaintDocumentsHub.tsx`
-- `src/pages/regulator/StudentRevenue.tsx`
-- `src/pages/regulator/AdminFileComplaint.tsx`
-- `src/components/RequestComplaintPaymentDialog.tsx`
-- `src/components/regulator/FormEditorDialog.tsx`
-- `src/pages/shared/VerifyForm.tsx`
-- `src/pages/shared/VerifyReceipt.tsx`
-
-### Success criteria
-- no paid Paystack transaction without a matching unified payment row
-- no paid unified payment without one receipt link
-- no duplicate reconciliation for the same reference
-- complaint status moves automatically after verified payment
-- receipts load in dashboards and Command Center consistently
-- student revenue totals match student-only unified payments
+## Expected result
+After implementation, every successful payment will be traceable from Paystack to escrow to ledger to receipt, including the missing payments from yesterday and today, with duplicate protection still intact.
