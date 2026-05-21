@@ -1,29 +1,22 @@
 ## Problem
 
-Admin "File Complaint" (menu → `/regulator/complaints/new`) is `ComplaintWizard.tsx`. The wizard starts with `complainantRole = "tenant"` and `targetTable = "complaints"`. A `useEffect` keeps `targetTable` in sync with `complainantRole`, **but only until `targetLocked` flips to true after the first insert**.
+In the admin portal under **Rent Cards → Pending & Assign**, the screen looks empty even though landlords have purchased cards. The data is in the database — `rent_cards` has many rows in `status = 'awaiting_serial'` from recent landlord purchases (PUR-20260521-0703 … 0706, multiple landlords).
 
-Two failure paths that match the bug:
+The reason nothing shows: `PendingPurchases.tsx` requires the admin to **type a query and click Search** before any row is fetched. `pendingCards` starts empty and is only populated by `handleSearch`, which itself filters by Landlord ID / Name / Purchase ID against the search string. With an empty box the list stays blank, so the landlord details never appear.
 
-1. **State staleness on first save** — if the user clicks the Save/Submit action before React's effect has flushed the `targetTable` update after switching role to Landlord, the closure can still hold the old value.
-2. **More common path** — any silent/auto-draft creation that happens before the role selector is touched commits the row to `complaints` and then `targetLocked = true` permanently freezes it, even after the admin explicitly picks "landlord".
+## Fix (frontend only — `src/pages/regulator/rent-cards/PendingPurchases.tsx`)
 
-Database evidence confirms it: every admin-filed row with `complainant_role = 'landlord'` (10 of the last 10) actually lives in the `complaints` table, none in `landlord_complaints`.
+1. **Auto-load pending purchases on mount.** Add a `useEffect` that runs `loadPending()` when the component mounts (and when `profile` changes).
+2. **Extract a `loadPending()` helper** from `handleSearch`. It fetches `rent_cards` with `status = 'awaiting_serial'` (paginated in 1 000-row chunks to bypass the Supabase default cap, same pattern already used elsewhere), joins to `profiles` and `landlords` for name + landlord ID, orders by `purchased_at desc`, and stores the result in `pendingCards`.
+3. **Turn the search box into a client-side filter** over the loaded list. Remove the "click Search to fetch" gate; the input narrows `pendingCards` by Landlord ID / Name / Purchase ID as the admin types. Keep an explicit "Refresh" button (replacing the current Search button) so admins can re-pull after a landlord buys new cards.
+4. **Empty state copy** updates from `No pending cards found for "<query>"` to either "No pending purchases" (when nothing is awaiting serial) or "No matches for <query>" (when filter excludes everything).
+5. Preserve existing behaviour for assignment, selection, quota handling, and the post-assign list trimming.
 
-The downstream split in `RegulatorComplaints.tsx` reads the two tables for the Tenant and Landlord tabs respectively, so a landlord complaint trapped in `complaints` is rendered under the Tenant tab — exactly what the user is reporting.
-
-## Fix (frontend only, no DB changes)
-
-Edit `src/pages/regulator/ComplaintWizard.tsx`:
-
-1. **Derive the target table from `complainantRole` at the moment of the first insert**, not from a separate piece of state. Compute `const tableForInsert = complainantRole === "landlord" ? "landlord_complaints" : "complaints"` inside `saveDraft` right before the `INSERT`, and use it for that call.
-2. After the first insert succeeds, persist `tableForInsert` as the locked `targetTable` (`setTargetTable(tableForInsert); setTargetLocked(true);`). This keeps later updates pointed at the correct table even if the admin changes the role afterwards.
-3. Keep the existing hydration logic (`useEffect` on `draftId`) that picks the table from where the row was found — that path is already correct.
-4. Keep the post-submit navigation hint (`tab=landlord` vs `tab=tenant`) deriving from the same `tableForInsert` / locked `targetTable`, so the redirect lands on the matching tab.
-
-No changes to `AdminFileComplaint.tsx`, the finalize-payment edge function, or the Complaint Management tabs — those already branch on the table correctly. No migrations needed; existing mis-routed rows can be left alone or, if you want, moved later in a separate cleanup step (out of scope for this fix).
+No DB changes, no RLS changes, no edge function changes. No other rent-card screens touched.
 
 ## Verification
 
-- File a new complaint as admin with Complainant = Landlord → row should appear in `landlord_complaints`, show up under "Landlord Complaints" tab, and the post-submit redirect should land on `?tab=landlord`.
-- File a new complaint as admin with Complainant = Tenant → row in `complaints`, "Tenant Complaints" tab, `?tab=tenant`.
-- Re-opening an existing draft via `?draft=<id>` should still hydrate into the correct table (unchanged behaviour).
+- Open **Rent Cards → Pending & Assign** as a regulator admin → list of pending purchases (grouped by `PUR-…`) shows landlord name, landlord ID code, purchase date, and card count immediately, without typing anything.
+- Type a landlord ID / name / purchase ID → list narrows in place.
+- Click **Refresh** after a new landlord purchase → new purchase appears.
+- Assign serials → assigned cards disappear from the list, success banner shows, stock counters update (unchanged behaviour).

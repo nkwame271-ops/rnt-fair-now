@@ -131,9 +131,8 @@ type AssignMode = "auto_qty" | "start_from" | "range" | "manual";
 const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [pendingCards, setPendingCards] = useState<PendingCard[]>([]);
-  const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [allPendingCards, setAllPendingCards] = useState<PendingCard[]>([]);
   const [assigning, setAssigning] = useState(false);
   const [assignedSerials, setAssignedSerials] = useState<Record<string, string[]>>({});
 
@@ -152,6 +151,17 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   const [availableSerials, setAvailableSerials] = useState<SerialOption[]>([]);
   const [loadingSerials, setLoadingSerials] = useState(false);
   const [quotaContext, setQuotaContext] = useState<{ remaining: number } | null>(null);
+
+  // Client-side filter over loaded list
+  const pendingCards = useMemo(() => {
+    const q = searchQuery.trim().toUpperCase();
+    if (!q) return allPendingCards;
+    return allPendingCards.filter(c =>
+      c.purchase_id.toUpperCase().includes(q) ||
+      c.landlord_id_code.toUpperCase().includes(q) ||
+      c.landlord_name.toUpperCase().includes(q)
+    );
+  }, [allPendingCards, searchQuery]);
 
   // Paired mode: 1 serial = 2 cards
   const serialsNeeded = useMemo(() => Math.ceil(mappingCards.length / 2), [mappingCards.length]);
@@ -198,21 +208,31 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       : officeName;
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    setSearching(true);
-    setSearched(true);
-    setPendingCards([]);
-    setSelectedCardIds(new Set());
-
+  const loadPending = async () => {
+    setLoading(true);
     try {
-      const { data: cards, error } = await supabase
-        .from("rent_cards")
-        .select("id, purchase_id, landlord_user_id, purchased_at")
-        .eq("status", "awaiting_serial");
+      const PAGE = 1000;
+      let from = 0;
+      let cards: any[] = [];
+      while (true) {
+        const { data, error } = await supabase
+          .from("rent_cards")
+          .select("id, purchase_id, landlord_user_id, purchased_at")
+          .eq("status", "awaiting_serial")
+          .order("purchased_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        cards = cards.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
 
-      if (error) throw error;
-      if (!cards || cards.length === 0) { setSearching(false); return; }
+      if (cards.length === 0) {
+        setAllPendingCards([]);
+        setLoading(false);
+        return;
+      }
 
       const landlordUserIds = [...new Set(cards.map((c: any) => c.landlord_user_id))];
       const [profilesRes, landlordsRes] = await Promise.all([
@@ -223,33 +243,26 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       const profileMap = new Map((profilesRes.data || []).map((p: any) => [p.user_id, p.full_name]));
       const landlordIdMap = new Map((landlordsRes.data || []).map((l: any) => [l.user_id, l.landlord_id]));
 
-      const q = searchQuery.trim().toUpperCase();
-      const results: PendingCard[] = [];
+      const results: PendingCard[] = cards.map((card: any) => ({
+        id: card.id,
+        purchase_id: card.purchase_id || card.id,
+        landlord_user_id: card.landlord_user_id,
+        landlord_name: profileMap.get(card.landlord_user_id) || "Unknown",
+        landlord_id_code: landlordIdMap.get(card.landlord_user_id) || "—",
+        purchased_at: card.purchased_at,
+      }));
 
-      for (const card of cards as any[]) {
-        const purchaseId = card.purchase_id || card.id;
-        const landlordIdCode = landlordIdMap.get(card.landlord_user_id) || "";
-        const matchesPurchase = purchaseId.toUpperCase().includes(q);
-        const matchesLandlord = landlordIdCode.toUpperCase().includes(q);
-        const matchesName = (profileMap.get(card.landlord_user_id) || "").toUpperCase().includes(q);
-        if (!matchesPurchase && !matchesLandlord && !matchesName) continue;
-
-        results.push({
-          id: card.id,
-          purchase_id: purchaseId,
-          landlord_user_id: card.landlord_user_id,
-          landlord_name: profileMap.get(card.landlord_user_id) || "Unknown",
-          landlord_id_code: landlordIdCode || "—",
-          purchased_at: card.purchased_at,
-        });
-      }
-
-      setPendingCards(results);
+      setAllPendingCards(results);
     } catch (err: any) {
-      toast.error(err.message || "Search failed");
+      toast.error(err.message || "Failed to load pending purchases");
     }
-    setSearching(false);
+    setLoading(false);
   };
+
+  useEffect(() => {
+    loadPending();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.officeId, profile?.isMainAdmin]);
 
   const toggleCard = (cardId: string) => {
     setSelectedCardIds(prev => {
@@ -595,7 +608,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       }
 
       const assignedSet = new Set(assignedCardIds);
-      setPendingCards(prev => prev.filter(c => !assignedSet.has(c.id)));
+      setAllPendingCards(prev => prev.filter(c => !assignedSet.has(c.id)));
       setSelectedCardIds(prev => {
         const next = new Set(prev);
         assignedCardIds.forEach(id => next.delete(id));
@@ -630,22 +643,28 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
         </h2>
         <div className="flex gap-3">
           <Input
-            placeholder="Search by Landlord ID, Name, or Purchase ID..."
+            placeholder="Filter by Landlord ID, Name, or Purchase ID..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSearch()}
             className="flex-1"
           />
-          <Button onClick={handleSearch} disabled={searching}>
-            {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            Search
+          <Button onClick={loadPending} disabled={loading} variant="outline">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Refresh
           </Button>
         </div>
 
-        {searched && pendingCards.length === 0 && !searching && (
+        {!loading && allPendingCards.length === 0 && (
           <div className="text-center py-6 text-muted-foreground text-sm">
             <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-40" />
-            No pending cards found for "{searchQuery}"
+            No pending purchases
+          </div>
+        )}
+
+        {!loading && allPendingCards.length > 0 && pendingCards.length === 0 && (
+          <div className="text-center py-6 text-muted-foreground text-sm">
+            <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            No matches for "{searchQuery}"
           </div>
         )}
 
