@@ -1,131 +1,111 @@
 ## Goal
-Refactor the payment + reconciliation pipeline so every payment path (Dashboard Pay Now, Checkout, Paystack webhook, manual reconciliation) writes to **one unified source of truth** — `case_payments` — with strict one-time reconciliation, automatic receipt generation, and accurate Command Center / Student Revenue reporting.
+Make payment finalization, receipts, complaint progression, reconciliation, and student revenue read from one synchronized source of truth so a verified Paystack payment updates exactly once and appears everywhere it should.
 
----
+## What I found
+- There is real data drift already:
+  - `escrow_transactions` paid rows: 786
+  - `case_payments` paid rows: 779
+  - active `payment_receipts`: 719
+- Recent paid references exist in `escrow_transactions` with no matching `case_payments` row.
+- Tenant and landlord **Receipts** pages still read only `payment_receipts`, so any payment that finalized partially or only exists in `case_payments` will not appear.
+- **Student Revenue** still reads `escrow_transactions` + `escrow_splits`, not the unified payment table.
+- Complaint progression depends on receipt/admin-confirmation heuristics in places, so some paid admin-filed complaints remain in “awaiting payer” until manual reconciliation.
+- Historical complaint receipts often have `case_id = null`, which breaks Command Center document attachment.
+- Form verification failure UI exists, but the QR/document path still needs to be normalized so invalid Form 7 / Form 33 scans always land on the failure state.
 
-## 1. New unified table: `public.case_payments`
+## Plan
+### 1) Harden the backend payment finalization path
+- Refactor the shared finalization pipeline so `verify-payment`, `paystack-webhook`, and manual reconciliation all converge on one exact sequence:
+  1. lock/resolve payment by reference
+  2. mark escrow paid once
+  3. upsert `case_payments`
+  4. generate/link exactly one receipt
+  5. run one-time reconciliation
+  6. advance complaint workflow
+- Remove any remaining logic branches that can succeed without fully writing `case_payments` and receipt linkage.
+- Make the finalizer repair partial states for already-paid rows instead of silently skipping them.
 
-Migration creates the table with these columns:
+### 2) Strengthen one-time reconciliation protection
+- Upgrade the reconciliation RPC and its callers to treat `case_payments` as the only reconciliation gate.
+- Return the exact message **“Transaction already reconciled”** when a reference is already reconciled.
+- Ensure every reconciliation attempt logs:
+  - reconciled by
+  - reconciliation timestamp
+  - transaction reference
+  - ledger update reference
+  - reconciliation status
+  - webhook/manual source
+- Align manual reconciliation so it never writes ledger state outside the unified payment record.
 
-- `id` (uuid pk)
-- `case_id` (uuid, nullable — links to complaint/case when applicable)
-- `student_id` (uuid, nullable — set when payer is a student/NUGS context)
-- `payment_reference` (text, **UNIQUE NOT NULL**) — Paystack/platform reference
-- `payment_provider` (text — `paystack` | `manual` | `internal`)
-- `payment_type` (text — `complaint_filing` | `rent_card` | `viewing_fee` | `student_rent_card_fee` | etc.)
-- `amount_paid` (numeric, NOT NULL, default 0)
-- `currency` (text default `GHS`)
-- `payment_status` (text — `pending` | `paid` | `failed` | `refunded`)
-- `reconciliation_status` (text — `unreconciled` | `reconciled` | `failed`)
-- `receipt_number` (text)
-- `receipt_url` (text)
-- `paid_at` (timestamptz)
-- `reconciled_at` (timestamptz)
-- `reconciled_by` (uuid)
-- `ledger_entry_id` (uuid)
-- `escrow_transaction_id` (uuid — bridge to existing `escrow_transactions`)
-- `payer_user_id` (uuid)
-- `office_id` (text)
-- `metadata` (jsonb)
-- `created_at`, `updated_at`
+### 3) Repair historical drift with a targeted backend backfill
+- Backfill missing `case_payments` rows for already-paid `escrow_transactions`.
+- Backfill missing receipt linkage and `receipt_number` / `receipt_url` on `case_payments`.
+- Backfill complaint-linked receipt `case_id` using `cases.related_complaint_id` where possible.
+- Re-run reconciliation safely only for rows that are paid but not reconciled, without duplicating ledger updates.
 
-Constraints + indexes:
-- UNIQUE(`payment_reference`)
-- Partial UNIQUE(`case_id`, `payment_type`) WHERE `payment_status = 'paid'` to block double-pay for the same fee
-- Indexes on `case_id`, `student_id`, `payer_user_id`, `payment_status`, `reconciliation_status`
+### 4) Fix Receipts everywhere
+- Update tenant and landlord **Receipts** pages to read a merged, deduplicated view of:
+  - current `case_payments`
+  - legacy `payment_receipts`
+- Prefer unified payment data when both exist.
+- Show receipt records immediately after payment verification, without depending on delayed legacy receipt-only queries.
 
-RLS:
-- Payer can `SELECT` their own rows
-- Admins/regulators `SELECT` all
-- **No client INSERT / UPDATE / DELETE** — all writes go through SECURITY DEFINER functions / edge functions
-- Service role full access
+### 5) Fix Command Center payment + receipt visibility
+- Update `ComplaintCaseFile` and `ComplaintDocumentsHub` to prefer `case_payments` for totals and receipt URLs.
+- Keep fallback support for legacy `payment_receipts` so older complaints still display correctly.
+- Ensure complaint filing payments always attach one receipt under:
+  - Command Center → Documents
+  - user dashboard → Receipts
 
-Audit table `case_payment_reconciliation_log`:
-- `id`, `case_payment_id`, `action`, `actor_id`, `transaction_reference`, `ledger_update_reference`, `previous_status`, `new_status`, `notes`, `created_at`
+### 6) Fix complaint workflow synchronization
+- Make admin-filed complaint checkout always carry the correct complaint table and complainant role through checkout, finalization, and post-payment updates.
+- Ensure successful paid complaint filings move from `draft_awaiting_filing_payment` / awaiting payer states into the next actionable workflow state automatically, without manual reconciliation.
+- Keep landlord-filed complaints in **Landlord complaints** and tenant-filed complaints in **Tenant complaints** consistently.
 
----
+### 7) Fix Student Revenue isolation
+- Refactor the Student Revenue dashboard to read unified paid/reconciled student transactions from `case_payments` first.
+- Keep student receipts isolated to the Student Revenue flow and not mixed into standard office receipt views.
+- Preserve split visibility from `escrow_splits`, but anchor the transaction list and totals on unified payment rows.
 
-## 2. Idempotent reconciliation RPC: `reconcile_case_payment`
+### 8) Fix Form 33 date presentation and QR verification failure flow
+- Normalize Form 33 displayed dates to `dd/mm/yyyy` everywhere the user sees them, including the editor-facing selected date text.
+- Ensure invalid Form 7 / Form 33 verification codes always resolve to the existing **Verification failed** page state instead of ambiguous results.
 
-`SECURITY DEFINER` plpgsql function wrapped in a single transaction:
+### 9) Validate end-to-end before closing
+I will verify these scenarios after implementation:
+- admin-filed tenant complaint → checkout → receipt in user Receipts + Command Center + complaint advances automatically
+- admin-filed landlord complaint → lands only in Landlord complaints and follows the same paid workflow
+- webhook replay on same reference → no second ledger update, no second receipt, returns “Transaction already reconciled”
+- manual reconciliation on already reconciled row → blocked/idempotent with logged attempt
+- student payment → appears in Student Revenue only with correct totals
+- invalid Form 7 / Form 33 QR → verification failed page
 
-1. `SELECT ... FOR UPDATE` the `case_payments` row by `payment_reference`.
-2. If not found → raise.
-3. If `payment_status != 'paid'` → raise "Payment not confirmed".
-4. If `reconciliation_status = 'reconciled'` OR `ledger_entry_id IS NOT NULL` → return `{ ok: true, idempotent: true, message: 'Transaction already reconciled' }` (no writes).
-5. Create ledger entry in the correct ledger:
-   - Student payments (`student_id IS NOT NULL` or NUGS office) → **student revenue ledger only**.
-   - All other payments → standard office/escrow ledger.
-6. Update `case_payments`: set `reconciliation_status='reconciled'`, `reconciled_at=now()`, `reconciled_by`, `ledger_entry_id`.
-7. Insert audit row with both transaction + ledger refs.
-8. COMMIT (auto on function success; any RAISE → full rollback).
+## Technical details
+### Database work
+- Add a migration to tighten reconciliation logging and repair helpers.
+- Add a safe backfill/repair migration for missing unified payment rows and missing complaint receipt case links.
+- Preserve RLS and keep all sensitive writes server-side only.
 
-Triggers (BEFORE UPDATE on `case_payments`):
-- Block client-side changes to `ledger_entry_id`, `reconciliation_status` (only service_role may set).
-- When `payment_status` transitions to `paid` and `receipt_number IS NULL`, auto-call `generate_receipt_number()` and stamp `paid_at`.
+### Code areas to update
+- `supabase/functions/_shared/finalize-payment.ts`
+- `supabase/functions/verify-payment/index.ts`
+- `supabase/functions/paystack-webhook/index.ts`
+- `supabase/functions/reconcile-payment/index.ts`
+- `src/pages/tenant/Receipts.tsx`
+- `src/pages/landlord/Receipts.tsx`
+- `src/pages/regulator/ComplaintCaseFile.tsx`
+- `src/components/regulator/ComplaintDocumentsHub.tsx`
+- `src/pages/regulator/StudentRevenue.tsx`
+- `src/pages/regulator/AdminFileComplaint.tsx`
+- `src/components/RequestComplaintPaymentDialog.tsx`
+- `src/components/regulator/FormEditorDialog.tsx`
+- `src/pages/shared/VerifyForm.tsx`
+- `src/pages/shared/VerifyReceipt.tsx`
 
----
-
-## 3. Edge function changes
-
-All write paths route through the new model:
-
-- **`paystack-checkout`** — on init: upsert a `pending` row in `case_payments` keyed on `payment_reference` (alongside existing `escrow_transactions`).
-- **`verify-payment`** — on Paystack success: update `case_payments` to `paid` (idempotent via unique reference), then call `reconcile_case_payment` RPC. Replaces the ad-hoc logic in `_shared/finalize-payment.ts` callers for these new rows.
-- **`paystack-webhook`** — same path as verify-payment (idempotent — second call returns "already reconciled").
-- **`reconcile-payment`** (manual admin) — calls the same RPC; never writes ledger directly.
-- **Dashboard "Pay Now"** — uses the same `paystack-checkout` edge function (no separate client path). Audit any client component that posts directly to ledger tables and remove.
-
-Receipt generation hook:
-- When `payment_status` becomes `paid`, the trigger sets `receipt_number`. The edge function then renders the PDF, uploads to `form-outputs`, writes signed URL into `receipt_url`, and links the receipt into the existing `payment_receipts` table with `case_id` populated (fixes Command Center "No receipt yet").
-
----
-
-## 4. Command Center fixes (frontend, read-only)
-
-- `ComplaintCaseFile.tsx` Payment & Receipt Summary card → read totals from `case_payments` WHERE `case_id = X AND payment_status = 'paid'`. Sum `amount_paid`. Never default to 0 when paid rows exist.
-- `ComplaintDocumentsHub.tsx` Documents tab → query receipts by `case_payments.receipt_url` (with fallback to legacy `payment_receipts` by `escrow_transaction_id`).
-- Tenant/landlord `Receipts.tsx` → union over `case_payments` + legacy `payment_receipts` so historical receipts stay visible.
-
-No frontend writes to ledger or `case_payments` columns beyond `metadata` (RLS enforces).
-
----
-
-## 5. Student Revenue isolation
-
-- Reconciliation RPC routes student rows to `student_revenue_ledger` only.
-- A backfill query reclassifies any historical `escrow_transactions` flagged `is_student_revenue=true` whose payments now exist in `case_payments`.
-- NUGS dashboards read `case_payments WHERE student_id IS NOT NULL` for revenue cards.
-
----
-
-## 6. Backfill + safety
-
-One-time backfill migration:
-- Insert one `case_payments` row per existing `escrow_transactions` row where `status IN ('completed','success','paid')`, copying reference, amount, paid_at, status='paid', reconciliation_status='reconciled' (since they're already in legacy ledgers), and linking to existing receipts/cases.
-- This ensures Command Center and Student Revenue immediately reflect historical data without re-posting ledgers.
-
----
-
-## 7. Verification I'll run
-
-- Dry-run a paid complaint through Checkout → confirm one `case_payments` row, `payment_status=paid`, ledger entry created exactly once, audit row written.
-- Re-fire the webhook for the same reference → confirm RPC returns "already reconciled", no second ledger entry, no double receipt.
-- Confirm Command Center summary now shows the correct GHS amount (no 0.00) and the receipt appears under Documents with a working download.
-- Confirm a NUGS/student payment lands only in Student Revenue ledger, not the office ledger.
-- Confirm an unauthenticated client cannot INSERT/UPDATE `case_payments` (RLS denial).
-
----
-
-## 8. Technical surface
-
-- **New migration**: `case_payments`, `case_payment_reconciliation_log`, RLS, triggers, `reconcile_case_payment()` RPC, backfill.
-- **Edge functions**: `paystack-checkout/index.ts`, `verify-payment/index.ts`, `paystack-webhook/index.ts`, `reconcile-payment/index.ts`, `_shared/finalize-payment.ts` (add unified writer helper).
-- **Frontend (read-only refactor)**:
-  - `src/pages/regulator/ComplaintCaseFile.tsx`
-  - `src/components/regulator/ComplaintDocumentsHub.tsx`
-  - `src/pages/tenant/Receipts.tsx`, `src/pages/landlord/Receipts.tsx`
-  - NUGS revenue cards
-- **Audit & remove**: any client code that writes directly to ledger tables (replace with RPC call).
-
-If you approve, I'll run the migration first (it requires your confirmation), then ship the edge function + frontend changes in one pass and verify each item above.
+### Success criteria
+- no paid Paystack transaction without a matching unified payment row
+- no paid unified payment without one receipt link
+- no duplicate reconciliation for the same reference
+- complaint status moves automatically after verified payment
+- receipts load in dashboards and Command Center consistently
+- student revenue totals match student-only unified payments
