@@ -259,8 +259,12 @@ const ComplaintWizard = () => {
       const base = buildPayload();
       let pk = draftPk;
       if (!pk) {
+        // Derive the table at the moment of insert from complainantRole so a
+        // role change always lands in the right table, regardless of effect timing.
+        const tableForInsert: "complaints" | "landlord_complaints" =
+          complainantRole === "landlord" ? "landlord_complaints" : "complaints";
         const code = `CMP-${Date.now().toString(36).toUpperCase()}`;
-        const { data: created, error } = await (supabase.from(targetTable) as any)
+        const { data: created, error } = await (supabase.from(tableForInsert) as any)
           .insert({
             ...base,
             complaint_code: code,
@@ -276,6 +280,7 @@ const ComplaintWizard = () => {
         pk = created.id;
         setDraftPk(pk);
         setTicketNumber(created.ticket_number);
+        setTargetTable(tableForInsert);
         setTargetLocked(true);
       } else {
         const { error } = await (supabase.from(targetTable) as any)
