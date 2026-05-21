@@ -14,18 +14,20 @@ const LandlordReceipts = () => {
 
   const fetchReceipts = async () => {
     if (!user) return;
+
+    // Legacy receipts owned by this user
     const { data: ownReceipts } = await supabase
       .from("payment_receipts")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
+    // Receipts on tenancies this landlord owns
     const { data: tenancies } = await supabase
       .from("tenancies")
       .select("id")
       .eq("landlord_user_id", user.id);
-
-    const tenancyIds = (tenancies || []).map(t => t.id);
+    const tenancyIds = (tenancies || []).map((t) => t.id);
     let tenancyReceipts: any[] = [];
     if (tenancyIds.length > 0) {
       const { data } = await supabase
@@ -36,15 +38,54 @@ const LandlordReceipts = () => {
       tenancyReceipts = data || [];
     }
 
-    const allReceipts = [...(ownReceipts || []), ...tenancyReceipts];
+    const legacy = [...(ownReceipts || []), ...tenancyReceipts];
     const seen = new Set<string>();
-    const unique = allReceipts.filter(r => {
-      if (seen.has(r.id)) return false;
+    const seenEscrow = new Set<string>();
+    const merged: any[] = [];
+    legacy.forEach((r: any) => {
+      if (seen.has(r.id)) return;
       seen.add(r.id);
-      return true;
+      if (r.escrow_transaction_id) seenEscrow.add(r.escrow_transaction_id);
+      merged.push({
+        id: r.id,
+        receipt_number: r.receipt_number,
+        created_at: r.created_at,
+        payer_name: r.payer_name || "",
+        total_amount: Number(r.total_amount || 0),
+        payment_type: r.payment_type,
+        description: r.description || "",
+        status: r.status || "active",
+        qr_code_data: r.qr_code_data || r.receipt_number,
+        split_breakdown: (r.split_breakdown as any[]) || [],
+      });
     });
 
-    setReceipts(unique.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+    // Unified case_payments fallback for payer-owned rows missing a legacy receipt
+    const { data: unified } = await (supabase.from("case_payments") as any)
+      .select("id, receipt_number, paid_at, created_at, payment_type, amount_paid, payment_reference, receipt_url, escrow_transaction_id")
+      .eq("payer_user_id", user.id)
+      .eq("payment_status", "paid")
+      .order("created_at", { ascending: false });
+
+    (unified || []).forEach((cp: any) => {
+      if (cp.escrow_transaction_id && seenEscrow.has(cp.escrow_transaction_id)) return;
+      if (!cp.receipt_number) return;
+      merged.push({
+        id: cp.id,
+        receipt_number: cp.receipt_number,
+        created_at: cp.paid_at || cp.created_at,
+        payer_name: "",
+        total_amount: Number(cp.amount_paid || 0),
+        payment_type: cp.payment_type,
+        description: `Payment for ${(cp.payment_type || "").replace(/_/g, " ")}`,
+        status: "active",
+        qr_code_data: cp.receipt_url || cp.payment_reference,
+        split_breakdown: [],
+      });
+    });
+
+    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    setReceipts(merged);
     setLoading(false);
   };
 
