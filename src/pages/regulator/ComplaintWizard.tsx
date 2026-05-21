@@ -117,9 +117,11 @@ const ComplaintWizard = () => {
     if (!draftId) return;
     (async () => {
       let table: "complaints" | "landlord_complaints" = "complaints";
-      let { data } = await supabase.from("landlord_complaints").select("*").eq("id", draftId).maybeSingle();
-      if (data) {
+      let data: any = null;
+      const lc = await supabase.from("landlord_complaints").select("*").eq("id", draftId).maybeSingle();
+      if (lc.data) {
         table = "landlord_complaints";
+        data = lc.data;
       } else {
         const r = await supabase.from("complaints").select("*").eq("id", draftId).maybeSingle();
         data = r.data;
