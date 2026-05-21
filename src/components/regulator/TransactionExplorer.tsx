@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { formatGHSDecimal } from "@/lib/formatters";
 import { toast } from "@/hooks/use-toast";
+import { LedgerSyncBadge } from "@/components/regulator/LedgerSyncBadge";
 
 type EscrowRow = {
   id: string;
@@ -81,6 +82,8 @@ const TransactionExplorer = () => {
   });
 
   return (
+    <div className="space-y-3">
+    <div className="flex justify-end"><LedgerSyncBadge /></div>
     <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_1fr] gap-3">
       {/* Type list */}
       <Card className="p-2 max-h-[70vh] overflow-y-auto">
@@ -177,6 +180,7 @@ const TransactionExplorer = () => {
           <p className="text-sm text-muted-foreground p-4">Select a transaction to view its lifecycle.</p>
         )}
       </Card>
+    </div>
     </div>
   );
 };

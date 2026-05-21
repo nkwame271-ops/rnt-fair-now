@@ -1,71 +1,91 @@
-## Transaction Explorer with Lifecycle Drill-Down
 
-Add a "Transactions" tab inside **Payment Reconciliation & Recovery Centre** so admins can browse every transaction type, drill into a single transaction, see exactly where it is in the lifecycle, and safely issue a missing receipt only when Paystack has actually confirmed the payment.
+# Lock the Ledger: Real-Time, Atomic, Zero-Duplicate Sync with Paystack
 
-### 1. New "Transactions" tab on Reconciliation Centre
+## Problem
+The ledger lags Paystack and occasionally misses entries. Root causes in current pipeline:
+1. **No DB-level uniqueness** on `paystack_transaction_id` for `escrow_transactions`, `payment_receipts`, or `escrow_splits` — relies on app-level "find then insert" checks (race-prone).
+2. **`finalizePayment` is not a single DB transaction** — splits, receipt, payouts, and side effects are independent inserts. A failure mid-pipeline leaves the ledger half-written; a retry can double-write splits.
+3. **Drift monitor runs every 15 min** — that's the "lag" the user is seeing.
+4. **No live "ledger sync health" signal** — admins only discover drift by clicking around.
 
-Three-pane layout:
+## Solution (4 layers)
 
-```text
-┌─ Transaction Types ──┐ ┌─ Transactions ──────────┐ ┌─ Lifecycle ─────────┐
-│ Rent Card Bulk  608  │ │ ref · payer · amount    │ │ ✓ Paystack verified │
-│ Landlord Reg     84  │ │ ref · payer · amount    │ │ ✓ Escrow finalized  │
-│ Tenant Reg       45  │ │ ...                     │ │ ⚠ Receipt missing   │
-│ Complaint Fee    35  │ │                         │ │ ✓ Splits created    │
-│ Rent Tax Bulk    10  │ │                         │ │ ✗ Not reconciled    │
-│ ...                  │ │                         │ │                     │
-└──────────────────────┘ └─────────────────────────┘ │ [Issue Receipt]     │
-                                                     └─────────────────────┘
+### Layer 1 — Hard DB guarantees (uniqueness + atomic RPC)
+- Add **unique indexes** so the database physically refuses duplicates:
+  - `escrow_transactions(paystack_transaction_id)` where not null
+  - `payment_receipts(escrow_transaction_id)` (already 1:1 logically — enforce it)
+  - `escrow_splits(escrow_transaction_id, recipient, description)` partial unique on `status='active'`
+  - `payout_transfers(paystack_reference)` (likely already unique — verify and enforce)
+- Wrap the finalize pipeline in a new **`finalize_payment_atomic(reference, paystack_tx_id, amount)`** Postgres function (SECURITY DEFINER, single transaction). It performs: mark escrow completed → insert splits → insert receipt → insert payout rows → side-effect log. If any step fails, the whole thing rolls back. Re-running with the same `paystack_tx_id` is a no-op (idempotent on the unique indexes).
+- Keep the existing TypeScript `finalizePayment` as a thin caller of this RPC (so webhook + verify-payment + reconcile-payment + drift-monitor all converge on the same atomic path).
+
+### Layer 2 — Three redundant write paths, one source of truth
+Every Paystack charge gets finalized through whichever of these fires first; all three call the same atomic RPC, so duplicates are impossible:
+1. `paystack-webhook` (primary, real-time)
+2. `verify-payment` (called from checkout success redirect)
+3. `receipt-drift-monitor` (safety net)
+
+### Layer 3 — Cut drift detection from 15 min → 1 min
+- Update `pg_cron` to invoke `receipt-drift-monitor` every minute (was 15).
+- Add a lightweight **`/api/ledger-health` ping** (new edge function) that returns `detect_receipt_drift()` JSON — used by the regulator UI to show a live "Ledger ✓ in sync" pill that turns red the second drift > 0.
+
+### Layer 4 — Live UI indicator + auto-repair
+- Add a small **`LedgerSyncBadge`** to the Payment Reconciliation Centre header and to the existing Transaction Explorer (top-right). Polls `/api/ledger-health` every 30s.
+- When badge shows drift, a one-click "Resync now" button calls `receipt-drift-monitor` immediately and refreshes.
+
+## Technical Details
+
+### New migration (`*_atomic_ledger.sql`)
+```sql
+-- 1. Uniqueness
+CREATE UNIQUE INDEX IF NOT EXISTS escrow_tx_paystack_tx_uniq
+  ON escrow_transactions(paystack_transaction_id)
+  WHERE paystack_transaction_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS payment_receipts_escrow_uniq
+  ON payment_receipts(escrow_transaction_id)
+  WHERE escrow_transaction_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS escrow_splits_dedup
+  ON escrow_splits(escrow_transaction_id, recipient, COALESCE(description,''), COALESCE(office_id,''))
+  WHERE status = 'active';
+
+-- 2. Atomic RPC (wraps the current finalize logic in one txn)
+CREATE OR REPLACE FUNCTION finalize_payment_atomic(...)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER ...
 ```
 
-- Type list comes from `escrow_transactions.payment_type` aggregated with counts.
-- Transactions list is filterable by status (paid / pending / failed) and searchable by reference.
-- Both panes paginate (50/page) to handle the 800+ transactions.
+### Cron change (via `supabase--insert` per project rules)
+```sql
+SELECT cron.unschedule('receipt-drift-monitor');
+SELECT cron.schedule('receipt-drift-monitor', '* * * * *', $$...$$);
+```
 
-### 2. Lifecycle panel (the drop-down the user described)
+### Edge functions
+- **New**: `ledger-health` (returns `detect_receipt_drift()` snapshot; no JWT).
+- **Modified**: `_shared/finalize-payment.ts` — replace body with a single `supabaseAdmin.rpc('finalize_payment_atomic', {...})` call. SMS/email stays in the webhook (non-financial).
+- **Modified**: `receipt-drift-monitor/index.ts` — call same RPC.
 
-For the selected transaction, render an ordered status timeline:
+### Frontend
+- **New**: `src/components/regulator/LedgerSyncBadge.tsx` — green pill when `missing_receipts + missing_receipt_numbers + unreconciled = 0`, red otherwise with count + "Resync now" button.
+- **Modified**: `src/pages/regulator/PaymentReconciliationCentre.tsx` — mount badge in header.
+- **Modified**: `src/components/regulator/TransactionExplorer.tsx` — mount badge in header.
 
-| Stage | Source of truth | Pass condition |
-|-------|----------------|---------------|
-| Transaction created | `escrow_transactions` row exists | always |
-| Paystack verified | live call to `reconcile-payment` dry_run | Paystack returns `status=success` |
-| Escrow finalized | `escrow_transactions.status IN (success, completed, paid)` | flagged |
-| Receipt issued | `payment_receipts` row exists | row found |
-| Splits created | `escrow_splits` active rows exist | found |
-| Case payment recorded | `case_payments` row with `payment_status='paid'` | found |
-| Reconciled | `case_payments.reconciliation_status='reconciled'` | flagged |
+## Files
+- New migration (uniqueness + atomic RPC)
+- Insert: cron reschedule to 1-minute
+- New: `supabase/functions/ledger-health/index.ts`
+- Edited: `supabase/functions/_shared/finalize-payment.ts`
+- Edited: `supabase/functions/receipt-drift-monitor/index.ts`
+- New: `src/components/regulator/LedgerSyncBadge.tsx`
+- Edited: `src/pages/regulator/PaymentReconciliationCentre.tsx`
+- Edited: `src/components/regulator/TransactionExplorer.tsx`
 
-Each row shows: ✓ green, ✗ red, ⏳ amber (pending). Each row is expandable to show timestamp + actor + the underlying record reference.
+## Out of scope
+- No changes to Paystack checkout flow, split-plan math, secondary split configs, or payment-type-specific side effects (rent cards, tenancy activation, etc.) — those already work, we just wrap them in the atomic txn.
 
-### 3. Safe "Manually Issue Receipt" button
-
-Button is **enabled only when both** are true:
-- Paystack dry_run confirms the transaction is paid (`verified === true`)
-- `payment_receipts` row is missing for this escrow
-
-When clicked:
-- Calls existing `reconcile-payment` edge function with `action=reconcile` — this is the same idempotent pipeline `receipt-drift-monitor` uses
-- Writes a `payment_reconciliation_audit_log` entry tagged `manual_receipt_issue`
-- Refreshes the lifecycle panel inline
-
-If Paystack does NOT confirm success (`verified === false` or unknown reference), the button stays disabled with a tooltip: **"Cannot issue receipt — Paystack has not confirmed this transaction. Receipts can only be issued for verified payments."**
-
-### 4. Reuse, don't duplicate
-
-- No new backend endpoints needed. `reconcile-payment` already supports `dry_run` and `reconcile` actions.
-- No new tables. The Lifecycle panel reads from `escrow_transactions`, `payment_receipts`, `escrow_splits`, `case_payments`, plus the live Paystack dry-run.
-- The existing "Reconciliation Gaps" tab stays for sweeping fixes; the new "Transactions" tab is the per-transaction explorer.
-
-### 5. Files Changed
-
-- `src/pages/regulator/PaymentReconciliationCentre.tsx` — add "Transactions" tab + state
-- `src/components/regulator/TransactionExplorer.tsx` — new three-pane UI
-- `src/components/regulator/TransactionLifecyclePanel.tsx` — lifecycle timeline + safe Issue Receipt button
-- `src/components/regulator/TransactionTypeList.tsx` — left pane, type counts
-
-### Out of Scope
-
-- No edits to payment processing or finalize logic — it works.
-- No new edge functions — `reconcile-payment` already provides what's needed.
-- Tenant/landlord views unchanged.
+## Guarantees after this change
+1. **No duplicates** — DB physically rejects them.
+2. **No partial writes** — atomic RPC: all-or-nothing.
+3. **Max 1-minute lag** in worst case (webhook + verify-payment both failing → cron catches it).
+4. **Visible truth** — admins see a live green/red sync pill on every payment screen.
