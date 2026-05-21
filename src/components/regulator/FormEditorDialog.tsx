@@ -62,6 +62,14 @@ export default function FormEditorDialog({
 }: Props) {
   const [data, setData] = useState<any>({});
   const [busy, setBusy] = useState(false);
+  const [previewQr, setPreviewQr] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    QRCode.toDataURL("https://www.rentcontrolghana.com/verify/form/PREVIEW", {
+      width: 240, margin: 2, errorCorrectionLevel: "M",
+    }).then(setPreviewQr).catch((e) => console.warn("FormEditor preview QR failed", e));
+  }, []);
+
 
   useEffect(() => {
     if (!open) return;
