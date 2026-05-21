@@ -491,7 +491,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       }
     }
 
-    const { data: insertedReceipt, error: receiptErr } = await supabaseAdmin.from("payment_receipts").insert({
+    const receiptPayload = {
       escrow_transaction_id: escrowId,
       user_id: receiptUserId,
       payer_name: payerName,
@@ -503,7 +503,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       split_breakdown: splitBreakdown.length > 0 ? splitBreakdown : null,
       qr_code_data: verifyUrl(`/verify/receipt/${reference}`),
       status: "active",
-      receipt_status: "auto_generated",
+      receipt_status: "auto_generated" as const,
       admin_confirmed_at: (paymentType === "complaint_fee" || paymentType === "student_complaint_fee") ? new Date().toISOString() : null,
       office_id: officeId,
       tenancy_id: escrow.related_tenancy_id || null,
@@ -511,9 +511,30 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       platform_reference: reference,
       paystack_reference: transactionId,
       payment_date: new Date().toISOString(),
-    }).select("id").single();
+    };
+    const { data: insertedReceipt, error: receiptErr } = await supabaseAdmin
+      .from("payment_receipts")
+      .insert(receiptPayload)
+      .select("id")
+      .single();
     if (receiptErr) {
-      await logError({ escrow_transaction_id: escrowId, reference, error_stage: "receipt_insert", error_message: receiptErr.message, severity: "critical" });
+      await logError({
+        escrow_transaction_id: escrowId,
+        reference,
+        error_stage: "receipt_insert",
+        error_message: `${receiptErr.message} | attempted receipt_status="${receiptPayload.receipt_status}"`,
+        severity: "critical",
+      });
+      // Persist a drift record so the monitor and Command Center see this instantly.
+      try {
+        await supabaseAdmin.from("receipt_generation_failures").insert({
+          escrow_transaction_id: escrowId,
+          payment_reference: reference,
+          failure_stage: "receipt_insert",
+          failure_reason: receiptErr.message,
+          attempted_payload: receiptPayload as unknown as Record<string, unknown>,
+        });
+      } catch (_e) { /* best-effort */ }
     }
     receiptId = insertedReceipt?.id || null;
   }

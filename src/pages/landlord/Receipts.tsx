@@ -67,22 +67,30 @@ const LandlordReceipts = () => {
       .eq("payment_status", "paid")
       .order("created_at", { ascending: false });
 
+    let inFlight = 0;
     (unified || []).forEach((cp: any) => {
       if (cp.escrow_transaction_id && seenEscrow.has(cp.escrow_transaction_id)) return;
-      if (!cp.receipt_number) return;
+      const hasNumber = !!cp.receipt_number;
+      if (!hasNumber) inFlight += 1;
       merged.push({
         id: cp.id,
-        receipt_number: cp.receipt_number,
+        receipt_number: hasNumber ? cp.receipt_number : "Receipt being generated…",
         created_at: cp.paid_at || cp.created_at,
         payer_name: "",
         total_amount: Number(cp.amount_paid || 0),
         payment_type: cp.payment_type,
-        description: `Payment for ${(cp.payment_type || "").replace(/_/g, " ")}`,
-        status: "active",
+        description: hasNumber
+          ? `Payment for ${(cp.payment_type || "").replace(/_/g, " ")}`
+          : `Payment confirmed — receipt is being generated and will appear here automatically.`,
+        status: hasNumber ? "active" : "pending",
         qr_code_data: cp.receipt_url || cp.payment_reference,
         split_breakdown: [],
       });
     });
+
+    if (inFlight > 0) {
+      supabase.functions.invoke("receipt-drift-monitor").catch(() => {});
+    }
 
     merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     setReceipts(merged);

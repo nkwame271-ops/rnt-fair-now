@@ -30,6 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { formatGHSDecimal } from "@/lib/formatters";
 import UserProofReviewTab from "@/components/regulator/UserProofReviewTab";
+import ReceiptDriftTile from "@/components/regulator/ReceiptDriftTile";
 
 /**
  * Payment Reconciliation & Recovery Centre
@@ -231,6 +232,8 @@ const PaymentReconciliationCentre = () => {
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
+
+      <ReceiptDriftTile />
 
       <Card className="p-4 space-y-3 border-amber-500/40">
         <div className="flex items-center gap-2">

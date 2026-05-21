@@ -4485,6 +4485,51 @@ export type Database = {
           },
         ]
       }
+      receipt_generation_failures: {
+        Row: {
+          attempted_payload: Json | null
+          case_payment_id: string | null
+          created_at: string
+          escrow_transaction_id: string | null
+          failure_reason: string | null
+          failure_stage: string
+          id: string
+          payment_reference: string | null
+          resolution_notes: string | null
+          resolved: boolean
+          resolved_at: string | null
+          resolved_by: string | null
+        }
+        Insert: {
+          attempted_payload?: Json | null
+          case_payment_id?: string | null
+          created_at?: string
+          escrow_transaction_id?: string | null
+          failure_reason?: string | null
+          failure_stage: string
+          id?: string
+          payment_reference?: string | null
+          resolution_notes?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Update: {
+          attempted_payload?: Json | null
+          case_payment_id?: string | null
+          created_at?: string
+          escrow_transaction_id?: string | null
+          failure_reason?: string | null
+          failure_stage?: string
+          id?: string
+          payment_reference?: string | null
+          resolution_notes?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Relationships: []
+      }
       reconciliation_period_snapshots: {
         Row: {
           created_at: string | null
@@ -6316,6 +6361,7 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
+      detect_receipt_drift: { Args: never; Returns: Json }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
