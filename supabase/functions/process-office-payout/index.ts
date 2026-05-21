@@ -64,18 +64,21 @@ Deno.serve(async (req) => {
         .select("amount")
         .eq("office_id", request.office_id)
         .eq("recipient", "admin")
-        .eq("status", "active");
+        .eq("status", "active")
+        .neq("disbursement_status", "released");
 
       const totalEarned = (totalSplits || []).reduce((sum: number, s: any) => sum + Number(s.amount), 0);
 
-      const { data: approvedRequests } = await supabaseAdmin
+      const { data: reservedRequests } = await supabaseAdmin
         .from("office_fund_requests")
-        .select("amount")
+        .select("id, amount")
         .eq("office_id", request.office_id)
-        .eq("status", "approved");
+        .in("status", ["pending", "approved"]);
 
-      const totalWithdrawn = (approvedRequests || []).reduce((sum: number, r: any) => sum + Number(r.amount), 0);
-      const availableBalance = totalEarned - totalWithdrawn;
+      const reservedByOthers = (reservedRequests || [])
+        .filter((r: any) => r.id !== request.id)
+        .reduce((sum: number, r: any) => sum + Number(r.amount), 0);
+      const availableBalance = totalEarned - reservedByOthers;
 
       if (Number(request.amount) > availableBalance) {
         throw new Error(`Insufficient balance. Available: GH₵ ${availableBalance.toFixed(2)}, Requested: GH₵ ${Number(request.amount).toFixed(2)}`);

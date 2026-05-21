@@ -101,18 +101,19 @@ const OfficeFundRequests = () => {
       .select("amount")
       .eq("office_id", oid)
       .eq("recipient", "admin")
-      .eq("status", "active");
+      .eq("status", "active")
+      .neq("disbursement_status", "released");
 
     const totalEarned = (splits || []).reduce((sum, s: any) => sum + Number(s.amount), 0);
 
-    const { data: approved } = await supabase
+    const { data: reserved } = await supabase
       .from("office_fund_requests")
       .select("amount")
       .eq("office_id", oid)
-      .eq("status", "approved");
+      .in("status", ["pending", "approved"]);
 
-    const totalWithdrawn = (approved || []).reduce((sum, r: any) => sum + Number(r.amount), 0);
-    setBalance(totalEarned - totalWithdrawn);
+    const totalReserved = (reserved || []).reduce((sum, r: any) => sum + Number(r.amount), 0);
+    setBalance(totalEarned - totalReserved);
   };
 
   useEffect(() => { fetchData(); }, [user, profile]);
@@ -212,7 +213,7 @@ const OfficeFundRequests = () => {
           )}
 
           <div className="text-3xl font-bold text-primary">GH₵ {balance.toFixed(2)}</div>
-          <p className="text-sm text-muted-foreground">Available balance{isMainAdmin && selectedOfficeId ? ` for selected office` : ""}</p>
+          <p className="text-sm text-muted-foreground">Available unreleased balance{isMainAdmin && selectedOfficeId ? ` for selected office` : ""}</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
             <div>
