@@ -380,6 +380,7 @@ const LifecyclePanel = ({ escrowId, onRepaired }: { escrowId: string; onRepaired
         )}
       </div>
     </div>
+    </div>
   );
 };
 

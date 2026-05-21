@@ -222,16 +222,19 @@ const PaymentReconciliationCentre = () => {
             and dashboards. Every action is idempotent and fully audited.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            qc.invalidateQueries({ queryKey: ["reconcile-gaps"] });
-            qc.invalidateQueries({ queryKey: ["reconcile-audit"] });
-          }}
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <LedgerSyncBadge />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              qc.invalidateQueries({ queryKey: ["reconcile-gaps"] });
+              qc.invalidateQueries({ queryKey: ["reconcile-audit"] });
+            }}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <ReceiptDriftTile />
