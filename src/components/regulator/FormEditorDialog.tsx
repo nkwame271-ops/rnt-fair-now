@@ -256,7 +256,11 @@ export default function FormEditorDialog({
 
           {/* Preview */}
           <div className="hidden lg:block overflow-hidden min-h-0">
-            <PdfLivePreview data={data} render={render} label={`Live ${TITLES[formType].split(" — ")[0]} Preview`} />
+            <PdfLivePreview
+              data={{ ...data, qr_data_url: data.qr_data_url || previewQr, verification_code: data.verification_code || "PREVIEW" }}
+              render={render}
+              label={`Live ${TITLES[formType].split(" — ")[0]} Preview`}
+            />
           </div>
         </div>
 
