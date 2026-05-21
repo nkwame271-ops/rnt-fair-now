@@ -233,6 +233,139 @@ export type Database = {
         }
         Relationships: []
       }
+      case_payment_reconciliation_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          case_payment_id: string | null
+          created_at: string
+          id: string
+          ledger_update_reference: string | null
+          metadata: Json | null
+          new_status: string | null
+          notes: string | null
+          previous_status: string | null
+          transaction_reference: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          case_payment_id?: string | null
+          created_at?: string
+          id?: string
+          ledger_update_reference?: string | null
+          metadata?: Json | null
+          new_status?: string | null
+          notes?: string | null
+          previous_status?: string | null
+          transaction_reference?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          case_payment_id?: string | null
+          created_at?: string
+          id?: string
+          ledger_update_reference?: string | null
+          metadata?: Json | null
+          new_status?: string | null
+          notes?: string | null
+          previous_status?: string | null
+          transaction_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_payment_reconciliation_log_case_payment_id_fkey"
+            columns: ["case_payment_id"]
+            isOneToOne: false
+            referencedRelation: "case_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_payments: {
+        Row: {
+          amount_paid: number
+          case_id: string | null
+          created_at: string
+          currency: string
+          escrow_transaction_id: string | null
+          id: string
+          ledger_entry_id: string | null
+          metadata: Json
+          office_id: string | null
+          paid_at: string | null
+          payer_user_id: string | null
+          payment_provider: string
+          payment_reference: string
+          payment_status: string
+          payment_type: string
+          receipt_number: string | null
+          receipt_url: string | null
+          reconciled_at: string | null
+          reconciled_by: string | null
+          reconciliation_status: string
+          student_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_paid?: number
+          case_id?: string | null
+          created_at?: string
+          currency?: string
+          escrow_transaction_id?: string | null
+          id?: string
+          ledger_entry_id?: string | null
+          metadata?: Json
+          office_id?: string | null
+          paid_at?: string | null
+          payer_user_id?: string | null
+          payment_provider?: string
+          payment_reference: string
+          payment_status?: string
+          payment_type: string
+          receipt_number?: string | null
+          receipt_url?: string | null
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          reconciliation_status?: string
+          student_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_paid?: number
+          case_id?: string | null
+          created_at?: string
+          currency?: string
+          escrow_transaction_id?: string | null
+          id?: string
+          ledger_entry_id?: string | null
+          metadata?: Json
+          office_id?: string | null
+          paid_at?: string | null
+          payer_user_id?: string | null
+          payment_provider?: string
+          payment_reference?: string
+          payment_status?: string
+          payment_type?: string
+          receipt_number?: string | null
+          receipt_url?: string | null
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          reconciliation_status?: string
+          student_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_payments_escrow_transaction_id_fkey"
+            columns: ["escrow_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "escrow_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cases: {
         Row: {
           case_number: string
@@ -6265,6 +6398,14 @@ export type Database = {
       recalculate_compliance_score: {
         Args: { p_landlord_user_id: string }
         Returns: undefined
+      }
+      reconcile_case_payment: {
+        Args: {
+          p_actor?: string
+          p_notes?: string
+          p_payment_reference: string
+        }
+        Returns: Json
       }
       repair_rent_cards_for_escrow: {
         Args: { p_escrow_id: string }
