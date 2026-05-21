@@ -288,9 +288,10 @@ const RegulatorReceipts = () => {
             <Receipt className="h-7 w-7 text-primary" /> Receipts
           </h1>
           <p className="text-muted-foreground mt-1">
-            {filtered.length} receipt{filtered.length === 1 ? "" : "s"}
+            {filtered.length.toLocaleString()} of {totalReceipts.toLocaleString()} receipt{totalReceipts === 1 ? "" : "s"}
             {!isUnscoped && " • Scoped to your office"}
           </p>
+
         </div>
         <Button variant="outline" onClick={exportCSV} className="w-full sm:w-auto"><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
       </div>
