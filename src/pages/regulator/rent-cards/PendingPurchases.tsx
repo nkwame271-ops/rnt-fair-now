@@ -643,22 +643,28 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
         </h2>
         <div className="flex gap-3">
           <Input
-            placeholder="Search by Landlord ID, Name, or Purchase ID..."
+            placeholder="Filter by Landlord ID, Name, or Purchase ID..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSearch()}
             className="flex-1"
           />
-          <Button onClick={handleSearch} disabled={searching}>
-            {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            Search
+          <Button onClick={loadPending} disabled={loading} variant="outline">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Refresh
           </Button>
         </div>
 
-        {searched && pendingCards.length === 0 && !searching && (
+        {!loading && allPendingCards.length === 0 && (
           <div className="text-center py-6 text-muted-foreground text-sm">
             <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-40" />
-            No pending cards found for "{searchQuery}"
+            No pending purchases
+          </div>
+        )}
+
+        {!loading && allPendingCards.length > 0 && pendingCards.length === 0 && (
+          <div className="text-center py-6 text-muted-foreground text-sm">
+            <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            No matches for "{searchQuery}"
           </div>
         )}
 
