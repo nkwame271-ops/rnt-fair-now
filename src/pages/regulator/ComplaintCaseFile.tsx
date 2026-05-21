@@ -35,6 +35,7 @@ const ComplaintCaseFile = () => {
   const [witnesses, setWitnesses] = useState<any[]>([]);
   const [docs, setDocs] = useState<any[]>([]);
   const [receipts, setReceipts] = useState<any[]>([]);
+  const [casePayments, setCasePayments] = useState<any[]>([]);
   const [basketItems, setBasketItems] = useState<any[]>([]);
   const [decision, setDecision] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
