@@ -90,7 +90,7 @@ const ComplaintCaseFile = () => {
     const escrowIds = (escrowRows || []).map((r: any) => r.id);
 
     const [
-      hRes, nRes, wRes, dRes, decRes, hisRes, audRes, offRes, roomRes, staffRes, rcptByCaseRes, rcptByEscrowRes, basketRes,
+      hRes, nRes, wRes, dRes, decRes, hisRes, audRes, offRes, roomRes, staffRes, rcptByCaseRes, rcptByEscrowRes, basketRes, cpByCaseRes, cpByEscrowRes,
     ] = await Promise.all([
       supabase.from("complaint_hearings").select("*").eq("case_id", id).order("scheduled_at", { ascending: false }),
       supabase.from("complaint_notes").select("*").eq("complaint_id", id).order("created_at", { ascending: false }),
@@ -111,6 +111,13 @@ const ComplaintCaseFile = () => {
         ? supabase.from("payment_receipts").select("*").in("escrow_transaction_id", escrowIds).order("created_at", { ascending: false })
         : Promise.resolve({ data: [] as any[] }),
       (supabase.from("complaint_basket_items") as any).select("*").eq("complaint_id", id).order("created_at"),
+      // Unified case_payments — source of truth for amounts and reconciliation status
+      realCaseId
+        ? (supabase.from("case_payments") as any).select("*").eq("case_id", realCaseId).order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
+      escrowIds.length
+        ? (supabase.from("case_payments") as any).select("*").in("escrow_transaction_id", escrowIds).order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
     ]);
     setC(cData);
     setHearings(hRes.data || []);
@@ -131,6 +138,13 @@ const ComplaintCaseFile = () => {
       return true;
     });
     setReceipts(allReceipts);
+    const seenCp = new Set<string>();
+    const allCp = [...((cpByCaseRes as any).data || []), ...((cpByEscrowRes as any).data || [])].filter((r: any) => {
+      if (seenCp.has(r.id)) return false;
+      seenCp.add(r.id);
+      return true;
+    });
+    setCasePayments(allCp);
     setBasketItems((basketRes as any).data || []);
     setLoading(false);
   };
