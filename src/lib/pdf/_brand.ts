@@ -25,28 +25,36 @@ export function drawQrFooter(
   code?: string,
   caption = "Scan to verify"
 ) {
-  if (!qrDataUrl) return;
-  const size = 52;
+  if (!qrDataUrl) {
+    if (typeof console !== "undefined") console.warn("drawQrFooter: no qrDataUrl provided");
+    return;
+  }
+  const size = 56;
   const x = MARGIN;
-  const y = A4.H - 36 - size - 6;
+  // Anchor so QR sits cleanly above the footer divider (footer line at A4.H - 36)
+  const y = A4.H - 36 - size - 10;
   try {
     doc.addImage(qrDataUrl, "PNG", x, y, size, size);
-  } catch {
+  } catch (err) {
+    if (typeof console !== "undefined") {
+      console.error("drawQrFooter: addImage failed", err, "prefix:", String(qrDataUrl).slice(0, 40));
+    }
     return;
   }
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(80, 80, 80);
-  doc.text(caption, x + size + 6, y + 14);
+  doc.text(caption, x + size + 6, y + 16);
   if (code) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(20, 80, 50);
-    doc.text(`Code: ${code}`, x + size + 6, y + 26);
+    doc.text(`Code: ${code}`, x + size + 6, y + 28);
   }
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "normal");
 }
+
 
 export function drawHeader(doc: jsPDF, opts: { subtitle?: string } = {}) {
   // Top green strip

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +62,14 @@ export default function FormEditorDialog({
 }: Props) {
   const [data, setData] = useState<any>({});
   const [busy, setBusy] = useState(false);
+  const [previewQr, setPreviewQr] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    QRCode.toDataURL("https://www.rentcontrolghana.com/verify/form/PREVIEW", {
+      width: 240, margin: 2, errorCorrectionLevel: "M",
+    }).then(setPreviewQr).catch((e) => console.warn("FormEditor preview QR failed", e));
+  }, []);
+
 
   useEffect(() => {
     if (!open) return;
@@ -246,7 +256,11 @@ export default function FormEditorDialog({
 
           {/* Preview */}
           <div className="hidden lg:block overflow-hidden min-h-0">
-            <PdfLivePreview data={data} render={render} label={`Live ${TITLES[formType].split(" — ")[0]} Preview`} />
+            <PdfLivePreview
+              data={{ ...data, qr_data_url: data.qr_data_url || previewQr, verification_code: data.verification_code || "PREVIEW" }}
+              render={render}
+              label={`Live ${TITLES[formType].split(" — ")[0]} Preview`}
+            />
           </div>
         </div>
 

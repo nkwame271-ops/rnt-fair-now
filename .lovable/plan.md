@@ -1,91 +1,51 @@
-
-# Lock the Ledger: Real-Time, Atomic, Zero-Duplicate Sync with Paystack
-
 ## Problem
-The ledger lags Paystack and occasionally misses entries. Root causes in current pipeline:
-1. **No DB-level uniqueness** on `paystack_transaction_id` for `escrow_transactions`, `payment_receipts`, or `escrow_splits` — relies on app-level "find then insert" checks (race-prone).
-2. **`finalizePayment` is not a single DB transaction** — splits, receipt, payouts, and side effects are independent inserts. A failure mid-pipeline leaves the ledger half-written; a retry can double-write splits.
-3. **Drift monitor runs every 15 min** — that's the "lag" the user is seeing.
-4. **No live "ledger sync health" signal** — admins only discover drift by clicking around.
 
-## Solution (4 layers)
+The QR code on Forms 7 and 33 is "not showing":
 
-### Layer 1 — Hard DB guarantees (uniqueness + atomic RPC)
-- Add **unique indexes** so the database physically refuses duplicates:
-  - `escrow_transactions(paystack_transaction_id)` where not null
-  - `payment_receipts(escrow_transaction_id)` (already 1:1 logically — enforce it)
-  - `escrow_splits(escrow_transaction_id, recipient, description)` partial unique on `status='active'`
-  - `payout_transfers(paystack_reference)` (likely already unique — verify and enforce)
-- Wrap the finalize pipeline in a new **`finalize_payment_atomic(reference, paystack_tx_id, amount)`** Postgres function (SECURITY DEFINER, single transaction). It performs: mark escrow completed → insert splits → insert receipt → insert payout rows → side-effect log. If any step fails, the whole thing rolls back. Re-running with the same `paystack_tx_id` is a no-op (idempotent on the unique indexes).
-- Keep the existing TypeScript `finalizePayment` as a thin caller of this RPC (so webhook + verify-payment + reconcile-payment + drift-monitor all converge on the same atomic path).
+- In the **Form Editor live preview** (`PdfLivePreview` inside `FormEditorDialog` and the standalone `Form7LivePreview`), `renderForm7` / `renderForm33` are called directly with the raw editor state. That state never contains `qr_data_url` or `verification_code`, so `drawQrFooter` early-returns and no QR is drawn — the regulator sees a "QR-less" form and assumes it will print that way.
+- In the **finalized PDF** path (`generateStatutoryForm` in `src/lib/complaintForms.ts`), a QR data URL is created via `QRCode.toDataURL(verifyUrl, { width: 220, margin: 0 })`. `margin: 0` removes the scanner quiet zone, and any thrown error in QR generation silently falls through to `qrDataUrl = undefined`, again producing a QR-less PDF without warning.
+- `drawQrFooter` in `src/lib/pdf/_brand.ts` wraps `doc.addImage` in a bare `try { } catch { return; }`, so even a malformed data URL fails silently with no diagnostic.
 
-### Layer 2 — Three redundant write paths, one source of truth
-Every Paystack charge gets finalized through whichever of these fires first; all three call the same atomic RPC, so duplicates are impossible:
-1. `paystack-webhook` (primary, real-time)
-2. `verify-payment` (called from checkout success redirect)
-3. `receipt-drift-monitor` (safety net)
+## Fix
 
-### Layer 3 — Cut drift detection from 15 min → 1 min
-- Update `pg_cron` to invoke `receipt-drift-monitor` every minute (was 15).
-- Add a lightweight **`/api/ledger-health` ping** (new edge function) that returns `detect_receipt_drift()` JSON — used by the regulator UI to show a live "Ledger ✓ in sync" pill that turns red the second drift > 0.
+Small, frontend/presentation-only changes — no business logic, no DB, no edge functions.
 
-### Layer 4 — Live UI indicator + auto-repair
-- Add a small **`LedgerSyncBadge`** to the Payment Reconciliation Centre header and to the existing Transaction Explorer (top-right). Polls `/api/ledger-health` every 30s.
-- When badge shows drift, a one-click "Resync now" button calls `receipt-drift-monitor` immediately and refreshes.
+### 1. Live preview always shows a placeholder QR
 
-## Technical Details
+In `src/components/regulator/FormEditorDialog.tsx`:
 
-### New migration (`*_atomic_ledger.sql`)
-```sql
--- 1. Uniqueness
-CREATE UNIQUE INDEX IF NOT EXISTS escrow_tx_paystack_tx_uniq
-  ON escrow_transactions(paystack_transaction_id)
-  WHERE paystack_transaction_id IS NOT NULL;
+- Generate a one-time placeholder QR data URL on mount using `QRCode.toDataURL("https://www.rentcontrolghana.com/verify/form/PREVIEW", { width: 220, margin: 2 })`.
+- Merge `{ qr_data_url: previewQr, verification_code: data.verification_code || "PREVIEW" }` into the object passed to `PdfLivePreview` so the live preview always renders the QR block exactly where it will appear on the finalized PDF.
 
-CREATE UNIQUE INDEX IF NOT EXISTS payment_receipts_escrow_uniq
-  ON payment_receipts(escrow_transaction_id)
-  WHERE escrow_transaction_id IS NOT NULL;
+Apply the same merge in `src/components/regulator/Form7LivePreview.tsx`.
 
-CREATE UNIQUE INDEX IF NOT EXISTS escrow_splits_dedup
-  ON escrow_splits(escrow_transaction_id, recipient, COALESCE(description,''), COALESCE(office_id,''))
-  WHERE status = 'active';
+This guarantees the regulator visually confirms the QR before clicking **Generate PDF**.
 
--- 2. Atomic RPC (wraps the current finalize logic in one txn)
-CREATE OR REPLACE FUNCTION finalize_payment_atomic(...)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER ...
-```
+### 2. Harden finalized QR rendering
 
-### Cron change (via `supabase--insert` per project rules)
-```sql
-SELECT cron.unschedule('receipt-drift-monitor');
-SELECT cron.schedule('receipt-drift-monitor', '* * * * *', $$...$$);
-```
+In `src/lib/complaintForms.ts > generateStatutoryForm`:
 
-### Edge functions
-- **New**: `ledger-health` (returns `detect_receipt_drift()` snapshot; no JWT).
-- **Modified**: `_shared/finalize-payment.ts` — replace body with a single `supabaseAdmin.rpc('finalize_payment_atomic', {...})` call. SMS/email stays in the webhook (non-financial).
-- **Modified**: `receipt-drift-monitor/index.ts` — call same RPC.
+- Change `QRCode.toDataURL(verifyUrl, { width: 220, margin: 0 })` to `{ width: 240, margin: 2, errorCorrectionLevel: "M" }` so the QR has a proper quiet zone and is reliably scannable from print.
+- Log a `console.error` (and surface a non-blocking toast in the caller) if QR generation fails, instead of silently dropping it.
 
-### Frontend
-- **New**: `src/components/regulator/LedgerSyncBadge.tsx` — green pill when `missing_receipts + missing_receipt_numbers + unreconciled = 0`, red otherwise with count + "Resync now" button.
-- **Modified**: `src/pages/regulator/PaymentReconciliationCentre.tsx` — mount badge in header.
-- **Modified**: `src/components/regulator/TransactionExplorer.tsx` — mount badge in header.
+In `src/lib/pdf/_brand.ts > drawQrFooter`:
 
-## Files
-- New migration (uniqueness + atomic RPC)
-- Insert: cron reschedule to 1-minute
-- New: `supabase/functions/ledger-health/index.ts`
-- Edited: `supabase/functions/_shared/finalize-payment.ts`
-- Edited: `supabase/functions/receipt-drift-monitor/index.ts`
-- New: `src/components/regulator/LedgerSyncBadge.tsx`
-- Edited: `src/pages/regulator/PaymentReconciliationCentre.tsx`
-- Edited: `src/components/regulator/TransactionExplorer.tsx`
+- Keep the safe-no-op behaviour but log the underlying error to the console with the offending data URL prefix, so future regressions are debuggable.
+- Slightly shrink the size from 52pt to 56pt and re-anchor `y` so the QR sits cleanly above the footer divider (no overlap with the slogan or "Generated …" line). Caption text moves with it.
+
+### 3. No statutory body changes
+
+The QR continues to render only in the footer band; the statutory text of Form 7 and Form 33 is untouched.
+
+## Files to edit
+
+- `src/components/regulator/FormEditorDialog.tsx` — inject preview QR into `data` passed to `PdfLivePreview`.
+- `src/components/regulator/Form7LivePreview.tsx` — same preview-QR injection.
+- `src/lib/complaintForms.ts` — bump QR `margin` and add error logging.
+- `src/lib/pdf/_brand.ts` — better diagnostics + tightened QR footer layout.
 
 ## Out of scope
-- No changes to Paystack checkout flow, split-plan math, secondary split configs, or payment-type-specific side effects (rent cards, tenancy activation, etc.) — those already work, we just wrap them in the atomic txn.
 
-## Guarantees after this change
-1. **No duplicates** — DB physically rejects them.
-2. **No partial writes** — atomic RPC: all-or-nothing.
-3. **Max 1-minute lag** in worst case (webhook + verify-payment both failing → cron catches it).
-4. **Visible truth** — admins see a live green/red sync pill on every payment screen.
+- Form 32A QR (already uses the same `drawQrFooter`; benefits automatically from the `_brand.ts` tweaks but no editor preview change is requested).
+- Verify-form route (`/verify/form/:code`) — already wired and working.
+- Database / RLS / edge functions.
