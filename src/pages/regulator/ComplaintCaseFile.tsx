@@ -744,13 +744,20 @@ const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
 
 export default ComplaintCaseFile;
 
-function PaymentSummaryCard({ receipts, basket, complaint }: { receipts: any[]; basket: any[]; complaint: any }) {
+function PaymentSummaryCard({ receipts, casePayments, basket, complaint }: { receipts: any[]; casePayments: any[]; basket: any[]; complaint: any }) {
   const latest = receipts?.[0];
-  const totalPaid = (receipts || []).reduce((s, r) => s + Number(r.total_amount || 0), 0);
+  const paidCp = (casePayments || []).filter((c) => c.payment_status === "paid");
+  // Prefer the unified case_payments total — it never reports GHS 0.00 when status=paid.
+  const totalFromReceipts = (receipts || []).reduce((s, r) => s + Number(r.total_amount || 0), 0);
+  const totalFromCp = paidCp.reduce((s, c) => s + Number(c.amount_paid || 0), 0);
+  const totalPaid = totalFromCp > 0 ? totalFromCp : totalFromReceipts;
   const paidBasket = (basket || []).filter((b) => b.paid_at);
   const unpaidBasket = (basket || []).filter((b) => !b.paid_at);
   const feeTypes = Array.from(new Set((basket || []).map((b) => b.label).filter(Boolean)));
-  const status = latest?.receipt_status || latest?.status || (paidBasket.length ? "paid" : "pending");
+  const isPaidByCp = paidCp.length > 0;
+  const status = isPaidByCp
+    ? "paid"
+    : latest?.receipt_status || latest?.status || (paidBasket.length ? "paid" : "pending");
   const statusClass =
     status === "active" || status === "paid"
       ? "bg-emerald-100 text-emerald-800 border-emerald-200"
