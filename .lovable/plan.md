@@ -1,111 +1,32 @@
-## Escrow / Ledger Drift Fix Plan
+## Goal
+Make the Escrow & Revenue Dashboard load correct totals for **All Time** the same way the shorter presets already do.
 
-### What I found
-- **Receipts are mostly generating correctly now** and recent paid transactions already have:
-  - a `payment_receipts` row
-  - active `escrow_splits`
-  - a reconciled `case_payments` row with `ledger_entry_id`
-- The repeated drift is coming from **escrow release accounting**, not just receipt creation.
-- In the current finalization flow, split rows are being marked **`disbursement_status = 'released'` immediately when a Paystack transfer request is accepted as pending**, instead of waiting for the actual `transfer.success` webhook.
-- That means the platform can show money as already released even when Paystack has only accepted the transfer request, or has not completed it yet.
-- I confirmed this is widespread in live data:
-  - many active split rows are marked `released`
-  - but there is **no matching successful payout transfer** for them yet
-- The office wallet / escrow dashboard currently computes balances from **all active admin splits**, which overstates available or historical balance when release state is wrong.
+## What I found
+- The issue is in `src/pages/regulator/EscrowDashboard.tsx`.
+- The shorter ranges work because they return fewer rows.
+- **All Time** currently starts from the configured operational start date (`2026-04-07`) and that range now contains **1,098 escrow transactions**, which is above the backend’s default **1,000-row query limit**.
+- The dashboard fetches transactions, payouts, and derived split totals **without pagination**, so the All Time view under-reads the data and appears stuck or only updates in small jumps.
+- Split totals are then calculated only from the truncated transaction list, so the inflow/allocation figures drift together.
 
-### Root cause
-There are **two coupled problems**:
+## Plan
+1. **Fix the transaction fetch path**
+   - Refactor the dashboard data loader to fetch `escrow_transactions` in pages until all rows in the selected range are loaded.
+   - Apply the same office and date filters to every page so totals remain consistent.
 
-1. **Backend status bug**
-   - `finalize-payment.ts` sets split rows to `released` too early.
-   - `finalize-office-attribution.ts` does the same for deferred office attribution payouts.
-   - Correct behavior should be:
-     - transfer initiated → split remains pending/releasing
-     - `transfer.success` webhook → split becomes released
-     - `transfer.failed` / `transfer.reversed` → split stays/reverts to unreleased
+2. **Fix dependent queries that use the same range**
+   - Page through `payout_transfers` for the same range so pipeline stats do not cap out in All Time.
+   - Keep the split batching logic, but feed it the full completed transaction ID set instead of the truncated first page.
 
-2. **Frontend accounting bug**
-   - `EscrowDashboard.tsx` and `OfficeFundRequests.tsx` use broad totals from active `escrow_splits`
-   - they do not strictly separate:
-     - total inflow
-     - unreleased balance
-     - actually released amount
-     - reserved/requested withdrawals
-   - this allows the UI to disagree with the real payout lifecycle.
+3. **Stabilize All Time calculations**
+   - Ensure summary cards, allocation totals, office breakdown, and receipt-linked metrics are all derived from the complete dataset.
+   - Preserve the existing operational start-date floor so All Time still means “since go-live,” not pre-launch history.
 
-## Implementation plan
+4. **Validate the behavior**
+   - Verify that Today / Yesterday / Last 7 Days still match current behavior.
+   - Verify that All Time now exceeds the old cap and reflects the full accumulated amount instead of sticking near a stale value.
 
-### 1) Fix payout-state handling in backend functions
-Update these functions so split release state mirrors actual Paystack completion, not transfer initiation:
-- `supabase/functions/_shared/finalize-payment.ts`
-- `supabase/functions/finalize-office-attribution/index.ts`
-
-Changes:
-- when transfer request is created successfully:
-  - keep split as **pending_transfer / in-flight**, not released
-  - set `payout_readiness` to a non-final state
-- only `paystack-webhook` on `transfer.success` sets:
-  - `disbursement_status = 'released'`
-  - `released_at`
-  - `payout_readiness = 'released'`
-- failed/reversed transfers remain unreleased and visible for repair
-
-### 2) Repair existing bad split states in the database
-Create a migration to safely normalize historical payout state.
-
-Repair logic:
-- for active split rows marked `released` **without any successful payout transfer**:
-  - move them back to unreleased/in-flight state based on available payout rows
-- keep rows with real `transfer.success` untouched
-- preserve audit trail; do not delete historical payout data
-
-This repair is necessary because code-only changes won’t fix already corrupted balances.
-
-### 3) Tighten escrow dashboard calculations
-Update `src/pages/regulator/EscrowDashboard.tsx` so each metric comes from a strict definition:
-- **Total Revenue / Inflow** = completed escrow transactions in scope
-- **Allocation totals** = active splits in scope
-- **Actually Released** = only splits with confirmed released state
-- **Office wallet balance** = unreleased office-admin share minus approved/pending office fund requests
-- **Pipeline stats** = distinguish transfer initiated vs transfer completed
-
-This will stop the dashboard from showing inflated released totals or misleading office balances.
-
-### 4) Tighten office wallet/request balance logic
-Update:
-- `src/pages/regulator/OfficeFundRequests.tsx`
-- `supabase/functions/process-office-payout/index.ts`
-
-Changes:
-- calculate requestable office balance from **unreleased admin office share only**
-- subtract both pending and approved request reservations where appropriate
-- prevent requests from exceeding real unreleased balance
-- keep approval checks aligned with the same formula used by the UI
-
-### 5) Keep reconciliation tools aligned with the corrected model
-Update the recovery/admin tools so they reflect the new accounting truth:
-- `src/components/regulator/TransactionExplorer.tsx`
-- `src/pages/regulator/PaymentReconciliationCentre.tsx` only if needed for labels/status text
-
-Changes:
-- lifecycle should show transfer initiated vs transfer completed distinctly
-- no UI text should imply funds were released until Paystack confirms success
-
-## Technical notes
-- I do **not** plan to rewrite the whole payment architecture.
-- I will keep the existing centralized finalization pipeline and fix the incorrect payout-state transitions plus the downstream aggregation math.
-- This work likely needs:
-  - **1 migration** for historical split-state repair
-  - **4–6 code file edits** across edge functions and regulator dashboards
-- The fix is targeted at the exact repeating symptom you reported: **receipts appear, but escrow / inflow totals drift and repeat incorrectly**.
-
-## Expected outcome
-After this implementation:
-- a payment still creates **one receipt** and **one reconciled ledger update**
-- escrow inflow remains tied to completed transactions
-- released balances only move when Paystack confirms the transfer
-- office wallet balances stop drifting
-- the ledger/escrow view stops showing repeated or inflated counts
-- manual reconciliation remains idempotent and safe
-
-If you approve, I’ll implement the backend state fix first, then the repair migration, then the dashboard/wallet math updates.
+## Technical details
+- **Files:** `src/pages/regulator/EscrowDashboard.tsx`
+- **Likely implementation:** introduce a small reusable paginated fetch helper using `.range(from, to)` in a loop.
+- **No database migration needed:** this is a frontend data-loading bug, not a schema or RLS issue.
+- **Why this matches your symptom:** once the All Time range crossed 1,000 rows, the dashboard stopped counting everything after that cutoff, so newer money only showed up in small inconsistent increments instead of fully updating.
