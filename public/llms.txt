@@ -1,0 +1,20 @@
+# Rent Control Ghana
+
+> Ghana's official digital platform for rent regulation, tenancy agreements, and dispute resolution under the Rent Act, 1963 (Act 220). Operated by the Rent Control Department to protect tenants and empower landlords.
+
+The platform allows tenants and landlords to register, declare tenancies, file complaints, manage rent payments, and access fair-rent guidance. Rent Control Department staff use the same platform to mediate disputes, schedule hearings, and enforce Act 220 nationally.
+
+## Pages
+
+- [Home](/): Overview of the platform, role-based entry points, office locator, and information about Ghana's rent regulation framework.
+- [Sign In](/login): Tenant, landlord, and student sign-in.
+- [Register as a Tenant](/register/tenant): Create a tenant account and receive a unique Tenant ID.
+- [Register as a Landlord](/register/landlord): Register as a landlord, list properties, and stay compliant with Act 220.
+- [Staff Login](/regulator/login): Rent Control Department staff and NUGS administrators sign-in.
+- [Reset Password](/forgot-password): Phone-based password recovery via OTP.
+
+## Optional
+
+- [Tenancy Verification](/verify-tenancy/): Public QR verification endpoint for registered tenancies.
+- [Receipt Verification](/verify/receipt/): Public lookup for issued payment receipts.
+- [Rent Card Verification](/verify/rent-card/): Public lookup for issued rent cards.
