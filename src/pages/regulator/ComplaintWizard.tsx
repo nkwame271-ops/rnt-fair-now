@@ -190,11 +190,10 @@ const ComplaintWizard = () => {
     const rName = respondent?.full_name || phName.r;
     const rPhone = respondent?.phone || phPhone.r;
     const ct = complaintTypes.find((t) => t.id === complaintTypeId);
-    const payload: any = {
+    const common: any = {
       complaint_type: ct?.label || "Draft",
       complaint_type_id: complaintTypeId || null,
       complaint_title: title || null,
-      landlord_name: respondentRole === "landlord" ? rName : (rName || "—"),
       property_address: address || "—",
       region: region || "—",
       description: description || "",
@@ -207,6 +206,24 @@ const ComplaintWizard = () => {
       linked_unit_id: linkedProperty?.unit_id || null,
       filed_by_admin: true,
       gps_confirmed: false,
+    };
+
+    if (targetTable === "landlord_complaints") {
+      const payload: any = {
+        ...common,
+        landlord_user_id: complainant?.user_id || null,
+        placeholder_landlord_name: cName || null,
+        placeholder_landlord_phone: cPhone || null,
+        tenant_name: rName || "—",
+        placeholder_respondent_name: rName || null,
+        placeholder_respondent_phone: rPhone || null,
+      };
+      return payload;
+    }
+
+    const payload: any = {
+      ...common,
+      landlord_name: respondentRole === "landlord" ? rName : (rName || "—"),
     };
     if (complainant?.user_id) payload.tenant_user_id = complainant.user_id;
     else {
@@ -243,8 +260,7 @@ const ComplaintWizard = () => {
       let pk = draftPk;
       if (!pk) {
         const code = `CMP-${Date.now().toString(36).toUpperCase()}`;
-        const { data: created, error } = await supabase
-          .from("complaints")
+        const { data: created, error } = await (supabase.from(targetTable) as any)
           .insert({
             ...base,
             complaint_code: code,
@@ -260,9 +276,9 @@ const ComplaintWizard = () => {
         pk = created.id;
         setDraftPk(pk);
         setTicketNumber(created.ticket_number);
+        setTargetLocked(true);
       } else {
-        const { error } = await supabase
-          .from("complaints")
+        const { error } = await (supabase.from(targetTable) as any)
           .update({ ...base, evidence_urls: allEvidence })
           .eq("id", pk);
         if (error) throw error;
@@ -325,9 +341,8 @@ const ComplaintWizard = () => {
         toast({ title: "Could not save draft", description: "Submission aborted.", variant: "destructive" });
         return;
       }
-      const { error } = await supabase
-        .from("complaints")
-        .update({ status: "submitted" })
+      const { error } = await (supabase.from(targetTable) as any)
+        .update({ status: "submitted", current_stage: "submitted" })
         .eq("id", pk);
       if (error) throw error;
       try {
@@ -336,7 +351,8 @@ const ComplaintWizard = () => {
         console.warn("transitionStage failed (non-fatal)", te);
       }
       toast({ title: "Submitted for review", description: ticketNumber || "Complaint sent to office" });
-      navigate("/regulator/complaints/command-center");
+      const tab = targetTable === "landlord_complaints" ? "landlord" : "tenant";
+      navigate(`/regulator/complaints?tab=${tab}`);
     } catch (e: any) {
       console.error("Submit for Review failed", e);
       toast({
@@ -348,6 +364,7 @@ const ComplaintWizard = () => {
       setSubmitting(false);
     }
   };
+
 
   const aiRewrite = async (mode: "improve" | "formalize" | "summary") => {
     if (!description.trim()) return toast({ title: "Add a description first" });
