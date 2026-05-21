@@ -9,6 +9,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPhone } from "@/lib/formatters";
+import Seo from "@/components/Seo";
 
 const COOLDOWN_SECONDS = 60;
 
@@ -156,6 +157,12 @@ const ForgotPassword = () => {
   };
 
   return (
+    <>
+      <Seo
+        title="Reset Password — Rent Control Ghana"
+        description="Recover your Rent Control Ghana account using your registered phone number or Tenant/Landlord ID via secure OTP verification."
+        canonicalPath="/forgot-password"
+      />
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
         <button onClick={() => (step === 1 ? navigate("/login") : setStep((s) => (s - 1) as 1 | 2 | 3))} className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors">
@@ -184,10 +191,11 @@ const ForgotPassword = () => {
               Enter your registered phone number or your Tenant/Landlord ID to find your account.
             </p>
             <div className="space-y-2">
-              <Label>Phone Number or ID</Label>
+              <Label htmlFor="fp-identifier">Phone Number or ID</Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                  <Input
+                   id="fp-identifier"
                    placeholder="024 555 1234 or TN-2026-XXXX"
                   className="pl-10"
                   value={identifier}
@@ -283,18 +291,18 @@ const ForgotPassword = () => {
             </p>
 
             <div className="space-y-2">
-              <Label>New Password</Label>
+              <Label htmlFor="fp-new-password">New Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input type="password" placeholder="Minimum 8 characters" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+                <Input id="fp-new-password" type="password" placeholder="Minimum 8 characters" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Confirm Password</Label>
+              <Label htmlFor="fp-confirm-password">Confirm Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input type="password" placeholder="Re-enter your password" className="pl-10" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} />
+                <Input id="fp-confirm-password" type="password" placeholder="Re-enter your password" className="pl-10" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} />
               </div>
             </div>
 
@@ -305,6 +313,7 @@ const ForgotPassword = () => {
         )}
       </motion.div>
     </div>
+    </>
   );
 };
 
