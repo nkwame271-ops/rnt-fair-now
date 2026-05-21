@@ -101,6 +101,7 @@ const RegulatorReceipts = () => {
   const { user } = useAuth();
   const [confirming, setConfirming] = useState<string | null>(null);
   const [rows, setRows] = useState<ReceiptRow[]>([]);
+  const [totalReceipts, setTotalReceipts] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -125,18 +126,37 @@ const RegulatorReceipts = () => {
   const fetchReceipts = async () => {
     setLoading(true);
 
-    // Step 1: receipts (with optional office scoping via the txn join below)
-    // Exclude student-related receipts — those belong to the dedicated Student Revenue ledger.
-    let q = supabase
+    // True total via head count — never bounded by the row limit below.
+    let countQ = supabase
       .from("payment_receipts")
-      .select("id, receipt_number, created_at, payer_name, payer_email, payment_type, total_amount, status, description, qr_code_data, office_id, user_id, escrow_transaction_id, admin_confirmed_at, admin_confirmed_by")
-      .not("payment_type", "in", "(student_registration,student_complaint_fee)")
-      .order("created_at", { ascending: false })
-      .limit(500);
+      .select("id", { count: "exact", head: true })
+      .not("payment_type", "in", "(student_registration,student_complaint_fee)");
+    if (scopeOfficeId) countQ = countQ.eq("office_id", scopeOfficeId);
+    const { count: total } = await countQ;
+    setTotalReceipts(total || 0);
 
-    if (scopeOfficeId) q = q.eq("office_id", scopeOfficeId);
-    const { data: receipts, error } = await q;
-    if (error || !receipts) { setRows([]); setLoading(false); return; }
+    // Page through receipts in chunks of 1000 to bypass PostgREST's default 1000-row cap.
+    const PAGE = 1000;
+    const HARD_CAP = 5000; // safety to keep client memory bounded
+    let from = 0;
+    const allReceipts: any[] = [];
+    while (from < (total || 0) && allReceipts.length < HARD_CAP) {
+      let q = supabase
+        .from("payment_receipts")
+        .select("id, receipt_number, created_at, payer_name, payer_email, payment_type, total_amount, status, description, qr_code_data, office_id, user_id, escrow_transaction_id, admin_confirmed_at, admin_confirmed_by")
+        .not("payment_type", "in", "(student_registration,student_complaint_fee)")
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (scopeOfficeId) q = q.eq("office_id", scopeOfficeId);
+      const { data: page, error } = await q;
+      if (error || !page) break;
+      allReceipts.push(...page);
+      if (page.length < PAGE) break;
+      from += PAGE;
+    }
+    const receipts = allReceipts;
+    if (receipts.length === 0) { setRows([]); setLoading(false); return; }
+
 
     // Step 2: parallel fetch txns, splits, payer profiles, complaint ticket numbers
     const txnIds = receipts.map(r => r.escrow_transaction_id).filter(Boolean) as string[];
