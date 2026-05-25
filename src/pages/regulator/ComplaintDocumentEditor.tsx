@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import DOMPurify from "dompurify";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -370,7 +371,10 @@ const ComplaintDocumentEditor = () => {
 
   const exportHtml = async () => {
     const footer = await buildVerifyFooter();
-    const blob = new Blob([`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Georgia,serif;max-width:780px;margin:40px auto;padding:0 24px;line-height:1.5}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:8px;text-align:left}h1,h2{margin-top:1.4em}blockquote{border-left:3px solid #999;padding-left:12px;color:#444}</style></head><body><h1>${title}</h1>${html}${footer}</body></html>`], { type: "text/html" });
+    const safeTitle = DOMPurify.sanitize(title, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+    const safeBody = DOMPurify.sanitize(html);
+    const safeFooter = DOMPurify.sanitize(footer);
+    const blob = new Blob([`<!doctype html><html><head><meta charset="utf-8"><title>${safeTitle}</title><style>body{font-family:Georgia,serif;max-width:780px;margin:40px auto;padding:0 24px;line-height:1.5}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:8px;text-align:left}h1,h2{margin-top:1.4em}blockquote{border-left:3px solid #999;padding-left:12px;color:#444}</style></head><body><h1>${safeTitle}</h1>${safeBody}${safeFooter}</body></html>`], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -381,9 +385,12 @@ const ComplaintDocumentEditor = () => {
 
   const printDoc = async () => {
     const footer = await buildVerifyFooter();
+    const safeTitle = DOMPurify.sanitize(title, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+    const safeBody = DOMPurify.sanitize(html);
+    const safeFooter = DOMPurify.sanitize(footer);
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<!doctype html><html><head><title>${title}</title><style>body{font-family:Georgia,serif;max-width:780px;margin:40px auto;padding:0 24px;line-height:1.5}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:8px;text-align:left}h1,h2{margin-top:1.4em}blockquote{border-left:3px solid #999;padding-left:12px;color:#444}</style></head><body><h1>${title}</h1>${html}${footer}<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`);
+    w.document.write(`<!doctype html><html><head><title>${safeTitle}</title><style>body{font-family:Georgia,serif;max-width:780px;margin:40px auto;padding:0 24px;line-height:1.5}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:8px;text-align:left}h1,h2{margin-top:1.4em}blockquote{border-left:3px solid #999;padding-left:12px;color:#444}</style></head><body><h1>${safeTitle}</h1>${safeBody}${safeFooter}<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`);
     w.document.close();
   };
 

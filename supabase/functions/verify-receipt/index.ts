@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
 
     let query = supabase
       .from("payment_receipts")
-      .select("receipt_number, payer_name, payer_user_id, total_amount, payment_type, status, created_at, description");
+      .select("receipt_number, payer_name, user_id, total_amount, payment_type, status, created_at, description");
 
     if (receiptNumber) {
       query = query.eq("receipt_number", receiptNumber);
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const isOwner = !!callerUserId && (receipt as any).payer_user_id === callerUserId;
+    const isOwner = !!callerUserId && (receipt as any).user_id === callerUserId;
 
     // Public/unauthenticated callers (e.g. QR scan) get the minimum needed to verify the receipt;
     // the owner sees full payer details.
