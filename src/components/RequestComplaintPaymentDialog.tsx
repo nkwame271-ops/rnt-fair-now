@@ -447,7 +447,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        IGF {it.igf_pct}% · Admin {it.admin_pct}% · Platform {it.platform_pct}%
+                        IGF {it.igf_pct}% · Admin {it.admin_pct}%{isSuperAdmin ? ` · Platform ${it.platform_pct}%` : ""}
                         {it.reason && <span className="ml-2 italic">— {it.reason}</span>}
                       </div>
                     </div>
