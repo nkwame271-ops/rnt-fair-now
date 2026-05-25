@@ -207,6 +207,18 @@ export const GHANA_REGIONS_OFFICES: { region: string; offices: { id: string; nam
       { id: "sefwi_wiawso", name: "Sefwi Wiawso" },
     ],
   },
+  {
+    region: "North East",
+    offices: [
+      { id: "nalerigu", name: "Nalerigu" },
+    ],
+  },
+  {
+    region: "Savannah",
+    offices: [
+      { id: "damongo", name: "Damongo" },
+    ],
+  },
 ];
 
 // Derived flat list for backward compatibility

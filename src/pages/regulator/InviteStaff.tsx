@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { UserPlus, Mail, Lock, User, Loader2, CheckCircle2, Shield, Building2, GraduationCap } from "lucide-react";
+import { UserPlus, Mail, Lock, User, Phone, Loader2, CheckCircle2, Shield, Building2, GraduationCap, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,11 +13,30 @@ import { Checkbox } from "@/components/ui/checkbox";
 import LogoLoader from "@/components/LogoLoader";
 import { GHANA_INSTITUTIONS } from "@/data/ghanaInstitutions";
 
+type ChannelPerms = {
+  view_assigned_stock: boolean;
+  sell_rent_cards: boolean;
+  assign_to_landlords: boolean;
+  view_sales_report: boolean;
+  edit_reconciliation: boolean;
+  create_new_stock: boolean;
+};
+const DEFAULT_CHANNEL_PERMS: ChannelPerms = {
+  view_assigned_stock: true,
+  sell_rent_cards: true,
+  assign_to_landlords: false,
+  view_sales_report: true,
+  edit_reconciliation: false,
+  create_new_stock: false,
+};
+
+
 const InviteStaff = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
   const { flags, loading: flagsLoading } = useAllFeatureFlags();
   const [adminType, setAdminType] = useState<"main_admin" | "sub_admin" | "nugs_admin">("sub_admin");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
@@ -26,8 +45,17 @@ const InviteStaff = () => {
   const [nugsPermComplaints, setNugsPermComplaints] = useState(true);
   const [nugsPermRentCard, setNugsPermRentCard] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [salesChannelId, setSalesChannelId] = useState<string>("");
+  const [channels, setChannels] = useState<Array<{ id: string; name: string; is_active: boolean }>>([]);
+  const [channelPerms, setChannelPerms] = useState<ChannelPerms>(DEFAULT_CHANNEL_PERMS);
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.from("rent_card_sales_channels").select("id, name, is_active").eq("is_active", true).order("name")
+      .then(({ data }) => setChannels((data || []) as any));
+  }, []);
+
 
   if (profileLoading || flagsLoading) return <LogoLoader message="Loading..." />;
   if (!profile?.isMainAdmin) {
@@ -71,6 +99,7 @@ const InviteStaff = () => {
       const { data, error } = await supabase.functions.invoke("invite-staff", {
         body: {
           email,
+          phone,
           fullName,
           password,
           adminType,
@@ -78,6 +107,8 @@ const InviteStaff = () => {
           officeName: adminType === "sub_admin" ? office?.name : null,
           assignedSchool: adminType === "nugs_admin" ? assignedSchool : null,
           allowedFeatures: selectedFeatures,
+          salesChannelId: adminType !== "nugs_admin" && salesChannelId ? salesChannelId : null,
+          channelPermissions: adminType !== "nugs_admin" && salesChannelId ? channelPerms : null,
           nugsPermissions: adminType === "nugs_admin"
             ? { complaints: nugsPermComplaints, rent_card: nugsPermRentCard }
             : null,
@@ -91,12 +122,15 @@ const InviteStaff = () => {
       toast.success(data?.message || `Staff account created for ${email}`);
       setCreated(email);
       setEmail("");
+      setPhone("");
       setFullName("");
       setPassword("");
       setSelectedRegion("");
       setOfficeId("");
       setAssignedSchool("");
       setSelectedFeatures([]);
+      setSalesChannelId("");
+      setChannelPerms(DEFAULT_CHANNEL_PERMS);
     } catch (err: any) {
       toast.error(err.message || "Failed to create staff account");
     } finally {
@@ -225,6 +259,19 @@ const InviteStaff = () => {
             </div>
           </div>
           <div className="space-y-2">
+            <Label>Phone Number</Label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="tel"
+                placeholder="0244123456"
+                className="pl-10"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
             <Label>Temporary Password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -299,6 +346,51 @@ const InviteStaff = () => {
                   <span className="text-card-foreground">Rent Card (assignments route revenue to NUGS pool)</span>
                 </label>
               </div>
+            </div>
+          )}
+
+          {/* Sales channel assignment — Main/Sub admins only */}
+          {adminType !== "nugs_admin" && (
+            <div className="space-y-3 border border-border rounded-lg p-3 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <Network className="h-4 w-4 text-primary" />
+                <Label className="m-0">Assign to Sales Channel</Label>
+              </div>
+              <Select value={salesChannelId || "none"} onValueChange={v => setSalesChannelId(v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Select sales channel..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No channel assignment</SelectItem>
+                  {channels.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {salesChannelId && (
+                <div className="space-y-1 pt-2">
+                  <Label className="text-xs text-muted-foreground">Channel Permissions</Label>
+                  {([
+                    ["view_assigned_stock", "View assigned stock", false],
+                    ["sell_rent_cards", "Sell rent cards", false],
+                    ["assign_to_landlords", "Assign rent cards to landlords", false],
+                    ["view_sales_report", "View sales report", false],
+                    ["edit_reconciliation", "Edit reconciliation (restricted)", true],
+                    ["create_new_stock", "Create new stock (restricted)", true],
+                  ] as Array<[keyof ChannelPerms, string, boolean]>).map(([key, label, locked]) => (
+                    <label key={key} className={`flex items-center gap-2 text-sm rounded px-2 py-1.5 ${locked ? "opacity-60" : "cursor-pointer hover:bg-muted/30"}`}>
+                      <Checkbox
+                        checked={channelPerms[key]}
+                        disabled={locked}
+                        onCheckedChange={(v) => setChannelPerms(p => ({ ...p, [key]: !!v }))}
+                      />
+                      <span className="text-card-foreground">{label}</span>
+                    </label>
+                  ))}
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Restricted permissions are reserved for Main Admins for audit safety.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

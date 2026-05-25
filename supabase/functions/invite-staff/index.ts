@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { email, fullName, password, adminType, officeId, officeName, assignedSchool, allowedFeatures, nugsPermissions } = body || {};
+    const { email, fullName, phone, password, adminType, officeId, officeName, assignedSchool, allowedFeatures, nugsPermissions, salesChannelId, channelPermissions } = body || {};
     const isNugs = adminType === "nugs_admin";
 
     if (isNugs && callerAdmin.admin_type !== "super_admin") {
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
 
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email, password, email_confirm: true,
-      user_metadata: { full_name: fullName, phone: "", role: userRole },
+      user_metadata: { full_name: fullName, phone: phone || "", role: userRole },
     });
     if (createError || !newUser?.user) {
       return json({ error: createError?.message || "Failed to create user" });
@@ -108,6 +108,9 @@ Deno.serve(async (req) => {
           office_name: resolvedAdminType === "main_admin" ? null : (officeName || null),
           allowed_features: allowedFeatures || [],
           muted_features: [],
+          phone: phone || null,
+          sales_channel_id: salesChannelId || null,
+          channel_permissions: channelPermissions || {},
           created_by: callerId,
         });
 

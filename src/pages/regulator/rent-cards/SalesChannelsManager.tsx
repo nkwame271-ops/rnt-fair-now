@@ -54,12 +54,9 @@ function ChannelStockAllocator({ channels, onChanged }: AllocatorProps) {
   const [regions, setRegions] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
+  // Canonical list of Ghana regions (not derived from current stock)
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase.from("rent_card_serial_stock").select("region").not("region", "is", null);
-      const uniq = Array.from(new Set((data || []).map((r: any) => r.region).filter(Boolean))).sort();
-      setRegions(uniq as string[]);
-    })();
+    import("@/hooks/useAdminProfile").then(m => setRegions(m.GHANA_REGIONS));
   }, []);
 
   const load = async () => {

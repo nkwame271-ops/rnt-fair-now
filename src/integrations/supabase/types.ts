@@ -81,6 +81,7 @@ export type Database = {
         Row: {
           admin_type: string
           allowed_features: string[] | null
+          channel_permissions: Json
           created_at: string | null
           created_by: string | null
           id: string
@@ -88,6 +89,8 @@ export type Database = {
           office_id: string | null
           office_name: string | null
           payment_permissions: Json
+          phone: string | null
+          sales_channel_id: string | null
           stock_alert_threshold: number | null
           updated_at: string | null
           user_id: string
@@ -95,6 +98,7 @@ export type Database = {
         Insert: {
           admin_type?: string
           allowed_features?: string[] | null
+          channel_permissions?: Json
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -102,6 +106,8 @@ export type Database = {
           office_id?: string | null
           office_name?: string | null
           payment_permissions?: Json
+          phone?: string | null
+          sales_channel_id?: string | null
           stock_alert_threshold?: number | null
           updated_at?: string | null
           user_id: string
@@ -109,6 +115,7 @@ export type Database = {
         Update: {
           admin_type?: string
           allowed_features?: string[] | null
+          channel_permissions?: Json
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -116,11 +123,21 @@ export type Database = {
           office_id?: string | null
           office_name?: string | null
           payment_permissions?: Json
+          phone?: string | null
+          sales_channel_id?: string | null
           stock_alert_threshold?: number | null
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "admin_staff_sales_channel_id_fkey"
+            columns: ["sales_channel_id"]
+            isOneToOne: false
+            referencedRelation: "rent_card_sales_channels"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       agreement_template_config: {
         Row: {
