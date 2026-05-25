@@ -238,6 +238,7 @@ const RegulatorLayout = () => {
       </div>
       <TourGuide steps={regulatorTourSteps} storageKey="tour_regulator_completed" />
       <FloatingActionHub />
+      <EmergencyAlertRinger />
     </div>
   );
 };
