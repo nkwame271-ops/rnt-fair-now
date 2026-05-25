@@ -66,7 +66,7 @@ const MyTenants = () => {
           .from("units")
           .select("id, unit_name, bed_label, hostel_room_id, property_id, properties(property_name, property_category)")
           .in("id", unitIds),
-        supabase.from("profiles").select("user_id, full_name, phone").in("user_id", tenantIds),
+        supabase.from("profiles_counterparty" as any).select("user_id, full_name, phone").in("user_id", tenantIds),
       ]);
 
       const roomIds = (unitsRes.data || [])

@@ -31,7 +31,7 @@ const NugsStudents = () => {
       let profiles: Record<string, { full_name: string; phone: string }> = {};
       if (userIds.length > 0) {
         const { data: profs } = await supabase
-          .from("profiles")
+          .from("profiles_counterparty" as any)
           .select("user_id, full_name, phone")
           .in("user_id", userIds);
         (profs || []).forEach((p: any) => {
