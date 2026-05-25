@@ -5823,6 +5823,45 @@ export type Database = {
         }
         Relationships: []
       }
+      system_health_snapshots: {
+        Row: {
+          alert: boolean
+          captured_at: string
+          dashboard_refreshed_at: string | null
+          dashboard_stale_seconds: number | null
+          details: Json
+          id: string
+          missing_receipt_numbers: number
+          missing_receipts: number
+          open_failures_24h: number
+          unreconciled: number
+        }
+        Insert: {
+          alert?: boolean
+          captured_at?: string
+          dashboard_refreshed_at?: string | null
+          dashboard_stale_seconds?: number | null
+          details?: Json
+          id?: string
+          missing_receipt_numbers?: number
+          missing_receipts?: number
+          open_failures_24h?: number
+          unreconciled?: number
+        }
+        Update: {
+          alert?: boolean
+          captured_at?: string
+          dashboard_refreshed_at?: string | null
+          dashboard_stale_seconds?: number | null
+          details?: Json
+          id?: string
+          missing_receipt_numbers?: number
+          missing_receipts?: number
+          open_failures_24h?: number
+          unreconciled?: number
+        }
+        Relationships: []
+      }
       system_settlement_accounts: {
         Row: {
           account_name: string | null
@@ -6448,6 +6487,7 @@ export type Database = {
         }
         Returns: Json
       }
+      capture_system_health_snapshot: { Args: never; Returns: string }
       classify_nugs_rent_card_revenue: {
         Args: { p_card_ids: string[]; p_office_id: string }
         Returns: undefined
