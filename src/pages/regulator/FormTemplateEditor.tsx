@@ -133,7 +133,7 @@ const FormTemplateEditor = () => {
           <DialogHeader><DialogTitle>{tpl.form_name} — Preview</DialogTitle></DialogHeader>
           <div
             className="prose prose-sm max-w-none p-6 border rounded-md bg-background"
-            dangerouslySetInnerHTML={{ __html: bodyHtml || "<p class='text-muted-foreground'>Empty template</p>" }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(bodyHtml || "<p class='text-muted-foreground'>Empty template</p>") }}
           />
         </DialogContent>
       </Dialog>
