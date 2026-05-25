@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { email, fullName, password, adminType, officeId, officeName, assignedSchool, allowedFeatures, nugsPermissions } = body || {};
+    const { email, fullName, phone, password, adminType, officeId, officeName, assignedSchool, allowedFeatures, nugsPermissions, salesChannelId, channelPermissions } = body || {};
     const isNugs = adminType === "nugs_admin";
 
     if (isNugs && callerAdmin.admin_type !== "super_admin") {
