@@ -571,13 +571,27 @@ Deno.serve(async (req) => {
       relatedTenancyId = tenancyId || null;
 
     } else if (type === "tenant_registration" || type === "student_registration") {
-      const { data: tenant } = await supabase
+      let { data: tenant } = await supabase
         .from("tenants")
         .select("id, registration_fee_paid, is_student")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
-      if (!tenant) throw new Error("Tenant record not found");
+      // Defensive: auto-create tenant record if missing. Heals registrations where the
+      // client-side tenants insert silently failed (e.g. RLS / session timing right after
+      // signUp) but auth + profile succeeded — otherwise the user is stuck unable to pay
+      // AND unable to re-register (phone already taken).
+      if (!tenant) {
+        const tenantId = "TN-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
+        const { data: created, error: createErr } = await supabaseAdmin
+          .from("tenants")
+          .insert({ user_id: userId, tenant_id: tenantId, registration_fee_paid: false, is_student: type === "student_registration" })
+          .select("id, registration_fee_paid, is_student")
+          .single();
+        if (createErr) throw new Error("Failed to create tenant record: " + createErr.message);
+        tenant = created;
+      }
+
       if (tenant.registration_fee_paid) throw new Error("Registration fee already paid");
 
       // Force student_registration type when tenant is flagged as a student.
