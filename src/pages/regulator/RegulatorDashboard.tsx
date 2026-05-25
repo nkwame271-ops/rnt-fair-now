@@ -38,41 +38,28 @@ const RegulatorDashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       setLoading(true);
-      const officeFilter = effectiveOffice !== "all" ? effectiveOffice : null;
+      const officeArg = effectiveOffice !== "all" ? effectiveOffice : null;
 
-      let tenantsQ = supabase.from("tenants").select("id", { count: "exact", head: true });
-      let landlordsQ = supabase.from("landlords").select("id", { count: "exact", head: true });
-      let propertiesQ = supabase.from("properties").select("id", { count: "exact", head: true });
-      let complaintsQ = supabase.from("complaints").select("id", { count: "exact", head: true });
-      let tenanciesQ = supabase.from("tenancies").select("id", { count: "exact", head: true }).eq("status", "active");
+      const { data, error } = await supabase.rpc("get_regulator_dashboard_stats", {
+        p_office_id: officeArg,
+      });
 
-      if (officeFilter) {
-        propertiesQ = propertiesQ.eq("office_id", officeFilter);
-        complaintsQ = complaintsQ.eq("office_id", officeFilter);
-        tenanciesQ = tenanciesQ.eq("office_id", officeFilter);
+      if (error || !data) {
+        console.error("dashboard stats rpc failed", error);
+        setLoading(false);
+        return;
       }
 
-      const [tenants, landlords, properties, complaints, tenancies] = await Promise.all([
-        tenantsQ, landlordsQ, propertiesQ, complaintsQ, tenanciesQ,
-      ]);
-
-      let pendingComplaintsQ = supabase.from("complaints").select("id", { count: "exact", head: true }).in("status", ["submitted", "under_review"]);
-      let pendingTerminationsQ = supabase.from("termination_applications").select("id", { count: "exact", head: true }).in("status", ["pending", "under_review", "mediation"]);
-      let reportedSidePaymentsQ = supabase.from("side_payment_declarations").select("id", { count: "exact", head: true }).in("status", ["reported", "under_investigation"]);
-
-      if (officeFilter) {
-        pendingComplaintsQ = pendingComplaintsQ.eq("office_id", officeFilter);
-      }
-
-      const [pendingComplaints, pendingTerminations, reportedSidePayments] = await Promise.all([
-        pendingComplaintsQ, pendingTerminationsQ, reportedSidePaymentsQ,
-      ]);
-
+      const s = data as any;
       setStats({
-        totalTenants: tenants.count || 0, totalLandlords: landlords.count || 0,
-        totalProperties: properties.count || 0, totalComplaints: complaints.count || 0,
-        activeTenancies: tenancies.count || 0, pendingComplaints: pendingComplaints.count || 0,
-        pendingTerminations: pendingTerminations.count || 0, reportedSidePayments: reportedSidePayments.count || 0,
+        totalTenants: s.total_tenants || 0,
+        totalLandlords: s.total_landlords || 0,
+        totalProperties: s.total_properties || 0,
+        totalComplaints: s.total_complaints || 0,
+        activeTenancies: s.active_tenancies || 0,
+        pendingComplaints: s.pending_complaints || 0,
+        pendingTerminations: s.pending_terminations || 0,
+        reportedSidePayments: s.reported_side_payments || 0,
       });
 
       setLoading(false);
