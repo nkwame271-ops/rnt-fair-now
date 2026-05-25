@@ -97,6 +97,9 @@ const EscrowDashboard = () => {
   const [selectedOffice, setSelectedOffice] = useState<string>("all");
   const [officeRevenue, setOfficeRevenue] = useState<OfficeRevenue[]>([]);
   const [revenueByType, setRevenueByType] = useState<RevenueByType[]>([]);
+  // Raw splits keyed by transaction id, used to recompute totals per the viewer's visible recipients
+  const [splitsByTx, setSplitsByTx] = useState<Map<string, Array<{ recipient: string; amount: number; office_id?: string | null }>>>(new Map());
+  const [completedTxnMeta, setCompletedTxnMeta] = useState<Array<{ id: string; payment_type: string; office_id: string | null }>>([]);
   const [pipelineStats, setPipelineStats] = useState({ webhookReceived: 0, verified: 0, allocated: 0, transfersTriggered: 0, transfersFailed: 0 });
 
   // Date filter state
