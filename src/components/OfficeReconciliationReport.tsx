@@ -45,6 +45,11 @@ interface Props {
 }
 
 const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Props) => {
+  const { profile } = useAdminProfile();
+  const isSuperAdmin = !!profile?.isSuperAdmin;
+  // Sub-totals: when the viewer cannot see Platform, totals must shrink to match.
+  const visibleTotal = (p: Partitions) =>
+    p.igfOffice + p.igfHq + p.adminOffice + p.adminHq + (isSuperAdmin ? p.platform : 0) + p.gra + p.landlord;
   const [officeId, setOfficeId] = useState<string>(defaultOfficeId || (offices[0]?.id ?? ""));
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
