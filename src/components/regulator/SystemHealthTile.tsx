@@ -26,7 +26,7 @@ const SystemHealthTile = () => {
   const load = async () => {
     const { data } = await supabase
       .from("system_health_snapshots")
-      .select("id, captured_at, missing_receipts, missing_receipt_numbers, unreconciled, open_failures_24h, dashboard_stale_seconds, alert")
+      .select("id, captured_at, missing_receipts, missing_receipt_numbers, unreconciled, open_failures_24h, dashboard_stale_seconds, alert, db_connections_used, db_connections_max, db_connections_pct")
       .order("captured_at", { ascending: false })
       .limit(1)
       .maybeSingle();
