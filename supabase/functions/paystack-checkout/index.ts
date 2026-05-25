@@ -582,10 +582,11 @@ Deno.serve(async (req) => {
       // signUp) but auth + profile succeeded — otherwise the user is stuck unable to pay
       // AND unable to re-register (phone already taken).
       if (!tenant) {
-        const tenantId = "TN-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
+        const { data: genId, error: genErr } = await supabaseAdmin.rpc("generate_tenant_id");
+        if (genErr || !genId) throw new Error("Failed to generate tenant ID: " + (genErr?.message ?? "unknown"));
         const { data: created, error: createErr } = await supabaseAdmin
           .from("tenants")
-          .insert({ user_id: userId, tenant_id: tenantId, registration_fee_paid: false, is_student: type === "student_registration" })
+          .insert({ user_id: userId, tenant_id: String(genId), registration_fee_paid: false, is_student: type === "student_registration" })
           .select("id, registration_fee_paid, is_student")
           .single();
         if (createErr) throw new Error("Failed to create tenant record: " + createErr.message);
