@@ -36,6 +36,7 @@ const InviteStaff = () => {
   const { flags, loading: flagsLoading } = useAllFeatureFlags();
   const [adminType, setAdminType] = useState<"main_admin" | "sub_admin" | "nugs_admin">("sub_admin");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
@@ -44,8 +45,17 @@ const InviteStaff = () => {
   const [nugsPermComplaints, setNugsPermComplaints] = useState(true);
   const [nugsPermRentCard, setNugsPermRentCard] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [salesChannelId, setSalesChannelId] = useState<string>("");
+  const [channels, setChannels] = useState<Array<{ id: string; name: string; is_active: boolean }>>([]);
+  const [channelPerms, setChannelPerms] = useState<ChannelPerms>(DEFAULT_CHANNEL_PERMS);
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.from("rent_card_sales_channels").select("id, name, is_active").eq("is_active", true).order("name")
+      .then(({ data }) => setChannels((data || []) as any));
+  }, []);
+
 
   if (profileLoading || flagsLoading) return <LogoLoader message="Loading..." />;
   if (!profile?.isMainAdmin) {
