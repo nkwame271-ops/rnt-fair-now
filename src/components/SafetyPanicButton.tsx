@@ -134,7 +134,7 @@ const SafetyPanicButton = ({ role }: Props) => {
       <button
         onClick={() => setOpen(true)}
         aria-label="Panic / Emergency button"
-        className="fixed bottom-20 right-4 z-[60] h-14 w-14 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/40 flex items-center justify-center animate-pulse"
+        className="fixed bottom-36 sm:bottom-20 right-4 z-[10000] h-14 w-14 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/40 flex items-center justify-center animate-pulse"
       >
         <Siren className="h-6 w-6" />
       </button>
