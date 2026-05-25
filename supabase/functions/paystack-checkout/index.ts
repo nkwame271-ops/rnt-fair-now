@@ -1278,7 +1278,8 @@ Deno.serve(async (req) => {
         office_id: isStudentRevenue ? null : officeId,
         case_id: caseId || null,
         is_student_revenue: isStudentRevenue,
-        metadata: { ...metadata, split_plan: splitPlan, description, case_number: caseNumber, office_id: isStudentRevenue ? null : officeId, is_student_revenue: isStudentRevenue },
+        sales_channel_id: (body as any).sales_channel_id || null,
+        metadata: { ...metadata, split_plan: splitPlan, description, case_number: caseNumber, office_id: isStudentRevenue ? null : officeId, is_student_revenue: isStudentRevenue, sales_channel_id: (body as any).sales_channel_id || null },
       });
 
     if (escrowErr) console.error("Escrow record creation error:", escrowErr.message);
