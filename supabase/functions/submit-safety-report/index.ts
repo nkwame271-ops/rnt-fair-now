@@ -101,6 +101,14 @@ Deno.serve(async (req) => {
         is_silent: !!is_silent,
         severity: effectiveSeverity,
         false_alert_count_at_time: falseAlertCount ?? 0,
+        action_taken: action_taken ?? null,
+        live_tracking_enabled: !!live_tracking_enabled,
+        user_note: user_note ?? null,
+        linked_property_id: linked_property_id ?? null,
+        linked_tenancy_id: linked_tenancy_id ?? null,
+        linked_complaint_id: linked_complaint_id ?? null,
+        linked_student_id: linked_student_id ?? null,
+        status: report_kind === "panic_emergency" ? "new" : "submitted",
       })
       .select("id, ticket_number")
       .single();
