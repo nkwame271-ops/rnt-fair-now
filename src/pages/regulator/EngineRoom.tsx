@@ -885,6 +885,20 @@ const EngineRoom = () => {
         </div>
       )}
 
+      {/* Rent Card Sales Channel Splits — Super Admin only */}
+      {isSuperAdmin && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-3">
+            <Cog className="h-5 w-5 text-primary" /> Rent Card Sales Channel Splits
+          </h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Configure the 3-way split (IGF / Platform / Admin) for each rent card sales channel. Hidden from all non-Super-Admin users.
+          </p>
+          <SalesChannelsManager />
+        </div>
+      )}
+
+
       {/* Student Revenue (isolated from main Split Engine) */}
       {isMainAdmin && (
         <div>
