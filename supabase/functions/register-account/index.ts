@@ -180,6 +180,8 @@ Deno.serve(async (req) => {
       school: body.is_student ? (body.school || null) : null,
       hostel_or_hall: body.is_student ? (body.hostel_or_hall || null) : null,
       room_or_bed_space: body.is_student ? (body.room_or_bed_space || null) : null,
+      hostel_region: body.is_student ? (body.hostel_region || null) : null,
+      hostel_contact_number: body.is_student ? (body.hostel_contact_number || null) : null,
     };
     if (!regFeeEnabled) {
       tenantInsert.registration_date = now.toISOString();
