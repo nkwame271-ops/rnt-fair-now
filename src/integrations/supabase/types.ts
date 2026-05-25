@@ -1879,6 +1879,39 @@ export type Database = {
           },
         ]
       }
+      feature_flag_overrides: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          feature_key: string
+          id: string
+          is_enabled: boolean
+          target_type: string
+          target_value: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          feature_key: string
+          id?: string
+          is_enabled?: boolean
+          target_type: string
+          target_value: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          feature_key?: string
+          id?: string
+          is_enabled?: boolean
+          target_type?: string
+          target_value?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       feature_flags: {
         Row: {
           category: string
@@ -5720,6 +5753,7 @@ export type Database = {
           longitude: number
           recorded_at: string
           report_id: string
+          user_id: string | null
         }
         Insert: {
           accuracy?: number | null
@@ -5728,6 +5762,7 @@ export type Database = {
           longitude: number
           recorded_at?: string
           report_id: string
+          user_id?: string | null
         }
         Update: {
           accuracy?: number | null
@@ -5736,6 +5771,7 @@ export type Database = {
           longitude?: number
           recorded_at?: string
           report_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -5783,6 +5819,7 @@ export type Database = {
         Row: {
           acknowledged_at: string | null
           acknowledged_by: string | null
+          action_taken: string | null
           assigned_office_id: string | null
           assigned_to_user_id: string | null
           category: string | null
@@ -5801,6 +5838,11 @@ export type Database = {
           id: string
           is_silent: boolean
           latitude: number | null
+          linked_complaint_id: string | null
+          linked_property_id: string | null
+          linked_student_id: string | null
+          linked_tenancy_id: string | null
+          live_tracking_enabled: boolean | null
           location_accuracy: number | null
           location_address: string | null
           longitude: number | null
@@ -5811,17 +5853,20 @@ export type Database = {
           severity: string
           status: string
           ticket_number: string
+          tracking_stopped_at: string | null
           unit_id: string | null
           updated_at: string
           user_id: string
           user_marked_safe_at: string | null
           user_name_snapshot: string | null
+          user_note: string | null
           user_phone_snapshot: string | null
           user_role: string
         }
         Insert: {
           acknowledged_at?: string | null
           acknowledged_by?: string | null
+          action_taken?: string | null
           assigned_office_id?: string | null
           assigned_to_user_id?: string | null
           category?: string | null
@@ -5840,6 +5885,11 @@ export type Database = {
           id?: string
           is_silent?: boolean
           latitude?: number | null
+          linked_complaint_id?: string | null
+          linked_property_id?: string | null
+          linked_student_id?: string | null
+          linked_tenancy_id?: string | null
+          live_tracking_enabled?: boolean | null
           location_accuracy?: number | null
           location_address?: string | null
           longitude?: number | null
@@ -5850,17 +5900,20 @@ export type Database = {
           severity?: string
           status?: string
           ticket_number?: string
+          tracking_stopped_at?: string | null
           unit_id?: string | null
           updated_at?: string
           user_id: string
           user_marked_safe_at?: string | null
           user_name_snapshot?: string | null
+          user_note?: string | null
           user_phone_snapshot?: string | null
           user_role: string
         }
         Update: {
           acknowledged_at?: string | null
           acknowledged_by?: string | null
+          action_taken?: string | null
           assigned_office_id?: string | null
           assigned_to_user_id?: string | null
           category?: string | null
@@ -5879,6 +5932,11 @@ export type Database = {
           id?: string
           is_silent?: boolean
           latitude?: number | null
+          linked_complaint_id?: string | null
+          linked_property_id?: string | null
+          linked_student_id?: string | null
+          linked_tenancy_id?: string | null
+          live_tracking_enabled?: boolean | null
           location_accuracy?: number | null
           location_address?: string | null
           longitude?: number | null
@@ -5889,11 +5947,13 @@ export type Database = {
           severity?: string
           status?: string
           ticket_number?: string
+          tracking_stopped_at?: string | null
           unit_id?: string | null
           updated_at?: string
           user_id?: string
           user_marked_safe_at?: string | null
           user_name_snapshot?: string | null
+          user_note?: string | null
           user_phone_snapshot?: string | null
           user_role?: string
         }
@@ -6058,6 +6118,39 @@ export type Database = {
           sort_order?: number
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      staff_feature_overrides: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          feature_key: string
+          id: string
+          is_enabled: boolean
+          staff_user_id: string
+          sub_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          feature_key: string
+          id?: string
+          is_enabled?: boolean
+          staff_user_id: string
+          sub_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          feature_key?: string
+          id?: string
+          is_enabled?: boolean
+          staff_user_id?: string
+          sub_key?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -6979,6 +7072,18 @@ export type Database = {
       repair_rent_cards_for_escrow: {
         Args: { p_escrow_id: string }
         Returns: Json
+      }
+      resolve_feature_access: {
+        Args: {
+          _admin_category?: string
+          _dashboard?: string
+          _feature_key: string
+          _institution?: string
+          _role?: string
+          _sub_key?: string
+          _user_id: string
+        }
+        Returns: boolean
       }
       resolve_office_id: {
         Args: { p_area?: string; p_region: string }
