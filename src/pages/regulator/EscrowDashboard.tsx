@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import jsPDF from "jspdf";
+import { getVisibleRecipients, sumVisibleSplits } from "@/lib/revenue/visibleRecipients";
 
 interface OfficeRevenue {
   officeId: string;
@@ -60,7 +61,8 @@ const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string; visi
   { label: "Archive Search", types: ["archive_search_fee"], color: "bg-muted border-border text-muted-foreground", visibilityKey: "revenue_type_archive" },
 ];
 
-const SUB_ADMIN_VISIBLE_RECIPIENTS = ["rent_control", "rent_control_hq", "admin", "admin_hq"];
+// Recipient visibility is now driven by `getVisibleRecipients()` so that any
+// recipient hidden from the viewer is also excluded from totals/exports.
 
 type DatePreset = "all" | "today" | "yesterday" | "last7" | "this_week" | "this_month" | "custom";
 
@@ -95,6 +97,9 @@ const EscrowDashboard = () => {
   const [selectedOffice, setSelectedOffice] = useState<string>("all");
   const [officeRevenue, setOfficeRevenue] = useState<OfficeRevenue[]>([]);
   const [revenueByType, setRevenueByType] = useState<RevenueByType[]>([]);
+  // Raw splits keyed by transaction id, used to recompute totals per the viewer's visible recipients
+  const [splitsByTx, setSplitsByTx] = useState<Map<string, Array<{ recipient: string; amount: number; office_id?: string | null }>>>(new Map());
+  const [completedTxnMeta, setCompletedTxnMeta] = useState<Array<{ id: string; payment_type: string; office_id: string | null }>>([]);
   const [pipelineStats, setPipelineStats] = useState({ webhookReceived: 0, verified: 0, allocated: 0, transfersTriggered: 0, transfersFailed: 0 });
 
   // Date filter state
@@ -226,6 +231,16 @@ const EscrowDashboard = () => {
         }
       }
 
+      // Index splits per transaction so totals can be recomputed against the viewer's visible recipients
+      const splitMap = new Map<string, Array<{ recipient: string; amount: number; office_id?: string | null }>>();
+      for (const s of splits as any[]) {
+        const arr = splitMap.get(s.escrow_transaction_id) ?? [];
+        arr.push({ recipient: s.recipient, amount: Number(s.amount), office_id: s.office_id ?? null });
+        splitMap.set(s.escrow_transaction_id, arr);
+      }
+      setSplitsByTx(splitMap);
+      setCompletedTxnMeta(completed.map(t => ({ id: t.id, payment_type: t.payment_type, office_id: t.office_id ?? null })));
+
       const byRecipient = splits.reduce((acc: Record<string, number>, s: any) => {
         acc[s.recipient] = (acc[s.recipient] || 0) + Number(s.amount);
         return acc;
@@ -333,6 +348,15 @@ const EscrowDashboard = () => {
       )
     : receipts;
 
+  // Single source of truth for which recipients this viewer is allowed to see/count.
+  // Drives BOTH UI visibility AND every total/export — so "if you can't see it,
+  // you can't count it" is enforced everywhere.
+  const isSuperAdmin = !!profile?.isSuperAdmin;
+  const visibleRecipients = useMemo(
+    () => getVisibleRecipients({ isSuperAdmin, isVisible }),
+    [isSuperAdmin, isVisible],
+  );
+
   const allAllocationCards = [
     { label: "IGF (Office)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary", recipient: "rent_control", visibilityKey: "allocation_igf" },
     { label: "IGF (HQ)", amount: stats.rentControlHq, color: "bg-primary/15 border-primary/25 text-primary", recipient: "rent_control_hq", visibilityKey: "allocation_igf" },
@@ -343,18 +367,29 @@ const EscrowDashboard = () => {
     { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning", recipient: "landlord", visibilityKey: "allocation_landlord" },
   ];
 
-  const allocationCards = (isMainAdmin
-    ? allAllocationCards
-    : allAllocationCards.filter(c => SUB_ADMIN_VISIBLE_RECIPIENTS.includes(c.recipient))
-  ).filter(c => isVisible("escrow", c.visibilityKey));
+  // Only cards for recipients in the visible set survive — same gate as totals.
+  const allocationCards = allAllocationCards.filter(c => visibleRecipients.has(c.recipient as any));
 
   const visibleAllocationTotal = allocationCards.reduce((sum, c) => sum + c.amount, 0);
 
-  // Filter revenue by type cards based on visibility
-  const visibleRevenueByType = revenueByType.filter(r => {
-    const config = REVENUE_TYPE_CONFIG.find(c => c.label === r.label);
-    return config ? isVisible("escrow", config.visibilityKey) : true;
-  });
+  // Recompute revenue by type from the raw splits, restricted to visible recipients.
+  // This ensures Platform (and any muted recipient) is excluded from per-type totals
+  // for non-Super-Admin viewers — not just hidden in the label.
+  const visibleRevenueByType = useMemo(() => {
+    return REVENUE_TYPE_CONFIG
+      .filter(cfg => isVisible("escrow", cfg.visibilityKey))
+      .map(cfg => {
+        const matching = completedTxnMeta.filter(t => cfg.types.includes(t.payment_type));
+        let total = 0;
+        for (const t of matching) {
+          const sl = splitsByTx.get(t.id);
+          if (sl && sl.length > 0) {
+            total += sumVisibleSplits(sl, visibleRecipients as Set<string>);
+          }
+        }
+        return { label: cfg.label, types: cfg.types, total, count: matching.length, color: cfg.color };
+      });
+  }, [completedTxnMeta, splitsByTx, visibleRecipients, isVisible]);
   const visibleRevenueTotal = visibleRevenueByType.reduce((sum, r) => sum + r.total, 0);
 
   // Export helpers
@@ -383,9 +418,17 @@ const EscrowDashboard = () => {
     );
 
     if (officeRevenue.length > 0) {
-      rows.push([], ["OFFICE BREAKDOWN"], ["Office", "Total", "IGF (Office)", "IGF (HQ)", "Admin (Office)", "Admin (HQ)", "Platform", "GRA", "Landlord", "Wallet Balance"]);
+      const headers = ["Office", "Total", "IGF (Office)", "IGF (HQ)", "Admin (Office)", "Admin (HQ)"];
+      if (isSuperAdmin) headers.push("Platform");
+      headers.push("GRA", "Landlord", "Wallet Balance");
+      rows.push([], ["OFFICE BREAKDOWN"], headers);
       officeRevenue.forEach(o => {
-        rows.push([o.officeName, o.total.toFixed(2), o.igf.toFixed(2), o.igfHq.toFixed(2), o.admin.toFixed(2), o.adminHq.toFixed(2), o.platform.toFixed(2), o.gra.toFixed(2), o.landlord.toFixed(2), o.walletBalance.toFixed(2)]);
+        // Total respects the viewer's visible recipients
+        const visibleTotal = o.igf + o.igfHq + o.admin + o.adminHq + (isSuperAdmin ? o.platform : 0) + o.gra + o.landlord;
+        const row = [o.officeName, visibleTotal.toFixed(2), o.igf.toFixed(2), o.igfHq.toFixed(2), o.admin.toFixed(2), o.adminHq.toFixed(2)];
+        if (isSuperAdmin) row.push(o.platform.toFixed(2));
+        row.push(o.gra.toFixed(2), o.landlord.toFixed(2), o.walletBalance.toFixed(2));
+        rows.push(row);
       });
     }
 
@@ -792,7 +835,7 @@ const EscrowDashboard = () => {
                         <th className="text-right py-2 px-2">IGF (HQ)</th>
                         <th className="text-right py-2 px-2">Admin (Office)</th>
                         <th className="text-right py-2 px-2">Admin (HQ)</th>
-                        <th className="text-right py-2 px-2">Platform</th>
+                        {isSuperAdmin && <th className="text-right py-2 px-2">Platform</th>}
                         <th className="text-right py-2 px-2">GRA</th>
                         <th className="text-right py-2 px-2">Landlord</th>
                         <th className="text-right py-2 px-2">Wallet Balance</th>
@@ -803,12 +846,12 @@ const EscrowDashboard = () => {
                       {officeRevenue.slice(0, 20).map(o => (
                         <tr key={o.officeId} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                           <td className="py-2 pr-4 font-medium text-card-foreground">{o.officeName}</td>
-                          <td className="text-right py-2 px-2 font-semibold">₵{o.total.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2 font-semibold">₵{(o.igf + o.igfHq + o.admin + o.adminHq + (isSuperAdmin ? o.platform : 0) + o.gra + o.landlord).toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-primary">₵{o.igf.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-primary/80">₵{o.igfHq.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-info">₵{o.admin.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-info/80">₵{o.adminHq.toFixed(2)}</td>
-                          <td className="text-right py-2 px-2 text-success">₵{o.platform.toFixed(2)}</td>
+                          {isSuperAdmin && <td className="text-right py-2 px-2 text-success">₵{o.platform.toFixed(2)}</td>}
                           <td className="text-right py-2 px-2">₵{o.gra.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-warning">₵{o.landlord.toFixed(2)}</td>
                           <td className="text-right py-2 px-2">

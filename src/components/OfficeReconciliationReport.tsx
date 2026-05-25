@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, FileBarChart, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatGHSDecimal } from "@/lib/formatters";
 import { format } from "date-fns";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
 
 /**
  * Office Reconciliation Report
@@ -44,6 +45,11 @@ interface Props {
 }
 
 const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Props) => {
+  const { profile } = useAdminProfile();
+  const isSuperAdmin = !!profile?.isSuperAdmin;
+  // Sub-totals: when the viewer cannot see Platform, totals must shrink to match.
+  const visibleTotal = (p: Partitions) =>
+    p.igfOffice + p.igfHq + p.adminOffice + p.adminHq + (isSuperAdmin ? p.platform : 0) + p.gra + p.landlord;
   const [officeId, setOfficeId] = useState<string>(defaultOfficeId || (offices[0]?.id ?? ""));
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -144,22 +150,26 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
       ["IGF (HQ)", partitions.igfHq.toFixed(2)],
       ["Admin (Office)", partitions.adminOffice.toFixed(2)],
       ["Admin (HQ)", partitions.adminHq.toFixed(2)],
-      ["Platform", partitions.platform.toFixed(2)],
+      ...(isSuperAdmin ? [["Platform", partitions.platform.toFixed(2)]] : []),
       ["GRA", partitions.gra.toFixed(2)],
       ["Landlord (Held)", partitions.landlord.toFixed(2)],
-      ["TOTAL", partitions.total.toFixed(2)],
+      ["TOTAL", visibleTotal(partitions).toFixed(2)],
       [],
       ["REVENUE BY TYPE"],
-      ["Type", "Transactions", "Total (GHS)", "IGF (Office)", "IGF (HQ)", "Admin (Office)", "Admin (HQ)", "Platform", "GRA", "Landlord"],
+      [
+        "Type", "Transactions", "Total (GHS)", "IGF (Office)", "IGF (HQ)", "Admin (Office)", "Admin (HQ)",
+        ...(isSuperAdmin ? ["Platform"] : []),
+        "GRA", "Landlord",
+      ],
       ...byType.map(r => [
         r.type,
         String(r.count),
-        r.total.toFixed(2),
+        visibleTotal(r.partitions).toFixed(2),
         r.partitions.igfOffice.toFixed(2),
         r.partitions.igfHq.toFixed(2),
         r.partitions.adminOffice.toFixed(2),
         r.partitions.adminHq.toFixed(2),
-        r.partitions.platform.toFixed(2),
+        ...(isSuperAdmin ? [r.partitions.platform.toFixed(2)] : []),
         r.partitions.gra.toFixed(2),
         r.partitions.landlord.toFixed(2),
       ]),
@@ -220,10 +230,10 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
               { label: "IGF (HQ)", v: partitions.igfHq },
               { label: "Admin (Office)", v: partitions.adminOffice },
               { label: "Admin (HQ)", v: partitions.adminHq },
-              { label: "Platform", v: partitions.platform },
+              ...(isSuperAdmin ? [{ label: "Platform", v: partitions.platform }] : []),
               { label: "GRA", v: partitions.gra },
               { label: "Landlord (Held)", v: partitions.landlord },
-              { label: "TOTAL", v: partitions.total },
+              { label: "TOTAL", v: visibleTotal(partitions) },
             ].map(c => (
               <div key={c.label} className="bg-muted/30 border border-border rounded-lg p-3">
                 <div className="text-[11px] text-muted-foreground">{c.label}</div>
@@ -244,7 +254,7 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
                     <th className="text-right py-2 px-2">IGF (HQ)</th>
                     <th className="text-right py-2 px-2">Admin (O)</th>
                     <th className="text-right py-2 px-2">Admin (HQ)</th>
-                    <th className="text-right py-2 px-2">Platform</th>
+                    {isSuperAdmin && <th className="text-right py-2 px-2">Platform</th>}
                     <th className="text-right py-2 px-2">GRA</th>
                     <th className="text-right py-2 pl-2">Landlord</th>
                   </tr>
@@ -254,12 +264,12 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
                     <tr key={r.type} className="border-b border-border/50">
                       <td className="py-2 pr-3 capitalize text-foreground">{r.type.replace(/_/g, " ")}</td>
                       <td className="text-right py-2 px-2">{r.count}</td>
-                      <td className="text-right py-2 px-2 font-semibold">{formatGHSDecimal(r.total)}</td>
+                      <td className="text-right py-2 px-2 font-semibold">{formatGHSDecimal(visibleTotal(r.partitions))}</td>
                       <td className="text-right py-2 px-2 text-primary">{formatGHSDecimal(r.partitions.igfOffice)}</td>
                       <td className="text-right py-2 px-2 text-primary/80">{formatGHSDecimal(r.partitions.igfHq)}</td>
                       <td className="text-right py-2 px-2 text-info">{formatGHSDecimal(r.partitions.adminOffice)}</td>
                       <td className="text-right py-2 px-2 text-info/80">{formatGHSDecimal(r.partitions.adminHq)}</td>
-                      <td className="text-right py-2 px-2 text-success">{formatGHSDecimal(r.partitions.platform)}</td>
+                      {isSuperAdmin && <td className="text-right py-2 px-2 text-success">{formatGHSDecimal(r.partitions.platform)}</td>}
                       <td className="text-right py-2 px-2">{formatGHSDecimal(r.partitions.gra)}</td>
                       <td className="text-right py-2 pl-2 text-warning">{formatGHSDecimal(r.partitions.landlord)}</td>
                     </tr>
