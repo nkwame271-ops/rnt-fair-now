@@ -301,6 +301,9 @@ const App = () => (
                 <Route path="report-safety" element={<NugsReportSafety />} />
                 <Route path="my-safety-reports" element={<MySafetyReports />} />
                 <Route path="report-missing-payment" element={<ReportMissingPayment />} />
+                <Route path="rentcare" element={<ErrorBoundary section="RentCare"><StudentRentCare /></ErrorBoundary>} />
+                <Route path="rentcare/new" element={<ErrorBoundary section="RentCare Apply"><StudentRentCareApply /></ErrorBoundary>} />
+                <Route path="rentcare/:id" element={<ErrorBoundary section="RentCare Detail"><StudentRentCareDetail /></ErrorBoundary>} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
