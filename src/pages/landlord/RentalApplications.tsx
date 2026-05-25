@@ -64,7 +64,7 @@ const RentalApplications = () => {
         tenant_phone: profile?.phone || "",
         tenant_email: profile?.email || "",
         tenant_occupation: profile?.occupation || "",
-        tenant_ghana_card: profile?.ghana_card_no || "",
+        tenant_ghana_card: "",
         property_name: prop?.property_name || "Property",
         unit_name: unit?.unit_name || "Unit",
         unit_type: unit?.unit_type || "",
