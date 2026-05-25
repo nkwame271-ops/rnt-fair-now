@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Save, ArrowLeft, Trash2, Eye } from "lucide-react";
 import RichTextEditor from "@/components/regulator/RichTextEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import DOMPurify from "dompurify";
 
 const FormTemplateEditor = () => {
   const { id } = useParams();
