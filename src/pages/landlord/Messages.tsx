@@ -89,7 +89,7 @@ const LandlordMessages = () => {
       return {
         unit_id: c.unit_id,
         other_user_id: c.other_user_id,
-        other_user_name: nameMap.get(c.other_user_id) || "Unknown",
+        other_user_name: String(nameMap.get(c.other_user_id) || "Unknown"),
         unit_name: unitMap.get(c.unit_id) || "Property",
         last_message: sorted[0].message,
         last_at: sorted[0].created_at,

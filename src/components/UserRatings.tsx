@@ -38,7 +38,7 @@ const UserRatings = ({ userId }: UserRatingsProps) => {
         rating: r.rating,
         review: r.review,
         created_at: r.created_at,
-        rater_name: nameMap.get(r.rater_user_id) || "Anonymous",
+        rater_name: String(nameMap.get(r.rater_user_id) || "Anonymous"),
       })));
       setAvg(data.reduce((s, r) => s + r.rating, 0) / data.length);
       setLoading(false);
