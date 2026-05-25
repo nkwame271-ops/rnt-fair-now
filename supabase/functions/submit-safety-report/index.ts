@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
         linked_tenancy_id: linked_tenancy_id ?? null,
         linked_complaint_id: linked_complaint_id ?? null,
         linked_student_id: linked_student_id ?? null,
-        status: report_kind === "panic_emergency" ? "new" : "submitted",
+        status: "submitted",
       })
       .select("id, ticket_number")
       .single();
