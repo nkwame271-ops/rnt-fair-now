@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, id: inserted.id, ticket_number: inserted.ticket_number }),
+      JSON.stringify({ success: true, id: inserted.id, report_id: inserted.id, ticket_number: inserted.ticket_number }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
