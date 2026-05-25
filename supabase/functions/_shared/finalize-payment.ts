@@ -204,7 +204,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
   // 1. Find escrow
   const { data: escrow } = await supabaseAdmin
     .from("escrow_transactions")
-    .select("id, status, payment_type, user_id, total_amount, related_property_id, related_tenancy_id, related_complaint_id, reference, metadata, office_id, case_id")
+    .select("id, status, payment_type, user_id, total_amount, related_property_id, related_tenancy_id, related_complaint_id, reference, metadata, office_id, case_id, sales_channel_id")
     .eq("reference", reference)
     .maybeSingle();
 
@@ -332,9 +332,49 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
   await handleSideEffects(supabaseAdmin, { paymentType, userId, meta, escrow, amountPaid, transactionId });
 
   // 4. Load split plan from metadata
-  const splitPlan: SplitItem[] = Array.isArray(meta.split_plan) && meta.split_plan.length > 0
+  let splitPlan: SplitItem[] = Array.isArray(meta.split_plan) && meta.split_plan.length > 0
     ? meta.split_plan
     : [{ recipient: "platform", amount: amountPaid, description: `${paymentType} payment` }];
+
+  // 4b. Sales Channel override (rent card only, Super-Admin-attributed sales)
+  // When the escrow has a sales_channel_id and is a rent card payment, the split
+  // plan is computed from rent_card_channel_splits instead of the default plan.
+  // The recipient taxonomy stays identical (igf / platform / admin) so existing
+  // visibility helpers automatically hide `platform` from non-Super Admins.
+  const RENT_CARD_TYPES = new Set(["rent_card", "rent_card_bulk"]);
+  if ((escrow as any).sales_channel_id && RENT_CARD_TYPES.has(paymentType)) {
+    const { data: channelSplits } = await supabaseAdmin
+      .from("rent_card_channel_splits")
+      .select("recipient, amount_type, amount, sort_order")
+      .eq("channel_id", (escrow as any).sales_channel_id)
+      .order("sort_order");
+    if (channelSplits && channelSplits.length > 0) {
+      const computed: SplitItem[] = [];
+      let allocated = 0;
+      const percentRows = channelSplits.filter((r: any) => r.amount_type === "percent");
+      const flatRows = channelSplits.filter((r: any) => r.amount_type === "flat");
+      for (const r of flatRows) {
+        const amt = +Number(r.amount).toFixed(2);
+        allocated += amt;
+        computed.push({ recipient: r.recipient, amount: amt, description: `Sales channel ${r.recipient} (flat)` });
+      }
+      const remaining = Math.max(0, amountPaid - allocated);
+      for (let i = 0; i < percentRows.length; i++) {
+        const r: any = percentRows[i];
+        const isLast = i === percentRows.length - 1;
+        const raw = +(remaining * Number(r.amount) / 100).toFixed(2);
+        // Last percent row absorbs rounding remainder
+        const amt = isLast
+          ? +(remaining - computed.filter(c => percentRows.some((pr: any) => pr.recipient === c.recipient)).reduce((s, c) => s + c.amount, 0)).toFixed(2)
+          : raw;
+        computed.push({ recipient: r.recipient, amount: Math.max(0, amt), description: `Sales channel ${r.recipient} (${r.amount}%)` });
+      }
+      if (computed.length > 0) {
+        splitPlan = computed;
+      }
+    }
+  }
+
 
   // 5. Create escrow_splits if missing — POST LEDGER FIRST, decoupled from payout
   const { data: existingSplits } = await supabaseAdmin

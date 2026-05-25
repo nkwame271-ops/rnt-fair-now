@@ -18,6 +18,8 @@ import DailyReport from "./rent-cards/DailyReport";
 import AdminReportView from "./rent-cards/AdminReportView";
 import ProcurementReport from "./rent-cards/ProcurementReport";
 import OfficeReconciliation from "./rent-cards/OfficeReconciliation";
+import SalesChannelsManager from "./rent-cards/SalesChannelsManager";
+
 
 const RegulatorRentCards = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
@@ -26,6 +28,7 @@ const RegulatorRentCards = () => {
   const { isVisible } = useModuleVisibility("rent_cards");
 
   const isMain = !profile || profile.isMainAdmin;
+  const isSuper = !!profile?.isSuperAdmin;
 
   const hasRentCards = profile?.allowedFeatures?.includes("rent_cards");
   const hasProcurement = isMain || hasRentCards || profile?.allowedFeatures?.includes("rent_card_procurement");
@@ -71,6 +74,7 @@ const RegulatorRentCards = () => {
                   {isMain && <TabsTrigger value="batch_upload">Batch Upload</TabsTrigger>}
                   {isMain && <TabsTrigger value="alerts">Stock Alerts</TabsTrigger>}
                   {isMain && <TabsTrigger value="proc_report">Report</TabsTrigger>}
+                  {isSuper && <TabsTrigger value="sales_channels">Sales Channels</TabsTrigger>}
                 </TabsList>
 
                 {isMain && (
@@ -101,6 +105,11 @@ const RegulatorRentCards = () => {
                 {isMain && (
                   <TabsContent value="proc_report">
                     <ProcurementReport />
+                  </TabsContent>
+                )}
+                {isSuper && (
+                  <TabsContent value="sales_channels">
+                    <SalesChannelsManager />
                   </TabsContent>
                 )}
               </Tabs>
