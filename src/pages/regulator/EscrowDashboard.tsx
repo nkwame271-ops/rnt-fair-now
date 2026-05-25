@@ -348,6 +348,15 @@ const EscrowDashboard = () => {
       )
     : receipts;
 
+  // Single source of truth for which recipients this viewer is allowed to see/count.
+  // Drives BOTH UI visibility AND every total/export — so "if you can't see it,
+  // you can't count it" is enforced everywhere.
+  const isSuperAdmin = !!profile?.isSuperAdmin;
+  const visibleRecipients = useMemo(
+    () => getVisibleRecipients({ isSuperAdmin, isVisible }),
+    [isSuperAdmin, isVisible],
+  );
+
   const allAllocationCards = [
     { label: "IGF (Office)", amount: stats.rentControl, color: "bg-primary/10 border-primary/20 text-primary", recipient: "rent_control", visibilityKey: "allocation_igf" },
     { label: "IGF (HQ)", amount: stats.rentControlHq, color: "bg-primary/15 border-primary/25 text-primary", recipient: "rent_control_hq", visibilityKey: "allocation_igf" },
@@ -358,18 +367,29 @@ const EscrowDashboard = () => {
     { label: "Landlord (Held)", amount: stats.landlord, color: "bg-warning/10 border-warning/20 text-warning", recipient: "landlord", visibilityKey: "allocation_landlord" },
   ];
 
-  const allocationCards = (isMainAdmin
-    ? allAllocationCards
-    : allAllocationCards.filter(c => SUB_ADMIN_VISIBLE_RECIPIENTS.includes(c.recipient))
-  ).filter(c => isVisible("escrow", c.visibilityKey));
+  // Only cards for recipients in the visible set survive — same gate as totals.
+  const allocationCards = allAllocationCards.filter(c => visibleRecipients.has(c.recipient as any));
 
   const visibleAllocationTotal = allocationCards.reduce((sum, c) => sum + c.amount, 0);
 
-  // Filter revenue by type cards based on visibility
-  const visibleRevenueByType = revenueByType.filter(r => {
-    const config = REVENUE_TYPE_CONFIG.find(c => c.label === r.label);
-    return config ? isVisible("escrow", config.visibilityKey) : true;
-  });
+  // Recompute revenue by type from the raw splits, restricted to visible recipients.
+  // This ensures Platform (and any muted recipient) is excluded from per-type totals
+  // for non-Super-Admin viewers — not just hidden in the label.
+  const visibleRevenueByType = useMemo(() => {
+    return REVENUE_TYPE_CONFIG
+      .filter(cfg => isVisible("escrow", cfg.visibilityKey))
+      .map(cfg => {
+        const matching = completedTxnMeta.filter(t => cfg.types.includes(t.payment_type));
+        let total = 0;
+        for (const t of matching) {
+          const sl = splitsByTx.get(t.id);
+          if (sl && sl.length > 0) {
+            total += sumVisibleSplits(sl, visibleRecipients as Set<string>);
+          }
+        }
+        return { label: cfg.label, types: cfg.types, total, count: matching.length, color: cfg.color };
+      });
+  }, [completedTxnMeta, splitsByTx, visibleRecipients, isVisible]);
   const visibleRevenueTotal = visibleRevenueByType.reduce((sum, r) => sum + r.total, 0);
 
   // Export helpers
