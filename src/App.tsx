@@ -256,6 +256,7 @@ const App = () => (
                 <Route path="support-chats" element={<RegulatorSupportChats />} />
                 <Route path="api-keys" element={<AgencyApiKeys />} />
                 <Route path="engine-room" element={<ErrorBoundary section="Engine Room"><EngineRoom /></ErrorBoundary>} />
+                <Route path="rentcare" element={<ErrorBoundary section="RentCare Management"><RentCareManagement /></ErrorBoundary>} />
                 <Route path="super-admin" element={<ErrorBoundary section="Super Admin Dashboard"><SuperAdminDashboard /></ErrorBoundary>} />
                 <Route path="resolution-centre" element={<ErrorBoundary section="Resolution Centre"><ResolutionCentre /></ErrorBoundary>} />
                 <Route path="payment-reconciliation" element={<ErrorBoundary section="Payment Reconciliation"><PaymentReconciliationCentre /></ErrorBoundary>} />
