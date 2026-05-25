@@ -18,7 +18,7 @@ const ForgotPassword = () => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [identifier, setIdentifier] = useState("");
   const [maskedPhone, setMaskedPhone] = useState("");
-  const [normalizedPhone, setNormalizedPhone] = useState("");
+  const [resolvedIdentifier, setResolvedIdentifier] = useState("");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -41,6 +41,9 @@ const ForgotPassword = () => {
     setLoading(true);
 
     try {
+      // SECURITY: lookup-phone now sends the OTP server-side and never returns
+      // the raw phone number to the client. We pass the identifier on every
+      // subsequent call and the server re-resolves the phone.
       const { data, error } = await supabase.functions.invoke("lookup-phone", {
         body: { identifier: identifier.trim() },
       });
@@ -52,21 +55,9 @@ const ForgotPassword = () => {
       }
 
       setMaskedPhone(data.phone_masked);
-      setNormalizedPhone(data.phone_normalized);
+      setResolvedIdentifier(identifier.trim());
 
-      // Send OTP and verify it was actually delivered
-      const { data: otpData, error: otpError } = await supabase.functions.invoke("send-otp", {
-        body: { phone: data.phone_normalized },
-      });
-
-      if (otpError || otpData?.error) {
-        toast.error(otpData?.error || "Failed to send OTP. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      if (otpData?.smsSent === false) {
-        console.warn("send-otp returned smsSent=false", otpData);
+      if (data.otp_sent === false) {
         toast.error("OTP could not be sent to your phone. Please try again later.");
         setLoading(false);
         return;
@@ -91,7 +82,7 @@ const ForgotPassword = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke("verify-otp", {
-        body: { phone: normalizedPhone, code: otp },
+        body: { identifier: resolvedIdentifier, code: otp },
       });
 
       if (error || data?.error || !data?.verified) {
@@ -113,11 +104,11 @@ const ForgotPassword = () => {
   const handleResendOtp = useCallback(async () => {
     if (cooldown > 0) return;
     setCooldown(COOLDOWN_SECONDS);
-    await supabase.functions.invoke("send-otp", {
-      body: { phone: normalizedPhone },
+    await supabase.functions.invoke("lookup-phone", {
+      body: { identifier: resolvedIdentifier },
     });
     toast.success(`OTP resent to ${maskedPhone}`);
-  }, [cooldown, normalizedPhone, maskedPhone]);
+  }, [cooldown, resolvedIdentifier, maskedPhone]);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,7 +124,7 @@ const ForgotPassword = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke("reset-password-otp", {
-        body: { phone: normalizedPhone, new_password: password },
+        body: { identifier: resolvedIdentifier, new_password: password },
       });
 
       if (error) {
