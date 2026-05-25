@@ -61,7 +61,8 @@ const REVENUE_TYPE_CONFIG: { label: string; types: string[]; color: string; visi
   { label: "Archive Search", types: ["archive_search_fee"], color: "bg-muted border-border text-muted-foreground", visibilityKey: "revenue_type_archive" },
 ];
 
-const SUB_ADMIN_VISIBLE_RECIPIENTS = ["rent_control", "rent_control_hq", "admin", "admin_hq"];
+// Recipient visibility is now driven by `getVisibleRecipients()` so that any
+// recipient hidden from the viewer is also excluded from totals/exports.
 
 type DatePreset = "all" | "today" | "yesterday" | "last7" | "this_week" | "this_month" | "custom";
 
