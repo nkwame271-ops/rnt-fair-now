@@ -257,6 +257,7 @@ const InviteStaff = () => {
                 required
               />
             </div>
+          </div>
           <div className="space-y-2">
             <Label>Phone Number</Label>
             <div className="relative">
