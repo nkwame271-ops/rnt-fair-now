@@ -239,6 +239,8 @@ const PaymentReconciliationCentre = () => {
         </div>
       </div>
 
+      <SystemHealthTile />
+
       <ReceiptDriftTile />
 
       <Card className="p-4 space-y-3 border-amber-500/40">
