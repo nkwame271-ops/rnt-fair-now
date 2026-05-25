@@ -109,6 +109,8 @@ const allNavItems = [
   { to: "/regulator/student-revenue", label: "Student Revenue", icon: GraduationCap, superAdminOnly: true },
   { to: "/regulator/payment-reconciliation", label: "Payment Reconciliation", icon: Wallet, mainAdminOnly: true },
   { to: "/regulator/resolution-centre", label: "Resolution Centre", icon: Wrench, superAdminOnly: true },
+  { to: "/regulator/access-control", label: "Access Control", icon: Shield, superAdminOnly: true },
+  { to: "/regulator/staff-feature-mutes", label: "Staff Feature Mutes", icon: UserPlus, superAdminOnly: true },
   { to: "/regulator/super-admin", label: "Super Admin", icon: Crown, superAdminOnly: true },
 ];
 
