@@ -232,32 +232,20 @@ const AddTenant = () => {
     updateDraft(draft.unitId, { searching: true, foundTenant: null });
     try {
       const q = draft.tenantSearch.trim();
-      const { data: tenants } = await supabase
-        .from("tenants")
-        .select("user_id, tenant_id")
-        .ilike("tenant_id", `%${q}%`);
-
-      if (tenants && tenants.length > 0) {
-        const t = tenants[0];
-        const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", t.user_id).single();
-        updateDraft(draft.unitId, { foundTenant: { name: profile?.full_name || "Unknown", tenantIdCode: t.tenant_id, userId: t.user_id } });
-        toast.success(`Found: ${profile?.full_name}`);
+      const { data, error } = await supabase.functions.invoke("lookup-tenant", { body: { query: q } });
+      if (error) throw error;
+      if (data?.found && data.tenant) {
+        updateDraft(draft.unitId, {
+          foundTenant: {
+            name: data.tenant.name,
+            tenantIdCode: data.tenant.tenantIdCode,
+            userId: data.tenant.userId,
+          },
+        });
+        toast.success(`Found: ${data.tenant.name} (${data.tenant.tenantIdCode})`);
       } else {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, full_name")
-          .ilike("full_name", `%${q}%`);
-        if (profiles && profiles.length > 0) {
-          const p = profiles[0];
-          const { data: tenant } = await supabase.from("tenants").select("tenant_id").eq("user_id", p.user_id).single();
-          if (tenant) {
-            updateDraft(draft.unitId, { foundTenant: { name: p.full_name, tenantIdCode: tenant.tenant_id, userId: p.user_id } });
-            toast.success(`Found: ${p.full_name} (${tenant.tenant_id})`);
-          } else {
-            toast.error("User found but not registered as tenant");
-          }
-        } else {
-          toast.error("No tenant found");
+        toast.error("No tenant found");
+
         }
       }
     } catch {
