@@ -414,6 +414,13 @@ export type Database = {
             foreignKeyName: "cases_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
+          {
+            foreignKeyName: "cases_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
             referencedRelation: "offices"
             referencedColumns: ["id"]
           },
@@ -1446,6 +1453,13 @@ export type Database = {
             foreignKeyName: "complaints_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
+          {
+            foreignKeyName: "complaints_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
             referencedRelation: "offices"
             referencedColumns: ["id"]
           },
@@ -1843,6 +1857,13 @@ export type Database = {
             foreignKeyName: "escrow_transactions_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
+          {
+            foreignKeyName: "escrow_transactions_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
             referencedRelation: "offices"
             referencedColumns: ["id"]
           },
@@ -2133,6 +2154,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "hearing_rooms_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
           {
             foreignKeyName: "hearing_rooms_office_id_fkey"
             columns: ["office_id"]
@@ -2753,6 +2781,13 @@ export type Database = {
             foreignKeyName: "landlord_complaints_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
+          {
+            foreignKeyName: "landlord_complaints_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
             referencedRelation: "offices"
             referencedColumns: ["id"]
           },
@@ -3085,6 +3120,13 @@ export type Database = {
             foreignKeyName: "office_fund_requests_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
+          {
+            foreignKeyName: "office_fund_requests_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
             referencedRelation: "offices"
             referencedColumns: ["id"]
           },
@@ -3128,6 +3170,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "office_payout_accounts_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: true
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
           {
             foreignKeyName: "office_payout_accounts_office_id_fkey"
             columns: ["office_id"]
@@ -3352,6 +3401,13 @@ export type Database = {
             foreignKeyName: "payment_fulfillments_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
+          {
+            foreignKeyName: "payment_fulfillments_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
             referencedRelation: "offices"
             referencedColumns: ["id"]
           },
@@ -3470,6 +3526,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "escrow_transactions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_intents_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
           },
           {
             foreignKeyName: "payment_intents_office_id_fkey"
@@ -3806,6 +3869,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reconciliation_audit_log_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
           },
           {
             foreignKeyName: "payment_reconciliation_audit_log_office_id_fkey"
@@ -6333,7 +6403,32 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      mv_global_dashboard_stats: {
+        Row: {
+          active_tenancies: number | null
+          pending_complaints: number | null
+          pending_terminations: number | null
+          refreshed_at: string | null
+          reported_side_payments: number | null
+          singleton: number | null
+          total_complaints: number | null
+          total_landlords: number | null
+          total_properties: number | null
+          total_tenants: number | null
+        }
+        Relationships: []
+      }
+      mv_office_dashboard_stats: {
+        Row: {
+          active_tenancies: number | null
+          office_id: string | null
+          pending_complaints: number | null
+          refreshed_at: string | null
+          total_complaints: number | null
+          total_properties: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       approve_rent_increase_request: {
@@ -6377,6 +6472,10 @@ export type Database = {
       generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
       generate_safety_ticket: { Args: never; Returns: string }
+      get_regulator_dashboard_stats: {
+        Args: { p_office_id?: string }
+        Returns: Json
+      }
       has_admin_role: {
         Args: { _role: string; _user_id: string }
         Returns: boolean
@@ -6453,6 +6552,7 @@ export type Database = {
         }
         Returns: Json
       }
+      refresh_dashboard_stats: { Args: never; Returns: undefined }
       repair_rent_cards_for_escrow: {
         Args: { p_escrow_id: string }
         Returns: Json
