@@ -260,15 +260,18 @@ const SafetyReportDetail = () => {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Location Pings ({pings.length})</CardTitle></CardHeader>
-        <CardContent className="space-y-1 text-xs max-h-48 overflow-y-auto">
-          {pings.map((p) => (
-            <div key={p.id} className="flex justify-between">
-              <span>{p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}</span>
-              <span className="text-muted-foreground">{new Date(p.recorded_at).toLocaleTimeString()}</span>
-            </div>
-          ))}
-          {pings.length === 0 && <p className="text-muted-foreground">No pings.</p>}
+        <CardHeader><CardTitle className="text-base">Live Location Trail ({pings.length})</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <SafetyLocationTrail pings={pings} />
+          <div className="space-y-1 text-xs max-h-40 overflow-y-auto">
+            {pings.map((p) => (
+              <div key={p.id} className="flex justify-between">
+                <span>{p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}</span>
+                <span className="text-muted-foreground">{new Date(p.recorded_at).toLocaleTimeString()}</span>
+              </div>
+            ))}
+            {pings.length === 0 && <p className="text-muted-foreground">No pings yet.</p>}
+          </div>
         </CardContent>
       </Card>
 
