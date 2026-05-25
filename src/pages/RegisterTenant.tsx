@@ -47,6 +47,8 @@ const RegisterTenant = () => {
   const [school, setSchool] = useState("");
   const [hostelOrHall, setHostelOrHall] = useState("");
   const [roomOrBedSpace, setRoomOrBedSpace] = useState("");
+  const [hostelRegion, setHostelRegion] = useState("");
+  const [hostelContact, setHostelContact] = useState("");
   const [payingRegistration, setPayingRegistration] = useState(false);
 
   // Citizenship
