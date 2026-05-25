@@ -53,6 +53,39 @@ const SerialSearchPicker = ({
     return options.filter(s => s.serial_number.toUpperCase().includes(q)).slice(0, 100);
   }, [options, query]);
 
+  // Track trigger rect so the portal dropdown stays aligned and can flip above the trigger if there isn't enough room below
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const updateRect = () => {
+    if (containerRef.current) setRect(containerRef.current.getBoundingClientRect());
+  };
+  useLayoutEffect(() => {
+    if (!open) return;
+    updateRect();
+    window.addEventListener("scroll", updateRect, true);
+    window.addEventListener("resize", updateRect);
+    return () => {
+      window.removeEventListener("scroll", updateRect, true);
+      window.removeEventListener("resize", updateRect);
+    };
+  }, [open]);
+
+  const dropdownStyle: React.CSSProperties | undefined = rect
+    ? (() => {
+        const maxH = 240;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const openUp = spaceBelow < maxH + 8 && rect.top > spaceBelow;
+        return {
+          position: "fixed",
+          left: rect.left,
+          width: rect.width,
+          top: openUp ? undefined : rect.bottom + 4,
+          bottom: openUp ? window.innerHeight - rect.top + 4 : undefined,
+          maxHeight: maxH,
+          zIndex: 10000,
+        };
+      })()
+    : undefined;
+
   return (
     <div ref={containerRef} className="relative">
       {value && !open ? (
@@ -75,8 +108,11 @@ const SerialSearchPicker = ({
           autoComplete="off"
         />
       )}
-      {open && (
-        <div className="absolute z-50 mt-1 w-full max-h-[200px] overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          style={dropdownStyle}
+          className="overflow-y-auto rounded-md border border-border bg-popover shadow-md"
+        >
           {filtered.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-3">No serials found</p>
           ) : (
@@ -87,6 +123,7 @@ const SerialSearchPicker = ({
                 className={`w-full text-left px-3 py-2 text-xs font-mono hover:bg-accent transition-colors ${
                   s.serial_number === value ? "bg-accent text-accent-foreground" : "text-popover-foreground"
                 }`}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   onChange(s.serial_number);
                   setOpen(false);
@@ -102,7 +139,8 @@ const SerialSearchPicker = ({
               Showing first 100 — type to narrow results
             </p>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
