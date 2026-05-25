@@ -175,6 +175,32 @@ function expandSecondarySplit(
 }
 
 export async function finalizePayment({ supabaseAdmin, reference, amountPaid, transactionId, logError }: FinalizeOpts): Promise<{ verified: boolean; status: string }> {
+  // 0. Concurrency guard — serialize finalize attempts per reference.
+  // paystack-webhook, verify-payment, and receipt-drift-monitor can all fire for
+  // the same Paystack reference within milliseconds. The advisory lock means
+  // only one runs the splits/receipt/payout pipeline; the others see the work
+  // already done and exit through the existing idempotent checks below.
+  try {
+    const { data: gotLock } = await supabaseAdmin.rpc("try_finalize_lock", { p_reference: reference });
+    if (gotLock === false) {
+      await logError?.({
+        reference,
+        error_stage: "advisory_lock_busy",
+        error_message: "Another finalize attempt holds the lock for this reference; skipping duplicate run.",
+        severity: "info",
+      });
+      return { verified: true, status: "in_progress" };
+    }
+  } catch (e: any) {
+    // Lock acquisition failure is non-fatal — fall through to the idempotent path.
+    await logError?.({
+      reference,
+      error_stage: "advisory_lock_error",
+      error_message: e?.message ?? String(e),
+      severity: "warning",
+    });
+  }
+
   // 1. Find escrow
   const { data: escrow } = await supabaseAdmin
     .from("escrow_transactions")
