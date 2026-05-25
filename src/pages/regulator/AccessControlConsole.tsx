@@ -55,7 +55,7 @@ const AccessControlConsole = () => {
       supabase.from("feature_flag_overrides" as any).select("*"),
     ]);
     setFlags((ff as FeatureFlag[]) || []);
-    setOverrides((ov as Override[]) || []);
+    setOverrides(((ov as unknown) as Override[]) || []);
     setLoading(false);
   };
 
