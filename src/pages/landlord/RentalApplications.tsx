@@ -55,7 +55,7 @@ const RentalApplications = () => {
     const propMap = new Map((props || []).map(p => [p.id, p]));
 
     setApps(data.map(a => {
-      const profile = profileMap.get(a.tenant_user_id);
+      const profile: any = profileMap.get(a.tenant_user_id);
       const unit = unitMap.get(a.unit_id);
       const prop = propMap.get(a.property_id);
       return {
