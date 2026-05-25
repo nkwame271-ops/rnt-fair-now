@@ -36,6 +36,7 @@ import { regulatorTourSteps } from "@/data/tourSteps";
 import FloatingActionHub from "@/components/FloatingActionHub";
 import NotificationBell from "@/components/NotificationBell";
 import CommandSearch from "@/components/CommandSearch";
+import EmergencyAlertRinger from "@/components/EmergencyAlertRinger";
 import { useActivityTracker } from "@/hooks/useActivityTracker";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -237,6 +238,7 @@ const RegulatorLayout = () => {
       </div>
       <TourGuide steps={regulatorTourSteps} storageKey="tour_regulator_completed" />
       <FloatingActionHub />
+      <EmergencyAlertRinger />
     </div>
   );
 };
