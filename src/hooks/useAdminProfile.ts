@@ -264,6 +264,7 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   rent_reviews: ["/regulator/rent-reviews"],
   payment_errors: ["/regulator/payment-errors"],
   receipts: ["/regulator/receipts"],
+  processor_reconciliation: ["/regulator/processor-reconciliation"],
   super_admin: ["/regulator/super-admin"],
   safety: ["/regulator/safety"],
   rentcare: ["/regulator/rentcare"],
