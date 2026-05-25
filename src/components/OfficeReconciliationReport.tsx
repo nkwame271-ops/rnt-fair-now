@@ -264,12 +264,12 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
                     <tr key={r.type} className="border-b border-border/50">
                       <td className="py-2 pr-3 capitalize text-foreground">{r.type.replace(/_/g, " ")}</td>
                       <td className="text-right py-2 px-2">{r.count}</td>
-                      <td className="text-right py-2 px-2 font-semibold">{formatGHSDecimal(r.total)}</td>
+                      <td className="text-right py-2 px-2 font-semibold">{formatGHSDecimal(visibleTotal(r.partitions))}</td>
                       <td className="text-right py-2 px-2 text-primary">{formatGHSDecimal(r.partitions.igfOffice)}</td>
                       <td className="text-right py-2 px-2 text-primary/80">{formatGHSDecimal(r.partitions.igfHq)}</td>
                       <td className="text-right py-2 px-2 text-info">{formatGHSDecimal(r.partitions.adminOffice)}</td>
                       <td className="text-right py-2 px-2 text-info/80">{formatGHSDecimal(r.partitions.adminHq)}</td>
-                      <td className="text-right py-2 px-2 text-success">{formatGHSDecimal(r.partitions.platform)}</td>
+                      {isSuperAdmin && <td className="text-right py-2 px-2 text-success">{formatGHSDecimal(r.partitions.platform)}</td>}
                       <td className="text-right py-2 px-2">{formatGHSDecimal(r.partitions.gra)}</td>
                       <td className="text-right py-2 pl-2 text-warning">{formatGHSDecimal(r.partitions.landlord)}</td>
                     </tr>
