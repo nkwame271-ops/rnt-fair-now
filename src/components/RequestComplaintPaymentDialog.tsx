@@ -618,7 +618,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Aggregated splits</span>
-              <span>IGF GH₵ {totals.igf.toFixed(2)} · Admin GH₵ {totals.admin.toFixed(2)} · Platform GH₵ {totals.platform.toFixed(2)}</span>
+              <span>IGF GH₵ {totals.igf.toFixed(2)} · Admin GH₵ {totals.admin.toFixed(2)}{isSuperAdmin ? ` · Platform GH₵ ${totals.platform.toFixed(2)}` : ""}</span>
             </div>
           </div>
         </div>
