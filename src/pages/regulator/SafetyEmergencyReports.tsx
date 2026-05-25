@@ -109,6 +109,17 @@ const SafetyEmergencyReports = () => {
               <SelectItem value="student">Student</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={emergencyTypeFilter} onValueChange={setEmergencyTypeFilter}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Emergencies</SelectItem>
+              <SelectItem value="police">Police</SelectItem>
+              <SelectItem value="fire">Fire</SelectItem>
+              <SelectItem value="health">Health / Ambulance</SelectItem>
+              <SelectItem value="general">General</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={severityFilter} onValueChange={setSeverityFilter}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent>
