@@ -245,9 +245,8 @@ const AddTenant = () => {
         toast.success(`Found: ${data.tenant.name} (${data.tenant.tenantIdCode})`);
       } else {
         toast.error("No tenant found");
-
-        }
       }
+
     } catch {
       toast.error("Search failed");
     } finally {
