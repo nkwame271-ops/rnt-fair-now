@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import jsPDF from "jspdf";
+import { getVisibleRecipients, sumVisibleSplits } from "@/lib/revenue/visibleRecipients";
 
 interface OfficeRevenue {
   officeId: string;
