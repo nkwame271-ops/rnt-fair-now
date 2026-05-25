@@ -88,7 +88,7 @@ const NugsComplaints = () => {
 
     const [profilesRes, tenantsRes] = await Promise.all([
       userIds.length > 0
-        ? supabase.from("profiles").select("user_id, full_name").in("user_id", userIds)
+        ? (supabase.from("profiles_counterparty" as any) as any).select("user_id, full_name").in("user_id", userIds)
         : Promise.resolve({ data: [] }),
       userIds.length > 0
         ? supabase.from("tenants").select("user_id, school").in("user_id", userIds)

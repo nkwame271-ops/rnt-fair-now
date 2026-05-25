@@ -3309,7 +3309,8 @@ export type Database = {
       }
       otp_verifications: {
         Row: {
-          code: string
+          code: string | null
+          code_hash: string | null
           created_at: string
           expires_at: string
           id: string
@@ -3317,7 +3318,8 @@ export type Database = {
           verified: boolean
         }
         Insert: {
-          code: string
+          code?: string | null
+          code_hash?: string | null
           created_at?: string
           expires_at: string
           id?: string
@@ -3325,7 +3327,8 @@ export type Database = {
           verified?: boolean
         }
         Update: {
-          code?: string
+          code?: string | null
+          code_hash?: string | null
           created_at?: string
           expires_at?: string
           id?: string
@@ -5658,6 +5661,13 @@ export type Database = {
             referencedRelation: "rentcare_applications"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "rentcare_audit_log_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rentcare_applications_nugs"
+            referencedColumns: ["id"]
+          },
         ]
       }
       rentcare_documents: {
@@ -5700,6 +5710,13 @@ export type Database = {
             columns: ["application_id"]
             isOneToOne: false
             referencedRelation: "rentcare_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rentcare_documents_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rentcare_applications_nugs"
             referencedColumns: ["id"]
           },
         ]
@@ -5746,6 +5763,13 @@ export type Database = {
             referencedRelation: "rentcare_applications"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "rentcare_messages_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rentcare_applications_nugs"
+            referencedColumns: ["id"]
+          },
         ]
       }
       rentcare_status_history: {
@@ -5789,6 +5813,13 @@ export type Database = {
             columns: ["application_id"]
             isOneToOne: false
             referencedRelation: "rentcare_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rentcare_status_history_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rentcare_applications_nugs"
             referencedColumns: ["id"]
           },
         ]
@@ -7094,6 +7125,126 @@ export type Database = {
           refreshed_at: string | null
           total_complaints: number | null
           total_properties: number | null
+        }
+        Relationships: []
+      }
+      profiles_counterparty: {
+        Row: {
+          avatar_url: string | null
+          email: string | null
+          full_name: string | null
+          nationality: string | null
+          occupation: string | null
+          phone: string | null
+          user_id: string | null
+          user_type: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          email?: string | null
+          full_name?: string | null
+          nationality?: string | null
+          occupation?: string | null
+          phone?: string | null
+          user_id?: string | null
+          user_type?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          email?: string | null
+          full_name?: string | null
+          nationality?: string | null
+          occupation?: string | null
+          phone?: string | null
+          user_id?: string | null
+          user_type?: string | null
+        }
+        Relationships: []
+      }
+      rentcare_applications_nugs: {
+        Row: {
+          accommodation_location: string | null
+          accommodation_type: string | null
+          amount_paid: number | null
+          amount_requested: number | null
+          applicant_user_id: string | null
+          campus: string | null
+          created_at: string | null
+          deadline: string | null
+          full_name: string | null
+          id: string | null
+          institution: string | null
+          level: string | null
+          outstanding_amount: number | null
+          payment_status:
+            | Database["public"]["Enums"]["rentcare_payment_status"]
+            | null
+          programme: string | null
+          provider_name: string | null
+          reference: string | null
+          region: string | null
+          status: Database["public"]["Enums"]["rentcare_status"] | null
+          student_id_code: string | null
+          submitted_at: string | null
+          total_fee: number | null
+          updated_at: string | null
+          urgency: string | null
+        }
+        Insert: {
+          accommodation_location?: string | null
+          accommodation_type?: string | null
+          amount_paid?: number | null
+          amount_requested?: number | null
+          applicant_user_id?: string | null
+          campus?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          full_name?: string | null
+          id?: string | null
+          institution?: string | null
+          level?: string | null
+          outstanding_amount?: number | null
+          payment_status?:
+            | Database["public"]["Enums"]["rentcare_payment_status"]
+            | null
+          programme?: string | null
+          provider_name?: string | null
+          reference?: string | null
+          region?: string | null
+          status?: Database["public"]["Enums"]["rentcare_status"] | null
+          student_id_code?: string | null
+          submitted_at?: string | null
+          total_fee?: number | null
+          updated_at?: string | null
+          urgency?: string | null
+        }
+        Update: {
+          accommodation_location?: string | null
+          accommodation_type?: string | null
+          amount_paid?: number | null
+          amount_requested?: number | null
+          applicant_user_id?: string | null
+          campus?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          full_name?: string | null
+          id?: string | null
+          institution?: string | null
+          level?: string | null
+          outstanding_amount?: number | null
+          payment_status?:
+            | Database["public"]["Enums"]["rentcare_payment_status"]
+            | null
+          programme?: string | null
+          provider_name?: string | null
+          reference?: string | null
+          region?: string | null
+          status?: Database["public"]["Enums"]["rentcare_status"] | null
+          student_id_code?: string | null
+          submitted_at?: string | null
+          total_fee?: number | null
+          updated_at?: string | null
+          urgency?: string | null
         }
         Relationships: []
       }

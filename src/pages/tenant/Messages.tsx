@@ -78,7 +78,7 @@ const TenantMessages = () => {
     const unitIds = [...new Set([...convMap.values()].map(c => c.unit_id))];
 
     const [{ data: profiles }, { data: units }] = await Promise.all([
-      supabase.from("profiles").select("user_id, full_name").in("user_id", otherIds),
+      (supabase.from("profiles_counterparty" as any) as any).select("user_id, full_name").in("user_id", otherIds),
       supabase.from("units").select("id, unit_name").in("id", unitIds),
     ]);
 

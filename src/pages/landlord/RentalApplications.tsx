@@ -45,17 +45,17 @@ const RentalApplications = () => {
     const propIds = [...new Set(data.map(a => a.property_id))];
 
     const [{ data: profiles }, { data: units }, { data: props }] = await Promise.all([
-      supabase.from("profiles").select("user_id, full_name, phone, email, occupation, ghana_card_no").in("user_id", tenantIds),
+      (supabase.from("profiles_counterparty" as any) as any).select("user_id, full_name, phone, email, occupation").in("user_id", tenantIds),
       supabase.from("units").select("id, unit_name, unit_type, monthly_rent").in("id", unitIds),
       supabase.from("properties").select("id, property_name").in("id", propIds),
     ]);
 
-    const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+    const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p as any]));
     const unitMap = new Map((units || []).map(u => [u.id, u]));
     const propMap = new Map((props || []).map(p => [p.id, p]));
 
     setApps(data.map(a => {
-      const profile = profileMap.get(a.tenant_user_id);
+      const profile: any = profileMap.get(a.tenant_user_id);
       const unit = unitMap.get(a.unit_id);
       const prop = propMap.get(a.property_id);
       return {
@@ -64,7 +64,7 @@ const RentalApplications = () => {
         tenant_phone: profile?.phone || "",
         tenant_email: profile?.email || "",
         tenant_occupation: profile?.occupation || "",
-        tenant_ghana_card: profile?.ghana_card_no || "",
+        tenant_ghana_card: "",
         property_name: prop?.property_name || "Property",
         unit_name: unit?.unit_name || "Unit",
         unit_type: unit?.unit_type || "",

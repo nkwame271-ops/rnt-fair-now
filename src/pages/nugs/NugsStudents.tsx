@@ -30,8 +30,8 @@ const NugsStudents = () => {
       const userIds = (tenants || []).map((t: any) => t.user_id);
       let profiles: Record<string, { full_name: string; phone: string }> = {};
       if (userIds.length > 0) {
-        const { data: profs } = await supabase
-          .from("profiles")
+        const { data: profs } = await (supabase
+          .from("profiles_counterparty" as any) as any)
           .select("user_id, full_name, phone")
           .in("user_id", userIds);
         (profs || []).forEach((p: any) => {
