@@ -13,6 +13,9 @@ interface Snapshot {
   open_failures_24h: number;
   dashboard_stale_seconds: number | null;
   alert: boolean;
+  db_connections_used: number | null;
+  db_connections_max: number | null;
+  db_connections_pct: number | null;
 }
 
 const SystemHealthTile = () => {
