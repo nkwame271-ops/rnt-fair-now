@@ -13,6 +13,9 @@ interface Snapshot {
   open_failures_24h: number;
   dashboard_stale_seconds: number | null;
   alert: boolean;
+  db_connections_used: number | null;
+  db_connections_max: number | null;
+  db_connections_pct: number | null;
 }
 
 const SystemHealthTile = () => {
@@ -23,7 +26,7 @@ const SystemHealthTile = () => {
   const load = async () => {
     const { data } = await supabase
       .from("system_health_snapshots")
-      .select("id, captured_at, missing_receipts, missing_receipt_numbers, unreconciled, open_failures_24h, dashboard_stale_seconds, alert")
+      .select("id, captured_at, missing_receipts, missing_receipt_numbers, unreconciled, open_failures_24h, dashboard_stale_seconds, alert, db_connections_used, db_connections_max, db_connections_pct")
       .order("captured_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -93,6 +96,44 @@ const SystemHealthTile = () => {
         <p className="text-xs text-muted-foreground mt-3">
           Dashboard cache age: {snapshot.dashboard_stale_seconds}s
         </p>
+      )}
+
+      {snapshot.db_connections_pct !== null && snapshot.db_connections_max !== null && (
+        <div className="mt-3 space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">
+              Database connections: {snapshot.db_connections_used}/{snapshot.db_connections_max}
+            </span>
+            <span
+              className={
+                snapshot.db_connections_pct >= 70
+                  ? "font-semibold text-destructive"
+                  : snapshot.db_connections_pct >= 50
+                  ? "font-semibold text-amber-600"
+                  : "font-semibold text-success"
+              }
+            >
+              {snapshot.db_connections_pct}%
+            </span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className={
+                snapshot.db_connections_pct >= 70
+                  ? "h-full bg-destructive"
+                  : snapshot.db_connections_pct >= 50
+                  ? "h-full bg-amber-500"
+                  : "h-full bg-success"
+              }
+              style={{ width: `${Math.min(100, snapshot.db_connections_pct)}%` }}
+            />
+          </div>
+          {snapshot.db_connections_pct >= 70 && (
+            <p className="text-xs text-destructive mt-1">
+              Connection pool is saturated. Consider upgrading the Lovable Cloud instance (Backend → Advanced settings).
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
