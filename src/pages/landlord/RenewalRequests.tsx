@@ -51,7 +51,7 @@ const RenewalRequests = () => {
 
       const enriched: RenewalTenancy[] = [];
       for (const t of data || []) {
-        const { data: tenantProfile } = await supabase.from("profiles_counterparty" as any).select("full_name").eq("user_id", t.tenant_user_id).single();
+        const { data: tenantProfile } = await supabase.from("profiles_counterparty" as any) as any.select("full_name").eq("user_id", t.tenant_user_id).single();
         const { data: unit } = await supabase.from("units").select("property_id").eq("id", t.unit_id).single();
         let propertyAddress = "";
         let assessmentStatus = "pending";

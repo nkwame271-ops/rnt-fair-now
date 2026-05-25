@@ -100,7 +100,7 @@ const AddTenant = () => {
     const fetchData = async () => {
       const [propsRes, profileRes, configRes, rentCardsRes, bandsRes] = await Promise.all([
         supabase.from("properties").select("id, property_name, address, region, property_category, units(id, unit_name, unit_type, monthly_rent, status)").eq("landlord_user_id", user.id).eq("assessment_status", "approved").in("property_status", ["approved", "live", "occupied"]),
-        supabase.from("profiles_counterparty" as any).select("full_name").eq("user_id", user.id).single(),
+        supabase.from("profiles_counterparty" as any) as any.select("full_name").eq("user_id", user.id).single(),
         supabase.from("agreement_template_config").select("*").limit(1).single(),
         supabase.from("rent_cards").select("id, serial_number").eq("landlord_user_id", user.id).eq("status", "valid"),
         supabase.from("rent_bands").select("min_rent, max_rent, fee_amount").eq("band_type", "add_tenant").order("min_rent"),
@@ -408,8 +408,8 @@ const AddTenant = () => {
     // Notifications
     const propName = property?.property_name || property?.address || "Property";
     const [{ data: tenantProfile }, { data: landlordProfile }] = await Promise.all([
-      supabase.from("profiles_counterparty" as any).select("phone, email, full_name").eq("user_id", draft.foundTenant.userId).maybeSingle(),
-      supabase.from("profiles_counterparty" as any).select("phone, email, full_name").eq("user_id", user.id).maybeSingle(),
+      supabase.from("profiles_counterparty" as any) as any.select("phone, email, full_name").eq("user_id", draft.foundTenant.userId).maybeSingle(),
+      supabase.from("profiles_counterparty" as any) as any.select("phone, email, full_name").eq("user_id", user.id).maybeSingle(),
     ]);
     sendNotification("tenancy_registered", {
       phone: tenantProfile?.phone || undefined,

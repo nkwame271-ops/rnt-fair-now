@@ -54,7 +54,7 @@ const Payments = () => {
       const built: Tenancy[] = [];
       for (const t of rawTenancies as any[]) {
         const { data: prop } = await supabase.from("properties").select("property_name, address").eq("id", t.unit.property_id).single();
-        const { data: landlordProfile } = await supabase.from("profiles_counterparty" as any).select("full_name").eq("user_id", t.landlord_user_id).single();
+        const { data: landlordProfile } = await supabase.from("profiles_counterparty" as any) as any.select("full_name").eq("user_id", t.landlord_user_id).single();
         const { data: payments } = await supabase
           .from("rent_payments")
           .select("*")

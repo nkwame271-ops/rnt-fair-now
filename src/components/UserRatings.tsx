@@ -30,7 +30,7 @@ const UserRatings = ({ userId }: UserRatingsProps) => {
       if (!data || data.length === 0) { setLoading(false); return; }
 
       const raterIds = [...new Set(data.map(r => r.rater_user_id))];
-      const { data: profiles } = await supabase.from("profiles_counterparty" as any).select("user_id, full_name").in("user_id", raterIds);
+      const { data: profiles } = await supabase.from("profiles_counterparty" as any) as any.select("user_id, full_name").in("user_id", raterIds);
       const nameMap = new Map((profiles || []).map(p => [p.user_id, p.full_name]));
 
       setRatings(data.map(r => ({

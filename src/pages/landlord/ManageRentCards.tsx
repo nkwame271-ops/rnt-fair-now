@@ -88,7 +88,7 @@ const ManageRentCards = () => {
     const rawCards = (data || []) as RentCard[];
 
     const enriched: EnrichedRentCard[] = [];
-    const { data: landlordProfile } = await supabase.from("profiles_counterparty" as any).select("full_name").eq("user_id", user.id).single();
+    const { data: landlordProfile } = await supabase.from("profiles_counterparty" as any) as any.select("full_name").eq("user_id", user.id).single();
     const { data: landlordRecord } = await supabase.from("landlords").select("landlord_id").eq("user_id", user.id).single();
 
     const tenantIds = [...new Set(rawCards.map(c => c.tenant_user_id).filter(Boolean))] as string[];
@@ -97,7 +97,7 @@ const ManageRentCards = () => {
 
     const [tenantsRes, tenantProfilesRes, propsRes, unitsRes] = await Promise.all([
       tenantIds.length > 0 ? supabase.from("tenants").select("user_id, tenant_id").in("user_id", tenantIds) : { data: [] },
-      tenantIds.length > 0 ? supabase.from("profiles_counterparty" as any).select("user_id, full_name").in("user_id", tenantIds) : { data: [] },
+      tenantIds.length > 0 ? supabase.from("profiles_counterparty" as any) as any.select("user_id, full_name").in("user_id", tenantIds) : { data: [] },
       propertyIds.length > 0 ? supabase.from("properties").select("id, property_code").in("id", propertyIds) : { data: [] },
       unitIds.length > 0 ? supabase.from("units").select("id, unit_name").in("id", unitIds) : { data: [] },
     ]);

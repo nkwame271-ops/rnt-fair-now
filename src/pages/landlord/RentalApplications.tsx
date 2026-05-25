@@ -45,7 +45,7 @@ const RentalApplications = () => {
     const propIds = [...new Set(data.map(a => a.property_id))];
 
     const [{ data: profiles }, { data: units }, { data: props }] = await Promise.all([
-      supabase.from("profiles_counterparty" as any).select("user_id, full_name, phone, email, occupation").in("user_id", tenantIds),
+      supabase.from("profiles_counterparty" as any) as any.select("user_id, full_name, phone, email, occupation").in("user_id", tenantIds),
       supabase.from("units").select("id, unit_name, unit_type, monthly_rent").in("id", unitIds),
       supabase.from("properties").select("id, property_name").in("id", propIds),
     ]);
