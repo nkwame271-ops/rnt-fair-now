@@ -129,80 +129,44 @@ const RegisterLandlord = () => {
       const phoneDigits = phone.replace(/\s/g, "");
       const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
 
-      const { data: existingProfile } = await supabase.from("profiles").select("user_id").eq("phone", phoneDigits).maybeSingle();
-      if (existingProfile) {
-        const { data: landlordRecord } = await supabase.from("landlords").select("account_status").eq("user_id", existingProfile.user_id).maybeSingle();
-        if (landlordRecord && landlordRecord.account_status === "deactivated") {
-          toast.error("This phone number is linked to a deactivated account. Please contact Rent Control for assistance.");
-          setLoading(false);
-          return;
-        }
-      }
-
-      if (email && email.trim()) {
-        const { data: emailMatch } = await supabase.from("profiles").select("id").eq("email", email.trim()).maybeSingle();
-        if (emailMatch) {
-          toast.error("This email is already in use by another account. Please use a different email or log in.");
-          setLoading(false);
-          return;
-        }
-      }
-
-      let userId: string;
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: syntheticEmail,
-        password: password,
-        options: {
-          data: { full_name: fullName, phone: phoneDigits, role: "landlord" },
+      // Single atomic server-side registration (auth + profile + landlords row in one shot,
+      // auto-rollback on any failure). Replaces the old 3-step client flow.
+      const { data: regData, error: regErr } = await supabase.functions.invoke("register-account", {
+        body: {
+          role: "landlord",
+          full_name: fullName,
+          phone: phoneDigits,
+          password,
+          email: email || null,
+          is_citizen: isCitizen,
+          nationality: isCitizen ? "Ghanaian" : nationality,
+          residence_permit_no: isCitizen ? null : residencePermitNo,
+          reg_fee_enabled: regFeeEnabled,
         },
       });
 
-      if (authError) {
-        if (authError.message?.includes("already registered") || authError.message?.includes("already exists")) {
-          toast.error("This phone number is already registered. Please log in or recover your account.", {
-            action: { label: "Go to Login", onClick: () => navigate("/login?role=landlord") },
-          });
-          setLoading(false);
-          return;
+      if (regErr || !regData?.ok) {
+        const code = (regData as any)?.code;
+        const msg = (regData as any)?.error || regErr?.message || "Registration failed";
+        if (code === "ALREADY_REGISTERED") {
+          toast.error(msg, { action: { label: "Go to Login", onClick: () => navigate("/login?role=landlord") } });
         } else {
-          throw authError;
+          toast.error(msg);
         }
-      } else {
-        if (!authData.user) throw new Error("Registration failed");
-        userId = authData.user.id;
+        setLoading(false);
+        return;
       }
 
-      const landlordId = "LL-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
+      const userId = regData.user_id as string;
+      const landlordId = regData.domain_id as string;
 
-      const { error: profileError } = await supabase.from("profiles").update({
-        email: email || null,
-        is_citizen: isCitizen,
-        nationality: isCitizen ? "Ghanaian" : nationality,
-        residence_permit_no: isCitizen ? null : residencePermitNo,
-      }).eq("user_id", userId);
-
-      if (profileError) {
-        console.error("Profile update failed:", profileError);
-        toast.error("Account created but profile update failed. Please update your profile after logging in.");
-      }
-
-      const now = new Date();
-      const expiryDate = new Date(now);
-      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-
-      const { error: landlordError } = await supabase.from("landlords").insert({
-        user_id: userId,
-        landlord_id: landlordId,
-        registration_fee_paid: !regFeeEnabled,
-        ...(!regFeeEnabled ? {
-          registration_date: now.toISOString(),
-          expiry_date: expiryDate.toISOString(),
-        } : {}),
+      // Sign the user in client-side so the rest of the app has a session.
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: syntheticEmail,
+        password,
       });
-
-      if (landlordError) {
-        await supabase.auth.signOut();
-        throw new Error("Failed to create landlord record. Please try registering again.");
+      if (signInErr) {
+        console.warn("Auto sign-in after registration failed:", signInErr);
       }
 
       setGeneratedId(landlordId);

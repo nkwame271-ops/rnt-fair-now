@@ -6509,9 +6509,11 @@ export type Database = {
       generate_case_number: { Args: never; Returns: string }
       generate_complaint_ticket: { Args: never; Returns: string }
       generate_issue_ticket: { Args: never; Returns: string }
+      generate_landlord_id: { Args: never; Returns: string }
       generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
       generate_safety_ticket: { Args: never; Returns: string }
+      generate_tenant_id: { Args: never; Returns: string }
       get_regulator_dashboard_stats: {
         Args: { p_office_id?: string }
         Returns: Json
