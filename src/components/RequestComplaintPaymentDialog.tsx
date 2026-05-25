@@ -42,6 +42,8 @@ const newUid = () => (crypto?.randomUUID?.() ?? `b_${Date.now()}_${Math.random()
 
 const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, complaintTable, linkedPropertyId, monthlyRent: monthlyRentProp, initialClaimAmount, feeScope = "rent_control", mode = "send_request", defaultPayerName, defaultPayerPhone, defaultPayerRole, onRequested }: Props) => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
+  const isSuperAdmin = !!profile?.isSuperAdmin;
   const [types, setTypes] = useState<ComplaintTypeRow[]>([]);
   const [fixedMap, setFixedMap] = useState<Record<string, FixedFeeRow>>({});
   const [bandsMap, setBandsMap] = useState<Record<string, BandRow[]>>({});
