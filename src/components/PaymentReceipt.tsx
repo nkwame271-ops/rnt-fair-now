@@ -110,12 +110,12 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
         `).join("")}
         <div style="padding:12px 16px;display:flex;justify-content:space-between;border-top:2px solid #2563eb;background:#eff6ff;">
           <span style="font-weight:700;color:#111827;">Total</span>
-          <span style="font-weight:700;color:#2563eb;font-size:15px;">${formatGHSDecimal(totalAmount)}</span>
+          <span style="font-weight:700;color:#2563eb;font-size:15px;">${formatGHSDecimal(visibleTotal)}</span>
         </div>
       </div>` : `
       <div style="padding:12px 16px;display:flex;justify-content:space-between;border:1px solid #e5e7eb;border-radius:8px;background:#eff6ff;margin-top:16px;">
         <span style="font-weight:700;color:#111827;">Total Paid</span>
-        <span style="font-weight:700;color:#2563eb;font-size:15px;">${formatGHSDecimal(totalAmount)}</span>
+        <span style="font-weight:700;color:#2563eb;font-size:15px;">${formatGHSDecimal(visibleTotal)}</span>
       </div>`;
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt ${receiptNumber}</title>
