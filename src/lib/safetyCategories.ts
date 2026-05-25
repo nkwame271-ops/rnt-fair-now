@@ -9,7 +9,7 @@ export type SafetyCategory =
   | "health_security"
   | "other";
 
-export type EmergencyType = "police" | "medical" | "fire" | "security" | "other";
+export type EmergencyType = "general" | "police" | "fire" | "health" | "medical" | "security" | "other";
 
 export const SAFETY_CATEGORIES: { value: SafetyCategory; label: string }[] = [
   { value: "sexual_harassment", label: "Sexual harassment" },
