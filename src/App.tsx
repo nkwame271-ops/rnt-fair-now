@@ -130,6 +130,10 @@ const NugsComplaints = lazy(() => import("./pages/nugs/NugsComplaints"));
 const NugsInstitutions = lazy(() => import("./pages/nugs/NugsInstitutions"));
 const NugsMyComplaints = lazy(() => import("./pages/nugs/NugsMyComplaints"));
 const NugsRentCards = lazy(() => import("./pages/nugs/NugsRentCards"));
+const StudentRentCare = lazy(() => import("./pages/student/RentCare"));
+const StudentRentCareApply = lazy(() => import("./pages/student/RentCareApply"));
+const StudentRentCareDetail = lazy(() => import("./pages/student/RentCareDetail"));
+const RentCareManagement = lazy(() => import("./pages/regulator/RentCareManagement"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
