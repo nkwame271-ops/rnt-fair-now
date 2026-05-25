@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, FileBarChart, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatGHSDecimal } from "@/lib/formatters";
 import { format } from "date-fns";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
 
 /**
  * Office Reconciliation Report
