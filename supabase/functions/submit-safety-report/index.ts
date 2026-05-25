@@ -45,6 +45,13 @@ Deno.serve(async (req) => {
       evidence_urls,
       user_role,
       severity,
+      action_taken,
+      live_tracking_enabled,
+      user_note,
+      linked_property_id,
+      linked_tenancy_id,
+      linked_complaint_id,
+      linked_student_id,
     } = body ?? {};
 
     if (!report_kind || !["safety_report", "panic_emergency"].includes(report_kind)) {
