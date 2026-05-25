@@ -172,6 +172,8 @@ const RegisterTenant = () => {
           school: isStudent ? normalizeInstitutionName(school) : null,
           hostel_or_hall: isStudent ? hostelOrHall.trim() : null,
           room_or_bed_space: isStudent ? roomOrBedSpace.trim() : null,
+          hostel_region: isStudent ? (hostelRegion || null) : null,
+          hostel_contact_number: isStudent ? (hostelContact.replace(/\D/g, "") || null) : null,
           reg_fee_enabled: regFeeEnabled,
         },
       });
