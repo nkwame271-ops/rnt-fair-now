@@ -29,6 +29,8 @@ interface RegisterBody {
   school?: string | null;
   hostel_or_hall?: string | null;
   room_or_bed_space?: string | null;
+  hostel_region?: string | null;
+  hostel_contact_number?: string | null;
 
   // controls whether to pre-mark fee paid (legacy regFeeEnabled = false branch)
   reg_fee_enabled?: boolean;
