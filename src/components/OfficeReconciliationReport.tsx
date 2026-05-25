@@ -230,10 +230,10 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
               { label: "IGF (HQ)", v: partitions.igfHq },
               { label: "Admin (Office)", v: partitions.adminOffice },
               { label: "Admin (HQ)", v: partitions.adminHq },
-              { label: "Platform", v: partitions.platform },
+              ...(isSuperAdmin ? [{ label: "Platform", v: partitions.platform }] : []),
               { label: "GRA", v: partitions.gra },
               { label: "Landlord (Held)", v: partitions.landlord },
-              { label: "TOTAL", v: partitions.total },
+              { label: "TOTAL", v: visibleTotal(partitions) },
             ].map(c => (
               <div key={c.label} className="bg-muted/30 border border-border rounded-lg p-3">
                 <div className="text-[11px] text-muted-foreground">{c.label}</div>
@@ -254,7 +254,7 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
                     <th className="text-right py-2 px-2">IGF (HQ)</th>
                     <th className="text-right py-2 px-2">Admin (O)</th>
                     <th className="text-right py-2 px-2">Admin (HQ)</th>
-                    <th className="text-right py-2 px-2">Platform</th>
+                    {isSuperAdmin && <th className="text-right py-2 px-2">Platform</th>}
                     <th className="text-right py-2 px-2">GRA</th>
                     <th className="text-right py-2 pl-2">Landlord</th>
                   </tr>
