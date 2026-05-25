@@ -349,6 +349,51 @@ const InviteStaff = () => {
             </div>
           )}
 
+          {/* Sales channel assignment — Main/Sub admins only */}
+          {adminType !== "nugs_admin" && (
+            <div className="space-y-3 border border-border rounded-lg p-3 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <Network className="h-4 w-4 text-primary" />
+                <Label className="m-0">Assign to Sales Channel</Label>
+              </div>
+              <Select value={salesChannelId || "none"} onValueChange={v => setSalesChannelId(v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Select sales channel..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No channel assignment</SelectItem>
+                  {channels.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {salesChannelId && (
+                <div className="space-y-1 pt-2">
+                  <Label className="text-xs text-muted-foreground">Channel Permissions</Label>
+                  {([
+                    ["view_assigned_stock", "View assigned stock", false],
+                    ["sell_rent_cards", "Sell rent cards", false],
+                    ["assign_to_landlords", "Assign rent cards to landlords", false],
+                    ["view_sales_report", "View sales report", false],
+                    ["edit_reconciliation", "Edit reconciliation (restricted)", true],
+                    ["create_new_stock", "Create new stock (restricted)", true],
+                  ] as Array<[keyof ChannelPerms, string, boolean]>).map(([key, label, locked]) => (
+                    <label key={key} className={`flex items-center gap-2 text-sm rounded px-2 py-1.5 ${locked ? "opacity-60" : "cursor-pointer hover:bg-muted/30"}`}>
+                      <Checkbox
+                        checked={channelPerms[key]}
+                        disabled={locked}
+                        onCheckedChange={(v) => setChannelPerms(p => ({ ...p, [key]: !!v }))}
+                      />
+                      <span className="text-card-foreground">{label}</span>
+                    </label>
+                  ))}
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Restricted permissions are reserved for Main Admins for audit safety.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Feature selection — hidden for NUGS admins */}
           {adminType !== "nugs_admin" && (
             <div className="space-y-2">
