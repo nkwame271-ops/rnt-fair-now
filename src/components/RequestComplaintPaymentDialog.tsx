@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { toast } from "sonner";
 import { CreditCard, AlertTriangle, Plus, Trash2, ListPlus } from "lucide-react";
 import {
