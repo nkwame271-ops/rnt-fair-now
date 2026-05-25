@@ -231,6 +231,16 @@ const EscrowDashboard = () => {
         }
       }
 
+      // Index splits per transaction so totals can be recomputed against the viewer's visible recipients
+      const splitMap = new Map<string, Array<{ recipient: string; amount: number; office_id?: string | null }>>();
+      for (const s of splits as any[]) {
+        const arr = splitMap.get(s.escrow_transaction_id) ?? [];
+        arr.push({ recipient: s.recipient, amount: Number(s.amount), office_id: s.office_id ?? null });
+        splitMap.set(s.escrow_transaction_id, arr);
+      }
+      setSplitsByTx(splitMap);
+      setCompletedTxnMeta(completed.map(t => ({ id: t.id, payment_type: t.payment_type, office_id: t.office_id ?? null })));
+
       const byRecipient = splits.reduce((acc: Record<string, number>, s: any) => {
         acc[s.recipient] = (acc[s.recipient] || 0) + Number(s.amount);
         return acc;
