@@ -265,6 +265,12 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   payment_errors: ["/regulator/payment-errors"],
   receipts: ["/regulator/receipts"],
   super_admin: ["/regulator/super-admin"],
+  safety: ["/regulator/safety"],
+  rentcare: ["/regulator/rentcare"],
+  access_control: ["/regulator/access-control"],
+  staff_feature_mutes: ["/regulator/staff-feature-mutes"],
+  student_revenue: ["/regulator/student-revenue"],
+  hearings: ["/regulator/hearings"],
 };
 
 // Reverse: route → feature key
