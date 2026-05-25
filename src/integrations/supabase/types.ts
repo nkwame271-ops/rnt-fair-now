@@ -4100,6 +4100,13 @@ export type Database = {
           phone: string
           residence_permit_no: string | null
           student_id_url: string | null
+          umb_account_created_on: string | null
+          umb_account_name: string | null
+          umb_account_number: string | null
+          umb_account_type: string | null
+          umb_branch: string | null
+          umb_confirmation_screenshot_path: string | null
+          umb_submitted_at: string | null
           updated_at: string
           user_id: string
           user_type: string
@@ -4124,6 +4131,13 @@ export type Database = {
           phone: string
           residence_permit_no?: string | null
           student_id_url?: string | null
+          umb_account_created_on?: string | null
+          umb_account_name?: string | null
+          umb_account_number?: string | null
+          umb_account_type?: string | null
+          umb_branch?: string | null
+          umb_confirmation_screenshot_path?: string | null
+          umb_submitted_at?: string | null
           updated_at?: string
           user_id: string
           user_type?: string
@@ -4148,6 +4162,13 @@ export type Database = {
           phone?: string
           residence_permit_no?: string | null
           student_id_url?: string | null
+          umb_account_created_on?: string | null
+          umb_account_name?: string | null
+          umb_account_number?: string | null
+          umb_account_type?: string | null
+          umb_branch?: string | null
+          umb_confirmation_screenshot_path?: string | null
+          umb_submitted_at?: string | null
           updated_at?: string
           user_id?: string
           user_type?: string
@@ -5277,6 +5298,342 @@ export type Database = {
             columns: ["viewing_request_id"]
             isOneToOne: false
             referencedRelation: "viewing_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rentcare_applications: {
+        Row: {
+          accommodation_location: string | null
+          accommodation_type: string | null
+          address: string | null
+          admin_notes: string | null
+          amount_paid: number | null
+          amount_requested: number | null
+          applicant_user_id: string
+          campus: string | null
+          consent_accepted_at: string | null
+          consent_ip: string | null
+          created_at: string
+          deadline: string | null
+          decision_reason: string | null
+          disbursed_at: string | null
+          email: string | null
+          fee_amount_snapshot: number | null
+          full_name: string | null
+          gender: string | null
+          ghana_card_no: string | null
+          guarantor_json: Json | null
+          id: string
+          institution: string | null
+          level: string | null
+          outstanding_amount: number | null
+          payment_reference: string | null
+          payment_status: Database["public"]["Enums"]["rentcare_payment_status"]
+          phone: string | null
+          previous_support_history: string | null
+          programme: string | null
+          provider_contact: string | null
+          provider_name: string | null
+          reason: string | null
+          receipt_id: string | null
+          reference: string
+          region: string | null
+          status: Database["public"]["Enums"]["rentcare_status"]
+          student_id_code: string | null
+          submitted_at: string | null
+          total_fee: number | null
+          umb_account_created_on: string | null
+          umb_account_name: string | null
+          umb_account_number: string | null
+          umb_account_type: string | null
+          umb_branch: string | null
+          umb_confirmation_screenshot_path: string | null
+          umb_submitted_at: string | null
+          updated_at: string
+          urgency: string | null
+          version: number
+        }
+        Insert: {
+          accommodation_location?: string | null
+          accommodation_type?: string | null
+          address?: string | null
+          admin_notes?: string | null
+          amount_paid?: number | null
+          amount_requested?: number | null
+          applicant_user_id: string
+          campus?: string | null
+          consent_accepted_at?: string | null
+          consent_ip?: string | null
+          created_at?: string
+          deadline?: string | null
+          decision_reason?: string | null
+          disbursed_at?: string | null
+          email?: string | null
+          fee_amount_snapshot?: number | null
+          full_name?: string | null
+          gender?: string | null
+          ghana_card_no?: string | null
+          guarantor_json?: Json | null
+          id?: string
+          institution?: string | null
+          level?: string | null
+          outstanding_amount?: number | null
+          payment_reference?: string | null
+          payment_status?: Database["public"]["Enums"]["rentcare_payment_status"]
+          phone?: string | null
+          previous_support_history?: string | null
+          programme?: string | null
+          provider_contact?: string | null
+          provider_name?: string | null
+          reason?: string | null
+          receipt_id?: string | null
+          reference?: string
+          region?: string | null
+          status?: Database["public"]["Enums"]["rentcare_status"]
+          student_id_code?: string | null
+          submitted_at?: string | null
+          total_fee?: number | null
+          umb_account_created_on?: string | null
+          umb_account_name?: string | null
+          umb_account_number?: string | null
+          umb_account_type?: string | null
+          umb_branch?: string | null
+          umb_confirmation_screenshot_path?: string | null
+          umb_submitted_at?: string | null
+          updated_at?: string
+          urgency?: string | null
+          version?: number
+        }
+        Update: {
+          accommodation_location?: string | null
+          accommodation_type?: string | null
+          address?: string | null
+          admin_notes?: string | null
+          amount_paid?: number | null
+          amount_requested?: number | null
+          applicant_user_id?: string
+          campus?: string | null
+          consent_accepted_at?: string | null
+          consent_ip?: string | null
+          created_at?: string
+          deadline?: string | null
+          decision_reason?: string | null
+          disbursed_at?: string | null
+          email?: string | null
+          fee_amount_snapshot?: number | null
+          full_name?: string | null
+          gender?: string | null
+          ghana_card_no?: string | null
+          guarantor_json?: Json | null
+          id?: string
+          institution?: string | null
+          level?: string | null
+          outstanding_amount?: number | null
+          payment_reference?: string | null
+          payment_status?: Database["public"]["Enums"]["rentcare_payment_status"]
+          phone?: string | null
+          previous_support_history?: string | null
+          programme?: string | null
+          provider_contact?: string | null
+          provider_name?: string | null
+          reason?: string | null
+          receipt_id?: string | null
+          reference?: string
+          region?: string | null
+          status?: Database["public"]["Enums"]["rentcare_status"]
+          student_id_code?: string | null
+          submitted_at?: string | null
+          total_fee?: number | null
+          umb_account_created_on?: string | null
+          umb_account_name?: string | null
+          umb_account_number?: string | null
+          umb_account_type?: string | null
+          umb_branch?: string | null
+          umb_confirmation_screenshot_path?: string | null
+          umb_submitted_at?: string | null
+          updated_at?: string
+          urgency?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
+      rentcare_audit_log: {
+        Row: {
+          actor_role: string | null
+          actor_user_id: string | null
+          application_id: string | null
+          device: string | null
+          event_type: string
+          id: string
+          ip: string | null
+          new_value: Json | null
+          occurred_at: string
+          old_value: Json | null
+        }
+        Insert: {
+          actor_role?: string | null
+          actor_user_id?: string | null
+          application_id?: string | null
+          device?: string | null
+          event_type: string
+          id?: string
+          ip?: string | null
+          new_value?: Json | null
+          occurred_at?: string
+          old_value?: Json | null
+        }
+        Update: {
+          actor_role?: string | null
+          actor_user_id?: string | null
+          application_id?: string | null
+          device?: string | null
+          event_type?: string
+          id?: string
+          ip?: string | null
+          new_value?: Json | null
+          occurred_at?: string
+          old_value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rentcare_audit_log_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rentcare_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rentcare_documents: {
+        Row: {
+          application_id: string
+          created_at: string
+          doc_type: string
+          file_name: string | null
+          file_path: string
+          id: string
+          mime_type: string | null
+          size_bytes: number | null
+          uploader_user_id: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          doc_type: string
+          file_name?: string | null
+          file_path: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          uploader_user_id: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          doc_type?: string
+          file_name?: string | null
+          file_path?: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          uploader_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rentcare_documents_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rentcare_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rentcare_messages: {
+        Row: {
+          application_id: string
+          attachments: Json | null
+          body: string
+          created_at: string
+          id: string
+          read_at: string | null
+          sender_role: string
+          sender_user_id: string
+          subject: string | null
+        }
+        Insert: {
+          application_id: string
+          attachments?: Json | null
+          body: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_role: string
+          sender_user_id: string
+          subject?: string | null
+        }
+        Update: {
+          application_id?: string
+          attachments?: Json | null
+          body?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_role?: string
+          sender_user_id?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rentcare_messages_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rentcare_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rentcare_status_history: {
+        Row: {
+          application_id: string
+          changed_by: string | null
+          changed_by_role: string | null
+          created_at: string
+          id: string
+          new_status: Database["public"]["Enums"]["rentcare_status"]
+          note: string | null
+          previous_status: Database["public"]["Enums"]["rentcare_status"] | null
+        }
+        Insert: {
+          application_id: string
+          changed_by?: string | null
+          changed_by_role?: string | null
+          created_at?: string
+          id?: string
+          new_status: Database["public"]["Enums"]["rentcare_status"]
+          note?: string | null
+          previous_status?:
+            | Database["public"]["Enums"]["rentcare_status"]
+            | null
+        }
+        Update: {
+          application_id?: string
+          changed_by?: string | null
+          changed_by_role?: string | null
+          created_at?: string
+          id?: string
+          new_status?: Database["public"]["Enums"]["rentcare_status"]
+          note?: string | null
+          previous_status?:
+            | Database["public"]["Enums"]["rentcare_status"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rentcare_status_history_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rentcare_applications"
             referencedColumns: ["id"]
           },
         ]
@@ -6527,6 +6884,7 @@ export type Database = {
       generate_landlord_id: { Args: never; Returns: string }
       generate_purchase_id: { Args: never; Returns: string }
       generate_receipt_number: { Args: never; Returns: string }
+      generate_rentcare_reference: { Args: never; Returns: string }
       generate_safety_ticket: { Args: never; Returns: string }
       generate_tenant_id: { Args: never; Returns: string }
       get_regulator_dashboard_stats: {
@@ -6610,6 +6968,14 @@ export type Database = {
         Returns: Json
       }
       refresh_dashboard_stats: { Args: never; Returns: undefined }
+      rentcare_admin_update: {
+        Args: {
+          p_application_id: string
+          p_expected_version: number
+          p_patch: Json
+        }
+        Returns: Json
+      }
       repair_rent_cards_for_escrow: {
         Args: { p_escrow_id: string }
         Returns: Json
@@ -6698,6 +7064,26 @@ export type Database = {
         | "callback"
         | "recovery_worker"
         | "admin"
+      rentcare_payment_status:
+        | "unpaid"
+        | "pending"
+        | "paid"
+        | "failed"
+        | "reconciled"
+      rentcare_status:
+        | "draft"
+        | "awaiting_application_fee_payment"
+        | "paid_and_submitted"
+        | "awaiting_umb_account_number"
+        | "umb_account_submitted"
+        | "under_cfled_review"
+        | "under_nugs_validation"
+        | "sent_to_umb"
+        | "more_information_required"
+        | "approved"
+        | "declined"
+        | "disbursed"
+        | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -6895,6 +7281,28 @@ export const Constants = {
         "callback",
         "recovery_worker",
         "admin",
+      ],
+      rentcare_payment_status: [
+        "unpaid",
+        "pending",
+        "paid",
+        "failed",
+        "reconciled",
+      ],
+      rentcare_status: [
+        "draft",
+        "awaiting_application_fee_payment",
+        "paid_and_submitted",
+        "awaiting_umb_account_number",
+        "umb_account_submitted",
+        "under_cfled_review",
+        "under_nugs_validation",
+        "sent_to_umb",
+        "more_information_required",
+        "approved",
+        "declined",
+        "disbursed",
+        "closed",
       ],
     },
   },
