@@ -25,10 +25,11 @@ const FEE_KEY_TO_PAYMENT_TYPE: Record<string, string> = {
   archive_search_fee: "archive_search_fee",
   student_registration: "student_registration",
   student_complaint_fee: "student_complaint_fee",
+  rentcare_assistance: "rentcare_application_fee",
 };
 
 // Student-only payment types — fully isolated from office/HQ routing & escrow.
-const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee"]);
+const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee", "rentcare_application_fee"]);
 
 interface DeterminedFee {
   amount: number;
