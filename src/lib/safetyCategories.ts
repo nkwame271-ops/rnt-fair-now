@@ -39,12 +39,15 @@ export const EMERGENCY_TYPE_FALLBACK: Record<string, EmergencyType> = {
 
 export const SAFETY_STATUS_LABELS: Record<string, string> = {
   submitted: "Submitted",
+  new: "New",
   acknowledged: "Acknowledged",
-  under_review: "Under Review",
+  under_review: "In Review",
+  in_review: "In Review",
   escalated: "Escalated",
   resolved: "Resolved",
   closed: "Closed",
-  false_alert: "False Alert",
+  false_alert: "False Alarm",
+  false_alarm: "False Alarm",
 };
 
 export const SEVERITY_COLORS: Record<string, string> = {
