@@ -56,6 +56,12 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
     () => (isSuperAdmin ? splits : (splits || []).filter((s) => s.recipient !== "platform")),
     [splits, isSuperAdmin]
   );
+  // Visibility & calculation must match: if Platform is hidden, exclude it from the total too.
+  const visibleTotal = useMemo(() => {
+    if (isSuperAdmin) return totalAmount;
+    if (!splits || splits.length === 0) return totalAmount;
+    return visibleSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+  }, [isSuperAdmin, splits, visibleSplits, totalAmount]);
 
   useEffect(() => {
     if (paymentType !== "complaint_fee" || !complaintId || !complaintTable) { setBasket(null); return; }
