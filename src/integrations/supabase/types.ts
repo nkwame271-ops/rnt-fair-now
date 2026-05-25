@@ -1802,6 +1802,7 @@ export type Database = {
           related_complaint_id: string | null
           related_property_id: string | null
           related_tenancy_id: string | null
+          sales_channel_id: string | null
           service_record_id: string | null
           status: string
           total_amount: number
@@ -1826,6 +1827,7 @@ export type Database = {
           related_complaint_id?: string | null
           related_property_id?: string | null
           related_tenancy_id?: string | null
+          sales_channel_id?: string | null
           service_record_id?: string | null
           status?: string
           total_amount: number
@@ -1850,6 +1852,7 @@ export type Database = {
           related_complaint_id?: string | null
           related_property_id?: string | null
           related_tenancy_id?: string | null
+          sales_channel_id?: string | null
           service_record_id?: string | null
           status?: string
           total_amount?: number
@@ -1875,6 +1878,13 @@ export type Database = {
             columns: ["payment_intent_id"]
             isOneToOne: false
             referencedRelation: "payment_intents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "escrow_transactions_sales_channel_id_fkey"
+            columns: ["sales_channel_id"]
+            isOneToOne: false
+            referencedRelation: "rent_card_sales_channels"
             referencedColumns: ["id"]
           },
         ]
@@ -4919,6 +4929,98 @@ export type Database = {
           },
         ]
       }
+      rent_card_channel_splits: {
+        Row: {
+          amount: number
+          amount_type: string
+          channel_id: string
+          id: string
+          recipient: string
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount?: number
+          amount_type?: string
+          channel_id: string
+          id?: string
+          recipient: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount?: number
+          amount_type?: string
+          channel_id?: string
+          id?: string
+          recipient?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_card_channel_splits_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "rent_card_sales_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rent_card_sales_channels: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          default_office_id: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          default_office_id?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          default_office_id?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_card_sales_channels_default_office_id_fkey"
+            columns: ["default_office_id"]
+            isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
+          {
+            foreignKeyName: "rent_card_sales_channels_default_office_id_fkey"
+            columns: ["default_office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rent_card_serial_stock: {
         Row: {
           assigned_at: string | null
@@ -4935,6 +5037,7 @@ export type Database = {
           revoke_reason: string | null
           revoked_at: string | null
           revoked_by: string | null
+          sales_channel_id: string | null
           serial_number: string
           status: string
           stock_source: string
@@ -4956,6 +5059,7 @@ export type Database = {
           revoke_reason?: string | null
           revoked_at?: string | null
           revoked_by?: string | null
+          sales_channel_id?: string | null
           serial_number: string
           status?: string
           stock_source?: string
@@ -4977,6 +5081,7 @@ export type Database = {
           revoke_reason?: string | null
           revoked_at?: string | null
           revoked_by?: string | null
+          sales_channel_id?: string | null
           serial_number?: string
           status?: string
           stock_source?: string
@@ -4989,6 +5094,13 @@ export type Database = {
             columns: ["assigned_to_card_id"]
             isOneToOne: false
             referencedRelation: "rent_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_card_serial_stock_sales_channel_id_fkey"
+            columns: ["sales_channel_id"]
+            isOneToOne: false
+            referencedRelation: "rent_card_sales_channels"
             referencedColumns: ["id"]
           },
         ]
@@ -5013,6 +5125,7 @@ export type Database = {
           purchase_id: string | null
           purchased_at: string
           qr_token: string | null
+          sales_channel_id: string | null
           serial_number: string | null
           start_date: string | null
           status: string
@@ -5039,6 +5152,7 @@ export type Database = {
           purchase_id?: string | null
           purchased_at?: string
           qr_token?: string | null
+          sales_channel_id?: string | null
           serial_number?: string | null
           start_date?: string | null
           status?: string
@@ -5065,6 +5179,7 @@ export type Database = {
           purchase_id?: string | null
           purchased_at?: string
           qr_token?: string | null
+          sales_channel_id?: string | null
           serial_number?: string | null
           start_date?: string | null
           status?: string
@@ -5078,6 +5193,13 @@ export type Database = {
             columns: ["escrow_transaction_id"]
             isOneToOne: false
             referencedRelation: "escrow_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_cards_sales_channel_id_fkey"
+            columns: ["sales_channel_id"]
+            isOneToOne: false
+            referencedRelation: "rent_card_sales_channels"
             referencedColumns: ["id"]
           },
           {
