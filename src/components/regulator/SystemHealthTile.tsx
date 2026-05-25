@@ -97,6 +97,44 @@ const SystemHealthTile = () => {
           Dashboard cache age: {snapshot.dashboard_stale_seconds}s
         </p>
       )}
+
+      {snapshot.db_connections_pct !== null && snapshot.db_connections_max !== null && (
+        <div className="mt-3 space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">
+              Database connections: {snapshot.db_connections_used}/{snapshot.db_connections_max}
+            </span>
+            <span
+              className={
+                snapshot.db_connections_pct >= 70
+                  ? "font-semibold text-destructive"
+                  : snapshot.db_connections_pct >= 50
+                  ? "font-semibold text-amber-600"
+                  : "font-semibold text-success"
+              }
+            >
+              {snapshot.db_connections_pct}%
+            </span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className={
+                snapshot.db_connections_pct >= 70
+                  ? "h-full bg-destructive"
+                  : snapshot.db_connections_pct >= 50
+                  ? "h-full bg-amber-500"
+                  : "h-full bg-success"
+              }
+              style={{ width: `${Math.min(100, snapshot.db_connections_pct)}%` }}
+            />
+          </div>
+          {snapshot.db_connections_pct >= 70 && (
+            <p className="text-xs text-destructive mt-1">
+              Connection pool is saturated. Consider upgrading the Lovable Cloud instance (Backend → Advanced settings).
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 };
