@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Save, ShieldAlert, Network } from "lucide-react";
 import { toast } from "sonner";
-import { formatGHS } from "@/lib/format";
+import { formatGHS } from "@/lib/formatters";
 
 interface Channel {
   id: string;
