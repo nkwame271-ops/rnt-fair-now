@@ -24,12 +24,18 @@ export const SAFETY_CATEGORIES: { value: SafetyCategory; label: string }[] = [
 ];
 
 export const EMERGENCY_TYPES: { value: EmergencyType; label: string; tel?: string }[] = [
-  { value: "police", label: "Police", tel: "191" },
-  { value: "medical", label: "Medical", tel: "193" },
-  { value: "fire", label: "Fire", tel: "192" },
-  { value: "security", label: "Campus / Property Security" },
-  { value: "other", label: "Other" },
+  { value: "general", label: "General Emergency", tel: "112" },
+  { value: "police", label: "Police Emergency", tel: "191" },
+  { value: "fire", label: "Fire Emergency", tel: "192" },
+  { value: "health", label: "Health / Ambulance Emergency", tel: "193" },
+  { value: "other", label: "Other Emergency" },
 ];
+
+// Backwards-compat alias for "medical" → "health"
+export const EMERGENCY_TYPE_FALLBACK: Record<string, EmergencyType> = {
+  medical: "health",
+  security: "other",
+};
 
 export const SAFETY_STATUS_LABELS: Record<string, string> = {
   submitted: "Submitted",
