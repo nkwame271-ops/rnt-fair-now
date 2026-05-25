@@ -11,10 +11,44 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // --- Require an authenticated caller ---
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { ghanaCardFrontPath, selfiePath } = await req.json();
 
     if (!ghanaCardFrontPath || !selfiePath) {
       throw new Error("Both ghanaCardFrontPath and selfiePath are required");
+    }
+
+    // --- Path ownership: must live under <user.id>/ ---
+    const ownsPath = (p: string) =>
+      typeof p === "string" && p.startsWith(`${user.id}/`);
+    if (!ownsPath(ghanaCardFrontPath) || !ownsPath(selfiePath)) {
+      return new Response(JSON.stringify({ error: "Forbidden: path does not belong to caller" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -25,11 +59,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use service role to generate signed URLs for the private bucket
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: frontSigned, error: frontErr } = await supabase.storage
       .from("identity-documents")
@@ -87,13 +117,11 @@ Respond ONLY with a JSON object: {"match_score": <0-100>, "match_result": "<matc
 
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content || "";
-    
+
     let parsed = { match_score: 0, match_result: "pending", reason: "Unable to parse AI response" };
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      }
+      if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
     } catch {
       console.warn("Failed to parse AI response:", content);
     }
@@ -105,7 +133,7 @@ Respond ONLY with a JSON object: {"match_score": <0-100>, "match_result": "<matc
     });
   } catch (error: any) {
     console.error("Face match error:", error.message);
-    return new Response(JSON.stringify({ match_score: 0, match_result: "pending", error: error.message }), {
+    return new Response(JSON.stringify({ match_score: 0, match_result: "pending", error: "Face match failed" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
