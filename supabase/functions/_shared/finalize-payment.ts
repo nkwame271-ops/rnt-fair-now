@@ -1119,6 +1119,38 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
         }
       }
     }
+  } else if (paymentType === "rentcare_application_fee") {
+    const applicationId = meta?.application_id || meta?.applicationId;
+    if (applicationId) {
+      const { data: app } = await supabaseAdmin
+        .from("rentcare_applications")
+        .select("id, applicant_user_id, status, payment_status")
+        .eq("id", applicationId)
+        .maybeSingle();
+      if (app && app.payment_status !== "paid" && app.payment_status !== "reconciled") {
+        await supabaseAdmin
+          .from("rentcare_applications")
+          .update({
+            payment_status: "paid",
+            status: "paid_and_submitted",
+            submitted_at: new Date().toISOString(),
+          })
+          .eq("id", applicationId);
+        await supabaseAdmin.from("rentcare_audit_log").insert({
+          application_id: applicationId,
+          event_type: "payment_successful",
+          actor_user_id: app.applicant_user_id,
+          actor_role: "student",
+          new_value: { payment_status: "paid", amount: amountPaid, txn: transactionId },
+        });
+        await supabaseAdmin.from("notifications").insert({
+          user_id: app.applicant_user_id,
+          title: "RentCare Application Submitted",
+          body: "Your application fee was received. Please open your application to create and submit your UMB account details.",
+          link: `/nugs/rentcare/${applicationId}`,
+        });
+      }
+    }
   }
 }
 
