@@ -100,15 +100,25 @@ const StudentRevenue = () => {
     }
   };
 
+  const isSuperAdmin = !!profile?.isSuperAdmin;
+  const visibleRecipients = useMemo<readonly ("igf" | "nugs" | "cm" | "platform")[]>(
+    () => (isSuperAdmin ? ["igf", "nugs", "cm", "platform"] : ["igf", "nugs", "cm"]),
+    [isSuperAdmin]
+  );
+
   const stats = useMemo(() => {
     const completed = txns.filter(t => t.status === "completed");
-    const total = completed.reduce((s, t) => s + Number(t.total_amount || 0), 0);
+    const grossTotal = completed.reduce((s, t) => s + Number(t.total_amount || 0), 0);
     const byRecipient: Record<string, number> = { igf: 0, nugs: 0, cm: 0, platform: 0 };
     splits
       .filter(sp => completed.some(t => t.id === sp.escrow_transaction_id))
       .forEach(sp => {
         byRecipient[sp.recipient] = (byRecipient[sp.recipient] || 0) + Number(sp.amount || 0);
       });
+    // Visibility & calculation must match — exclude platform from the total when it's hidden.
+    const total = isSuperAdmin
+      ? grossTotal
+      : Math.max(0, grossTotal - (byRecipient.platform || 0));
     const byType: Record<string, { count: number; total: number }> = {};
     completed.forEach(t => {
       if (!byType[t.payment_type]) byType[t.payment_type] = { count: 0, total: 0 };
@@ -116,7 +126,7 @@ const StudentRevenue = () => {
       byType[t.payment_type].total += Number(t.total_amount || 0);
     });
     return { total, count: completed.length, byRecipient, byType };
-  }, [txns, splits]);
+  }, [txns, splits, isSuperAdmin]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
