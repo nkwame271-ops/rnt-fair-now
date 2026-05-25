@@ -191,9 +191,18 @@ const StudentView = () => {
             </p>
           </div>
           <UpdateResidenceDialog
-            current={tenant ? { school: tenant.school, hostel_or_hall: tenant.hostel_or_hall, room_or_bed_space: tenant.room_or_bed_space } : null}
+            current={tenant ? {
+              school: tenant.school,
+              hostel_or_hall: tenant.hostel_or_hall,
+              room_or_bed_space: tenant.room_or_bed_space,
+              hostel_region: (tenant as any).hostel_region ?? null,
+              hostel_contact_number: (tenant as any).hostel_contact_number ?? null,
+              hostel_landlord_name: (tenant as any).hostel_landlord_name ?? null,
+              ghana_post_gps: (tenant as any).ghana_post_gps ?? null,
+              hostel_location_address: (tenant as any).hostel_location_address ?? null,
+            } : null}
             onUpdated={async () => {
-              const { data } = await supabase.from("tenants").select("tenant_id, school, hostel_or_hall, room_or_bed_space, status").eq("user_id", user!.id).maybeSingle();
+              const { data } = await supabase.from("tenants").select("tenant_id, school, hostel_or_hall, room_or_bed_space, hostel_region, hostel_contact_number, hostel_landlord_name, ghana_post_gps, hostel_location_address, status").eq("user_id", user!.id).maybeSingle();
               setTenant(data);
             }}
           />
