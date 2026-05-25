@@ -47,6 +47,7 @@ const studentNav = [
   { to: "/nugs/marketplace", label: "Hostel Listings", icon: Store, featureKey: "student_marketplace" },
   { to: "/nugs/rent-checker", label: "Rent Checker", icon: Calculator, featureKey: "student_rent_checker" },
   { to: "/nugs/file-complaint", label: "File a Complaint", icon: AlertTriangle },
+  { to: "/nugs/rentcare", label: "RentCare Assistance", icon: HandCoins, featureKey: "rentcare_assistance" },
   { to: "/nugs/my-complaints", label: "My Complaints", icon: Inbox },
   { to: "/nugs/payments", label: "Payments", icon: CreditCard, featureKey: "student_payments" },
   { to: "/nugs/receipts", label: "Receipts", icon: FileText, featureKey: "student_receipts" },
