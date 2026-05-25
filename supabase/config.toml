@@ -59,3 +59,5 @@ project_id = "qjrvwcwmhuxygdanbxsz"
     verify_jwt = false
   [functions.process-email-queue]
     verify_jwt = true
+  [functions.lookup-tenant]
+    verify_jwt = false
