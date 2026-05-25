@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { SAFETY_STATUS_LABELS, SEVERITY_COLORS } from "@/lib/safetyCategories";
 import { toast } from "sonner";
 import { ArrowLeft, Phone, MessageSquare, CheckCircle, AlertTriangle, MapPin } from "lucide-react";
+import SafetyLocationTrail from "@/components/SafetyLocationTrail";
 
 const ESCALATION_TARGETS = ["nugs", "police", "cid", "campus_security", "rent_control_leadership"];
 
