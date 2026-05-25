@@ -107,6 +107,11 @@ const RegulatorRentCards = () => {
                     <ProcurementReport />
                   </TabsContent>
                 )}
+                {isSuper && (
+                  <TabsContent value="sales_channels">
+                    <SalesChannelsManager />
+                  </TabsContent>
+                )}
               </Tabs>
             </TabsContent>
           )}
