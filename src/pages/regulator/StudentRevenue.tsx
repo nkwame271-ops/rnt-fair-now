@@ -200,7 +200,7 @@ const StudentRevenue = () => {
             </p>
             <p className="text-xs text-muted-foreground mt-1">{stats.count} completed transactions</p>
           </div>
-          {(["igf", "nugs", "cm", "platform"] as const).map(rec => (
+          {visibleRecipients.map(rec => (
             <div key={rec} className="bg-card rounded-xl border border-border shadow-card p-5">
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Receipt className="h-4 w-4" /> {RECIPIENT_LABELS[rec]} Share
