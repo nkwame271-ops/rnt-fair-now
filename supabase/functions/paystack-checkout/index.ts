@@ -1205,6 +1205,45 @@ Deno.serve(async (req) => {
         .update({ amount: totalAmount, reference })
         .eq("id", draftId);
 
+    } else if (type === "rentcare_application_fee") {
+      const { applicationId } = body;
+      if (!applicationId) throw new Error("applicationId is required");
+
+      const { data: app, error: appErr } = await supabaseAdmin
+        .from("rentcare_applications")
+        .select("id, applicant_user_id, status, payment_status, payment_reference")
+        .eq("id", applicationId)
+        .maybeSingle();
+      if (appErr || !app) throw new Error("RentCare application not found");
+      if (app.applicant_user_id !== userId) throw new Error("Unauthorized");
+      if (app.payment_status === "paid" || app.payment_status === "reconciled") {
+        throw new Error("This application has already been paid for");
+      }
+
+      const fee = await determineFee(supabaseAdmin, "rentcare_assistance");
+      if (!fee.enabled || fee.amount <= 0) {
+        throw new Error("RentCare application fee is not currently configured.");
+      }
+
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, "rentcare_application_fee", totalAmount, null);
+      description = `RentCare Assistance Application Fee (GH₵ ${totalAmount.toFixed(2)})`;
+      reference = `rentcare_${applicationId}_${Date.now()}`;
+      callbackPath = `/nugs/rentcare?status=success&app=${applicationId}`;
+      caseType = "rentcare";
+      officeId = "accra_central"; // student revenue is office-agnostic
+      metadata = { ...metadata, application_id: applicationId, isRentCare: true };
+
+      await supabaseAdmin
+        .from("rentcare_applications")
+        .update({
+          payment_status: "pending",
+          payment_reference: reference,
+          fee_amount_snapshot: totalAmount,
+          status: "awaiting_application_fee_payment",
+        })
+        .eq("id", applicationId);
+
     } else {
       throw new Error("Invalid payment type");
     }
