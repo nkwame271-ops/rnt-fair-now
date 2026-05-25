@@ -75,16 +75,19 @@ export default function RentCareApply() {
     }
   };
 
-  const T = ({ k, label, type = "text", textarea = false }: any) => (
-    <div className="space-y-1">
-      <Label>{label}</Label>
-      {textarea ? (
-        <Textarea value={form[k] || ""} onChange={(e) => set(k, e.target.value)} />
-      ) : (
-        <Input type={type} value={form[k] || ""} onChange={(e) => set(k, e.target.value)} />
-      )}
-    </div>
-  );
+  const T = ({ k, label, type = "text", textarea = false }: any) => {
+    const id = `rc-${k}`;
+    return (
+      <div className="space-y-1">
+        <Label htmlFor={id}>{label}</Label>
+        {textarea ? (
+          <Textarea id={id} value={form[k] || ""} onChange={(e) => set(k, e.target.value)} />
+        ) : (
+          <Input id={id} type={type} value={form[k] || ""} onChange={(e) => set(k, e.target.value)} />
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="max-w-3xl mx-auto py-6 px-4 space-y-4">
