@@ -153,7 +153,7 @@ const StaffFeatureMutes = () => {
               >
                 <div className="font-medium">{s.full_name || s.email || s.user_id}</div>
                 <div className="text-xs text-muted-foreground capitalize">
-                  {s.admin_type.replaceAll("_", " ")}
+                  {s.admin_type.replace(/_/g, " ")}
                 </div>
               </button>
             ))}
