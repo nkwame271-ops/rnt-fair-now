@@ -1,87 +1,61 @@
-## Goal
+## Student Hostel Data Flow
 
-Introduce a **Sales Channel** layer for rent card sales that is fully hidden from non-Super Admins. Channels are an attribution + split-routing layer on top of the existing office/serial/IGF/receipt pipeline — they do not replace offices.
+Goal: capture a tiny amount of hostel context at signup (region + contact) without slowing registration, then let students fill in the rest later from their dashboard. This unlocks hostel tracking even for hostels not yet registered in the system.
 
-## 1. Database (new migration)
+### 1. Database (migration on `public.tenants`)
 
-**`rent_card_sales_channels`** (Super Admin only via RLS using `is_super_admin`):
-- `code` (unique slug, e.g. `rent_control_office`, `central_procurement`, `nugs_channel`, `field_agent`)
-- `name`, `description`, `is_active`
-- `default_office_id` (nullable — fallback office for receipt/reconciliation linkage)
+Add nullable columns — none break existing rows:
 
-**`rent_card_channel_splits`** (per-channel 3-way config, Super Admin only):
-- `channel_id` FK
-- `recipient` enum-like text: `igf` | `platform` | `admin`
-- `amount_type` (`percent` | `flat`), `amount`, `sort_order`
-- Unique (channel_id, recipient)
+- `hostel_region` text
+- `hostel_contact_number` text (normalized `233XXXXXXXXX`)
+- `hostel_landlord_name` text
+- `ghana_post_gps` text  (e.g. `GA-123-4567`)
+- `hostel_location_lat` numeric
+- `hostel_location_lng` numeric
+- `hostel_location_address` text (formatted address from the map pin)
 
-**Extensions to existing tables:**
-- `rent_card_serial_stock.sales_channel_id` (nullable uuid)
-- `escrow_transactions.sales_channel_id` (nullable uuid) — captured at checkout for rent card payments
-- `rent_cards.sales_channel_id` (nullable uuid) — denormalized for fast channel reporting
+Update the existing `snapshot_student_residence` trigger's `OF` column list so changes to hostel/contact/location also append a snapshot to `student_residence_history` (the table already exists; we'll add matching nullable columns there for parity so history is meaningful).
 
-**RLS:** all new columns/tables readable only when `is_super_admin(auth.uid())`. Existing office RLS unchanged so office admins keep seeing their stock/transactions without channel context.
+### 2. Signup — `src/pages/RegisterTenant.tsx`
 
-## 2. Split routing
+In the student branch (both mobile + desktop blocks where school/hostel inputs already live), add two required fields right after "Hostel / Hall":
 
-Update `supabase/functions/_shared/finalize-payment.ts` (and the rent card branch of `paystack-webhook`) so that when an escrow transaction has `sales_channel_id` set AND `payment_type IN ('rent_card','rent_card_bulk')`:
-- Use `rent_card_channel_splits` for that channel instead of the default `split_configurations` rows.
-- Write the resulting `escrow_splits` rows with the same `recipient` taxonomy already used elsewhere (`igf`, `platform`, `admin`) so existing visibility helpers (`getVisibleRecipients`, `sumVisibleSplits`) automatically hide `platform` for non-Super Admins.
-- IGF allocation, receipt generation (`generate_receipt_number`), and reconciliation rows continue to fire exactly as today.
+- **Hostel Region** — `<Select>` with Ghana's 16 regions (reuse the constant already used elsewhere; fall back to a local list if none).
+- **Hostel contact number (optional)** — phone input normalized via the existing `normalizePhone` helper. Label clearly states "if known"; not required so signup stays fast.
 
-## 3. Engine Room — "Rent Card Sales Channel Splits"
+Persist alongside the existing `school` / `hostel_or_hall` insert at line ~169.
 
-In `src/pages/regulator/EngineRoom.tsx`, add a new card/section gated by `isSuperAdmin`:
-- Lists each channel with editable 3-row split (IGF / Platform / Admin), percent or flat.
-- Validation: percentages must sum to 100 when all rows are percent.
-- Mutations restricted to Super Admin (DB-level RLS + UI gating).
+### 3. Student dashboard — Update Accommodation Details
 
-## 4. Procurement workflow
+Rename `UpdateResidenceDialog.tsx` trigger label to **"Update Accommodation Details"** and expand the form into two grouped sections:
 
-New route group `src/pages/regulator/rent-cards/sales-channels/` (Super Admin only):
-- **`SalesChannels.tsx`** — list / create / edit / deactivate channels.
-- **`ChannelStockAllocation.tsx`** — allocate serial stock to a channel (sets `sales_channel_id` on rows in `rent_card_serial_stock`); supports uploading or generating serial ranges scoped to a channel via the existing serial generation RPC with a `channel_id` parameter.
-- **`ChannelSalesReport.tsx`** — sales + reconciliation grouped by channel, with full split breakdown (IGF / Platform / Admin) — visible only to Super Admin.
+**Accommodation**
+- Hostel / Hall name (existing)
+- Room number (existing `room_or_bed_space`, relabeled "Room number")
+- Hostel contact number
+- Landlord / Hostel manager name (if known)
 
-Add a "Sales Channels" subnav under `RegulatorRentCards.tsx → Procurement` rendered only when `isSuperAdmin`.
+**Location**
+- Hostel region (Select)
+- GhanaPostGPS (text, light validation `^[A-Z]{2}-\d{3}-\d{4}$`)
+- Map pin — reuse the existing Google Maps Places autocomplete component used by property creation (loads `['places','visualization']` per project convention). Stores `address`, `lat`, `lng`.
 
-## 5. Checkout attribution
+Submit writes all fields to `tenants` in one update; the residence-history trigger captures the change. Keep the existing "Reason for change" textarea so history rows remain meaningful.
 
-When a Super Admin (or an internal flow they configure, e.g. NUGS purchases, field agent sales) initiates a rent card purchase, the `paystack-checkout` payload accepts an optional `sales_channel_id`. The edge function:
-- Validates the channel exists and is active.
-- Persists it on the resulting `escrow_transactions` row.
-- Defaults to `null` (i.e. no channel — current behaviour) when omitted, so normal landlord-driven purchases are untouched.
+Mount point already exists in the Student Dashboard (the current `UpdateResidenceDialog` is rendered there) — only the dialog content + trigger label change, so no routing work needed.
 
-## 6. Visibility / reporting rules
+### 4. Visibility / downstream
 
-- All Sales Channel UI surfaces (Engine Room section, Procurement subnav, channel reports, channel columns) are wrapped in `isSuperAdmin` checks already established via `useAdminProfile`.
-- Existing escrow / reconciliation / receipts views remain unchanged for non-Super Admins because:
-  - The `platform` recipient is already hidden by `getVisibleRecipients`.
-  - No channel column is rendered for non-Super Admin layouts.
-  - Office totals continue to be computed from the same `escrow_splits` rows (IGF + admin portions still attribute to the office via `office_id`), so office reconciliation stays clean.
-- Receipts, IGF reporting, and reconciliation status flow identically — only the *split percentages* differ when a channel is attached.
+No regulator/NUGS UI changes in this pass — fields are additive and read-through. A follow-up can surface "hostel not yet registered" lists by grouping tenants on `hostel_or_hall + hostel_region` where no matching `properties` row exists.
 
-## 7. Files
+### Files
 
-**New**
-- `supabase/migrations/<ts>_rent_card_sales_channels.sql`
-- `src/pages/regulator/rent-cards/sales-channels/SalesChannels.tsx`
-- `src/pages/regulator/rent-cards/sales-channels/ChannelStockAllocation.tsx`
-- `src/pages/regulator/rent-cards/sales-channels/ChannelSalesReport.tsx`
-- `src/lib/revenue/channelSplits.ts` (shared helper to load channel split config)
+- New migration: add 7 columns to `tenants` (+ mirror to `student_residence_history`) and update trigger column list.
+- Edit: `src/pages/RegisterTenant.tsx` (student fields + insert payload).
+- Edit: `src/components/student/UpdateResidenceDialog.tsx` (expanded form, region select, GPS, map pin, contact, landlord).
 
-**Edited**
-- `supabase/functions/_shared/finalize-payment.ts` (channel-aware split resolution)
-- `supabase/functions/paystack-checkout/index.ts` (accept + validate `sales_channel_id`)
-- `src/pages/regulator/EngineRoom.tsx` (new Super-Admin-only section)
-- `src/pages/regulator/RegulatorRentCards.tsx` (Procurement subnav entry)
-- `src/App.tsx` (routes)
-- `src/hooks/useAdminProfile.ts` (feature route mapping for new pages)
+### Notes
 
-## 8. Key principle enforcement
-
-- Office workflows: unchanged. Office admins never see `sales_channel_id`, the new tables, or platform allocations.
-- Sales Channels behave as a hidden attribution + split-routing overlay.
-- Visibility and calculation stay aligned: if a user cannot see Platform, the existing `sumVisibleSplits` ensures totals exclude it; the channel report itself is gated entirely behind `isSuperAdmin`.
-
-Confirm to proceed and I'll implement in this order: migration → edge function updates → Engine Room section → Procurement pages → routing.
+- Region + contact at signup are kept minimal (1 select + 1 optional phone) to honour "fast data without making registration difficult".
+- All new fields are nullable so existing students aren't blocked.
+- Phone normalization and map loader follow existing project conventions (Core memory).
