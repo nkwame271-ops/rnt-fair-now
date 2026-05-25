@@ -204,7 +204,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
   // 1. Find escrow
   const { data: escrow } = await supabaseAdmin
     .from("escrow_transactions")
-    .select("id, status, payment_type, user_id, total_amount, related_property_id, related_tenancy_id, related_complaint_id, reference, metadata, office_id, case_id")
+    .select("id, status, payment_type, user_id, total_amount, related_property_id, related_tenancy_id, related_complaint_id, reference, metadata, office_id, case_id, sales_channel_id")
     .eq("reference", reference)
     .maybeSingle();
 
