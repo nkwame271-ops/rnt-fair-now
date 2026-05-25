@@ -23,8 +23,8 @@ const generateAndUploadFinalPdf = async (tenancyId: string, userId: string) => {
 
     const t = tenancy as any;
     const { data: prop } = await supabase.from("properties").select("property_name, address, region").eq("id", t.unit.property_id).single();
-    const { data: tenantProfile } = await supabase.from("profiles_counterparty" as any) as any.select("full_name").eq("user_id", t.tenant_user_id).single();
-    const { data: landlordProfile } = await supabase.from("profiles_counterparty" as any) as any.select("full_name").eq("user_id", t.landlord_user_id).single();
+    const { data: tenantProfile } = await (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", t.tenant_user_id).single();
+    const { data: landlordProfile } = await (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", t.landlord_user_id).single();
     const { data: tenantRec } = await supabase.from("tenants").select("tenant_id").eq("user_id", t.tenant_user_id).single();
 
     // Fetch rent card serials
@@ -89,7 +89,7 @@ const DigitalSignatureDialog = ({ open, onOpenChange, tenancyId, onSigned }: Pro
     if (!user) return;
     setSending(true);
     try {
-      const { data: profile } = await supabase.from("profiles_counterparty" as any) as any.select("phone").eq("user_id", user.id).single();
+      const { data: profile } = await (supabase.from("profiles_counterparty" as any) as any).select("phone").eq("user_id", user.id).single();
       const p = profile?.phone || "";
       setPhone(p);
       const { data, error } = await supabase.functions.invoke("send-otp", { body: { phone: p } });

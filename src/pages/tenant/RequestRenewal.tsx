@@ -73,7 +73,7 @@ const RequestRenewal = () => {
             const { data: prop } = await supabase.from("properties").select("address").eq("id", unit.property_id).single();
             propertyAddress = prop?.address || "";
           }
-          const { data: landlord } = await supabase.from("profiles_counterparty" as any) as any.select("full_name").eq("user_id", t.landlord_user_id).single();
+          const { data: landlord } = await (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", t.landlord_user_id).single();
           results.push({ ...t, propertyAddress, landlordName: landlord?.full_name || "Unknown" });
         }
         setTenancies(results);

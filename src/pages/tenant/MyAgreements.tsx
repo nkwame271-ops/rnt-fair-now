@@ -72,7 +72,7 @@ const MyAgreements = () => {
 
   const fetchData = async () => {
     if (!user) return;
-    const { data: profile } = await supabase.from("profiles_counterparty" as any) as any.select("full_name").eq("user_id", user.id).single();
+    const { data: profile } = await (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", user.id).single();
     setTenantName(profile?.full_name || "");
     const { data: tenantRec } = await supabase.from("tenants").select("tenant_id").eq("user_id", user.id).single();
     setTenantIdCode(tenantRec?.tenant_id || "");
@@ -91,7 +91,7 @@ const MyAgreements = () => {
     const results: TenancyView[] = [];
     for (const t of ts as any[]) {
       const { data: prop } = await supabase.from("properties").select("property_name, address, region").eq("id", t.unit.property_id).single();
-      const { data: landlordProfile } = await supabase.from("profiles_counterparty" as any) as any.select("full_name").eq("user_id", t.landlord_user_id).single();
+      const { data: landlordProfile } = await (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", t.landlord_user_id).single();
       const { data: payments } = await supabase.from("rent_payments").select("status, tenant_marked_paid, landlord_confirmed").eq("tenancy_id", t.id);
       const paidCount = (payments || []).filter((p: any) => isPaidRecord(p)).length;
 

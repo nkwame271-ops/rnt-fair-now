@@ -79,7 +79,7 @@ const Agreements = () => {
       for (const t of ts as any[]) {
         const { data: prop } = await supabase.from("properties").select("property_name").eq("id", t.unit.property_id).single();
         const tenantProfile = t.tenant_user_id
-          ? (await supabase.from("profiles_counterparty" as any) as any.select("full_name").eq("user_id", t.tenant_user_id).single()).data
+          ? (await (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", t.tenant_user_id).single()).data
           : null;
         const { data: payments } = await supabase.from("rent_payments").select("id, month_label, status, tenant_marked_paid, landlord_confirmed, tax_amount").eq("tenancy_id", t.id).order("due_date");
 
