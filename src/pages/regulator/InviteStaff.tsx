@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { UserPlus, Mail, Lock, User, Loader2, CheckCircle2, Shield, Building2, GraduationCap } from "lucide-react";
+import { UserPlus, Mail, Lock, User, Phone, Loader2, CheckCircle2, Shield, Building2, GraduationCap, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import LogoLoader from "@/components/LogoLoader";
 import { GHANA_INSTITUTIONS } from "@/data/ghanaInstitutions";
+
+type ChannelPerms = {
+  view_assigned_stock: boolean;
+  sell_rent_cards: boolean;
+  assign_to_landlords: boolean;
+  view_sales_report: boolean;
+  edit_reconciliation: boolean;
+  create_new_stock: boolean;
+};
+const DEFAULT_CHANNEL_PERMS: ChannelPerms = {
+  view_assigned_stock: true,
+  sell_rent_cards: true,
+  assign_to_landlords: false,
+  view_sales_report: true,
+  edit_reconciliation: false,
+  create_new_stock: false,
+};
+
 
 const InviteStaff = () => {
   const { profile, loading: profileLoading } = useAdminProfile();
