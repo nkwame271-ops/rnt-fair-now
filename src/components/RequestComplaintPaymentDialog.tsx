@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { toast } from "sonner";
 import { CreditCard, AlertTriangle, Plus, Trash2, ListPlus } from "lucide-react";
 import {
@@ -41,6 +42,8 @@ const newUid = () => (crypto?.randomUUID?.() ?? `b_${Date.now()}_${Math.random()
 
 const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, complaintTable, linkedPropertyId, monthlyRent: monthlyRentProp, initialClaimAmount, feeScope = "rent_control", mode = "send_request", defaultPayerName, defaultPayerPhone, defaultPayerRole, onRequested }: Props) => {
   const { user } = useAuth();
+  const { profile } = useAdminProfile();
+  const isSuperAdmin = !!profile?.isSuperAdmin;
   const [types, setTypes] = useState<ComplaintTypeRow[]>([]);
   const [fixedMap, setFixedMap] = useState<Record<string, FixedFeeRow>>({});
   const [bandsMap, setBandsMap] = useState<Record<string, BandRow[]>>({});
@@ -444,7 +447,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        IGF {it.igf_pct}% · Admin {it.admin_pct}% · Platform {it.platform_pct}%
+                        IGF {it.igf_pct}% · Admin {it.admin_pct}%{isSuperAdmin ? ` · Platform ${it.platform_pct}%` : ""}
                         {it.reason && <span className="ml-2 italic">— {it.reason}</span>}
                       </div>
                     </div>
@@ -615,7 +618,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Aggregated splits</span>
-              <span>IGF GH₵ {totals.igf.toFixed(2)} · Admin GH₵ {totals.admin.toFixed(2)} · Platform GH₵ {totals.platform.toFixed(2)}</span>
+              <span>IGF GH₵ {totals.igf.toFixed(2)} · Admin GH₵ {totals.admin.toFixed(2)}{isSuperAdmin ? ` · Platform GH₵ ${totals.platform.toFixed(2)}` : ""}</span>
             </div>
           </div>
         </div>

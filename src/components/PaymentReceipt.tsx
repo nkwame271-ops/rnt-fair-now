@@ -56,6 +56,12 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
     () => (isSuperAdmin ? splits : (splits || []).filter((s) => s.recipient !== "platform")),
     [splits, isSuperAdmin]
   );
+  // Visibility & calculation must match: if Platform is hidden, exclude it from the total too.
+  const visibleTotal = useMemo(() => {
+    if (isSuperAdmin) return totalAmount;
+    if (!splits || splits.length === 0) return totalAmount;
+    return visibleSplits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+  }, [isSuperAdmin, splits, visibleSplits, totalAmount]);
 
   useEffect(() => {
     if (paymentType !== "complaint_fee" || !complaintId || !complaintTable) { setBasket(null); return; }
@@ -104,12 +110,12 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
         `).join("")}
         <div style="padding:12px 16px;display:flex;justify-content:space-between;border-top:2px solid #2563eb;background:#eff6ff;">
           <span style="font-weight:700;color:#111827;">Total</span>
-          <span style="font-weight:700;color:#2563eb;font-size:15px;">${formatGHSDecimal(totalAmount)}</span>
+          <span style="font-weight:700;color:#2563eb;font-size:15px;">${formatGHSDecimal(visibleTotal)}</span>
         </div>
       </div>` : `
       <div style="padding:12px 16px;display:flex;justify-content:space-between;border:1px solid #e5e7eb;border-radius:8px;background:#eff6ff;margin-top:16px;">
         <span style="font-weight:700;color:#111827;">Total Paid</span>
-        <span style="font-weight:700;color:#2563eb;font-size:15px;">${formatGHSDecimal(totalAmount)}</span>
+        <span style="font-weight:700;color:#2563eb;font-size:15px;">${formatGHSDecimal(visibleTotal)}</span>
       </div>`;
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt ${receiptNumber}</title>
@@ -273,7 +279,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
     pdf.setTextColor(17, 24, 39);
     pdf.text((showSplits && visibleSplits.length > 0) ? "Total" : "Total Paid", margin + 8, y + 18);
     pdf.setTextColor(37, 99, 235);
-    pdf.text(formatGHSDecimal(totalAmount), pageW - margin - 8, y + 18, { align: "right" });
+    pdf.text(formatGHSDecimal(visibleTotal), pageW - margin - 8, y + 18, { align: "right" });
     y += 44;
 
     pdf.setFont("helvetica", "normal");
@@ -354,13 +360,13 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
           ))}
           <div className="px-4 py-3 flex justify-between text-sm border-t-2 border-primary bg-primary/5">
             <span className="font-bold text-foreground">Total</span>
-            <span className="font-bold text-primary text-base">{formatGHSDecimal(totalAmount)}</span>
+            <span className="font-bold text-primary text-base">{formatGHSDecimal(visibleTotal)}</span>
           </div>
         </div>
       ) : (
         <div className="px-4 py-3 flex justify-between text-sm border border-border rounded-lg bg-primary/5">
           <span className="font-bold text-foreground">Total Paid</span>
-          <span className="font-bold text-primary text-base">{formatGHSDecimal(totalAmount)}</span>
+          <span className="font-bold text-primary text-base">{formatGHSDecimal(visibleTotal)}</span>
         </div>
       )}
 
