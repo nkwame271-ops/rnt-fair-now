@@ -29,6 +29,8 @@ interface RegisterBody {
   school?: string | null;
   hostel_or_hall?: string | null;
   room_or_bed_space?: string | null;
+  hostel_region?: string | null;
+  hostel_contact_number?: string | null;
 
   // controls whether to pre-mark fee paid (legacy regFeeEnabled = false branch)
   reg_fee_enabled?: boolean;
@@ -178,6 +180,8 @@ Deno.serve(async (req) => {
       school: body.is_student ? (body.school || null) : null,
       hostel_or_hall: body.is_student ? (body.hostel_or_hall || null) : null,
       room_or_bed_space: body.is_student ? (body.room_or_bed_space || null) : null,
+      hostel_region: body.is_student ? (body.hostel_region || null) : null,
+      hostel_contact_number: body.is_student ? (body.hostel_contact_number || null) : null,
     };
     if (!regFeeEnabled) {
       tenantInsert.registration_date = now.toISOString();

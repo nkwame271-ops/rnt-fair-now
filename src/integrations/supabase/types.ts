@@ -6283,7 +6283,14 @@ export type Database = {
           created_at: string
           effective_from: string
           effective_to: string | null
+          ghana_post_gps: string | null
+          hostel_contact_number: string | null
+          hostel_landlord_name: string | null
+          hostel_location_address: string | null
+          hostel_location_lat: number | null
+          hostel_location_lng: number | null
           hostel_or_hall: string | null
+          hostel_region: string | null
           id: string
           room_or_bed_space: string | null
           school: string | null
@@ -6295,7 +6302,14 @@ export type Database = {
           created_at?: string
           effective_from?: string
           effective_to?: string | null
+          ghana_post_gps?: string | null
+          hostel_contact_number?: string | null
+          hostel_landlord_name?: string | null
+          hostel_location_address?: string | null
+          hostel_location_lat?: number | null
+          hostel_location_lng?: number | null
           hostel_or_hall?: string | null
+          hostel_region?: string | null
           id?: string
           room_or_bed_space?: string | null
           school?: string | null
@@ -6307,7 +6321,14 @@ export type Database = {
           created_at?: string
           effective_from?: string
           effective_to?: string | null
+          ghana_post_gps?: string | null
+          hostel_contact_number?: string | null
+          hostel_landlord_name?: string | null
+          hostel_location_address?: string | null
+          hostel_location_lat?: number | null
+          hostel_location_lng?: number | null
           hostel_or_hall?: string | null
+          hostel_region?: string | null
           id?: string
           room_or_bed_space?: string | null
           school?: string | null
@@ -6745,7 +6766,14 @@ export type Database = {
           account_status: string
           created_at: string
           expiry_date: string | null
+          ghana_post_gps: string | null
+          hostel_contact_number: string | null
+          hostel_landlord_name: string | null
+          hostel_location_address: string | null
+          hostel_location_lat: number | null
+          hostel_location_lng: number | null
           hostel_or_hall: string | null
+          hostel_region: string | null
           id: string
           is_student: boolean
           registration_date: string | null
@@ -6761,7 +6789,14 @@ export type Database = {
           account_status?: string
           created_at?: string
           expiry_date?: string | null
+          ghana_post_gps?: string | null
+          hostel_contact_number?: string | null
+          hostel_landlord_name?: string | null
+          hostel_location_address?: string | null
+          hostel_location_lat?: number | null
+          hostel_location_lng?: number | null
           hostel_or_hall?: string | null
+          hostel_region?: string | null
           id?: string
           is_student?: boolean
           registration_date?: string | null
@@ -6777,7 +6812,14 @@ export type Database = {
           account_status?: string
           created_at?: string
           expiry_date?: string | null
+          ghana_post_gps?: string | null
+          hostel_contact_number?: string | null
+          hostel_landlord_name?: string | null
+          hostel_location_address?: string | null
+          hostel_location_lat?: number | null
+          hostel_location_lng?: number | null
           hostel_or_hall?: string | null
+          hostel_region?: string | null
           id?: string
           is_student?: boolean
           registration_date?: string | null

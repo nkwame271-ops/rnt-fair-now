@@ -47,6 +47,8 @@ const RegisterTenant = () => {
   const [school, setSchool] = useState("");
   const [hostelOrHall, setHostelOrHall] = useState("");
   const [roomOrBedSpace, setRoomOrBedSpace] = useState("");
+  const [hostelRegion, setHostelRegion] = useState("");
+  const [hostelContact, setHostelContact] = useState("");
   const [payingRegistration, setPayingRegistration] = useState(false);
 
   // Citizenship
@@ -170,6 +172,8 @@ const RegisterTenant = () => {
           school: isStudent ? normalizeInstitutionName(school) : null,
           hostel_or_hall: isStudent ? hostelOrHall.trim() : null,
           room_or_bed_space: isStudent ? roomOrBedSpace.trim() : null,
+          hostel_region: isStudent ? (hostelRegion || null) : null,
+          hostel_contact_number: isStudent ? (hostelContact.replace(/\D/g, "") || null) : null,
           reg_fee_enabled: regFeeEnabled,
         },
       });
@@ -341,6 +345,17 @@ const RegisterTenant = () => {
                           <FormField label="Room or Bed Space" optional>
                             <Input value={roomOrBedSpace} onChange={(e) => setRoomOrBedSpace(e.target.value)} placeholder="e.g. Room 12B" />
                           </FormField>
+                          <FormField label="Hostel Region" valid={hostelRegion.length > 0} hint="Which region is the hostel in?">
+                            <Select value={hostelRegion} onValueChange={setHostelRegion}>
+                              <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
+                              <SelectContent>
+                                {regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </FormField>
+                          <FormField label="Hostel Contact Number" optional hint="If known — front-desk or manager line.">
+                            <Input type="tel" value={hostelContact} onChange={(e) => setHostelContact(e.target.value)} placeholder="0XX XXX XXXX" />
+                          </FormField>
                         </div>
                       </div>
                     ) : (
@@ -362,6 +377,17 @@ const RegisterTenant = () => {
                             </FormField>
                             <FormField label="Room or Bed Space" optional>
                               <Input value={roomOrBedSpace} onChange={(e) => setRoomOrBedSpace(e.target.value)} placeholder="e.g. Room 12B" />
+                            </FormField>
+                            <FormField label="Hostel Region" valid={hostelRegion.length > 0} hint="Which region is the hostel in?">
+                              <Select value={hostelRegion} onValueChange={setHostelRegion}>
+                                <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
+                                <SelectContent>
+                                  {regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </FormField>
+                            <FormField label="Hostel Contact Number" optional hint="If known — front-desk or manager line.">
+                              <Input type="tel" value={hostelContact} onChange={(e) => setHostelContact(e.target.value)} placeholder="0XX XXX XXXX" />
                             </FormField>
                           </div>
                         )}
