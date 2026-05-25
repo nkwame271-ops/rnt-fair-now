@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
 
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email, password, email_confirm: true,
-      user_metadata: { full_name: fullName, phone: "", role: userRole },
+      user_metadata: { full_name: fullName, phone: phone || "", role: userRole },
     });
     if (createError || !newUser?.user) {
       return json({ error: createError?.message || "Failed to create user" });
