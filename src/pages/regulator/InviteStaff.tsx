@@ -99,6 +99,7 @@ const InviteStaff = () => {
       const { data, error } = await supabase.functions.invoke("invite-staff", {
         body: {
           email,
+          phone,
           fullName,
           password,
           adminType,
@@ -106,6 +107,8 @@ const InviteStaff = () => {
           officeName: adminType === "sub_admin" ? office?.name : null,
           assignedSchool: adminType === "nugs_admin" ? assignedSchool : null,
           allowedFeatures: selectedFeatures,
+          salesChannelId: adminType !== "nugs_admin" && salesChannelId ? salesChannelId : null,
+          channelPermissions: adminType !== "nugs_admin" && salesChannelId ? channelPerms : null,
           nugsPermissions: adminType === "nugs_admin"
             ? { complaints: nugsPermComplaints, rent_card: nugsPermRentCard }
             : null,
@@ -119,12 +122,15 @@ const InviteStaff = () => {
       toast.success(data?.message || `Staff account created for ${email}`);
       setCreated(email);
       setEmail("");
+      setPhone("");
       setFullName("");
       setPassword("");
       setSelectedRegion("");
       setOfficeId("");
       setAssignedSchool("");
       setSelectedFeatures([]);
+      setSalesChannelId("");
+      setChannelPerms(DEFAULT_CHANNEL_PERMS);
     } catch (err: any) {
       toast.error(err.message || "Failed to create staff account");
     } finally {
