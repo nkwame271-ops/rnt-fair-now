@@ -50,7 +50,7 @@ const RentalApplications = () => {
       supabase.from("properties").select("id, property_name").in("id", propIds),
     ]);
 
-    const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+    const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p as any]));
     const unitMap = new Map((units || []).map(u => [u.id, u]));
     const propMap = new Map((props || []).map(p => [p.id, p]));
 
