@@ -362,6 +362,10 @@ export default function SalesChannelsManager() {
           })}
         </TabsContent>
 
+        <TabsContent value="stock">
+          <ChannelStockAllocator channels={channels} onChanged={loadAll} />
+        </TabsContent>
+
         <TabsContent value="report">
           <Card>
             <CardHeader>
