@@ -1,107 +1,87 @@
-# Platform-Hidden Revenue + Processor Reconciliation
+## Goal
 
-Goal: For every non-Super-Admin view of escrow, receipts, tickets, and reconciliation, the `platform` recipient must be **invisible AND excluded from every total, breakdown, export, and chart**. Add a new generalised Processor/Bank Reconciliation report that follows the same rule.
+Introduce a **Sales Channel** layer for rent card sales that is fully hidden from non-Super Admins. Channels are an attribution + split-routing layer on top of the existing office/serial/IGF/receipt pipeline — they do not replace offices.
 
-## Guiding principle (single source of truth)
+## 1. Database (new migration)
 
-Introduce one helper that decides, per-viewer, which recipients are "visible". All revenue/total/export code must filter splits through it before summing.
+**`rent_card_sales_channels`** (Super Admin only via RLS using `is_super_admin`):
+- `code` (unique slug, e.g. `rent_control_office`, `central_procurement`, `nugs_channel`, `field_agent`)
+- `name`, `description`, `is_active`
+- `default_office_id` (nullable — fallback office for receipt/reconciliation linkage)
 
-```ts
-// src/lib/revenue/visibleRecipients.ts
-export const ALL_RECIPIENTS = ["rent_control","rent_control_hq","admin","admin_hq","platform","gra","landlord"] as const;
-export const SUPER_ADMIN_ONLY = new Set(["platform"]);
+**`rent_card_channel_splits`** (per-channel 3-way config, Super Admin only):
+- `channel_id` FK
+- `recipient` enum-like text: `igf` | `platform` | `admin`
+- `amount_type` (`percent` | `flat`), `amount`, `sort_order`
+- Unique (channel_id, recipient)
 
-export function getVisibleRecipients(opts: {
-  isSuperAdmin: boolean;
-  isVisible: (mod: string, sec: string) => boolean; // useModuleVisibility
-}) { /* returns Set<string> of recipients the viewer is allowed to count */ }
+**Extensions to existing tables:**
+- `rent_card_serial_stock.sales_channel_id` (nullable uuid)
+- `escrow_transactions.sales_channel_id` (nullable uuid) — captured at checkout for rent card payments
+- `rent_cards.sales_channel_id` (nullable uuid) — denormalized for fast channel reporting
 
-export function sumVisibleSplits(splits: {recipient:string; amount:number}[], visible: Set<string>) { /* number */ }
-```
+**RLS:** all new columns/tables readable only when `is_super_admin(auth.uid())`. Existing office RLS unchanged so office admins keep seeing their stock/transactions without channel context.
 
-Muted-revenue rule: if Super Admin mutes an allocation card (via `module_visibility_rules`), the same key is removed from `visible`, so totals shrink to match the visible cards.
+## 2. Split routing
 
-## Part A — Hide Platform everywhere (non-Super)
+Update `supabase/functions/_shared/finalize-payment.ts` (and the rent card branch of `paystack-webhook`) so that when an escrow transaction has `sales_channel_id` set AND `payment_type IN ('rent_card','rent_card_bulk')`:
+- Use `rent_card_channel_splits` for that channel instead of the default `split_configurations` rows.
+- Write the resulting `escrow_splits` rows with the same `recipient` taxonomy already used elsewhere (`igf`, `platform`, `admin`) so existing visibility helpers (`getVisibleRecipients`, `sumVisibleSplits`) automatically hide `platform` for non-Super Admins.
+- IGF allocation, receipt generation (`generate_receipt_number`), and reconciliation rows continue to fire exactly as today.
 
-1. **EscrowDashboard** (`src/pages/regulator/EscrowDashboard.tsx`)
-   - Replace `SUB_ADMIN_VISIBLE_RECIPIENTS` with `getVisibleRecipients(...)`.
-   - Rebuild `revenueByType` totals by summing each tx's splits restricted to the visible set — currently it uses `total_amount` which includes the platform cut. Sub-admin total = Σ(visible splits).
-   - "Total Revenue" card binds to that recomputed total → matches Allocation Summary exactly.
-   - Office Revenue breakdown table: hide the `Platform` column for non-Super and subtract `platform` from row `total`.
-   - CSV + PDF exports: drop the Platform column / row when not Super; recompute `Total Revenue` row from visible recipients only.
+## 3. Engine Room — "Rent Card Sales Channel Splits"
 
-2. **OfficeReconciliationReport** (`src/components/OfficeReconciliationReport.tsx`)
-   - Gate Platform row in the summary card, Platform column in the per-office table, and Platform entries in the CSV export behind `isSuperAdmin`.
-   - Reduce `total` shown to sub-admins to exclude `platform`.
+In `src/pages/regulator/EngineRoom.tsx`, add a new card/section gated by `isSuperAdmin`:
+- Lists each channel with editable 3-row split (IGF / Platform / Admin), percent or flat.
+- Validation: percentages must sum to 100 when all rows are percent.
+- Mutations restricted to Super Admin (DB-level RLS + UI gating).
 
-3. **RegulatorReceipts** (`src/pages/regulator/RegulatorReceipts.tsx`) + **PaymentReceipt**
-   - `PaymentReceipt` already strips platform splits for non-Super — keep.
-   - Receipts table's row-level "split breakdown" tooltip and any CSV/PDF export must also filter the platform line and exclude its amount from per-receipt totals shown to sub-admins.
+## 4. Procurement workflow
 
-4. **StudentRevenue** (`src/pages/regulator/StudentRevenue.tsx`)
-   - Same treatment: hide the `platform` card and exclude it from the visible total for non-Super.
+New route group `src/pages/regulator/rent-cards/sales-channels/` (Super Admin only):
+- **`SalesChannels.tsx`** — list / create / edit / deactivate channels.
+- **`ChannelStockAllocation.tsx`** — allocate serial stock to a channel (sets `sales_channel_id` on rows in `rent_card_serial_stock`); supports uploading or generating serial ranges scoped to a channel via the existing serial generation RPC with a `channel_id` parameter.
+- **`ChannelSalesReport.tsx`** — sales + reconciliation grouped by channel, with full split breakdown (IGF / Platform / Admin) — visible only to Super Admin.
 
-5. **Tickets** — `RegulatorComplaints` / `ComplaintCaseFile` / `RequestComplaintPaymentDialog`: any "where did the fee go" allocation summary must filter to visible recipients.
+Add a "Sales Channels" subnav under `RegulatorRentCards.tsx → Procurement` rendered only when `isSuperAdmin`.
 
-6. **EscrowDashboard "Revenue by Destination"** chart/section already iterates `allocationCards`; ensure platform card is filtered out for non-Super (it currently is via `SUB_ADMIN_VISIBLE_RECIPIENTS`, but also tie it to the muted-rule helper so a Super Admin mute on `allocation_platform` for everyone else propagates).
+## 5. Checkout attribution
 
-## Part B — Processor / Bank Reconciliation Layer
+When a Super Admin (or an internal flow they configure, e.g. NUGS purchases, field agent sales) initiates a rent card purchase, the `paystack-checkout` payload accepts an optional `sales_channel_id`. The edge function:
+- Validates the channel exists and is active.
+- Persists it on the resulting `escrow_transactions` row.
+- Defaults to `null` (i.e. no channel — current behaviour) when omitted, so normal landlord-driven purchases are untouched.
 
-New screen + abstraction.
+## 6. Visibility / reporting rules
 
-### Abstraction
-```
-src/lib/processors/
-  types.ts                // ProcessorAdapter interface
-  paystack.ts             // implements ProcessorAdapter via existing paystack edge fns
-  registry.ts             // { paystack: PaystackAdapter, /* future */ }
-```
+- All Sales Channel UI surfaces (Engine Room section, Procurement subnav, channel reports, channel columns) are wrapped in `isSuperAdmin` checks already established via `useAdminProfile`.
+- Existing escrow / reconciliation / receipts views remain unchanged for non-Super Admins because:
+  - The `platform` recipient is already hidden by `getVisibleRecipients`.
+  - No channel column is rendered for non-Super Admin layouts.
+  - Office totals continue to be computed from the same `escrow_splits` rows (IGF + admin portions still attribute to the office via `office_id`), so office reconciliation stays clean.
+- Receipts, IGF reporting, and reconciliation status flow identically — only the *split percentages* differ when a channel is attached.
 
-`ProcessorAdapter` shape:
-```ts
-interface ProcessorAdapter {
-  id: string;                 // "paystack"
-  label: string;              // "Paystack"
-  getBalance(): Promise<{ available: number; pending: number; currency: string }>;
-  listSettlements(range): Promise<Array<{ id, amount, settled_at, status, payout_account? }>>;
-  listCollections(range): Promise<Array<{ reference, amount, fees, paid_at, status }>>;
-  getNextPayoutEta?(): Promise<{ expected_at: string; amount: number } | null>;
-}
-```
+## 7. Files
 
-New edge function `processor-reconciliation` (single endpoint, `?processor=paystack`) that calls the appropriate adapter server-side using existing Paystack secret, and joins against `escrow_transactions`/`escrow_splits` to compute partitions.
+**New**
+- `supabase/migrations/<ts>_rent_card_sales_channels.sql`
+- `src/pages/regulator/rent-cards/sales-channels/SalesChannels.tsx`
+- `src/pages/regulator/rent-cards/sales-channels/ChannelStockAllocation.tsx`
+- `src/pages/regulator/rent-cards/sales-channels/ChannelSalesReport.tsx`
+- `src/lib/revenue/channelSplits.ts` (shared helper to load channel split config)
 
-### UI: `src/pages/regulator/ProcessorReconciliation.tsx`
-Sidebar entry under Receipts; route `/regulator/processor-reconciliation`; gated by `processor_reconciliation` feature key (default off; auto-on for Super Admin).
+**Edited**
+- `supabase/functions/_shared/finalize-payment.ts` (channel-aware split resolution)
+- `supabase/functions/paystack-checkout/index.ts` (accept + validate `sales_channel_id`)
+- `src/pages/regulator/EngineRoom.tsx` (new Super-Admin-only section)
+- `src/pages/regulator/RegulatorRentCards.tsx` (Procurement subnav entry)
+- `src/App.tsx` (routes)
+- `src/hooks/useAdminProfile.ts` (feature route mapping for new pages)
 
-Cards (computed server-side, filtered client-side by visible recipients):
-- Total processor / bank balance
-- Total confirmed collections (period)
-- Due to IGF (Office + HQ)
-- Due to Admin / Office (Office + HQ)
-- **Due to Platform — Super-Admin only**
-- Already settled
-- Next expected payout
-- Balance remaining for settlement (= balance − Σ visible dues that haven't been paid out)
+## 8. Key principle enforcement
 
-For non-Super: the API response strips `platform` partition before the page receives it (server-side enforcement, not just client hiding) and the "balance remaining" is recomputed without the platform leg so it never leaks.
+- Office workflows: unchanged. Office admins never see `sales_channel_id`, the new tables, or platform allocations.
+- Sales Channels behave as a hidden attribution + split-routing overlay.
+- Visibility and calculation stay aligned: if a user cannot see Platform, the existing `sumVisibleSplits` ensures totals exclude it; the channel report itself is gated entirely behind `isSuperAdmin`.
 
-Discrepancy panel: side-by-side `Processor settled vs Platform-recorded splits` per destination; flags any mismatch.
-
-Exports (CSV + PDF) reuse the same filtered partitions — Platform column omitted for sub-admins.
-
-### Wiring
-- Add `ProcessorReconciliation` lazy route + sidebar item in `RegulatorLayout`.
-- Add `processor_reconciliation` to `FEATURE_ROUTE_MAP`.
-- Add `allocation_platform`, `processor_platform_breakdown` to `module_visibility_rules` seed as `super_admin_only` so they're hidden from sub-admins by default.
-
-## Part C — Audit sweep + tests
-
-- Grep `recipient === "platform"` / `byRecipient.platform` / `partitions.platform` and route every read through `getVisibleRecipients`.
-- Manual QA matrix: Super Admin / Main Admin / Sub Admin × {EscrowDashboard, OfficeReconciliationReport, RegulatorReceipts, StudentRevenue, ProcessorReconciliation, CSV export, PDF export} — verify Platform line absent AND totals shrink accordingly.
-
-## Files touched
-
-Create: `src/lib/revenue/visibleRecipients.ts`, `src/lib/processors/{types,paystack,registry}.ts`, `src/pages/regulator/ProcessorReconciliation.tsx`, `supabase/functions/processor-reconciliation/index.ts`, migration seeding `processor_reconciliation` flag + `module_visibility_rules`.
-
-Edit: `EscrowDashboard.tsx`, `OfficeReconciliationReport.tsx`, `RegulatorReceipts.tsx`, `PaymentReceipt.tsx` (totals only — splits already filtered), `StudentRevenue.tsx`, `ComplaintCaseFile.tsx`, `RequestComplaintPaymentDialog.tsx`, `RegulatorLayout.tsx`, `useAdminProfile.ts` (FEATURE_ROUTE_MAP), `App.tsx` (route).
+Confirm to proceed and I'll implement in this order: migration → edge function updates → Engine Room section → Procurement pages → routing.
