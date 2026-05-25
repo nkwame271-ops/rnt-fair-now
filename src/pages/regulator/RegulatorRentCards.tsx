@@ -28,6 +28,7 @@ const RegulatorRentCards = () => {
   const { isVisible } = useModuleVisibility("rent_cards");
 
   const isMain = !profile || profile.isMainAdmin;
+  const isSuper = !!profile?.isSuperAdmin;
 
   const hasRentCards = profile?.allowedFeatures?.includes("rent_cards");
   const hasProcurement = isMain || hasRentCards || profile?.allowedFeatures?.includes("rent_card_procurement");
