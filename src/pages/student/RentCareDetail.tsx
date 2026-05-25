@@ -7,11 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, ExternalLink } from "lucide-react";
+import { Loader2, ExternalLink, Upload, FileText, Send } from "lucide-react";
 import { toast } from "sonner";
 import { RENTCARE_LEGAL_NOTICE, RENTCARE_PROGRAMME_NAME, RENTCARE_STATUS_LABELS } from "@/lib/rentcare/legalNotice";
+import { logRentCareAudit } from "@/lib/rentcare/audit";
+
+const DOC_TYPES = [
+  { key: "ghana_card", label: "Ghana Card" },
+  { key: "student_id", label: "Student ID" },
+  { key: "admission_letter", label: "Admission/Enrolment Letter" },
+  { key: "fee_statement", label: "Fee Statement" },
+];
 
 export default function RentCareDetail() {
   const { id } = useParams();
@@ -23,21 +32,30 @@ export default function RentCareDetail() {
   const allowEdit = flags.find((f) => f.feature_key === "rentcare_allow_umb_edit")?.is_enabled ?? false;
   const [app, setApp] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [docs, setDocs] = useState<any[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [consent, setConsent] = useState(false);
   const [paying, setPaying] = useState(false);
   const [umb, setUmb] = useState<any>({});
   const [savingUmb, setSavingUmb] = useState(false);
+  const [uploadingType, setUploadingType] = useState<string | null>(null);
+  const [reply, setReply] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
   const load = async () => {
     if (!id) return;
     setLoading(true);
-    const [{ data: a }, { data: h }] = await Promise.all([
+    const [{ data: a }, { data: h }, { data: d }, { data: m }] = await Promise.all([
       supabase.from("rentcare_applications").select("*").eq("id", id).maybeSingle(),
       supabase.from("rentcare_status_history").select("*").eq("application_id", id).order("created_at", { ascending: false }),
+      supabase.from("rentcare_documents" as any).select("*").eq("application_id", id).order("created_at", { ascending: false }),
+      supabase.from("rentcare_messages" as any).select("*").eq("application_id", id).order("created_at", { ascending: true }),
     ]);
     setApp(a);
     setHistory(h || []);
+    setDocs((d as any[]) || []);
+    setMessages((m as any[]) || []);
     if (a) setUmb({
       umb_account_name: a.umb_account_name || "",
       umb_account_number: a.umb_account_number || "",
@@ -54,10 +72,7 @@ export default function RentCareDetail() {
     if (!consent) { toast.error("Please accept the legal notice first."); return; }
     setPaying(true);
     try {
-      await supabase.from("rentcare_audit_log").insert({
-        application_id: id, event_type: "legal_notice_accepted",
-        actor_user_id: user?.id, actor_role: "student",
-      });
+      await logRentCareAudit({ application_id: id, event_type: "payment_initiated" });
       const { data, error } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "rentcare_application_fee", applicationId: id },
       });
@@ -80,21 +95,12 @@ export default function RentCareDetail() {
     try {
       const { error } = await supabase
         .from("rentcare_applications")
-        .update({
-          ...umb,
-          umb_submitted_at: new Date().toISOString(),
-          status: "umb_account_submitted",
-        })
+        .update({ ...umb, umb_submitted_at: new Date().toISOString(), status: "umb_account_submitted" })
         .eq("id", id!);
       if (error) throw error;
-      // Mirror to profile
-      await supabase.from("profiles").update({
-        ...umb,
-        umb_submitted_at: new Date().toISOString(),
-      }).eq("user_id", user!.id);
-      await supabase.from("rentcare_audit_log").insert({
-        application_id: id, event_type: "umb_account_submitted",
-        actor_user_id: user?.id, actor_role: "student",
+      await supabase.from("profiles").update({ ...umb, umb_submitted_at: new Date().toISOString() }).eq("user_id", user!.id);
+      await logRentCareAudit({
+        application_id: id, event_type: "umb_account_saved",
         new_value: { umb_account_number: umb.umb_account_number },
       });
       toast.success("UMB account details submitted.");
@@ -106,11 +112,59 @@ export default function RentCareDetail() {
     }
   };
 
+  const uploadDoc = async (docType: string, file: File) => {
+    if (!user || !id) return;
+    setUploadingType(docType);
+    try {
+      const ext = file.name.split(".").pop() || "bin";
+      const path = `${user.id}/${id}/${docType}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("rentcare-docs").upload(path, file, { upsert: false });
+      if (upErr) throw upErr;
+      const { error: insErr } = await supabase.from("rentcare_documents" as any).insert({
+        application_id: id, uploader_user_id: user.id, doc_type: docType,
+        file_path: path, file_name: file.name, mime_type: file.type, size_bytes: file.size,
+      });
+      if (insErr) throw insErr;
+      await logRentCareAudit({ application_id: id, event_type: "document_uploaded", new_value: { doc_type: docType, file_name: file.name } });
+      toast.success(`${docType.replace("_", " ")} uploaded`);
+      load();
+    } catch (e: any) {
+      toast.error(e.message || "Upload failed");
+    } finally {
+      setUploadingType(null);
+    }
+  };
+
+  const downloadDoc = async (filePath: string, fileName: string) => {
+    const { data, error } = await supabase.storage.from("rentcare-docs").createSignedUrl(filePath, 60);
+    if (error || !data?.signedUrl) { toast.error("Cannot generate download link"); return; }
+    const a = document.createElement("a"); a.href = data.signedUrl; a.download = fileName; a.target = "_blank"; a.click();
+  };
+
+  const sendReply = async () => {
+    if (!reply.trim() || !id || !user) return;
+    setSendingReply(true);
+    try {
+      const { error } = await supabase.from("rentcare_messages" as any).insert({
+        application_id: id, sender_user_id: user.id, sender_role: "student",
+        subject: "Student reply", body: reply.trim(),
+      });
+      if (error) throw error;
+      await logRentCareAudit({ application_id: id, event_type: "student_message_sent" });
+      setReply("");
+      load();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send");
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!app) return <div className="py-20 text-center">Application not found.</div>;
 
-  const isUnpaid = app.payment_status === "unpaid" || app.payment_status === "pending" || app.payment_status === "failed";
-  const isPaid = app.payment_status === "paid" || app.payment_status === "reconciled";
+  const isUnpaid = ["unpaid", "pending", "failed"].includes(app.payment_status);
+  const isPaid = ["paid", "reconciled"].includes(app.payment_status);
   const needsUmb = isPaid && !app.umb_submitted_at;
   const canEditUmb = needsUmb || allowEdit;
 
@@ -138,11 +192,42 @@ export default function RentCareDetail() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader><CardTitle>Supporting Documents</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          {DOC_TYPES.map((dt) => {
+            const uploaded = docs.filter((d) => d.doc_type === dt.key);
+            return (
+              <div key={dt.key} className="flex flex-wrap items-center justify-between gap-2 border rounded p-2">
+                <div className="text-sm">
+                  <div className="font-medium">{dt.label}</div>
+                  {uploaded.length === 0 && <div className="text-xs text-muted-foreground">Not uploaded</div>}
+                  {uploaded.map((u) => (
+                    <button key={u.id} onClick={() => downloadDoc(u.file_path, u.file_name)} className="text-xs text-primary underline flex items-center gap-1">
+                      <FileText className="h-3 w-3" />{u.file_name}
+                    </button>
+                  ))}
+                </div>
+                <label className="cursor-pointer">
+                  <input type="file" className="hidden" accept="image/*,application/pdf" onChange={(e) => e.target.files?.[0] && uploadDoc(dt.key, e.target.files[0])} />
+                  <Button size="sm" variant="outline" asChild disabled={uploadingType === dt.key}>
+                    <span>
+                      {uploadingType === dt.key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}
+                      Upload
+                    </span>
+                  </Button>
+                </label>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
       {isUnpaid && (
         <Card>
           <CardHeader><CardTitle>Legal Notice & Application Fee</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="bg-muted/50 border rounded p-3 text-xs leading-relaxed">{RENTCARE_LEGAL_NOTICE}</div>
+            <div className="bg-muted/50 border rounded p-3 text-xs leading-relaxed whitespace-pre-line">{RENTCARE_LEGAL_NOTICE}</div>
             <label className="flex gap-2 items-start text-sm">
               <Checkbox checked={consent} onCheckedChange={(v) => setConsent(!!v)} />
               <span>I have read and accept the legal notice above.</span>
@@ -184,6 +269,29 @@ export default function RentCareDetail() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader><CardTitle>Messages</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          {messages.length === 0 && <div className="text-sm text-muted-foreground">No messages yet.</div>}
+          {messages.map((m) => (
+            <div key={m.id} className={`text-sm p-2 rounded border ${m.sender_role === "student" ? "bg-muted/30" : "bg-primary/5"}`}>
+              <div className="text-xs text-muted-foreground flex justify-between">
+                <span>{m.sender_role}</span>
+                <span>{new Date(m.created_at).toLocaleString()}</span>
+              </div>
+              {m.subject && <div className="font-medium">{m.subject}</div>}
+              <div className="whitespace-pre-wrap">{m.body}</div>
+            </div>
+          ))}
+          <div className="flex gap-2 pt-2">
+            <Textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Write a message to the administrators…" rows={2} />
+            <Button onClick={sendReply} disabled={!reply.trim() || sendingReply}>
+              {sendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Status Timeline</CardTitle></CardHeader>
