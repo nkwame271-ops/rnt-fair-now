@@ -304,16 +304,35 @@ export default function SalesChannelsManager() {
     loadAll();
   }, []);
 
+  const normalizeCode = (raw: string) => raw.trim().toLowerCase().replace(/\s+/g, "_");
+
   const createChannel = async () => {
     if (!newChannel.code || !newChannel.name) {
       toast.error("Code and name are required");
       return;
     }
+    const code = normalizeCode(newChannel.code);
+    const existing = channels.find(c => c.code === code);
+    if (existing) {
+      if (!existing.is_active) {
+        const ok = window.confirm(
+          `A channel with code "${code}" already exists (“${existing.name}”) but is deactivated. Reactivate it instead?`,
+        );
+        if (ok) {
+          await toggleActive(existing);
+          setNewChannel({ code: "", name: "", description: "", default_office_id: "" });
+        }
+        return;
+      }
+      toast.error(`Code "${code}" is already used by “${existing.name}”. Pick a different code.`);
+      return;
+    }
+
     setCreating(true);
     const { data, error } = await supabase
       .from("rent_card_sales_channels")
       .insert({
-        code: newChannel.code.trim().toLowerCase().replace(/\s+/g, "_"),
+        code,
         name: newChannel.name.trim(),
         description: newChannel.description.trim() || null,
         default_office_id: newChannel.default_office_id || null,
@@ -322,7 +341,10 @@ export default function SalesChannelsManager() {
       .single();
     setCreating(false);
     if (error) {
-      toast.error(error.message);
+      const msg = (error as any).code === "23505" || /rent_card_sales_channels_code_key/i.test(error.message)
+        ? `Code "${code}" is already taken. Try a different code.`
+        : error.message;
+      toast.error(msg);
       return;
     }
     if (data) {
