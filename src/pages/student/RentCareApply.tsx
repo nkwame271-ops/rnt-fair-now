@@ -39,6 +39,26 @@ const schema = z.object({
   previous_support_history: z.string().max(1000).optional(),
 });
 
+interface FieldProps {
+  id: string;
+  label: string;
+  type?: string;
+  textarea?: boolean;
+  value: string;
+  onChange: (v: string) => void;
+}
+
+const Field = ({ id, label, type = "text", textarea = false, value, onChange }: FieldProps) => (
+  <div className="space-y-1">
+    <Label htmlFor={id}>{label}</Label>
+    {textarea ? (
+      <Textarea id={id} value={value} onChange={(e) => onChange(e.target.value)} />
+    ) : (
+      <Input id={id} type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+    )}
+  </div>
+);
+
 export default function RentCareApply() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -76,14 +96,14 @@ export default function RentCareApply() {
   };
 
   const T = ({ k, label, type = "text", textarea = false }: any) => (
-    <div className="space-y-1">
-      <Label>{label}</Label>
-      {textarea ? (
-        <Textarea value={form[k] || ""} onChange={(e) => set(k, e.target.value)} />
-      ) : (
-        <Input type={type} value={form[k] || ""} onChange={(e) => set(k, e.target.value)} />
-      )}
-    </div>
+    <Field
+      id={`rc-${k}`}
+      label={label}
+      type={type}
+      textarea={textarea}
+      value={form[k] || ""}
+      onChange={(v: string) => set(k, v)}
+    />
   );
 
   return (
