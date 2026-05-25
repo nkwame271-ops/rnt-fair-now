@@ -32,6 +32,7 @@ import { LedgerSyncBadge } from "@/components/regulator/LedgerSyncBadge";
 import { formatGHSDecimal } from "@/lib/formatters";
 import UserProofReviewTab from "@/components/regulator/UserProofReviewTab";
 import ReceiptDriftTile from "@/components/regulator/ReceiptDriftTile";
+import SystemHealthTile from "@/components/regulator/SystemHealthTile";
 import TransactionExplorer from "@/components/regulator/TransactionExplorer";
 
 /**
@@ -237,6 +238,8 @@ const PaymentReconciliationCentre = () => {
           </Button>
         </div>
       </div>
+
+      <SystemHealthTile />
 
       <ReceiptDriftTile />
 
