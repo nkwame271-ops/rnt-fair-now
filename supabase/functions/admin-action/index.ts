@@ -40,6 +40,14 @@ Deno.serve(async (req) => {
         });
       }
 
+      // SECURITY: caller may only claim pending tenancies for their own account
+      if (newUserId !== user.id) {
+        return new Response(JSON.stringify({ error: "Cannot claim tenancies for a different user" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Find pending tenant records matching this phone
       const { data: pendingRows, error: pendErr } = await adminClient
         .from("pending_tenants")

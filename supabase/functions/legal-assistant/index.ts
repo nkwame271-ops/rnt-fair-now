@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,13 +26,39 @@ serve(async (req) => {
   }
 
   try {
+    // Require an authenticated caller to prevent unauthenticated AI credit abuse
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ reply: "Please sign in to use the legal assistant." }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user } } = await userClient.auth.getUser();
+    if (!user) {
+      return new Response(JSON.stringify({ reply: "Please sign in to use the legal assistant." }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { question, history } = await req.json();
-    
+
+    if (typeof question !== "string" || question.length === 0 || question.length > 2000) {
+      return new Response(JSON.stringify({ reply: "Please provide a question between 1 and 2000 characters." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const safeHistory = Array.isArray(history) ? history.slice(-20) : [];
+
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...(history || []).map((m: any) => ({
+      ...safeHistory.map((m: any) => ({
         role: m.role === "bot" ? "assistant" : "user",
-        content: m.text,
+        content: String(m.text ?? "").slice(0, 2000),
       })),
       { role: "user", content: question },
     ];

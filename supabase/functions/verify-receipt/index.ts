@@ -19,14 +19,26 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Determine whether the caller is the receipt owner (auth optional for public QR verification)
+    let callerUserId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader) {
+      const userClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: { user } } = await userClient.auth.getUser();
+      callerUserId = user?.id ?? null;
+    }
+
     let query = supabase
       .from("payment_receipts")
-      .select("receipt_number, payer_name, total_amount, payment_type, status, created_at, description");
+      .select("receipt_number, payer_name, user_id, total_amount, payment_type, status, created_at, description");
 
     if (receiptNumber) {
       query = query.eq("receipt_number", receiptNumber);
     } else {
-      // Look up by escrow reference
       const { data: escrow } = await supabase
         .from("escrow_transactions")
         .select("id")
@@ -50,15 +62,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({
+    const isOwner = !!callerUserId && (receipt as any).user_id === callerUserId;
+
+    // Public/unauthenticated callers (e.g. QR scan) get the minimum needed to verify the receipt;
+    // the owner sees full payer details.
+    const body: Record<string, unknown> = {
       receipt_number: receipt.receipt_number,
-      payer_name: receipt.payer_name,
       total_amount: receipt.total_amount,
       payment_type: receipt.payment_type,
       status: receipt.status,
       created_at: receipt.created_at,
-      description: receipt.description,
-    }), {
+      valid: ["paid", "completed", "success"].includes(String(receipt.status)),
+    };
+    if (isOwner) {
+      body.payer_name = (receipt as any).payer_name;
+      body.description = (receipt as any).description;
+    }
+
+    return new Response(JSON.stringify(body), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
