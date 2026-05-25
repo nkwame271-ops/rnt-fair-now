@@ -95,6 +95,7 @@ const allNavItems = [
   { to: "/regulator/rent-cards", label: "Rent Cards", icon: IdCard },
   { to: "/regulator/escrow", label: "Escrow & Revenue", icon: BarChart3 },
   { to: "/regulator/receipts", label: "Receipts", icon: FileText },
+  { to: "/regulator/processor-reconciliation", label: "Processor Reconciliation", icon: Wallet },
   { to: "/regulator/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/regulator/kyc", label: "KYC Verification", icon: IdCard },
   { to: "/regulator/engine-room", label: "Engine Room", icon: Settings },

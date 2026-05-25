@@ -112,6 +112,7 @@ const PaymentReconciliationCentre = lazy(() => import("./pages/regulator/Payment
 const StudentRevenue = lazy(() => import("./pages/regulator/StudentRevenue"));
 const EscalatedStudentComplaints = lazy(() => import("./pages/regulator/EscalatedStudentComplaints"));
 const RegulatorReceipts = lazy(() => import("./pages/regulator/RegulatorReceipts"));
+const ProcessorReconciliation = lazy(() => import("./pages/regulator/ProcessorReconciliation"));
 const SafetyEmergencyReports = lazy(() => import("./pages/regulator/SafetyEmergencyReports"));
 const SafetyReportDetail = lazy(() => import("./pages/regulator/SafetyReportDetail"));
 const SafetyContacts = lazy(() => import("./pages/regulator/SafetyContacts"));
@@ -274,6 +275,7 @@ const App = () => (
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
                 <Route path="payment-errors" element={<PaymentErrors />} />
                 <Route path="receipts" element={<RegulatorReceipts />} />
+                <Route path="processor-reconciliation" element={<ErrorBoundary section="Processor Reconciliation"><ProcessorReconciliation /></ErrorBoundary>} />
                 <Route path="safety" element={<SafetyEmergencyReports />} />
                 <Route path="safety/contacts" element={<SafetyContacts />} />
                 <Route path="safety/:id" element={<SafetyReportDetail />} />
