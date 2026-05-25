@@ -124,7 +124,7 @@ const StudentView = () => {
     const load = async () => {
       const [profRes, tenRes, compRes] = await Promise.all([
         supabase.from("profiles").select("full_name, phone, email").eq("user_id", user.id).maybeSingle(),
-        supabase.from("tenants").select("tenant_id, school, hostel_or_hall, room_or_bed_space, status").eq("user_id", user.id).maybeSingle(),
+        supabase.from("tenants").select("tenant_id, school, hostel_or_hall, room_or_bed_space, hostel_region, hostel_contact_number, hostel_landlord_name, ghana_post_gps, hostel_location_address, status").eq("user_id", user.id).maybeSingle(),
         supabase.from("complaints").select("id, complaint_code, complaint_type, status, created_at").eq("tenant_user_id", user.id).order("created_at", { ascending: false }),
       ]);
       setProfile(profRes.data);
