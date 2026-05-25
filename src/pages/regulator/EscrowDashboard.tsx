@@ -418,9 +418,17 @@ const EscrowDashboard = () => {
     );
 
     if (officeRevenue.length > 0) {
-      rows.push([], ["OFFICE BREAKDOWN"], ["Office", "Total", "IGF (Office)", "IGF (HQ)", "Admin (Office)", "Admin (HQ)", "Platform", "GRA", "Landlord", "Wallet Balance"]);
+      const headers = ["Office", "Total", "IGF (Office)", "IGF (HQ)", "Admin (Office)", "Admin (HQ)"];
+      if (isSuperAdmin) headers.push("Platform");
+      headers.push("GRA", "Landlord", "Wallet Balance");
+      rows.push([], ["OFFICE BREAKDOWN"], headers);
       officeRevenue.forEach(o => {
-        rows.push([o.officeName, o.total.toFixed(2), o.igf.toFixed(2), o.igfHq.toFixed(2), o.admin.toFixed(2), o.adminHq.toFixed(2), o.platform.toFixed(2), o.gra.toFixed(2), o.landlord.toFixed(2), o.walletBalance.toFixed(2)]);
+        // Total respects the viewer's visible recipients
+        const visibleTotal = o.igf + o.igfHq + o.admin + o.adminHq + (isSuperAdmin ? o.platform : 0) + o.gra + o.landlord;
+        const row = [o.officeName, visibleTotal.toFixed(2), o.igf.toFixed(2), o.igfHq.toFixed(2), o.admin.toFixed(2), o.adminHq.toFixed(2)];
+        if (isSuperAdmin) row.push(o.platform.toFixed(2));
+        row.push(o.gra.toFixed(2), o.landlord.toFixed(2), o.walletBalance.toFixed(2));
+        rows.push(row);
       });
     }
 
