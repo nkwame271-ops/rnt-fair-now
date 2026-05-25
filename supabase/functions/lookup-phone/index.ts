@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { adminClient, resolvePhoneFromIdentifier, normalizePhone, maskPhone } from "../_shared/resolvePhone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,88 +14,68 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Valid identifier required" }), { status: 400, headers: corsHeaders });
     }
 
-    const trimmed = identifier.trim();
-
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    let phone: string | null = null;
-
-    // Check if it looks like a phone number (starts with 0 and digits)
-    const phoneDigits = trimmed.replace(/\s/g, "");
-    if (/^0\d{9}$/.test(phoneDigits)) {
-      // Direct phone lookup
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("phone")
-        .eq("phone", phoneDigits)
-        .maybeSingle();
-      phone = profile?.phone || null;
-
-      // Also try with formatted variants
-      if (!phone) {
-        const normalized = phoneDigits.replace(/^0/, "233");
-        const { data: profile2 } = await supabaseAdmin
-          .from("profiles")
-          .select("phone")
-          .eq("phone", normalized)
-          .maybeSingle();
-        phone = profile2?.phone || null;
-      }
-    }
-
-    // Check if it's a tenant ID — accept both TEN- (legacy) and TN- (current)
-    if (!phone && /^(TEN-|TN-)/i.test(trimmed)) {
-      const { data: tenant } = await supabaseAdmin
-        .from("tenants")
-        .select("user_id")
-        .ilike("tenant_id", trimmed)
-        .maybeSingle();
-      if (tenant?.user_id) {
-        const { data: profile } = await supabaseAdmin
-          .from("profiles")
-          .select("phone")
-          .eq("user_id", tenant.user_id)
-          .maybeSingle();
-        phone = profile?.phone || null;
-      }
-    }
-
-    // Check if it's a landlord ID — accept both LLD- (legacy) and LL- (current)
-    if (!phone && /^(LLD-|LL-)/i.test(trimmed)) {
-      const { data: landlord } = await supabaseAdmin
-        .from("landlords")
-        .select("user_id")
-        .ilike("landlord_id", trimmed)
-        .maybeSingle();
-      if (landlord?.user_id) {
-        const { data: profile } = await supabaseAdmin
-          .from("profiles")
-          .select("phone")
-          .eq("user_id", landlord.user_id)
-          .maybeSingle();
-        phone = profile?.phone || null;
-      }
-    }
+    const admin = adminClient();
+    const phone = await resolvePhoneFromIdentifier(admin, identifier);
 
     if (!phone) {
-      return new Response(JSON.stringify({ error: "No account found for this identifier. Please check the phone number or ID and try again." }), { status: 404, headers: corsHeaders });
+      // SECURITY: return a generic message to avoid identifier enumeration.
+      return new Response(JSON.stringify({ error: "If an account exists for that identifier, a verification code has been sent." }), { status: 404, headers: corsHeaders });
     }
 
-    // Normalize phone for OTP sending (ensure 233 prefix)
-    const normalizedPhone = phone.replace(/\s/g, "").replace(/^0/, "233");
+    // SECURITY: send OTP server-side. Do not return the raw phone number to the
+    // client — only return a masked display value to prevent enumeration.
+    const normalized = normalizePhone(phone);
+    const masked = maskPhone(phone);
 
-    // Mask phone for display: show first 3 and last 3 digits
-    const displayPhone = phone.replace(/\s/g, "");
-    const masked = displayPhone.length >= 6
-      ? displayPhone.slice(0, 3) + "****" + displayPhone.slice(-3)
-      : "***masked***";
+    // Create / refresh OTP in the same flow as send-otp
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    await admin
+      .from("otp_verifications")
+      .delete()
+      .eq("phone", normalized)
+      .or(`verified.eq.true,expires_at.lt.${new Date().toISOString()}`);
+
+    const { data: existing } = await admin
+      .from("otp_verifications")
+      .select("id, code")
+      .eq("phone", normalized)
+      .eq("verified", false)
+      .gte("expires_at", new Date().toISOString())
+      .limit(1)
+      .maybeSingle();
+
+    let code: string;
+    if (existing) {
+      code = existing.code as string;
+      await admin.from("otp_verifications").update({ expires_at: expiresAt }).eq("id", existing.id);
+    } else {
+      code = String(Math.floor(100000 + Math.random() * 900000));
+      await admin.from("otp_verifications").insert({ phone: normalized, code, expires_at: expiresAt, verified: false });
+    }
+
+    // Send SMS via Arkesel
+    const apiKey = Deno.env.get("ARKESEL_API_KEY");
+    const message = `Your RentControlGhana verification code is: ${code}. Valid for 10 minutes. Do not share.`;
+    let smsSent = false;
+    try {
+      const res = await fetch("https://api.arkesel.com/api/v2/sms/send", {
+        method: "POST",
+        headers: { "api-key": apiKey!, "Content-Type": "application/json" },
+        body: JSON.stringify({ sender: "RentControl", message, recipients: [normalized] }),
+      });
+      if (res.ok) smsSent = true;
+    } catch { /* fallback */ }
+    if (!smsSent) {
+      try {
+        const v1Url = `https://sms.arkesel.com/sms/api?action=send-sms&api_key=${apiKey}&to=${normalized}&from=RentControl&sms=${encodeURIComponent(message)}`;
+        await fetch(v1Url);
+        smsSent = true;
+      } catch { /* ignore */ }
+    }
 
     return new Response(JSON.stringify({
       phone_masked: masked,
-      phone_normalized: normalizedPhone,
+      otp_sent: smsSent,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });

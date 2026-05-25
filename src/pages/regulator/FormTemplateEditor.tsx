@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Save, ArrowLeft, Trash2, Eye } from "lucide-react";
 import RichTextEditor from "@/components/regulator/RichTextEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import DOMPurify from "dompurify";
 
 const FormTemplateEditor = () => {
   const { id } = useParams();
@@ -132,7 +133,7 @@ const FormTemplateEditor = () => {
           <DialogHeader><DialogTitle>{tpl.form_name} — Preview</DialogTitle></DialogHeader>
           <div
             className="prose prose-sm max-w-none p-6 border rounded-md bg-background"
-            dangerouslySetInnerHTML={{ __html: bodyHtml || "<p class='text-muted-foreground'>Empty template</p>" }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(bodyHtml || "<p class='text-muted-foreground'>Empty template</p>") }}
           />
         </DialogContent>
       </Dialog>

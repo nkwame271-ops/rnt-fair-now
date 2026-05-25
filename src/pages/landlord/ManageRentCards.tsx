@@ -112,7 +112,7 @@ const ManageRentCards = () => {
         ...card,
         landlord_name: landlordProfile?.full_name || "—",
         landlord_id_code: landlordRecord?.landlord_id || "—",
-        tenant_name: card.tenant_user_id ? (tenantNameMap.get(card.tenant_user_id) || "—") : undefined,
+        tenant_name: card.tenant_user_id ? (String(tenantNameMap.get(card.tenant_user_id) || "—")) : undefined,
         tenant_id_code: card.tenant_user_id ? (tenantMap.get(card.tenant_user_id) || "—") : undefined,
         property_code: card.property_id ? (propMap.get(card.property_id) || "—") : undefined,
         unit_name: card.unit_id ? (unitMap.get(card.unit_id) || "—") : undefined,

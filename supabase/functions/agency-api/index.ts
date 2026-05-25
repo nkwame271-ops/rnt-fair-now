@@ -194,13 +194,20 @@ async function handleEndpoint(supabase: any, endpoint: string, filters: any) {
     }
 
     case "tenants/non-citizens": {
+      // SECURITY: do not return residence_permit_no or other PII to external agencies.
+      // Return aggregated counts by nationality only.
       const { data, error } = await supabase
         .from("profiles")
-        .select("user_id, full_name, nationality, phone, residence_permit_no")
-        .eq("is_citizen", false)
-        .range(offset, offset + limit - 1);
+        .select("nationality")
+        .eq("is_citizen", false);
       if (error) throw error;
-      return data;
+      const counts: Record<string, number> = {};
+      (data || []).forEach((r: any) => {
+        const key = (r.nationality || "unknown").trim() || "unknown";
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      const by_nationality = Object.entries(counts).map(([nationality, count]) => ({ nationality, count }));
+      return { total: (data || []).length, by_nationality };
     }
 
     // ── LANDLORDS ──

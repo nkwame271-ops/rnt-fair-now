@@ -31,28 +31,45 @@ Deno.serve(async (req) => {
     // --- Handle claim_pending_tenancy early (no admin role or password required) ---
     const rawBody = await req.json();
     if (rawBody.action === "claim_pending_tenancy") {
-      const claimPhone = rawBody.phone;
       const newUserId = rawBody.new_user_id;
-      if (!claimPhone || !newUserId) {
-        return new Response(JSON.stringify({ error: "Missing phone or new_user_id" }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
 
       // SECURITY: caller may only claim pending tenancies for their own account
-      if (newUserId !== user.id) {
+      if (!newUserId || newUserId !== user.id) {
         return new Response(JSON.stringify({ error: "Cannot claim tenancies for a different user" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Find pending tenant records matching this phone
+      // SECURITY: ignore any phone supplied by client. Resolve the caller's own
+      // registered phone from their profile so attackers cannot harvest other
+      // users' pending tenancies by guessing phone numbers.
+      const { data: callerProfile } = await adminClient
+        .from("profiles")
+        .select("phone")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const rawPhone = (callerProfile?.phone || "").trim();
+      if (!rawPhone) {
+        return new Response(JSON.stringify({ success: true, claimed: 0 }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Try multiple stored formats (raw, 233-prefixed, 0-prefixed)
+      const digits = rawPhone.replace(/\D/g, "");
+      const candidates = Array.from(new Set([
+        rawPhone,
+        digits,
+        digits.startsWith("233") ? "0" + digits.slice(3) : digits,
+        digits.startsWith("0") ? "233" + digits.slice(1) : ("233" + digits),
+      ].filter(Boolean)));
+
       const { data: pendingRows, error: pendErr } = await adminClient
         .from("pending_tenants")
         .select("id, tenancy_id")
-        .eq("phone", claimPhone)
+        .in("phone", candidates)
         .is("claimed_by", null);
 
       if (pendErr || !pendingRows || pendingRows.length === 0) {
