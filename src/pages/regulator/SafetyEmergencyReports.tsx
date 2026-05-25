@@ -55,6 +55,7 @@ const SafetyEmergencyReports = () => {
     if (tab === "closed" && !["resolved", "closed", "false_alert"].includes(r.status)) return false;
     if (roleFilter !== "all" && r.user_role !== roleFilter) return false;
     if (severityFilter !== "all" && r.severity !== severityFilter) return false;
+    if (emergencyTypeFilter !== "all" && r.emergency_type !== emergencyTypeFilter) return false;
     if (search) {
       const s = search.toLowerCase();
       const match =
