@@ -257,6 +257,18 @@ const InviteStaff = () => {
                 required
               />
             </div>
+          <div className="space-y-2">
+            <Label>Phone Number</Label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="tel"
+                placeholder="0244123456"
+                className="pl-10"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Temporary Password</Label>
