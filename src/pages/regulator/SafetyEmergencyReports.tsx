@@ -20,6 +20,7 @@ const SafetyEmergencyReports = () => {
   const [roleFilter, setRoleFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [tab, setTab] = useState("active");
+  const [emergencyTypeFilter, setEmergencyTypeFilter] = useState("all");
 
   const load = async () => {
     setLoading(true);
