@@ -45,6 +45,13 @@ Deno.serve(async (req) => {
       evidence_urls,
       user_role,
       severity,
+      action_taken,
+      live_tracking_enabled,
+      user_note,
+      linked_property_id,
+      linked_tenancy_id,
+      linked_complaint_id,
+      linked_student_id,
     } = body ?? {};
 
     if (!report_kind || !["safety_report", "panic_emergency"].includes(report_kind)) {
@@ -94,6 +101,14 @@ Deno.serve(async (req) => {
         is_silent: !!is_silent,
         severity: effectiveSeverity,
         false_alert_count_at_time: falseAlertCount ?? 0,
+        action_taken: action_taken ?? null,
+        live_tracking_enabled: !!live_tracking_enabled,
+        user_note: user_note ?? null,
+        linked_property_id: linked_property_id ?? null,
+        linked_tenancy_id: linked_tenancy_id ?? null,
+        linked_complaint_id: linked_complaint_id ?? null,
+        linked_student_id: linked_student_id ?? null,
+        status: report_kind === "panic_emergency" ? "new" : "submitted",
       })
       .select("id, ticket_number")
       .single();
@@ -155,7 +170,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, id: inserted.id, ticket_number: inserted.ticket_number }),
+      JSON.stringify({ success: true, id: inserted.id, report_id: inserted.id, ticket_number: inserted.ticket_number }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {

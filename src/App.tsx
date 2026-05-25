@@ -134,6 +134,8 @@ const StudentRentCare = lazy(() => import("./pages/student/RentCare"));
 const StudentRentCareApply = lazy(() => import("./pages/student/RentCareApply"));
 const StudentRentCareDetail = lazy(() => import("./pages/student/RentCareDetail"));
 const RentCareManagement = lazy(() => import("./pages/regulator/RentCareManagement"));
+const AccessControlConsole = lazy(() => import("./pages/regulator/AccessControlConsole"));
+const StaffFeatureMutes = lazy(() => import("./pages/regulator/StaffFeatureMutes"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -259,6 +261,8 @@ const App = () => (
                 <Route path="rentcare" element={<ErrorBoundary section="RentCare Management"><RentCareManagement /></ErrorBoundary>} />
                 <Route path="super-admin" element={<ErrorBoundary section="Super Admin Dashboard"><SuperAdminDashboard /></ErrorBoundary>} />
                 <Route path="resolution-centre" element={<ErrorBoundary section="Resolution Centre"><ResolutionCentre /></ErrorBoundary>} />
+                <Route path="access-control" element={<ErrorBoundary section="Access Control"><AccessControlConsole /></ErrorBoundary>} />
+                <Route path="staff-feature-mutes" element={<ErrorBoundary section="Staff Feature Mutes"><StaffFeatureMutes /></ErrorBoundary>} />
                 <Route path="payment-reconciliation" element={<ErrorBoundary section="Payment Reconciliation"><PaymentReconciliationCentre /></ErrorBoundary>} />
                 <Route path="student-revenue" element={<ErrorBoundary section="Student Revenue"><StudentRevenue /></ErrorBoundary>} />
                 <Route path="rent-assessments" element={<RegulatorRentAssessments />} />

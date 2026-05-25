@@ -20,6 +20,7 @@ const SafetyEmergencyReports = () => {
   const [roleFilter, setRoleFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [tab, setTab] = useState("active");
+  const [emergencyTypeFilter, setEmergencyTypeFilter] = useState("all");
 
   const load = async () => {
     setLoading(true);
@@ -54,6 +55,7 @@ const SafetyEmergencyReports = () => {
     if (tab === "closed" && !["resolved", "closed", "false_alert"].includes(r.status)) return false;
     if (roleFilter !== "all" && r.user_role !== roleFilter) return false;
     if (severityFilter !== "all" && r.severity !== severityFilter) return false;
+    if (emergencyTypeFilter !== "all" && r.emergency_type !== emergencyTypeFilter) return false;
     if (search) {
       const s = search.toLowerCase();
       const match =
@@ -105,6 +107,17 @@ const SafetyEmergencyReports = () => {
               <SelectItem value="tenant">Tenant</SelectItem>
               <SelectItem value="landlord">Landlord</SelectItem>
               <SelectItem value="student">Student</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={emergencyTypeFilter} onValueChange={setEmergencyTypeFilter}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Emergencies</SelectItem>
+              <SelectItem value="police">Police</SelectItem>
+              <SelectItem value="fire">Fire</SelectItem>
+              <SelectItem value="health">Health / Ambulance</SelectItem>
+              <SelectItem value="general">General</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
             </SelectContent>
           </Select>
           <Select value={severityFilter} onValueChange={setSeverityFilter}>

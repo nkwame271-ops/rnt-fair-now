@@ -1,65 +1,111 @@
-## Continue RentCare Assistance — Remaining Work
+# Feature Access Control + Emergency Alert Upgrade
 
-Foundation is in place (DB, payment wiring, student dashboard, admin console skeleton). This plan finishes the feature.
+Two related workstreams. Both reuse the existing `feature_flags` table, `useFeatureFlag` hook, Engine Room UI, and `safety_reports` table.
 
-### 1. Route + navigation wiring
-- `src/App.tsx`: register `/student/rentcare`, `/student/rentcare/apply`, `/student/rentcare/:id`, `/regulator/rentcare`, `/admin/rentcare` (same component, role-gated).
-- Add sidebar entries:
-  - Regulator sidebar (`RegulatorLayout`) — gated by `rentcare_assistance` flag + regulator role.
-  - Engine Room sidebar — RentCare admin tile.
-  - Super Admin dashboard — RentCare summary tile.
-  - NUGS layout student nav — already added; verify visibility gating.
-- Hide entries entirely when feature flag disabled OR role lacks access (reuse `useModuleVisibility`).
+---
 
-### 2. Student UI completion
-- `RentCareApply.tsx`: add document upload section (Ghana Card, student ID, admission letter, fee statement) → `rentcare-docs` bucket at `{user_id}/{application_id}/{doc_type}.{ext}`; insert into `rentcare_documents`.
-- `RentCareDetail.tsx`: 
-  - File list with signed-URL download.
-  - Inbox: list `rentcare_messages` + reply form.
-  - UMB editing gated by `rentcare_allow_umb_edit` flag.
-  - Receipt download once `payment_status = paid`.
-- Legal notice modal on checkout with required "I accept" checkbox before Paystack redirect.
+## Part A — Granular Feature Access Control
 
-### 3. Admin console completion (`RentCareManagement.tsx`)
-- Detail drawer: timeline (status_history), documents (signed URLs), messages, audit log tab.
-- Actions: Mark Under Review → Sent to UMB → Approved → Declined (reason required) → Disbursed (ref required). All via `rentcare_admin_update` RPC (optimistic-lock).
-- Admin → Student messaging composer.
-- Exports gated by `rentcare_admin_export_enabled`:
-  - CSV (already stubbed)
-  - XLSX via `xlsx` lib (client-side)
-  - PDF via existing `jspdf` setup — one summary per application or batch.
-- Filters: status, date range, region, search by reference / student name / phone.
+### A1. Database (new tables)
+- `feature_flag_overrides` — per-target enable/disable overrides
+  - `feature_key` (FK), `target_type` (`role` | `user` | `dashboard` | `admin_category` | `institution`), `target_value` (text), `is_enabled` (bool), `created_by`, timestamps
+  - Unique index on `(feature_key, target_type, target_value)`
+- `staff_feature_overrides` — Super Admin per-staff sub-feature mutes
+  - `staff_user_id`, `feature_key`, `sub_key` (nullable for whole feature), `is_enabled`
+  - Covers menus / cards / dashboards inside a feature
+- RLS: Super Admin full CRUD; everyone else read-own only.
+- Server-side resolver function `resolve_feature_access(user_id, feature_key, sub_key)` that returns boolean by layering: default flag → role override → admin_category → institution → dashboard → user → staff sub-override (most specific wins, **default = off** when flag is off and no override turns it on).
 
-### 4. Engine Room controls
-- Add RentCare card to `EngineRoom.tsx`:
-  - Toggle `rentcare_assistance` (master on/off).
-  - Edit `fee_amount` (number input, GHS).
-  - Edit UMB referral link (stored in `feature_flags.description` for `rentcare_umb_link`).
-  - Toggle `rentcare_allow_umb_edit`.
-  - Toggle `rentcare_admin_export_enabled`.
-- All changes write through existing feature_flags update path and log to `rentcare_audit_log` via helper.
+### A2. Client hook upgrade
+- Extend `useFeatureFlag` to accept context (`{ role, dashboard, institution, subKey }`) and call the resolver, with the same 30s cache + realtime invalidation already in place.
+- Add `useFeatureGate(key, ctx)` returning `{ visible, loading }`. **All menus, sidebar entries, cards, buttons, and route guards must use this** — when `visible === false`, render nothing.
 
-### 5. Audit logging helper
-- `src/lib/rentcare/audit.ts`: `logRentCareAudit({ application_id, event_type, old_value, new_value })` — captures user_id, role, IP via `navigator`, device via UA, timestamp.
-- Call from: status change RPC (server-side trigger), payment finalize, UMB save, document upload, message send, admin export, engine-room setting change.
+### A3. Engine Room — Access Control tab
+- New tab "Access Control" in `EngineRoom.tsx` listing every feature flag with:
+  - Default toggle (existing)
+  - "Manage Access" drawer → tabs: **Roles / Users / Dashboards / Institutions / Admin Categories**, each lets Super Admin add/remove overrides
+- New category badges so every feature now lives under one of: Engine Room / Super Admin / Landlord / Tenant / Student (extend `category` enum filter buttons; current code already filters by category — add the missing buckets).
 
-### 6. Notifications
-- On payment success → SMS + email to student ("Application submitted, reference RC-…").
-- On status change → SMS + email ("Your RentCare application is now {status}").
-- On admin message → email to student.
-- Reuse existing `send-sms` (Arkesel) + email infra.
+### A4. Super Admin Staff Mutes
+- New page `/regulator/staff-feature-mutes` (Super Admin only): pick staff member → tree of features + sub-features (menus/cards/dashboards) with on/off switches writing to `staff_feature_overrides`.
+- Admin/staff dashboards read these via `useFeatureGate`.
 
-### 7. Smoke test checklist
-- Student: apply → upload docs → pay → UMB submit → see timeline.
-- Admin: view list → open detail → change status → export CSV/XLSX/PDF → message student.
-- Engine Room: toggle off → entries disappear for all roles.
-- Audit log row present for every event.
+### A5. Default-off rule
+- Every new feature flag inserted from now on is created with `is_enabled = false` for non-explicitly-granted roles. Add a DB CHECK / seed convention note in `feature_flags`.
 
-### Technical notes
-- Fee read live from `feature_flags.fee_amount` server-side in `paystack-checkout` (already done) and client-side for display.
-- Status guard: server-side check in `rentcare_admin_update` already rejects advancing past `awaiting_application_fee_payment` without `payment_status = paid`.
-- Optimistic concurrency: every admin write increments `version`; mismatched version → 409.
-- Tenant/Landlord sidebars: add entry behind module visibility, **default off** (per spec "optional for later").
+---
 
-### Order
-Routes → Engine Room controls → Student doc upload + messages → Admin detail drawer + actions → Exports (XLSX/PDF) → Audit helper wiring → Notifications → Smoke test.
+## Part B — Emergency Alert Rebuild
+
+### B1. Schema additions to `safety_reports`
+Migration adds columns:
+- `emergency_type` already exists — extend CHECK to include `health` alias and keep `police|fire|medical|other`
+- `action_taken` (`call` | `alert` | `call_and_alert`)
+- `live_tracking_enabled` (bool), `tracking_stopped_at` (timestamptz)
+- `acknowledged_by`, `acknowledged_at`
+- `linked_property_id`, `linked_tenancy_id`, `linked_complaint_id`, `linked_student_id` (nullable FKs)
+- Status enum extended: `new | acknowledged | in_review | escalated | resolved | false_alarm`
+
+New table `safety_location_pings`:
+- `report_id`, `lat`, `lng`, `accuracy`, `captured_at`
+- Append-only; RLS: owner insert, admins + owner select
+
+### B2. Emergency numbers + label fix
+Update `src/lib/safetyCategories.ts` `EMERGENCY_TYPES`:
+- General Emergency → `112`
+- Police → `191`
+- Fire → `192`
+- Health / Ambulance → `193`
+- Other → no tel
+
+In `SafetyPanicButton.tsx`:
+- Replace the hard-coded "Call Police" button with a **Call** button that dials the number bound to the selected type.
+- Add three action buttons: **Call**, **Send Alert**, **Call + Send Alert** (replaces the current Send Alert + Silent toggle layout; keep silent as a checkbox option).
+- After type selection, the Call button uses `tel:` for that type's number.
+
+### B3. Live Location Tracking
+- New component/hook `useLiveLocationTracker(reportId)`:
+  - On consent prompt → `navigator.geolocation.watchPosition`
+  - Throttled to one ping per 15s → insert into `safety_location_pings`
+  - Stop conditions: user toggles off, admin sets status to `resolved` / `false_alarm`, or `tracking_stopped_at` set
+- Edge function `safety-location-ping` (optional batch endpoint) or direct insert with RLS.
+- Capture on submission: name, role, phone, type, current GPS, time, optional note, plus any linked property/tenancy/complaint/student inferred from the user's active context.
+
+### B4. Admin Emergency Dashboard
+- Under existing `SafetyEmergencyReports.tsx`, add a left sub-nav with: **All / Police / Fire / Health / Other** (filter by `emergency_type`).
+- Each row shows: category, user, location pin, time, status.
+- Detail drawer: map (Google Maps already loaded) showing live trail from `safety_location_pings`, acknowledge / escalate / resolve / false-alarm buttons, audit fields.
+- "Acknowledge" stops the ring and records `acknowledged_by` + `acknowledged_at`.
+
+### B5. Ring Notification
+- Persistent audio loop + flashing banner component `<EmergencyAlertRinger />` mounted in `RegulatorLayout`.
+- Subscribes to realtime `safety_reports` inserts where `report_kind = 'panic_emergency' AND status = 'new'`.
+- Plays a sound (looped `<audio>` from `src/assets`), shows top banner with category/user/location/time, stays until an authorized admin clicks **Acknowledge**.
+- Respects `useFeatureGate('emergency_acknowledge')`.
+
+### B6. Role-Based Emergency Access toggles
+Seed these feature flags (default off except where noted):
+- `emergency_view_all`, `emergency_view_police`, `emergency_view_fire`, `emergency_view_health`, `emergency_view_other`
+- `emergency_acknowledge`, `emergency_escalate`, `emergency_resolve`
+- `emergency_view_live_location`, `emergency_export_records`
+
+Every menu item, button, and drawer field in the Admin Emergency Dashboard is wrapped in `useFeatureGate`. Disabled users see no menu entry and no detail data.
+
+---
+
+## Technical notes
+- No new packages required (Google Maps + Supabase realtime already wired).
+- Audio asset: small `emergency-ring.mp3` placed in `src/assets/`.
+- All new flags inserted via `supabase--insert` after the migration.
+- `useFeatureFlag` cache TTL stays at 30s; realtime already invalidates on `feature_flags` change — extend channel to also listen to `feature_flag_overrides` and `staff_feature_overrides`.
+- `tel:` links work natively in mobile browsers and trigger the dialer.
+
+## Build order
+1. Migration: overrides tables, safety_reports columns, location_pings, status enum, seed new flags
+2. Resolver function + `useFeatureGate` hook
+3. Engine Room Access Control tab + Staff Mutes page
+4. Wire `useFeatureGate` across sidebars and dashboards
+5. Panic Button rewrite (numbers + Call/Alert/Both)
+6. Live Location Tracker
+7. Admin Emergency Dashboard sub-nav + map trail + ring banner
+8. Smoke test: toggle off → user loses menu; emergency → ring → ack → trail

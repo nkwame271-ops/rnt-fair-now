@@ -9,7 +9,7 @@ export type SafetyCategory =
   | "health_security"
   | "other";
 
-export type EmergencyType = "police" | "medical" | "fire" | "security" | "other";
+export type EmergencyType = "general" | "police" | "fire" | "health" | "medical" | "security" | "other";
 
 export const SAFETY_CATEGORIES: { value: SafetyCategory; label: string }[] = [
   { value: "sexual_harassment", label: "Sexual harassment" },
@@ -24,21 +24,30 @@ export const SAFETY_CATEGORIES: { value: SafetyCategory; label: string }[] = [
 ];
 
 export const EMERGENCY_TYPES: { value: EmergencyType; label: string; tel?: string }[] = [
-  { value: "police", label: "Police", tel: "191" },
-  { value: "medical", label: "Medical", tel: "193" },
-  { value: "fire", label: "Fire", tel: "192" },
-  { value: "security", label: "Campus / Property Security" },
-  { value: "other", label: "Other" },
+  { value: "general", label: "General Emergency", tel: "112" },
+  { value: "police", label: "Police Emergency", tel: "191" },
+  { value: "fire", label: "Fire Emergency", tel: "192" },
+  { value: "health", label: "Health / Ambulance Emergency", tel: "193" },
+  { value: "other", label: "Other Emergency" },
 ];
+
+// Backwards-compat alias for "medical" → "health"
+export const EMERGENCY_TYPE_FALLBACK: Record<string, EmergencyType> = {
+  medical: "health",
+  security: "other",
+};
 
 export const SAFETY_STATUS_LABELS: Record<string, string> = {
   submitted: "Submitted",
+  new: "New",
   acknowledged: "Acknowledged",
-  under_review: "Under Review",
+  under_review: "In Review",
+  in_review: "In Review",
   escalated: "Escalated",
   resolved: "Resolved",
   closed: "Closed",
-  false_alert: "False Alert",
+  false_alert: "False Alarm",
+  false_alarm: "False Alarm",
 };
 
 export const SEVERITY_COLORS: Record<string, string> = {
