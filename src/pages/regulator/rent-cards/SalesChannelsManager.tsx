@@ -222,8 +222,10 @@ export default function SalesChannelsManager() {
       <Tabs defaultValue="channels">
         <TabsList>
           <TabsTrigger value="channels">Channels & Splits</TabsTrigger>
+          <TabsTrigger value="stock">Stock Allocation</TabsTrigger>
           <TabsTrigger value="report">Sales Report</TabsTrigger>
         </TabsList>
+
 
         <TabsContent value="channels" className="space-y-6">
           <Card>
