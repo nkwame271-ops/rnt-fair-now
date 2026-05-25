@@ -26,8 +26,8 @@ const LandlordViewingRequests = () => {
 
     // Fetch tenant names
     const tenantUserIds = [...new Set(data.map(r => r.tenant_user_id))];
-    const { data: profiles } = await supabase
-      .from("profiles_counterparty" as any) as any
+    const { data: profiles } = await (supabase
+      .from("profiles_counterparty" as any) as any)
       .select("user_id, full_name, phone")
       .in("user_id", tenantUserIds);
 
