@@ -5835,6 +5835,9 @@ export type Database = {
           captured_at: string
           dashboard_refreshed_at: string | null
           dashboard_stale_seconds: number | null
+          db_connections_max: number | null
+          db_connections_pct: number | null
+          db_connections_used: number | null
           details: Json
           id: string
           missing_receipt_numbers: number
@@ -5847,6 +5850,9 @@ export type Database = {
           captured_at?: string
           dashboard_refreshed_at?: string | null
           dashboard_stale_seconds?: number | null
+          db_connections_max?: number | null
+          db_connections_pct?: number | null
+          db_connections_used?: number | null
           details?: Json
           id?: string
           missing_receipt_numbers?: number
@@ -5859,6 +5865,9 @@ export type Database = {
           captured_at?: string
           dashboard_refreshed_at?: string | null
           dashboard_stale_seconds?: number | null
+          db_connections_max?: number | null
+          db_connections_pct?: number | null
+          db_connections_used?: number | null
           details?: Json
           id?: string
           missing_receipt_numbers?: number
