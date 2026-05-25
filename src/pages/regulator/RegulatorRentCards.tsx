@@ -74,6 +74,7 @@ const RegulatorRentCards = () => {
                   {isMain && <TabsTrigger value="batch_upload">Batch Upload</TabsTrigger>}
                   {isMain && <TabsTrigger value="alerts">Stock Alerts</TabsTrigger>}
                   {isMain && <TabsTrigger value="proc_report">Report</TabsTrigger>}
+                  {isSuper && <TabsTrigger value="sales_channels">Sales Channels</TabsTrigger>}
                 </TabsList>
 
                 {isMain && (
