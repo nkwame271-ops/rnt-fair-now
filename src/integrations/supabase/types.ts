@@ -1285,6 +1285,7 @@ export type Database = {
           tenants_intent: string | null
           ticket_number: string
           updated_at: string
+          version: number
         }
         Insert: {
           admin_filer_user_id?: string | null
@@ -1359,6 +1360,7 @@ export type Database = {
           tenants_intent?: string | null
           ticket_number?: string
           updated_at?: string
+          version?: number
         }
         Update: {
           admin_filer_user_id?: string | null
@@ -1433,6 +1435,7 @@ export type Database = {
           tenants_intent?: string | null
           ticket_number?: string
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
@@ -2645,6 +2648,7 @@ export type Database = {
           tenants_intent: string | null
           ticket_number: string
           updated_at: string
+          version: number
         }
         Insert: {
           admin_filer_user_id?: string | null
@@ -2703,6 +2707,7 @@ export type Database = {
           tenants_intent?: string | null
           ticket_number?: string
           updated_at?: string
+          version?: number
         }
         Update: {
           admin_filer_user_id?: string | null
@@ -2761,6 +2766,7 @@ export type Database = {
           tenants_intent?: string | null
           ticket_number?: string
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
@@ -6608,6 +6614,15 @@ export type Database = {
       try_finalize_lock: { Args: { p_reference: string }; Returns: boolean }
       unassign_serial_atomic: {
         Args: { p_serial_number: string }
+        Returns: Json
+      }
+      update_complaint_with_version: {
+        Args: {
+          p_expected_version: number
+          p_id: string
+          p_patch: Json
+          p_table: string
+        }
         Returns: Json
       }
     }
