@@ -222,8 +222,10 @@ export default function SalesChannelsManager() {
       <Tabs defaultValue="channels">
         <TabsList>
           <TabsTrigger value="channels">Channels & Splits</TabsTrigger>
+          <TabsTrigger value="stock">Stock Allocation</TabsTrigger>
           <TabsTrigger value="report">Sales Report</TabsTrigger>
         </TabsList>
+
 
         <TabsContent value="channels" className="space-y-6">
           <Card>
@@ -360,6 +362,10 @@ export default function SalesChannelsManager() {
           })}
         </TabsContent>
 
+        <TabsContent value="stock">
+          <ChannelStockAllocator channels={channels} onChanged={loadAll} />
+        </TabsContent>
+
         <TabsContent value="report">
           <Card>
             <CardHeader>
@@ -404,5 +410,197 @@ export default function SalesChannelsManager() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+interface AllocatorProps {
+  channels: Channel[];
+  onChanged: () => void;
+}
+
+function ChannelStockAllocator({ channels, onChanged }: AllocatorProps) {
+  const [loading, setLoading] = useState(false);
+  const [region, setRegion] = useState<string>("");
+  const [office, setOffice] = useState<string>("");
+  const [scope, setScope] = useState<"unallocated" | "all">("unallocated");
+  const [rows, setRows] = useState<Array<{ serial_number: string; region: string | null; office_name: string; sales_channel_id: string | null }>>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [targetChannel, setTargetChannel] = useState<string>("");
+  const [regions, setRegions] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("rent_card_serial_stock").select("region").not("region", "is", null);
+      const uniq = Array.from(new Set((data || []).map((r: any) => r.region).filter(Boolean))).sort();
+      setRegions(uniq as string[]);
+    })();
+  }, []);
+
+  const load = async () => {
+    setLoading(true);
+    let q = supabase
+      .from("rent_card_serial_stock")
+      .select("serial_number, region, office_name, sales_channel_id, status, pair_index")
+      .eq("status", "available")
+      .eq("pair_index", 1)
+      .order("serial_number")
+      .limit(500);
+    if (region) q = q.eq("region", region);
+    if (office) q = q.ilike("office_name", `%${office}%`);
+    if (scope === "unallocated") q = q.is("sales_channel_id", null);
+    const { data, error } = await q;
+    setLoading(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setRows((data || []) as any);
+    setSelected(new Set());
+  };
+
+  const toggleAll = () => {
+    if (selected.size === rows.length) setSelected(new Set());
+    else setSelected(new Set(rows.map(r => r.serial_number)));
+  };
+
+  const assign = async (clear = false) => {
+    if (!clear && !targetChannel) {
+      toast.error("Pick a target channel");
+      return;
+    }
+    if (selected.size === 0) {
+      toast.error("Select at least one serial");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase
+      .from("rent_card_serial_stock")
+      .update({ sales_channel_id: clear ? null : targetChannel })
+      .in("serial_number", Array.from(selected));
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`${clear ? "Unassigned" : "Assigned"} ${selected.size} serial(s)`);
+    await load();
+    onChanged();
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Allocate Serial Stock to a Channel</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          <div>
+            <Label>Region</Label>
+            <Select value={region || "all"} onValueChange={v => setRegion(v === "all" ? "" : v)}>
+              <SelectTrigger><SelectValue placeholder="All regions" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All regions</SelectItem>
+                {regions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Office filter</Label>
+            <Input value={office} onChange={e => setOffice(e.target.value)} placeholder="contains…" />
+          </div>
+          <div>
+            <Label>Scope</Label>
+            <Select value={scope} onValueChange={v => setScope(v as any)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unallocated">Unallocated only</SelectItem>
+                <SelectItem value="all">All available</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-end">
+            <Button onClick={load} disabled={loading} className="w-full">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Load"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3 items-end border-t pt-4">
+          <div className="md:col-span-2">
+            <Label>Target channel</Label>
+            <Select value={targetChannel} onValueChange={setTargetChannel}>
+              <SelectTrigger><SelectValue placeholder="Pick a channel…" /></SelectTrigger>
+              <SelectContent>
+                {channels.filter(c => c.is_active).map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => assign(false)} disabled={busy || selected.size === 0}>
+              Assign ({selected.size})
+            </Button>
+            <Button variant="outline" onClick={() => assign(true)} disabled={busy || selected.size === 0}>
+              Unassign
+            </Button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto border rounded-lg">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr className="text-left">
+                <th className="py-2 px-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={rows.length > 0 && selected.size === rows.length}
+                    onChange={toggleAll}
+                  />
+                </th>
+                <th className="py-2 px-3">Serial</th>
+                <th className="py-2 px-3">Region</th>
+                <th className="py-2 px-3">Office</th>
+                <th className="py-2 px-3">Channel</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr><td colSpan={5} className="text-center py-6 text-muted-foreground">No stock loaded</td></tr>
+              )}
+              {rows.map(r => (
+                <tr key={r.serial_number} className="border-t">
+                  <td className="py-2 px-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(r.serial_number)}
+                      onChange={() => {
+                        const next = new Set(selected);
+                        if (next.has(r.serial_number)) next.delete(r.serial_number);
+                        else next.add(r.serial_number);
+                        setSelected(next);
+                      }}
+                    />
+                  </td>
+                  <td className="py-2 px-3 font-mono text-xs">{r.serial_number}</td>
+                  <td className="py-2 px-3">{r.region || "—"}</td>
+                  <td className="py-2 px-3">{r.office_name}</td>
+                  <td className="py-2 px-3">
+                    {r.sales_channel_id
+                      ? <Badge variant="secondary">{channels.find(c => c.id === r.sales_channel_id)?.name || "Channel"}</Badge>
+                      : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Showing pair-index 1 (one row per serial). Assignment automatically applies to both halves of the pair via the
+          shared serial number.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
