@@ -97,6 +97,7 @@ const allNavItems = [
   { to: "/regulator/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/regulator/kyc", label: "KYC Verification", icon: IdCard },
   { to: "/regulator/engine-room", label: "Engine Room", icon: Settings },
+  { to: "/regulator/rentcare", label: "RentCare Assistance", icon: GraduationCap },
   { to: "/regulator/invite-staff", label: "Invite Staff", icon: UserPlus },
   { to: "/regulator/feedback", label: "Beta Feedback", icon: MessageSquare },
   { to: "/regulator/support-chats", label: "Support Chats", icon: MessageSquare },

@@ -130,6 +130,10 @@ const NugsComplaints = lazy(() => import("./pages/nugs/NugsComplaints"));
 const NugsInstitutions = lazy(() => import("./pages/nugs/NugsInstitutions"));
 const NugsMyComplaints = lazy(() => import("./pages/nugs/NugsMyComplaints"));
 const NugsRentCards = lazy(() => import("./pages/nugs/NugsRentCards"));
+const StudentRentCare = lazy(() => import("./pages/student/RentCare"));
+const StudentRentCareApply = lazy(() => import("./pages/student/RentCareApply"));
+const StudentRentCareDetail = lazy(() => import("./pages/student/RentCareDetail"));
+const RentCareManagement = lazy(() => import("./pages/regulator/RentCareManagement"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -252,6 +256,7 @@ const App = () => (
                 <Route path="support-chats" element={<RegulatorSupportChats />} />
                 <Route path="api-keys" element={<AgencyApiKeys />} />
                 <Route path="engine-room" element={<ErrorBoundary section="Engine Room"><EngineRoom /></ErrorBoundary>} />
+                <Route path="rentcare" element={<ErrorBoundary section="RentCare Management"><RentCareManagement /></ErrorBoundary>} />
                 <Route path="super-admin" element={<ErrorBoundary section="Super Admin Dashboard"><SuperAdminDashboard /></ErrorBoundary>} />
                 <Route path="resolution-centre" element={<ErrorBoundary section="Resolution Centre"><ResolutionCentre /></ErrorBoundary>} />
                 <Route path="payment-reconciliation" element={<ErrorBoundary section="Payment Reconciliation"><PaymentReconciliationCentre /></ErrorBoundary>} />
@@ -296,6 +301,9 @@ const App = () => (
                 <Route path="report-safety" element={<NugsReportSafety />} />
                 <Route path="my-safety-reports" element={<MySafetyReports />} />
                 <Route path="report-missing-payment" element={<ReportMissingPayment />} />
+                <Route path="rentcare" element={<ErrorBoundary section="RentCare"><StudentRentCare /></ErrorBoundary>} />
+                <Route path="rentcare/new" element={<ErrorBoundary section="RentCare Apply"><StudentRentCareApply /></ErrorBoundary>} />
+                <Route path="rentcare/:id" element={<ErrorBoundary section="RentCare Detail"><StudentRentCareDetail /></ErrorBoundary>} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
