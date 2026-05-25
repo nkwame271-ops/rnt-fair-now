@@ -456,6 +456,23 @@ export default function SalesChannelsManager() {
                   onChange={e => setNewChannel(p => ({ ...p, code: e.target.value }))}
                   placeholder="e.g. field_agent"
                 />
+                {newChannel.code && (() => {
+                  const norm = normalizeCode(newChannel.code);
+                  const clash = channels.find(c => c.code === norm);
+                  if (clash) {
+                    return (
+                      <p className="text-xs text-destructive mt-1">
+                        “{norm}” is already used by “{clash.name}”{clash.is_active ? "" : " (deactivated)"}.
+                      </p>
+                    );
+                  }
+                  return <p className="text-xs text-muted-foreground mt-1">Will be saved as “{norm}”.</p>;
+                })()}
+                {channels.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Existing codes: {channels.map(c => c.code).join(", ")}
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Name</Label>
