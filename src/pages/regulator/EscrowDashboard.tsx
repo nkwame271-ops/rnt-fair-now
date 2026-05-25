@@ -846,12 +846,12 @@ const EscrowDashboard = () => {
                       {officeRevenue.slice(0, 20).map(o => (
                         <tr key={o.officeId} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                           <td className="py-2 pr-4 font-medium text-card-foreground">{o.officeName}</td>
-                          <td className="text-right py-2 px-2 font-semibold">₵{o.total.toFixed(2)}</td>
+                          <td className="text-right py-2 px-2 font-semibold">₵{(o.igf + o.igfHq + o.admin + o.adminHq + (isSuperAdmin ? o.platform : 0) + o.gra + o.landlord).toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-primary">₵{o.igf.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-primary/80">₵{o.igfHq.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-info">₵{o.admin.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-info/80">₵{o.adminHq.toFixed(2)}</td>
-                          <td className="text-right py-2 px-2 text-success">₵{o.platform.toFixed(2)}</td>
+                          {isSuperAdmin && <td className="text-right py-2 px-2 text-success">₵{o.platform.toFixed(2)}</td>}
                           <td className="text-right py-2 px-2">₵{o.gra.toFixed(2)}</td>
                           <td className="text-right py-2 px-2 text-warning">₵{o.landlord.toFixed(2)}</td>
                           <td className="text-right py-2 px-2">
