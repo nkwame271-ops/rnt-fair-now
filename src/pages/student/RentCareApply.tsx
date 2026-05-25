@@ -95,17 +95,6 @@ export default function RentCareApply() {
     }
   };
 
-  const T = ({ k, label, type = "text", textarea = false }: any) => (
-    <Field
-      id={`rc-${k}`}
-      label={label}
-      type={type}
-      textarea={textarea}
-      value={form[k] || ""}
-      onChange={(v: string) => set(k, v)}
-    />
-  );
-
   return (
     <div className="max-w-3xl mx-auto py-6 px-4 space-y-4">
       <div>
@@ -116,48 +105,50 @@ export default function RentCareApply() {
       <Card>
         <CardHeader><CardTitle>Personal Details</CardTitle></CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-3">
-          <T k="full_name" label="Full Name *" />
-          <T k="phone" label="Phone *" />
-          <T k="email" label="Email *" />
-          <T k="ghana_card_no" label="Ghana Card No *" />
-          <T k="gender" label="Gender" />
-          <T k="region" label="Region" />
-          <div className="sm:col-span-2"><T k="address" label="Address" /></div>
+          <Field id="rc-full_name" label="Full Name *" value={form.full_name || ""} onChange={(v) => set("full_name", v)} />
+          <Field id="rc-phone" label="Phone *" value={form.phone || ""} onChange={(v) => set("phone", v)} />
+          <Field id="rc-email" label="Email *" value={form.email || ""} onChange={(v) => set("email", v)} />
+          <Field id="rc-ghana_card_no" label="Ghana Card No *" value={form.ghana_card_no || ""} onChange={(v) => set("ghana_card_no", v)} />
+          <Field id="rc-gender" label="Gender" value={form.gender || ""} onChange={(v) => set("gender", v)} />
+          <Field id="rc-region" label="Region" value={form.region || ""} onChange={(v) => set("region", v)} />
+          <div className="sm:col-span-2">
+            <Field id="rc-address" label="Address" value={form.address || ""} onChange={(v) => set("address", v)} />
+          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader><CardTitle>Student Details</CardTitle></CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-3">
-          <T k="institution" label="Institution *" />
-          <T k="campus" label="Campus" />
-          <T k="student_id_code" label="Student ID *" />
-          <T k="programme" label="Programme" />
-          <T k="level" label="Level" />
+          <Field id="rc-institution" label="Institution *" value={form.institution || ""} onChange={(v) => set("institution", v)} />
+          <Field id="rc-campus" label="Campus" value={form.campus || ""} onChange={(v) => set("campus", v)} />
+          <Field id="rc-student_id_code" label="Student ID *" value={form.student_id_code || ""} onChange={(v) => set("student_id_code", v)} />
+          <Field id="rc-programme" label="Programme" value={form.programme || ""} onChange={(v) => set("programme", v)} />
+          <Field id="rc-level" label="Level" value={form.level || ""} onChange={(v) => set("level", v)} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader><CardTitle>Accommodation Details</CardTitle></CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-3">
-          <T k="accommodation_type" label="Type (hostel / hall / private)" />
-          <T k="provider_name" label="Provider Name" />
-          <T k="provider_contact" label="Provider Contact" />
-          <T k="accommodation_location" label="Location" />
-          <T k="total_fee" label="Total Fee (GHS)" type="number" />
-          <T k="amount_paid" label="Amount Paid (GHS)" type="number" />
-          <T k="outstanding_amount" label="Outstanding (GHS)" type="number" />
-          <T k="amount_requested" label="Amount Requested (GHS) *" type="number" />
-          <T k="deadline" label="Deadline" type="date" />
+          <Field id="rc-accommodation_type" label="Type (hostel / hall / private)" value={form.accommodation_type || ""} onChange={(v) => set("accommodation_type", v)} />
+          <Field id="rc-provider_name" label="Provider Name" value={form.provider_name || ""} onChange={(v) => set("provider_name", v)} />
+          <Field id="rc-provider_contact" label="Provider Contact" value={form.provider_contact || ""} onChange={(v) => set("provider_contact", v)} />
+          <Field id="rc-accommodation_location" label="Location" value={form.accommodation_location || ""} onChange={(v) => set("accommodation_location", v)} />
+          <Field id="rc-total_fee" label="Total Fee (GHS)" type="number" value={form.total_fee || ""} onChange={(v) => set("total_fee", v)} />
+          <Field id="rc-amount_paid" label="Amount Paid (GHS)" type="number" value={form.amount_paid || ""} onChange={(v) => set("amount_paid", v)} />
+          <Field id="rc-outstanding_amount" label="Outstanding (GHS)" type="number" value={form.outstanding_amount || ""} onChange={(v) => set("outstanding_amount", v)} />
+          <Field id="rc-amount_requested" label="Amount Requested (GHS) *" type="number" value={form.amount_requested || ""} onChange={(v) => set("amount_requested", v)} />
+          <Field id="rc-deadline" label="Deadline" type="date" value={form.deadline || ""} onChange={(v) => set("deadline", v)} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader><CardTitle>Need Statement</CardTitle></CardHeader>
         <CardContent className="grid gap-3">
-          <T k="reason" label="Reason for support *" textarea />
-          <T k="urgency" label="Urgency (low / medium / high)" />
-          <T k="previous_support_history" label="Previous support history" textarea />
+          <Field id="rc-reason" label="Reason for support *" textarea value={form.reason || ""} onChange={(v) => set("reason", v)} />
+          <Field id="rc-urgency" label="Urgency (low / medium / high)" value={form.urgency || ""} onChange={(v) => set("urgency", v)} />
+          <Field id="rc-previous_support_history" label="Previous support history" textarea value={form.previous_support_history || ""} onChange={(v) => set("previous_support_history", v)} />
         </CardContent>
       </Card>
 

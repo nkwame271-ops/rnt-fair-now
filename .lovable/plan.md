@@ -1,24 +1,38 @@
+# Fix RentCare typing focus bug (real cause)
 
-## Problem
+## Root cause
 
-In `src/pages/student/RentCareApply.tsx`, a helper component `T` is defined **inside** the `RentCareApply` function body. Every keystroke updates `form` state → parent re-renders → `T` is a brand new component reference → React unmounts the old `<Input>`/`<Textarea>` and mounts a new one → the field loses focus after each character.
+The previous fix extracted a top-level `Field` component, but `RentCareApply` still defines an inline wrapper `T` **inside** the component body:
+
+```tsx
+const T = ({ k, label, type, textarea }: any) => (
+  <Field id={`rc-${k}`} ... value={form[k] || ""} onChange={(v) => set(k, v)} />
+);
+```
+
+Every keystroke → `setForm` → `RentCareApply` re-renders → `T` is a **new function reference** → React treats every `<T ... />` as a different component type → unmounts the old `Field` (and its `Input`) and mounts a fresh one → the DOM input loses focus after each character.
+
+Extracting `Field` did nothing as long as `T` sits between it and the JSX.
 
 ## Fix
 
-Move the field renderer out of the component so its identity is stable across renders.
+In `src/pages/student/RentCareApply.tsx`:
 
-### Changes to `src/pages/student/RentCareApply.tsx`
-
-1. Remove the inline `T` component defined inside `RentCareApply`.
-2. Replace each `<T k="..." label="..." />` usage with direct `<Input>` / `<Textarea>` inside a small stable wrapper — either:
-   - inline the `<div className="space-y-1"><Label/>...<Input/></div>` markup, or
-   - extract a top-level `Field` component (defined outside `RentCareApply`) that takes `value`, `onChange`, `label`, `type`, `textarea` as props.
-
-Preferred: extract a module-level `Field` component to keep the JSX compact. It will receive `value={form[k]}` and `onChange={(v) => set(k, v)}` from the parent, so its identity stays stable and inputs keep focus while typing.
-
-3. No other logic, validation, or styling changes — purely a re-render/identity fix.
+1. Delete the inline `const T = ...` declaration inside `RentCareApply`.
+2. Replace every `<T k="foo" label="..." [type] [textarea] />` usage in the JSX with a direct call to the already-extracted top-level `Field`:
+   ```tsx
+   <Field
+     id="rc-foo"
+     label="..."
+     value={form.foo || ""}
+     onChange={(v) => set("foo", v)}
+   />
+   ```
+   Pass `type` / `textarea` only where the current `T` usage passes them (numeric fields, date field, `reason`, `previous_support_history`).
+3. No changes to `Field`, `schema`, `onSubmit`, state shape, styling, or any other file.
 
 ## Verification
 
-- Open `/nugs/rentcare/new` (or wherever `RentCareApply` is routed) and type continuously into Full Name, Reason, and numeric fields — focus must remain in the field.
-- Submit flow (`onSubmit`, zod schema, navigation to `/nugs/rentcare/:id`) is unchanged.
+- Navigate to `/nugs/rentcare/new`.
+- Type a full sentence into Full Name, Reason (textarea), and a numeric field (e.g. Amount Requested) — cursor must stay in the field, no re-click needed between keystrokes.
+- Save Draft still navigates to `/nugs/rentcare/:id` with the same payload.
