@@ -537,6 +537,7 @@ const EngineRoom = () => {
 
 
   const isMainAdmin = profile?.isMainAdmin ?? (role === "regulator");
+  const isSuperAdmin = !!profile?.isSuperAdmin;
   const isSubAdmin = profile && !profile.isMainAdmin;
   const { isVisible } = useModuleVisibility("engine_room");
 
