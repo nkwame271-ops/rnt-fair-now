@@ -835,7 +835,7 @@ const EscrowDashboard = () => {
                         <th className="text-right py-2 px-2">IGF (HQ)</th>
                         <th className="text-right py-2 px-2">Admin (Office)</th>
                         <th className="text-right py-2 px-2">Admin (HQ)</th>
-                        <th className="text-right py-2 px-2">Platform</th>
+                        {isSuperAdmin && <th className="text-right py-2 px-2">Platform</th>}
                         <th className="text-right py-2 px-2">GRA</th>
                         <th className="text-right py-2 px-2">Landlord</th>
                         <th className="text-right py-2 px-2">Wallet Balance</th>
