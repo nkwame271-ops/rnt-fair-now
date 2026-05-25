@@ -279,7 +279,7 @@ const PaymentReceipt = ({ receiptNumber, date, payerName, totalAmount, paymentTy
     pdf.setTextColor(17, 24, 39);
     pdf.text((showSplits && visibleSplits.length > 0) ? "Total" : "Total Paid", margin + 8, y + 18);
     pdf.setTextColor(37, 99, 235);
-    pdf.text(formatGHSDecimal(totalAmount), pageW - margin - 8, y + 18, { align: "right" });
+    pdf.text(formatGHSDecimal(visibleTotal), pageW - margin - 8, y + 18, { align: "right" });
     y += 44;
 
     pdf.setFont("helvetica", "normal");
