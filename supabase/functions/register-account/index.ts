@@ -125,9 +125,9 @@ Deno.serve(async (req) => {
   if (createErr || !created?.user) {
     const msg = createErr?.message || "Failed to create auth user";
     if (msg.toLowerCase().includes("already") || msg.toLowerCase().includes("exists")) {
-      return jsonResp({ error: "This phone number is already registered.", code: "ALREADY_REGISTERED" }, 409);
+      return jsonResp({ ok: false, error: "This phone number is already registered.", code: "ALREADY_REGISTERED" }, 200);
     }
-    return jsonResp({ error: msg }, 500);
+    return jsonResp({ ok: false, error: msg, code: "AUTH_CREATE_FAILED" }, 200);
   }
 
   const userId = created.user.id;
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
   // Helper: roll back the auth user if any downstream step fails
   const rollback = async (reason: string) => {
     try { await admin.auth.admin.deleteUser(userId); } catch (e) { console.error("rollback delete user failed", e); }
-    return jsonResp({ error: reason, code: "ROLLED_BACK" }, 500);
+    return jsonResp({ ok: false, error: reason, code: "ROLLED_BACK" }, 200);
   };
 
   // 4. Update profile (handle_new_user trigger created the base row + user_roles entry from metadata)
