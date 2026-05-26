@@ -1,5 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
-import { createPortal } from "react-dom";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Search, CreditCard, Loader2, CheckCircle, AlertTriangle } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -55,39 +54,6 @@ const SerialSearchPicker = ({
     return options.filter(s => s.serial_number.toUpperCase().includes(q)).slice(0, 100);
   }, [options, query]);
 
-  // Track trigger rect so the portal dropdown stays aligned and can flip above the trigger if there isn't enough room below
-  const [rect, setRect] = useState<DOMRect | null>(null);
-  const updateRect = () => {
-    if (containerRef.current) setRect(containerRef.current.getBoundingClientRect());
-  };
-  useLayoutEffect(() => {
-    if (!open) return;
-    updateRect();
-    window.addEventListener("scroll", updateRect, true);
-    window.addEventListener("resize", updateRect);
-    return () => {
-      window.removeEventListener("scroll", updateRect, true);
-      window.removeEventListener("resize", updateRect);
-    };
-  }, [open]);
-
-  const dropdownStyle: React.CSSProperties | undefined = rect
-    ? (() => {
-        const maxH = 240;
-        const spaceBelow = window.innerHeight - rect.bottom;
-        const openUp = spaceBelow < maxH + 8 && rect.top > spaceBelow;
-        return {
-          position: "fixed",
-          left: rect.left,
-          width: rect.width,
-          top: openUp ? undefined : rect.bottom + 4,
-          bottom: openUp ? window.innerHeight - rect.top + 4 : undefined,
-          maxHeight: maxH,
-          zIndex: 10000,
-        };
-      })()
-    : undefined;
-
   return (
     <div ref={containerRef} className="relative">
       {value && !open ? (
@@ -110,15 +76,15 @@ const SerialSearchPicker = ({
           autoComplete="off"
         />
       )}
-      {open && typeof document !== "undefined" && createPortal(
+      {open && (
         <div
           ref={dropdownRef}
           data-serial-picker-dropdown=""
-          style={{ ...dropdownStyle, pointerEvents: "auto" }}
-          className="overflow-y-auto rounded-md border border-border bg-popover shadow-md"
+          style={{ pointerEvents: "auto" }}
+          className="absolute left-0 right-0 top-full mt-1 z-[60] max-h-60 overflow-y-auto rounded-md border border-border bg-popover shadow-md"
           onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
-
           {filtered.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-3">No serials found</p>
           ) : (
@@ -129,8 +95,9 @@ const SerialSearchPicker = ({
                 className={`w-full text-left px-3 py-2 text-xs font-mono hover:bg-accent transition-colors ${
                   s.serial_number === value ? "bg-accent text-accent-foreground" : "text-popover-foreground"
                 }`}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   onChange(s.serial_number);
                   setOpen(false);
                   setQuery("");
@@ -145,8 +112,7 @@ const SerialSearchPicker = ({
               Showing first 100 — type to narrow results
             </p>
           )}
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );
