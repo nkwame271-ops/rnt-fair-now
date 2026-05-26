@@ -35,11 +35,22 @@ const SafetyPanicButton = ({ role }: Props) => {
 
   const getLocation = (): Promise<GeolocationPosition | null> =>
     new Promise((resolve) => {
-      if (!navigator.geolocation) return resolve(null);
+      if (!navigator.geolocation) {
+        toast.warning("Geolocation not supported — alert will be sent without location.");
+        return resolve(null);
+      }
       navigator.geolocation.getCurrentPosition(
         (p) => resolve(p),
-        () => resolve(null),
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+        (err) => {
+          console.warn("panic getLocation error", err);
+          toast.warning(
+            err.code === err.PERMISSION_DENIED
+              ? "Location blocked — alert sent without coordinates. Enable location for live tracking."
+              : "Could not capture location — alert sent without coordinates."
+          );
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
       );
     });
 
