@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SAFETY_CATEGORIES } from "@/lib/safetyCategories";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, CreditCard, Loader2 } from "lucide-react";
 
 interface Props {
   role: "tenant" | "landlord" | "student";
@@ -30,6 +30,20 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
   const [files, setFiles] = useState<FileList | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [coords, setCoords] = useState<{ lat?: number; lng?: number; acc?: number }>({});
+  const [feeAmount, setFeeAmount] = useState<number | null>(null);
+
+  const feeKey = role === "student" ? "student_safety_report_fee" : "safety_report_fee";
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await (supabase.from("feature_flags") as any)
+        .select("fee_amount, fee_enabled")
+        .eq("feature_key", feeKey)
+        .maybeSingle();
+      if (data?.fee_enabled) setFeeAmount(Number(data.fee_amount) || 0);
+      else setFeeAmount(0);
+    })();
+  }, [feeKey]);
 
   const captureLocation = () => {
     if (!navigator.geolocation) return toast.error("Geolocation not supported");
@@ -45,40 +59,65 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
     if (!category) return toast.error("Please choose a category");
     setSubmitting(true);
     try {
-      const evidence_urls: string[] = [];
+      const evidence_paths: string[] = [];
       if (files) {
         for (const file of Array.from(files)) {
           const path = `${user.id}/${Date.now()}_${file.name}`;
           const { error: upErr } = await supabase.storage.from("safety-evidence").upload(path, file);
           if (upErr) console.warn("Evidence upload failed", upErr);
-          else evidence_urls.push(path);
+          else evidence_paths.push(path);
         }
       }
-      const { data, error } = await supabase.functions.invoke("submit-safety-report", {
-        body: {
-          report_kind: "safety_report",
-          category,
-          severity,
-          description,
-          hostel_or_hall: hostel || null,
-          school: school || null,
-          is_silent: silent,
-          evidence_urls,
+
+      const payload = {
+        report_kind: "safety_report",
+        category,
+        severity,
+        description,
+        hostel_or_hall: hostel || null,
+        school: school || null,
+        is_silent: silent,
+        user_role: role,
+        latitude: coords.lat ?? null,
+        longitude: coords.lng ?? null,
+        location_accuracy: coords.acc ?? null,
+      };
+
+      // Create draft awaiting payment
+      const { data: draft, error: dErr } = await (supabase
+        .from("pending_safety_report_drafts") as any)
+        .insert({
+          user_id: user.id,
           user_role: role,
-          latitude: coords.lat,
-          longitude: coords.lng,
-          location_accuracy: coords.acc,
-        },
+          payload,
+          evidence_paths,
+          amount: feeAmount ?? 0,
+          status: "pending_payment",
+        })
+        .select("id")
+        .single();
+      if (dErr) throw dErr;
+
+      const checkoutType = role === "student" ? "student_safety_report_draft" : "safety_report_draft";
+      const { data: payRaw, error: payErr } = await supabase.functions.invoke("paystack-checkout", {
+        body: { type: checkoutType, draftId: draft.id, callbackPath: `${backTo}?status=safety_paid` },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success(`Report submitted — Ticket ${data.ticket_number}`);
-      navigate(backTo);
+      let payData: any = payRaw;
+      if (typeof payRaw === "string") {
+        try { payData = JSON.parse(payRaw); } catch {}
+      }
+      if (payErr || payData?.error || !payData?.authorization_url) {
+        try { await (supabase.from("pending_safety_report_drafts") as any).delete().eq("id", draft.id); } catch {}
+        const reason = payData?.error || payErr?.message || "Could not start payment. Please try again.";
+        throw new Error(reason);
+      }
+      if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
+      toast.success("Redirecting to payment…");
+      window.location.href = payData.authorization_url;
     } catch (err: any) {
       console.error("safety submit error", err);
-      const msg = err?.message || err?.error || "Could not reach safety service";
-      toast.error(`Failed to submit report: ${msg}`);
-    } finally {
+      const msg = err?.message || err?.error || "Could not start payment";
+      toast.error(`Failed: ${msg}`);
       setSubmitting(false);
     }
   };
@@ -93,7 +132,7 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
           </CardTitle>
           <CardDescription>
             For serious safety concerns that are not an immediate emergency. For immediate danger,
-            use the red Panic button.
+            use the red Panic button (free, no payment required).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -169,12 +208,28 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
             <Switch id="silent" checked={silent} onCheckedChange={setSilent} />
           </div>
 
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
+            <CreditCard className="h-5 w-5 text-primary mt-0.5" />
+            <div className="text-sm">
+              <p className="font-medium">Safety Report Fee</p>
+              <p className="text-muted-foreground">
+                A fee of <strong>GHS {(feeAmount ?? 0).toFixed(2)}</strong> applies to file this
+                Safety Report. Your report is created only after payment is confirmed.
+                Emergency Panic alerts remain free.
+              </p>
+            </div>
+          </div>
+
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate(backTo)} className="flex-1">
+            <Button variant="outline" onClick={() => navigate(backTo)} className="flex-1" disabled={submitting}>
               Cancel
             </Button>
-            <Button onClick={submit} disabled={submitting} className="flex-1">
-              {submitting ? "Submitting..." : "Submit Report"}
+            <Button onClick={submit} disabled={submitting || feeAmount === null} className="flex-1">
+              {submitting ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Redirecting…</>
+              ) : (
+                <>Pay GHS {(feeAmount ?? 0).toFixed(2)} & Submit</>
+              )}
             </Button>
           </div>
         </CardContent>
