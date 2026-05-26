@@ -28,7 +28,7 @@ const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
 };
 
 // Student-only payment types — bypass office routing and secondary splits entirely.
-const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee", "rentcare_application_fee"]);
+const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee", "rentcare_application_fee", "student_safety_report_fee"]);
 
 // Recipients that may have a secondary split configuration (office vs. HQ).
 // When a primary split row is for one of these recipients AND the recipient has
