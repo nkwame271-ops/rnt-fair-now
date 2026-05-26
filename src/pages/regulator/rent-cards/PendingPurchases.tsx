@@ -113,10 +113,12 @@ const SerialSearchPicker = ({
       {open && typeof document !== "undefined" && createPortal(
         <div
           ref={dropdownRef}
-          style={dropdownStyle}
+          data-serial-picker-dropdown=""
+          style={{ ...dropdownStyle, pointerEvents: "auto" }}
           className="overflow-y-auto rounded-md border border-border bg-popover shadow-md"
           onMouseDown={(e) => e.stopPropagation()}
         >
+
           {filtered.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-3">No serials found</p>
           ) : (
