@@ -61,23 +61,24 @@ Deno.serve(async (req) => {
   try {
     body = await req.json();
   } catch {
-    return jsonResp({ error: "Invalid JSON body" }, 400);
+    return jsonResp({ ok: false, error: "Invalid JSON body", code: "BAD_REQUEST" }, 200);
   }
 
-  // Basic validation
+  // Basic validation — return 200 with structured error so supabase.functions.invoke
+  // surfaces our friendly message instead of "Edge Function returned a non-2xx status code".
   if (!body || (body.role !== "tenant" && body.role !== "landlord")) {
-    return jsonResp({ error: "role must be 'tenant' or 'landlord'" }, 400);
+    return jsonResp({ ok: false, error: "role must be 'tenant' or 'landlord'", code: "BAD_REQUEST" }, 200);
   }
   if (!body.full_name?.trim() || !body.phone?.trim() || !body.password) {
-    return jsonResp({ error: "full_name, phone, and password are required" }, 400);
+    return jsonResp({ ok: false, error: "full_name, phone, and password are required", code: "BAD_REQUEST" }, 200);
   }
   if (body.password.length < 6) {
-    return jsonResp({ error: "password must be at least 6 characters" }, 400);
+    return jsonResp({ ok: false, error: "password must be at least 6 characters", code: "BAD_REQUEST" }, 200);
   }
 
   const phoneDigits = normalizePhone(body.phone);
   if (phoneDigits.length < 9) {
-    return jsonResp({ error: "phone number looks invalid" }, 400);
+    return jsonResp({ ok: false, error: "phone number looks invalid", code: "BAD_REQUEST" }, 200);
   }
   const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
 
@@ -96,9 +97,9 @@ Deno.serve(async (req) => {
       .eq("user_id", existingProfile.user_id)
       .maybeSingle();
     if (roleRecord?.account_status === "deactivated") {
-      return jsonResp({ error: "This phone number is linked to a deactivated account. Please contact Rent Control for assistance.", code: "DEACTIVATED" }, 409);
+      return jsonResp({ ok: false, error: "This phone number is linked to a deactivated account. Please contact Rent Control for assistance.", code: "DEACTIVATED" }, 200);
     }
-    return jsonResp({ error: "This phone number is already registered. Please log in or recover your account.", code: "ALREADY_REGISTERED" }, 409);
+    return jsonResp({ ok: false, error: "This phone number is already registered. Please log in or recover your account.", code: "ALREADY_REGISTERED" }, 200);
   }
 
   // 2. Pre-check: email uniqueness (if email provided)
@@ -109,7 +110,7 @@ Deno.serve(async (req) => {
       .eq("email", body.email.trim())
       .maybeSingle();
     if (emailMatch) {
-      return jsonResp({ error: "This email is already in use by another account.", code: "EMAIL_TAKEN" }, 409);
+      return jsonResp({ ok: false, error: "This email is already in use by another account.", code: "EMAIL_TAKEN" }, 200);
     }
   }
 
