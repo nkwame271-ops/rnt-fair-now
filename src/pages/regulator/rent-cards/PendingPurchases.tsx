@@ -786,7 +786,16 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
 
       {/* Assignment Dialog with 4 modes */}
       <Dialog open={mappingCards.length > 0} onOpenChange={open => { if (!open && !assigning) setMappingCards([]); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent
+          className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+          onPointerDownOutside={(e) => {
+            if ((e.target as HTMLElement)?.closest?.("[data-serial-picker-dropdown]")) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if ((e.target as HTMLElement)?.closest?.("[data-serial-picker-dropdown]")) e.preventDefault();
+          }}
+        >
+
           <DialogHeader>
             <DialogTitle>Assign Serials — {mappingCards.length} card{mappingCards.length !== 1 ? "s" : ""}</DialogTitle>
             <DialogDescription>
