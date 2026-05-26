@@ -39,6 +39,7 @@ const RECIPIENT_LABELS: Record<string, string> = {
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
   student_registration: "Student Registration",
   student_complaint_fee: "Student Complaint Fee",
+  student_safety_report_fee: "Student Safety Report Fee",
 };
 
 const StudentRevenue = () => {

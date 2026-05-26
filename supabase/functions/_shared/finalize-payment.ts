@@ -28,7 +28,7 @@ const RECIPIENT_TO_ACCOUNT_TYPE: Record<string, string> = {
 };
 
 // Student-only payment types — bypass office routing and secondary splits entirely.
-const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee", "rentcare_application_fee"]);
+const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee", "rentcare_application_fee", "student_safety_report_fee"]);
 
 // Recipients that may have a secondary split configuration (office vs. HQ).
 // When a primary split row is for one of these recipients AND the recipient has
@@ -1191,6 +1191,115 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
         });
       }
     }
+  } else if (paymentType === "safety_report_fee" || paymentType === "student_safety_report_fee") {
+    const draftId = meta?.draft_id;
+    if (!draftId) return;
+    const { data: draft } = await supabaseAdmin
+      .from("pending_safety_report_drafts")
+      .select("id, user_id, user_role, payload, evidence_paths, status, materialized_report_id")
+      .eq("id", draftId)
+      .maybeSingle();
+    if (!draft || draft.status === "materialized" || draft.materialized_report_id) return;
+
+    const p = (draft.payload as any) || {};
+
+    // Snapshot profile (mirrors submit-safety-report)
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name, phone")
+      .eq("user_id", draft.user_id)
+      .maybeSingle();
+
+    const { count: falseAlertCount } = await supabaseAdmin
+      .from("safety_reports")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", draft.user_id)
+      .eq("status", "false_alert");
+
+    const { data: inserted, error: insErr } = await supabaseAdmin
+      .from("safety_reports")
+      .insert({
+        report_kind: "safety_report",
+        category: p.category ?? null,
+        user_id: draft.user_id,
+        user_role: draft.user_role,
+        user_name_snapshot: profile?.full_name ?? null,
+        user_phone_snapshot: profile?.phone ?? null,
+        hostel_or_hall: p.hostel_or_hall ?? null,
+        school: p.school ?? null,
+        description: p.description ?? null,
+        evidence_urls: draft.evidence_paths ?? [],
+        latitude: p.latitude ?? null,
+        longitude: p.longitude ?? null,
+        location_accuracy: p.location_accuracy ?? null,
+        is_silent: !!p.is_silent,
+        severity: p.severity ?? "medium",
+        false_alert_count_at_time: falseAlertCount ?? 0,
+        status: "submitted",
+      })
+      .select("id, ticket_number")
+      .single();
+
+    if (insErr) {
+      console.error("Failed to materialize safety report from draft:", insErr.message);
+      return;
+    }
+
+    // Audit log (non-fatal)
+    try {
+      await supabaseAdmin.from("safety_audit_log").insert({
+        report_id: inserted.id,
+        actor_user_id: draft.user_id,
+        action: "created",
+        details: { report_kind: "safety_report", paid: true, payment_type: paymentType, reference: escrow.reference },
+      });
+    } catch (e) { console.error("Safety audit log failed", e); }
+
+    // Notify all main admins (panic ringer is unaffected — it only listens for panic_emergency)
+    try {
+      const { data: admins } = await supabaseAdmin
+        .from("admin_staff")
+        .select("user_id")
+        .in("admin_type", ["main_admin", "super_admin"]);
+      if (admins?.length) {
+        const rows = admins.map((a: any) => ({
+          user_id: a.user_id,
+          title: "New Safety Report",
+          body: `${inserted.ticket_number} from ${profile?.full_name ?? "user"}`,
+          link: `/regulator/safety/${inserted.id}`,
+        }));
+        await supabaseAdmin.from("notifications").insert(rows);
+      }
+    } catch (e) { console.error("Notify admins failed", e); }
+
+    // SMS fan-out to safety contacts (best-effort)
+    try {
+      const { data: contacts } = await supabaseAdmin
+        .from("safety_contacts")
+        .select("phone")
+        .eq("active", true)
+        .not("phone", "is", null);
+      const message = `RentControl SAFETY: New safety report ${inserted.ticket_number} from ${profile?.full_name ?? "user"}. Category: ${p.category ?? "n/a"}.`;
+      const phones = (contacts ?? []).map((c: any) => c.phone).filter(Boolean) as string[];
+      await Promise.all(phones.map((phone) =>
+        supabaseAdmin.functions.invoke("send-sms", { body: { phone, message } }).catch(() => null)
+      ));
+    } catch (e) { console.error("Safety contact fan-out failed", e); }
+
+    await supabaseAdmin
+      .from("pending_safety_report_drafts")
+      .update({ status: "materialized", materialized_report_id: inserted.id })
+      .eq("id", draftId);
+
+    // Notify the reporter
+    try {
+      await supabaseAdmin.from("notifications").insert({
+        user_id: draft.user_id,
+        title: "Safety Report Submitted",
+        body: `Your safety report ${inserted.ticket_number} has been received.`,
+        link: "/safety/my-reports",
+      });
+    } catch {}
   }
 }
 

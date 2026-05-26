@@ -4074,6 +4074,51 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_safety_report_drafts: {
+        Row: {
+          amount: number
+          created_at: string
+          evidence_paths: string[] | null
+          expires_at: string
+          id: string
+          materialized_report_id: string | null
+          payload: Json
+          reference: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          user_role: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          evidence_paths?: string[] | null
+          expires_at?: string
+          id?: string
+          materialized_report_id?: string | null
+          payload: Json
+          reference?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          user_role: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          evidence_paths?: string[] | null
+          expires_at?: string
+          id?: string
+          materialized_report_id?: string | null
+          payload?: Json
+          reference?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          user_role?: string
+        }
+        Relationships: []
+      }
       pending_tenants: {
         Row: {
           claimed_at: string | null
