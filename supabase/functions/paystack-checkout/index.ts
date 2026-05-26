@@ -1244,6 +1244,45 @@ Deno.serve(async (req) => {
         })
         .eq("id", applicationId);
 
+    } else if (type === "safety_report_draft" || type === "student_safety_report_draft") {
+      // Payment-first model for Safety Reports — the actual safety_reports row
+      // is materialized in finalize-payment after Paystack confirms success.
+      // Emergency Panic alerts do NOT go through this path (they remain free).
+      const { draftId } = body;
+      if (!draftId) throw new Error("draftId is required");
+
+      const { data: draft, error: dErr } = await supabaseAdmin
+        .from("pending_safety_report_drafts")
+        .select("id, user_id, user_role, payload, status")
+        .eq("id", draftId)
+        .maybeSingle();
+      if (dErr || !draft) throw new Error("Safety report draft not found");
+      if (draft.user_id !== userId) throw new Error("Unauthorized");
+      if (draft.status !== "pending_payment") throw new Error("This safety report draft is no longer awaiting payment");
+
+      const isStudent = type === "student_safety_report_draft" || draft.user_role === "student";
+      const feeKey = isStudent ? "student_safety_report_fee" : "safety_report_fee";
+
+      const fee = await determineFee(supabaseAdmin, feeKey);
+      if (!fee.enabled || fee.amount <= 0) {
+        throw new Error("Safety Report fee is not currently configured. Please contact support.");
+      }
+
+      totalAmount = fee.amount;
+      splitPlan = await loadAllocation(supabaseAdmin, feeKey, totalAmount, null);
+      description = `${isStudent ? "Student " : ""}Safety Report Fee (GH₵ ${totalAmount.toFixed(2)})`;
+      reference = `safetydraft_${draftId}_${Date.now()}`;
+      callbackPath = body.callbackPath || (isStudent ? "/nugs/dashboard?status=safety_paid" : `/${draft.user_role}/dashboard?status=safety_paid`);
+      caseType = "safety_report";
+      if (isStudent) officeId = "accra_central";
+      metadata = { ...metadata, draft_id: draftId, isSafetyReportDraft: true, safety_role: draft.user_role };
+      (body as any).type = feeKey; // routes finalize through correct revenue logic
+
+      await supabaseAdmin
+        .from("pending_safety_report_drafts")
+        .update({ amount: totalAmount, reference })
+        .eq("id", draftId);
+
     } else {
       throw new Error("Invalid payment type");
     }
