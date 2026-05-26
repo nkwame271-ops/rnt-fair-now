@@ -1,75 +1,53 @@
-## Database Indexing & Performance Tune-Up
+# Activate Safety Report Paywall
 
-### Current Health (just measured)
+## Status of Discovery
 
-The database is actually in good shape — the System Health tile alarm threshold is well below where we are now:
+Almost everything you described is **already implemented and wired** in the codebase. The work needed is small: flip two switches and (optionally) relabel one split recipient.
 
-| Metric | Value | Verdict |
+### What's already in place
+
+| Requirement | Status | Where |
 |---|---|---|
-| Connections | 20 / 90 | Comfortable |
-| Memory | 58% | Healthy |
-| Data disk | 21% | Healthy |
-| Cache hit ratio | 99.96% | Excellent |
-| Restarts since boot | 0 | Clean |
+| Paywall UI before submission | ✅ Built | `src/pages/shared/ReportSafetyIssue.tsx` (tenant/landlord/student) |
+| Pending draft → pay → materialize report | ✅ Built | `pending_safety_report_drafts` table + `paystack-checkout` + `_shared/finalize-payment.ts` |
+| Receipts + escrow rows | ✅ Auto via existing escrow pipeline | `escrow_transactions` insert with `payment_type = safety_report_fee` / `student_safety_report_fee` |
+| Panic alerts stay FREE | ✅ Confirmed | `submit-safety-report` edge function is used only by `SafetyPanicButton`; never touched by paywall flow |
+| Engine Room: "Safety Report Fee" + "Student Safety Report Fee" rows | ✅ Already listed | `src/pages/regulator/EngineRoom.tsx` lines 84–89 |
+| Student routing → Student Revenue dashboard | ✅ `student_safety_report_fee` is in `STUDENT_PAYMENT_TYPES` everywhere |
+| Super-Admin-only edit of student split | ✅ Inherited from existing Engine Room permission gate |
+| Split rows in DB | ✅ Both fee types have split_configurations rows already (see below) |
 
-So this is **tuning**, not firefighting. The wins below come from removing the few real hot spots in `pg_stat_user_tables`.
+### Current split configurations (already in DB)
 
-### What's actually hot
+**Tenant/Landlord (`safety_report_fee`)** — total GHS 5.00:
+- rent_control: 2.00, admin: 1.50, platform: 1.50
 
-After scanning every public table:
+**Student (`student_safety_report_fee`)** — total GHS 5.00:
+- igf: 0.00, nugs: 1.50, platform: 2.50, cm: 1.00
 
-1. **`rent_card_serial_stock`** — biggest table (158 MB, 270k rows). 2.3 billion tuples read via sequential scan. Existing indexes cover most paths, but the `rcss_office_summary()` function filters `WHERE stock_type='office' AND status='available' AND pair_index IN (1, NULL)` and there is no index that combines those three.
-2. **`admin_audit_log`** — only the primary key exists. Queried by `admin_user_id` and `created_at` on every Activity Logs tab load.
-3. **`notifications`** — the existing `idx_notifications_user_unread` is never used (column order doesn't match the query). Bell badge does `WHERE user_id = ? AND read_at IS NULL`.
-4. **`tenancies`** — already well-indexed, but the auto-expire job scans by `end_date` + statuses; existing partial index is fine, no change needed.
-5. **Small tables** (admin_staff, user_roles, landlords, offices, tenants, properties, feature_flags, case_payments, escrow_transactions, payment_receipts) — sequential scans here are correct: Postgres deliberately ignores indexes on tables this small. Adding more would slow writes for no read benefit.
+### What's actually missing
 
-### Plan
+1. **Both feature flags have `is_enabled = false`** → paywall page currently throws "Safety Report fee is not currently configured" when a user tries to pay. This is the single reason the feature appears not to work.
+2. Your spec lists the tenant/landlord split as **IGF + Admin + Platform**. The DB currently uses `rent_control + admin + platform`. Functionally equivalent (`rent_control` is the office/regulator bucket), but the label differs from your spec.
 
-**Single migration adding/replacing these indexes (all `CONCURRENTLY` so no downtime):**
+## Implementation Steps
 
-1. `rent_card_serial_stock` — partial index for the office-summary path:
+1. **Migration: enable both fee flags** (one-line update each)
+   ```sql
+   UPDATE feature_flags
+     SET is_enabled = true
+     WHERE feature_key IN ('safety_report_fee', 'student_safety_report_fee');
    ```
-   CREATE INDEX CONCURRENTLY idx_rcss_office_available
-   ON rent_card_serial_stock (stock_type, office_name, region)
-   WHERE status = 'available' AND (pair_index = 1 OR pair_index IS NULL);
-   ```
+2. **(Optional, pending your answer below)** Rename `rent_control` recipient on `safety_report_fee` to `igf` so the Engine Room split UI matches your spec's wording exactly. The student split already uses `igf` so this would make the two consistent.
+3. **No code changes required** to `ReportSafetyIssue.tsx`, `paystack-checkout`, or `finalize-payment.ts`.
+4. Verify after activation:
+   - Submit a tenant test safety report → redirected to Paystack → after payment, `safety_reports` row exists and an `escrow_transactions` row with `payment_type='safety_report_fee'` appears.
+   - Hit the Panic button → goes straight through `submit-safety-report` (no payment), confirming the free path is unaffected.
 
-2. `admin_audit_log` — two indexes covering the Activity Logs query:
-   ```
-   CREATE INDEX CONCURRENTLY idx_admin_audit_log_user_created
-     ON admin_audit_log (admin_user_id, created_at DESC);
-   CREATE INDEX CONCURRENTLY idx_admin_audit_log_created
-     ON admin_audit_log (created_at DESC);
-   ```
+## One question before I implement
 
-3. `notifications` — drop the unused partial index, replace with one that matches the unread-badge query:
-   ```
-   DROP INDEX IF EXISTS idx_notifications_user_unread;
-   CREATE INDEX CONCURRENTLY idx_notifications_user_unread
-     ON notifications (user_id, created_at DESC)
-     WHERE read_at IS NULL;
-   ```
+For the tenant/landlord split, do you want me to:
+- (a) Leave the current recipient as `rent_control` (functionally the IGF/regulator bucket — no DB churn), or
+- (b) Rename it to `igf` so the split rows literally read IGF + Admin + Platform like the student split does?
 
-4. `admin_activity_log` — add a composite for the Activity Logs filter (user + time):
-   ```
-   CREATE INDEX CONCURRENTLY idx_admin_activity_user_created
-     ON admin_activity_log (user_id, created_at DESC);
-   ```
-
-5. Run `ANALYZE` on the four tables so the planner picks up the new stats immediately.
-
-### What I am NOT doing (and why)
-
-- **No new indexes on small tables** (`user_roles`, `admin_staff`, `landlords`, `case_payments`, `escrow_transactions`, `payment_receipts`, `offices`, `properties`, `feature_flags`). They already have what they need; Postgres correctly chooses sequential scans because the entire table fits in a couple of pages. Adding indexes would only slow inserts.
-- **No app-code changes.** This is a pure schema/index migration.
-- **No instance upgrade.** Headroom is fine; no reason to spend on a bigger tier today.
-
-### Expected impact
-
-- `rcss_office_summary` (used everywhere stock counts are shown) — drops from a full scan of 270k rows to a tiny partial-index scan.
-- Activity Logs tab load — drops from a full scan of 34k+ activity rows + full scan of audit rows to indexed lookups.
-- Notification bell — unread query becomes an index-only scan.
-- System Health tile stays green; `db_connections_pct` and tuple-read counters should both move down on the next snapshot.
-
-If you want, after this lands I can also schedule a `VACUUM ANALYZE` and a one-time `REINDEX CONCURRENTLY` on `rent_card_serial_stock` to reclaim bloat — say the word and I'll add it.
+If you don't have a preference, I'll go with **(a)** since `rent_control` is the canonical office bucket used by every other tenant/landlord fee in the system, and changing it just for safety would make safety inconsistent with the rest.
