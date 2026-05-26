@@ -81,10 +81,12 @@ const PAYMENT_TYPE_LABELS: Record<string, string> = {
   filing_fee: "Filing Fee",
   student_registration: "Student Registration Fee",
   student_complaint_fee: "Student Complaint Filing Fee",
+  safety_report_fee: "Safety Report Fee",
+  student_safety_report_fee: "Student Safety Report Fee",
 };
 
-const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee"]);
-const STUDENT_FEATURE_KEYS = new Set(["student_registration", "student_complaint_fee"]);
+const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee", "student_safety_report_fee"]);
+const STUDENT_FEATURE_KEYS = new Set(["student_registration", "student_complaint_fee", "student_safety_report_fee"]);
 
 const RECIPIENT_LABELS: Record<string, string> = {
   platform: "Platform",
