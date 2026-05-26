@@ -113,10 +113,12 @@ const SerialSearchPicker = ({
       {open && typeof document !== "undefined" && createPortal(
         <div
           ref={dropdownRef}
-          style={dropdownStyle}
+          data-serial-picker-dropdown=""
+          style={{ ...dropdownStyle, pointerEvents: "auto" }}
           className="overflow-y-auto rounded-md border border-border bg-popover shadow-md"
           onMouseDown={(e) => e.stopPropagation()}
         >
+
           {filtered.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-3">No serials found</p>
           ) : (
@@ -784,7 +786,16 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
 
       {/* Assignment Dialog with 4 modes */}
       <Dialog open={mappingCards.length > 0} onOpenChange={open => { if (!open && !assigning) setMappingCards([]); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent
+          className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+          onPointerDownOutside={(e) => {
+            if ((e.target as HTMLElement)?.closest?.("[data-serial-picker-dropdown]")) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if ((e.target as HTMLElement)?.closest?.("[data-serial-picker-dropdown]")) e.preventDefault();
+          }}
+        >
+
           <DialogHeader>
             <DialogTitle>Assign Serials — {mappingCards.length} card{mappingCards.length !== 1 ? "s" : ""}</DialogTitle>
             <DialogDescription>
