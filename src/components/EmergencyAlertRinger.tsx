@@ -17,7 +17,7 @@ const PERM_KEY = "emergency_alerts_permission_prompted_v1";
  */
 const EmergencyAlertRinger = () => {
   const navigate = useNavigate();
-  const { visible: canView } = useFeatureGate("emergency_view_alerts");
+  const { visible: canView } = useFeatureGate("emergency_view_all");
   const { visible: canAck } = useFeatureGate("emergency_acknowledge");
   const [active, setActive] = useState<any[]>([]);
   const [showPermPrompt, setShowPermPrompt] = useState(false);
