@@ -92,7 +92,7 @@ const SerialSearchPicker = ({
               <button
                 key={s.serial_number}
                 type="button"
-                className={`w-full text-left px-3 py-2 text-xs font-mono hover:bg-accent transition-colors ${
+                className={`w-full text-left px-3 py-2 text-xs font-mono hover:bg-accent transition-colors flex items-center justify-between gap-2 ${
                   s.serial_number === value ? "bg-accent text-accent-foreground" : "text-popover-foreground"
                 }`}
                 onPointerDown={(e) => {
@@ -103,9 +103,13 @@ const SerialSearchPicker = ({
                   setQuery("");
                 }}
               >
-                {s.serial_number}
+                <span className="truncate">{s.serial_number}</span>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${s.source === "physical" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-700"}`}>
+                  {s.source === "physical" ? "Physical" : "Pool"}
+                </span>
               </button>
             ))
+
           )}
           {options.length > 100 && filtered.length >= 100 && (
             <p className="text-[10px] text-muted-foreground text-center py-1">
