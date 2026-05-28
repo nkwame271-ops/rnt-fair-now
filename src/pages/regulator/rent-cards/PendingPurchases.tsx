@@ -311,66 +311,11 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
 
     try {
       const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
-      const officeRegion = officeId ? getRegionForOffice(officeId) : null;
-
-      // Check if this office has quota/count-based allocations
-      let quotaRemaining = Infinity;
-      let hasQuota = false;
-      if (officeId) {
-        const { data: quotaAllocations } = await supabase
-          .from("office_allocations" as any)
-          .select("quota_limit")
-          .eq("office_id", officeId)
-          .in("allocation_mode", ["quota", "quantity_transfer"]);
-
-        const totalQuota = (quotaAllocations || []).reduce((sum: number, a: any) => sum + (a.quota_limit || 0), 0);
-
-        if (totalQuota > 0) {
-          hasQuota = true;
-          const { data: assignments } = await supabase
-            .from("serial_assignments" as any)
-            .select("card_count")
-            .eq("office_id", officeId);
-
-          const totalUsed = (assignments || []).reduce((sum: number, a: any) => sum + (a.card_count || 0), 0);
-          quotaRemaining = Math.max(0, totalQuota - totalUsed);
-
-          if (quotaRemaining <= 0) {
-            toast.error("Quota exhausted — request more allocation from HQ");
-            setMappingCards([]);
-            setLoadingSerials(false);
-            return;
-          }
-        }
-      }
-
-      let allSerials: any[] = [];
-      let from = 0;
-      const PAGE = 1000;
-
-      if (hasQuota) {
-        // LAYER 1: Regional Registry — show ALL unused regional serials (no slicing!)
-        // Allocation only limits how many can be assigned, not which serials are visible
-        while (true) {
-          const { data, error } = await supabase
-            .from("rent_card_serial_stock" as any)
-            .select("id, serial_number")
-            .eq("region", officeRegion || "")
-            .eq("stock_type", "regional")
-            .eq("status", "available")
-            .eq("pair_index", 1)
-            .order("serial_number", { ascending: true })
-            .range(from, from + PAGE - 1);
-
-          if (error) throw error;
-          if (!data || data.length === 0) break;
-          allSerials = allSerials.concat(data);
-          if (data.length < PAGE) break;
-          from += PAGE;
-        }
-        // DO NOT slice — show full regional registry. Quota enforcement happens at confirm time.
-      } else {
-        // Transfer mode: fetch from office stock (physical stock only)
+      // STEP A: Always fetch this office's physical stock (already transferred serials)
+      const physicalSerials: SerialOption[] = [];
+      {
+        let from = 0;
+        const PAGE = 1000;
         while (true) {
           const { data, error } = await supabase
             .from("rent_card_serial_stock" as any)
@@ -381,16 +326,81 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
             .eq("pair_index", 1)
             .order("serial_number", { ascending: true })
             .range(from, from + PAGE - 1);
-
           if (error) throw error;
           if (!data || data.length === 0) break;
-          allSerials = allSerials.concat(data);
+          for (const s of data as any[]) {
+            physicalSerials.push({ id: s.id, serial_number: s.serial_number, source: "physical" });
+          }
           if (data.length < PAGE) break;
           from += PAGE;
         }
       }
-      setAvailableSerials(allSerials.map((s: any) => ({ id: s.id, serial_number: s.serial_number })));
-      // Store quota remaining for enforcement at confirm time
+
+      // STEP B: Compute remaining quota (quota draws from regional pool)
+      // total quota = quota + quantity_transfer + quota_withdrawal (negatives included)
+      // used quota  = serial_assignments where source='quota' for this office
+      let quotaRemaining = 0;
+      if (officeId) {
+        const { data: quotaAllocations } = await supabase
+          .from("office_allocations" as any)
+          .select("quota_limit")
+          .eq("office_id", officeId)
+          .in("allocation_mode", ["quota", "quantity_transfer", "quota_withdrawal"]);
+        const totalQuota = (quotaAllocations || []).reduce(
+          (sum: number, a: any) => sum + (a.quota_limit || 0),
+          0,
+        );
+        if (totalQuota > 0) {
+          const { data: assignments } = await supabase
+            .from("serial_assignments" as any)
+            .select("card_count, source")
+            .eq("office_id", officeId)
+            .eq("source", "quota");
+          const used = (assignments || []).reduce(
+            (sum: number, a: any) => sum + (a.card_count || 0),
+            0,
+          );
+          quotaRemaining = Math.max(0, totalQuota - used);
+        }
+      }
+
+      // STEP C: If quota remains, fetch regional pool serials (up to quotaRemaining)
+      const poolSerials: SerialOption[] = [];
+      if (quotaRemaining > 0 && officeRegion) {
+        let from = 0;
+        const PAGE = 1000;
+        const cap = quotaRemaining + 50; // small buffer for safety
+        while (poolSerials.length < cap) {
+          const { data, error } = await supabase
+            .from("rent_card_serial_stock" as any)
+            .select("id, serial_number")
+            .eq("region", officeRegion)
+            .eq("stock_type", "regional")
+            .eq("status", "available")
+            .eq("pair_index", 1)
+            .order("serial_number", { ascending: true })
+            .range(from, from + PAGE - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          for (const s of data as any[]) {
+            poolSerials.push({ id: s.id, serial_number: s.serial_number, source: "quota" });
+          }
+          if (data.length < PAGE) break;
+          from += PAGE;
+        }
+      }
+
+      // Combined assignable list — physical first, then pool (visually tagged downstream)
+      const combined = [...physicalSerials, ...poolSerials];
+      if (combined.length === 0) {
+        toast.error("No assignable serials — office has no physical stock and no quota remaining");
+        setMappingCards([]);
+        setLoadingSerials(false);
+        return;
+      }
+      setAvailableSerials(combined);
+      setQuotaContext({ physical: physicalSerials.length, quotaRemaining });
+
       setQuotaContext(hasQuota ? { remaining: quotaRemaining } : null);
     } catch (err: any) {
       toast.error(err.message || "Failed to load serials");
