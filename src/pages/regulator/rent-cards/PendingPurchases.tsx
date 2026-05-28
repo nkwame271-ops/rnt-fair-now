@@ -311,6 +311,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
 
     try {
       const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
+      const officeRegion = officeId ? getRegionForOffice(officeId) : null;
+
       // STEP A: Always fetch this office's physical stock (already transferred serials)
       const physicalSerials: SerialOption[] = [];
       {
