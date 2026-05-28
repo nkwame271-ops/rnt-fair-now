@@ -161,9 +161,9 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   const [mappingCards, setMappingCards] = useState<PendingCard[]>([]);
   const [serialMap, setSerialMap] = useState<Record<string, string>>({});
   const [availableSerials, setAvailableSerials] = useState<SerialOption[]>([]);
+  const [loadingSerials, setLoadingSerials] = useState(false);
   const [quotaContext, setQuotaContext] = useState<{ physical: number; quotaRemaining: number } | null>(null);
 
-  const [quotaContext, setQuotaContext] = useState<{ remaining: number } | null>(null);
 
   // Client-side filter over loaded list
   const pendingCards = useMemo(() => {
