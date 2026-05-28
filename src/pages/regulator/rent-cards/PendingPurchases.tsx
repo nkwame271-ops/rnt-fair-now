@@ -572,8 +572,11 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
         }
       }
 
-      // Write serial_assignments audit records per purchase group
+      // Write serial_assignments audit records per purchase group, split by source
       const assignedCardIds = mappingCards.map(c => c.id);
+      const physicalSerialSet = new Set(
+        availableSerials.filter(s => s.source === "physical").map(s => s.serial_number),
+      );
       const purchaseGroups = new Map<string, { cards: PendingCard[]; serials: string[] }>();
       for (const card of mappingCards) {
         const serial = activeMap[card.id];
@@ -593,15 +596,36 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           .limit(1);
 
         if (!existingAudit || existingAudit.length === 0) {
-          await supabase.from("serial_assignments" as any).insert({
-            purchase_id: purchaseId,
-            landlord_user_id: group.cards[0].landlord_user_id,
-            office_name: office,
-            office_id: officeId || null,
-            assigned_by: user?.id,
-            serial_numbers: group.serials,
-            card_count: group.serials.length,
-          });
+          const physicalSerials = group.serials.filter(s => physicalSerialSet.has(s));
+          const quotaSerials = group.serials.filter(s => !physicalSerialSet.has(s));
+          const rows: any[] = [];
+          if (physicalSerials.length > 0) {
+            rows.push({
+              purchase_id: purchaseId,
+              landlord_user_id: group.cards[0].landlord_user_id,
+              office_name: office,
+              office_id: officeId || null,
+              assigned_by: user?.id,
+              serial_numbers: physicalSerials,
+              card_count: physicalSerials.length,
+              source: "physical",
+            });
+          }
+          if (quotaSerials.length > 0) {
+            rows.push({
+              purchase_id: purchaseId,
+              landlord_user_id: group.cards[0].landlord_user_id,
+              office_name: office,
+              office_id: officeId || null,
+              assigned_by: user?.id,
+              serial_numbers: quotaSerials,
+              card_count: quotaSerials.length,
+              source: "quota",
+            });
+          }
+          if (rows.length > 0) {
+            await supabase.from("serial_assignments" as any).insert(rows);
+          }
         }
 
         // Finalize deferred office attribution
