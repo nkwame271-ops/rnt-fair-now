@@ -129,6 +129,20 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [adjCorrectionTag, setAdjCorrectionTag] = useState("");
   const [showAdjPassword, setShowAdjPassword] = useState(false);
 
+  // Withdraw / Reduce allocation state
+  const [wdRegion, setWdRegion] = useState("");
+  const [wdOfficeId, setWdOfficeId] = useState("");
+  const [wdMode, setWdMode] = useState<"quantity" | "range">("quantity");
+  const [wdQuantity, setWdQuantity] = useState(0);
+  const [wdStart, setWdStart] = useState("");
+  const [wdEnd, setWdEnd] = useState("");
+  const [wdReason, setWdReason] = useState("");
+  const [showWdPassword, setShowWdPassword] = useState(false);
+  const wdRegionData = GHANA_REGIONS_OFFICES.find(r => r.region === wdRegion);
+  const wdOffices = wdRegionData?.offices || [];
+  const wdOfficeName = wdOffices.find(o => o.id === wdOfficeId)?.name || "";
+
+
   const adjRegionData = GHANA_REGIONS_OFFICES.find(r => r.region === adjRegion);
   const adjOffices = adjRegionData?.offices || [];
   const adjOfficeName = adjOffices.find(o => o.id === adjOfficeId)?.name || "";
