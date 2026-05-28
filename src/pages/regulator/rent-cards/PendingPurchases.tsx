@@ -496,13 +496,16 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     const isFullyMapped = mappingCards.length > 0 && mappingCards.every(c => activeMap[c.id]);
     if (!isFullyMapped) return;
 
-    // LAYER 2 enforcement: if quota-based, block if pair count exceeds remaining
-    // quotaContext.remaining is in pairs (serials), not raw cards
+    // Total assignable = physical stock + quota remaining
     const pairsNeeded = Math.ceil(mappingCards.length / 2);
-    if (quotaContext && pairsNeeded > quotaContext.remaining) {
-      toast.error(`Quota allows only ${quotaContext.remaining} more serial(s), but ${pairsNeeded} needed for ${mappingCards.length} cards`);
+    const totalAssignable = quotaContext
+      ? quotaContext.physical + quotaContext.quotaRemaining
+      : Infinity;
+    if (pairsNeeded > totalAssignable) {
+      toast.error(`Only ${totalAssignable} assignable pair(s) for this office (${quotaContext?.physical || 0} physical + ${quotaContext?.quotaRemaining || 0} quota), but ${pairsNeeded} needed.`);
       return;
     }
+
 
     // Enforce even number of cards (pairs of 2)
     if (mappingCards.length % 2 !== 0) {
