@@ -710,18 +710,29 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
                 <p className="text-xs text-muted-foreground">No allocations yet for this region.</p>
               ) : (
                 <div className="border border-border rounded-lg divide-y divide-border max-h-48 overflow-y-auto">
-                  {history.map(h => (
-                    <div key={h.id} className="flex items-center justify-between px-4 py-2 text-xs">
-                      <div>
-                        <span className="text-card-foreground font-medium">{h.office_name}</span>
-                        <Badge variant="outline" className="ml-2 text-[10px]">{h.allocation_mode}</Badge>
+                  {history.map(h => {
+                    const isWithdrawal = h.allocation_mode === "quota_withdrawal" || h.allocation_mode === "range_withdrawal";
+                    return (
+                      <div key={h.id} className="flex items-center justify-between px-4 py-2 text-xs">
+                        <div>
+                          <span className="text-card-foreground font-medium">{h.office_name}</span>
+                          <Badge
+                            variant={isWithdrawal ? "destructive" : "outline"}
+                            className="ml-2 text-[10px]"
+                          >
+                            {isWithdrawal ? `↩ ${h.allocation_mode.replace("_withdrawal", "")}` : h.allocation_mode}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`font-bold ${isWithdrawal ? "text-destructive" : "text-primary"}`}>
+                            {isWithdrawal ? `−${Math.abs(h.quantity)}` : h.quantity}
+                          </span>
+                          <span className="text-muted-foreground">{new Date(h.created_at).toLocaleDateString()}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-primary font-bold">{h.quantity}</span>
-                        <span className="text-muted-foreground">{new Date(h.created_at).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
+
                 </div>
               )}
             </div>
