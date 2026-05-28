@@ -130,6 +130,7 @@ interface PendingCard {
 interface SerialOption {
   id: string;
   serial_number: string;
+  source: "physical" | "quota";
 }
 
 interface Props {
