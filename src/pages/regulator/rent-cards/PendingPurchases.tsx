@@ -403,7 +403,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       setAvailableSerials(combined);
       setQuotaContext({ physical: physicalSerials.length, quotaRemaining });
 
-      setQuotaContext(hasQuota ? { remaining: quotaRemaining } : null);
+
     } catch (err: any) {
       toast.error(err.message || "Failed to load serials");
       setMappingCards([]);
