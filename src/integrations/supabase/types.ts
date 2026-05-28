@@ -6215,6 +6215,7 @@ export type Database = {
           office_name: string
           purchase_id: string
           serial_numbers: string[]
+          source: string
         }
         Insert: {
           assigned_by: string
@@ -6226,6 +6227,7 @@ export type Database = {
           office_name: string
           purchase_id: string
           serial_numbers?: string[]
+          source?: string
         }
         Update: {
           assigned_by?: string
@@ -6237,6 +6239,7 @@ export type Database = {
           office_name?: string
           purchase_id?: string
           serial_numbers?: string[]
+          source?: string
         }
         Relationships: []
       }
