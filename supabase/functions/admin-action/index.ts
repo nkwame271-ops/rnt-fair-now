@@ -521,6 +521,147 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "withdraw_from_office": {
+        targetType = "office_allocation";
+        const {
+          region: wRegion,
+          office_id: wOfficeId,
+          office_name: wOfficeName,
+          mode: wMode,
+          quantity: wQuantity,
+          start_serial: wStart,
+          end_serial: wEnd,
+        } = extra || {};
+
+        if (!wRegion || !wOfficeId || !wOfficeName || !wMode) {
+          throw new Error("Missing withdrawal parameters");
+        }
+
+        if (wMode === "quantity") {
+          const qty = Number(wQuantity || 0);
+          if (!qty || qty <= 0) throw new Error("Quantity must be greater than zero");
+
+          // Sum existing quota allocations (incl. previous withdrawals) for this office
+          const { data: allocs } = await adminClient
+            .from("office_allocations")
+            .select("quota_limit, allocation_mode")
+            .eq("office_id", wOfficeId)
+            .in("allocation_mode", ["quota", "quantity_transfer", "quota_withdrawal"]);
+          const totalQuota = (allocs || []).reduce(
+            (s: number, a: any) => s + (a.quota_limit || 0),
+            0
+          );
+
+          // Subtract only quota-sourced assignments (physical assignments do not consume quota)
+          const { data: usedRows } = await adminClient
+            .from("serial_assignments")
+            .select("card_count, source")
+            .eq("office_id", wOfficeId)
+            .eq("source", "quota");
+          const usedQuota = (usedRows || []).reduce(
+            (s: number, a: any) => s + (a.card_count || 0),
+            0
+          );
+          const quotaRemaining = Math.max(0, totalQuota - usedQuota);
+
+          if (qty > quotaRemaining) {
+            throw new Error(
+              `Cannot withdraw ${qty} — only ${quotaRemaining} quota pair(s) remaining (already committed elsewhere).`
+            );
+          }
+
+          await adminClient.from("office_allocations").insert({
+            region: wRegion,
+            office_id: wOfficeId,
+            office_name: wOfficeName,
+            quantity: -qty,
+            allocation_mode: "quota_withdrawal",
+            quota_limit: -qty,
+            allocated_by: user.id,
+          });
+
+          oldState = { action: "withdraw_quota", quota_remaining_before: quotaRemaining };
+          newState = {
+            office: wOfficeName,
+            withdrawn: qty,
+            mode: "quantity",
+            allocation_mode: "quota_withdrawal",
+          };
+        } else if (wMode === "range") {
+          if (!wStart || !wEnd) throw new Error("Missing start_serial or end_serial");
+          if (wStart > wEnd) throw new Error("Invalid serial range: end must be >= start");
+
+          const { data: rows, error: selErr } = await adminClient
+            .from("rent_card_serial_stock")
+            .select("id, serial_number, status, pair_index")
+            .eq("office_name", wOfficeName)
+            .eq("stock_type", "office")
+            .gte("serial_number", wStart)
+            .lte("serial_number", wEnd)
+            .order("serial_number", { ascending: true })
+            .limit(5000);
+
+          if (selErr) throw new Error(selErr.message);
+          if (!rows || rows.length === 0) {
+            throw new Error(`No office serials found in range ${wStart}–${wEnd}`);
+          }
+
+          // Block on any non-available rows (assigned/sold/spoilt)
+          const blocked = (rows as any[]).filter((r) => r.status !== "available");
+          if (blocked.length > 0) {
+            const uniqueBlocked = Array.from(new Set(blocked.map((r: any) => r.serial_number))).slice(0, 20);
+            throw new Error(
+              `Cannot withdraw — ${uniqueBlocked.length} serial(s) are not available. Unassign first: ${uniqueBlocked.join(", ")}`
+            );
+          }
+
+          const ids = (rows as any[]).map((r) => r.id);
+          const uniqueSerials = Array.from(new Set((rows as any[]).map((r) => r.serial_number)));
+
+          const { data: allocRecord } = await adminClient
+            .from("office_allocations")
+            .insert({
+              region: wRegion,
+              office_id: wOfficeId,
+              office_name: wOfficeName,
+              quantity: -uniqueSerials.length,
+              allocation_mode: "range_withdrawal",
+              start_serial: wStart,
+              end_serial: wEnd,
+              serial_numbers: uniqueSerials,
+              allocated_by: user.id,
+            })
+            .select("id")
+            .single();
+
+          for (let i = 0; i < ids.length; i += 500) {
+            const batch = ids.slice(i, i + 500);
+            await adminClient
+              .from("rent_card_serial_stock")
+              .update({
+                stock_type: "regional",
+                office_name: null,
+                office_allocation_id: null,
+              })
+              .in("id", batch);
+          }
+
+          oldState = { action: "withdraw_range", office: wOfficeName, count: uniqueSerials.length };
+          newState = {
+            office: wOfficeName,
+            withdrawn: uniqueSerials.length,
+            mode: "range",
+            start_serial: wStart,
+            end_serial: wEnd,
+            allocation_id: (allocRecord as any)?.id || null,
+          };
+        } else {
+          throw new Error(`Unknown withdrawal mode: ${wMode}`);
+        }
+        break;
+      }
+
+
       case "revoke_batch": {
         targetType = "serial_stock";
         // Paginate to handle batches with >1000 serials

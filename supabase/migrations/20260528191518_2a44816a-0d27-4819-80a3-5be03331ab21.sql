@@ -1,0 +1,2 @@
+ALTER TABLE public.serial_assignments ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'physical';
+CREATE INDEX IF NOT EXISTS idx_serial_assignments_office_source ON public.serial_assignments (office_id, source);

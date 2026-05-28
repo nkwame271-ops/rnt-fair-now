@@ -129,6 +129,20 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
   const [adjCorrectionTag, setAdjCorrectionTag] = useState("");
   const [showAdjPassword, setShowAdjPassword] = useState(false);
 
+  // Withdraw / Reduce allocation state
+  const [wdRegion, setWdRegion] = useState("");
+  const [wdOfficeId, setWdOfficeId] = useState("");
+  const [wdMode, setWdMode] = useState<"quantity" | "range">("quantity");
+  const [wdQuantity, setWdQuantity] = useState(0);
+  const [wdStart, setWdStart] = useState("");
+  const [wdEnd, setWdEnd] = useState("");
+  const [wdReason, setWdReason] = useState("");
+  const [showWdPassword, setShowWdPassword] = useState(false);
+  const wdRegionData = GHANA_REGIONS_OFFICES.find(r => r.region === wdRegion);
+  const wdOffices = wdRegionData?.offices || [];
+  const wdOfficeName = wdOffices.find(o => o.id === wdOfficeId)?.name || "";
+
+
   const adjRegionData = GHANA_REGIONS_OFFICES.find(r => r.region === adjRegion);
   const adjOffices = adjRegionData?.offices || [];
   const adjOfficeName = adjOffices.find(o => o.id === adjOfficeId)?.name || "";
@@ -714,6 +728,135 @@ const OfficeAllocation = ({ onStockChanged }: Props) => {
           </>
         )}
       </div>
+
+      {/* ─── Reduce / Withdraw Allocation ─── */}
+      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+          <MinusCircle className="h-5 w-5 text-destructive" /> Reduce / Withdraw Office Allocation
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Reverse a previous allocation — either reduce the office's quota by a number, or pull a specific serial range back to regional stock. Already-assigned serials must be unassigned first.
+        </p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Region</Label>
+            <Select value={wdRegion} onValueChange={v => { setWdRegion(v); setWdOfficeId(""); }}>
+              <SelectTrigger><SelectValue placeholder="Select region..." /></SelectTrigger>
+              <SelectContent>
+                {GHANA_REGIONS_OFFICES.map(r => (
+                  <SelectItem key={r.region} value={r.region}>{r.region}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {wdRegion && (
+            <div className="space-y-2">
+              <Label>Office</Label>
+              <Select value={wdOfficeId} onValueChange={setWdOfficeId}>
+                <SelectTrigger><SelectValue placeholder="Select office..." /></SelectTrigger>
+                <SelectContent>
+                  {wdOffices.map(o => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label>Withdrawal Mode</Label>
+          <RadioGroup value={wdMode} onValueChange={v => setWdMode(v as "quantity" | "range")} className="flex flex-wrap gap-4">
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="quantity" id="wd-qty" />
+              <Label htmlFor="wd-qty" className="cursor-pointer text-sm">Reduce by Quantity (quota only)</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="range" id="wd-range" />
+              <Label htmlFor="wd-range" className="cursor-pointer text-sm">Reduce by Physical Serial Range</Label>
+            </div>
+          </RadioGroup>
+        </div>
+
+        {wdMode === "quantity" ? (
+          <div className="space-y-2">
+            <Label>Pairs to withdraw</Label>
+            <Input type="number" min={1} value={wdQuantity || ""} onChange={e => setWdQuantity(parseInt(e.target.value) || 0)} placeholder="e.g. 50" />
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Start serial</Label>
+              <Input value={wdStart} onChange={e => setWdStart(e.target.value.toUpperCase())} placeholder="RCD-2026-GA-000003" className="font-mono text-xs" />
+            </div>
+            <div className="space-y-2">
+              <Label>End serial</Label>
+              <Input value={wdEnd} onChange={e => setWdEnd(e.target.value.toUpperCase())} placeholder="RCD-2026-GA-000017" className="font-mono text-xs" />
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Label>Reason <span className="text-destructive">*</span></Label>
+          <Input value={wdReason} onChange={e => setWdReason(e.target.value)} placeholder="e.g. Reallocating to high-demand office" />
+        </div>
+
+        <Button
+          variant="destructive"
+          disabled={
+            !wdOfficeId ||
+            !wdReason.trim() ||
+            (wdMode === "quantity" ? !wdQuantity : (!wdStart || !wdEnd))
+          }
+          onClick={() => setShowWdPassword(true)}
+        >
+          <MinusCircle className="h-4 w-4 mr-1" />
+          {wdMode === "quantity" ? `Withdraw ${wdQuantity} pair(s)` : "Withdraw Range"}
+        </Button>
+      </div>
+
+      <AdminPasswordConfirm
+        open={showWdPassword}
+        onOpenChange={setShowWdPassword}
+        title="Confirm Withdrawal"
+        description={
+          wdMode === "quantity"
+            ? `Reduce ${wdOfficeName}'s quota by ${wdQuantity} pair(s). This action is logged and cannot be undone.`
+            : `Pull serials ${wdStart} → ${wdEnd} from ${wdOfficeName} back to regional stock. Already-assigned serials will block the operation.`
+        }
+        actionLabel="Withdraw"
+        onConfirm={async (password, reason) => {
+          const { data, error } = await supabase.functions.invoke("admin-action", {
+            body: {
+              action: "withdraw_from_office",
+              target_id: `WITHDRAW-${wdOfficeId}-${Date.now()}`,
+              reason: reason || wdReason,
+              password,
+              extra: {
+                region: wdRegion,
+                office_id: wdOfficeId,
+                office_name: wdOfficeName,
+                mode: wdMode,
+                quantity: wdMode === "quantity" ? wdQuantity : undefined,
+                start_serial: wdMode === "range" ? wdStart : undefined,
+                end_serial: wdMode === "range" ? wdEnd : undefined,
+              },
+            },
+          });
+          if (error) throw new Error(error.message);
+          if (data?.error) throw new Error(data.error);
+          toast.success(
+            wdMode === "quantity"
+              ? `Withdrew ${wdQuantity} pair(s) of quota from ${wdOfficeName}`
+              : `Withdrew serials ${wdStart}–${wdEnd} from ${wdOfficeName} back to regional stock`,
+          );
+          setWdQuantity(0); setWdStart(""); setWdEnd(""); setWdReason("");
+          if (selectedRegion === wdRegion) refreshRegion();
+          onStockChanged();
+        }}
+      />
+
 
       {/* ─── Inventory Adjustment Tool ─── */}
       <div className="bg-card rounded-xl border border-border p-6 space-y-4">
