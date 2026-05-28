@@ -809,17 +809,18 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                 </div>
                  {quotaContext && (
                    <div className="flex justify-between border-t border-border pt-1 mt-1">
-                     <span className="text-muted-foreground">Quota remaining (serials/pairs):</span>
-                     <span className={`font-semibold ${quotaContext.remaining >= serialsNeeded ? "text-success" : "text-destructive"}`}>
-                       {quotaContext.remaining}
+                     <span className="text-muted-foreground">Assignable balance:</span>
+                     <span className={`font-semibold ${(quotaContext.physical + quotaContext.quotaRemaining) >= serialsNeeded ? "text-success" : "text-destructive"}`}>
+                       {quotaContext.physical} physical + {quotaContext.quotaRemaining} quota = {quotaContext.physical + quotaContext.quotaRemaining}
                      </span>
                    </div>
                  )}
-                 {quotaContext && serialsNeeded > quotaContext.remaining && (
+                 {quotaContext && serialsNeeded > (quotaContext.physical + quotaContext.quotaRemaining) && (
                    <p className="text-destructive text-xs mt-1">
-                     ⚠ Need {serialsNeeded} serial(s) but only {quotaContext.remaining} quota remaining. Reduce selection.
+                     ⚠ Need {serialsNeeded} serial(s) but only {quotaContext.physical + quotaContext.quotaRemaining} assignable. Reduce selection or request more allocation.
                    </p>
                 )}
+
               </div>
 
               {availableSerials.length === 0 ? (
