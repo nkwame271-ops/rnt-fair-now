@@ -1109,6 +1109,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                                   return next;
                                 });
                               }}
+                              officeName={effectiveOfficeName}
+                              officeRegion={effectiveOfficeRegion}
                             />
                           </div>
                         ))}
