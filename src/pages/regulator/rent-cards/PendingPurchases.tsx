@@ -22,17 +22,32 @@ import {
 } from "@/components/ui/dialog";
 
 /* ─── Searchable serial picker ─── */
+interface GlobalHit {
+  serial_number: string;
+  status: string;
+  stock_type: string | null;
+  region: string | null;
+  office_name: string | null;
+  batch_label: string | null;
+}
+
 const SerialSearchPicker = ({
   options,
   value,
   onChange,
+  officeName,
+  officeRegion,
 }: {
   options: SerialOption[];
   value: string;
   onChange: (val: string) => void;
+  officeName?: string;
+  officeRegion?: string | null;
 }) => {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [globalHits, setGlobalHits] = useState<GlobalHit[]>([]);
+  const [lookingUp, setLookingUp] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -53,6 +68,52 @@ const SerialSearchPicker = ({
     const q = query.toUpperCase();
     return options.filter(s => s.serial_number.toUpperCase().includes(q)).slice(0, 100);
   }, [options, query]);
+
+  // Global lookup when local list has no match
+  useEffect(() => {
+    if (filtered.length > 0 || query.trim().length < 4) {
+      setGlobalHits([]);
+      setLookingUp(false);
+      return;
+    }
+    let cancelled = false;
+    setLookingUp(true);
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await supabase
+          .from("rent_card_serial_stock" as any)
+          .select("serial_number, status, stock_type, region, office_name, batch_label")
+          .eq("pair_index", 1)
+          .ilike("serial_number", `%${query.trim()}%`)
+          .limit(5);
+        if (!cancelled) setGlobalHits((data as any[]) || []);
+      } catch {
+        if (!cancelled) setGlobalHits([]);
+      } finally {
+        if (!cancelled) setLookingUp(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [filtered.length, query]);
+
+  const explainHit = (h: GlobalHit): string => {
+    if (h.status === "assigned") return "Already assigned";
+    if (h.status === "revoked") return "Revoked";
+    if (h.status !== "available") return `Status: ${h.status}`;
+    if (h.stock_type === "office") {
+      if (officeName && h.office_name === officeName) {
+        return "Belongs here but pair_index=2 only — data anomaly, contact super admin";
+      }
+      return `In ${h.office_name || "another office"} stock — transfer to your office to assign`;
+    }
+    if (h.stock_type === "regional") {
+      if (officeRegion && h.region === officeRegion) {
+        return "In your regional pool — your office has no quota remaining (request a quota or quantity transfer)";
+      }
+      return `In ${h.region || "another"} regional pool — outside your region`;
+    }
+    return "Not in your assignable scope";
+  };
 
   return (
     <div ref={containerRef} className="relative">
@@ -81,12 +142,43 @@ const SerialSearchPicker = ({
           ref={dropdownRef}
           data-serial-picker-dropdown=""
           style={{ pointerEvents: "auto" }}
-          className="absolute left-0 right-0 top-full mt-1 z-[60] max-h-60 overflow-y-auto rounded-md border border-border bg-popover shadow-md"
+          className="absolute left-0 right-0 top-full mt-1 z-[60] max-h-72 overflow-y-auto rounded-md border border-border bg-popover shadow-md"
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
           {filtered.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-3">No serials found</p>
+            <>
+              <p className="text-xs text-muted-foreground text-center py-3">No serials found in your assignable list</p>
+              {query.trim().length >= 4 && (
+                <div className="border-t border-border">
+                  {lookingUp ? (
+                    <p className="text-[11px] text-muted-foreground text-center py-2">Looking up…</p>
+                  ) : globalHits.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground text-center py-2">No matching serial exists in stock</p>
+                  ) : (
+                    <div className="py-1">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-3 py-1">Found elsewhere</p>
+                      {globalHits.map((h) => (
+                        <div key={h.serial_number} className="px-3 py-2 text-[11px] border-t border-border/50 first:border-t-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-card-foreground truncate">{h.serial_number}</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${
+                              h.status === "available" ? "bg-success/10 text-success" :
+                              h.status === "assigned" ? "bg-primary/10 text-primary" :
+                              "bg-muted text-muted-foreground"
+                            }`}>{h.status}</span>
+                          </div>
+                          <p className="text-muted-foreground mt-0.5">{explainHit(h)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {query.trim().length > 0 && query.trim().length < 4 && (
+                <p className="text-[10px] text-muted-foreground text-center py-1 border-t border-border">Type at least 4 characters to look up globally</p>
+              )}
+            </>
           ) : (
             filtered.map(s => (
               <button
