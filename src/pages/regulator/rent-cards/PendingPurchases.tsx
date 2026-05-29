@@ -317,6 +317,13 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       : officeName;
   };
 
+  const effectiveOfficeName = resolveOffice() || "";
+  const effectiveOfficeRegion = useMemo(() => {
+    const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
+    return officeId ? getRegionForOffice(officeId) : null;
+  }, [profile?.officeId, profile?.isMainAdmin]);
+
+
   const loadPending = async () => {
     setLoading(true);
     try {
