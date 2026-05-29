@@ -1015,6 +1015,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                           options={availableSerials}
                           value={startFromSerial}
                           onChange={setStartFromSerial}
+                          officeName={effectiveOfficeName}
+                          officeRegion={effectiveOfficeRegion}
                         />
                       </div>
                       {startFromSerial && (
