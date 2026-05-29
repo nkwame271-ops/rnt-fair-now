@@ -1048,6 +1048,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                             options={availableSerials}
                             value={rangeFrom}
                             onChange={setRangeFrom}
+                            officeName={effectiveOfficeName}
+                            officeRegion={effectiveOfficeRegion}
                           />
                         </div>
                         <div>
@@ -1056,6 +1058,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                             options={availableSerials}
                             value={rangeTo}
                             onChange={setRangeTo}
+                            officeName={effectiveOfficeName}
+                            officeRegion={effectiveOfficeRegion}
                           />
                         </div>
                       </div>
