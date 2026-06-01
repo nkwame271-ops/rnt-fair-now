@@ -91,8 +91,14 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   const w = doc.internal.pageSize.getWidth();
   const h = doc.internal.pageSize.getHeight();
   let y = 20;
-  const taxRate = (data.templateConfig?.tax_rate ?? 8) / 100;
-  const terms = data.templateConfig?.terms ?? DEFAULT_TERMS;
+  const graTaxEnabled = data.templateConfig?.gra_tax_enabled !== false;
+  const taxRate = graTaxEnabled ? (data.templateConfig?.tax_rate ?? 8) / 100 : 0;
+  const rawTerms = data.templateConfig?.terms ?? DEFAULT_TERMS;
+  // When GRA tax is disabled, suppress the boilerplate clauses that reference
+  // the 8% government tax so the agreement reads consistently.
+  const terms = graTaxEnabled
+    ? rawTerms
+    : rawTerms.filter((t) => !/8%\s*government\s*tax|8%\s*tax\s*has\s*been\s*paid|statutory\s*8%/i.test(t));
   const serialCode = data.serialCode || generateSerialCode(data.registrationCode);
   const version = data.version || 1;
 
