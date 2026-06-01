@@ -37,6 +37,7 @@ const SerialSearchPicker = ({
   value,
   onChange,
   officeName,
+  officeNames,
   officeRegion,
   assignableContext,
   isSuperAdmin,
@@ -45,6 +46,7 @@ const SerialSearchPicker = ({
   value: string;
   onChange: (val: string) => void;
   officeName?: string;
+  officeNames?: string[];
   officeRegion?: string | null;
   assignableContext?: { physical: number; quotaRemaining: number } | null;
   isSuperAdmin?: boolean;
