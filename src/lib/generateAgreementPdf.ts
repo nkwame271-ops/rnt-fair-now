@@ -11,6 +11,7 @@ export interface TemplateConfig {
   tax_rates?: Record<string, number>;
   registration_deadline_days: number;
   terms: string[];
+  gra_tax_enabled?: boolean;
 }
 
 export interface CustomFieldDef {
