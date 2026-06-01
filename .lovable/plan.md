@@ -1,55 +1,151 @@
-## Problems
+## Goal
 
-**1. Dropdown overlaps the search field (Manual mode especially).**
-`SerialSearchPicker` renders its results panel as an absolutely-positioned div with `top-full`. In the Manual mode list (`max-h-[50vh] overflow-y-auto`) every row stacks a picker, so an open dropdown sits on top of the next row's input, and is also clipped by the scroll container. The Pending search box can also be visually crowded by the picker panel inside the mapping dialog above it.
+Two new admin-controlled engines inside Templates:
 
-**2. Wrong reason: "your office has no quota remaining" when quota is actually available.**
-`openMappingDialog` only loads the first `quotaRemaining + 50` regional serials (ordered by `serial_number`). If a super admin types a real serial that lives further down the regional pool, the local list shows no match, the global lookup fires, and `explainHit` blindly returns:
-> "In your regional pool — your office has no quota remaining (request a quota or quantity transfer)"
-even though `quotaContext.quotaRemaining > 0`.
+1. **GRA Tax toggle** — one switch that turns the entire tax workflow off (PDFs, payment rows, checkout, receipts, agreement clauses).
+2. **Service Fee engine** — per-payment-type percentage fee with configurable revenue splits, shown only at checkout, never on receipts, separate from rent.
 
-**3. Super admin can't see exactly where the serial lives.**
-The "Found elsewhere" panel hides `office_name`/`region`/`batch_label` for same-region regional hits, so there's nothing to act on to retrieve it.
+## Where this lives
 
-## Fix (frontend-only, `src/pages/regulator/rent-cards/PendingPurchases.tsx`)
+`Regulator → Templates` (`src/pages/regulator/RegulatorAgreementTemplates.tsx`) gets a top-level **Tabs** wrapper with two tabs:
+- **Agreement** (current screen, unchanged)
+- **GRA Tax & Service Fees** (new)
 
-### A. Dropdown positioning & layering
-Keep the current lightweight panel but make it escape the scroll container and never hide the input:
+No new top-level route needed.
 
-- Render the results panel via a React portal to `document.body`, positioned with `getBoundingClientRect()` of the input wrapper (recomputed on `scroll`/`resize`). This removes the `overflow-y-auto` clipping in Manual mode and the "covers the next row's input" problem.
-- Choose top/bottom placement based on available viewport space (flip up when the input is in the lower half of the viewport). Cap height with `max-h-[min(18rem,40vh)]` and internal scroll.
-- Bump portal z-index to `z-[80]` (above dialog content `z-50`) and keep `pointer-events-auto`.
-- Keep the existing outside-click handler but compare against both the trigger ref and the portaled panel ref.
-- Pending Purchases page search input is unchanged (it's already above the dialog); the dialog's pickers stop overlapping it once the panel is portaled and flips.
+---
 
-### B. Honest "Found elsewhere" reason
-Pass the current `quotaContext` (and the office's region) into `SerialSearchPicker` as a new optional `assignableContext` prop:
+## 1) GRA Tax toggle
+
+### Schema (new migration)
+```
+ALTER TABLE public.agreement_template_config
+  ADD COLUMN gra_tax_enabled boolean NOT NULL DEFAULT true;
+```
+(Settlement row `rent_tax → gra (100%)` in `split_configurations` stays; gating happens upstream.)
+
+### Server (single source of truth — never trust client)
+- **`supabase/functions/paystack-checkout/index.ts`**
+  - Read `gra_tax_enabled` once at the top of the handler.
+  - When `false`:
+    - `rent_tax` and `rent_tax_bulk` → return `{ ok: false, error: "GRA tax is currently disabled" }` (UI hides the button so this is just a safety net).
+    - `rent_combined` → behave exactly like `rent_payment` (`totalAmount = rent`, single landlord split, no `getTaxSplitPlan`).
+- **`supabase/functions/_shared/finalize-payment.ts`** (renewal cascade ~line 1140) — replace hardcoded `rent * 0.08` with `gra_tax_enabled ? rent * taxRate : 0`. Read `tax_rate` + flag from `agreement_template_config` once before the loop.
+- **`AddTenant.tsx` / `DeclareExistingTenancy.tsx` / `MyAgreements.tsx` renewal path** — when generating `rent_payments`, set `tax_amount = 0` and `amount_to_landlord = rent` if flag is off. The flag comes from the same `agreement_template_config` row already loaded as `templateConfig`.
+
+### Agreement PDF — `src/lib/generateAgreementPdf.ts`
+- Accept `templateConfig.gra_tax_enabled`. When false:
+  - Drop the "Govt. Tax" / "To Landlord (X%)" rows from the monthly breakdown; show "Monthly Rent" + "Advance" only.
+  - Skip auto-emitting the two boilerplate clauses that mention 8% tax (filter `terms` for the substrings "8% government tax" / "8% tax has been paid").
+
+### UI surfaces that today show `tax_amount`
+`src/pages/tenant/Payments.tsx`, `src/pages/tenant/MyAgreements.tsx`, `src/pages/landlord/Agreements.tsx`, `src/pages/regulator/RegulatorAnalytics.tsx` — guard each tax line/sum with `tax_amount > 0`. New tenancies created with flag off will already have `0`, so existing UI degrades cleanly. No conditional fetches needed.
+
+### Templates UI
+A single switch + helper text:
+```
+[●] GRA Tax Enabled
+When disabled: no tax is requested on rent payments, no tax line appears
+on tenancy agreements, no tax clauses are inserted, and rent_combined
+checkout charges only the rent. Existing tax owed on past tenancies is
+unaffected.
+```
+
+---
+
+## 2) Service Fee engine
+
+### Schema (same migration)
+```
+CREATE TABLE public.service_fee_configurations (
+  payment_type        text PRIMARY KEY,
+  enabled             boolean NOT NULL DEFAULT false,
+  percentage          numeric NOT NULL DEFAULT 0,
+  updated_at          timestamptz NOT NULL DEFAULT now(),
+  updated_by          uuid
+);
+
+CREATE TABLE public.service_fee_splits (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_type    text NOT NULL REFERENCES public.service_fee_configurations(payment_type) ON DELETE CASCADE,
+  payer_segment   text NOT NULL CHECK (payer_segment IN ('standard','student')),
+  recipient       text NOT NULL,   -- 'platform' | 'nugs' | 'admin' | 'igf'
+  percentage      numeric NOT NULL,
+  sort_order      int NOT NULL DEFAULT 0,
+  UNIQUE(payment_type, payer_segment, recipient)
+);
+
+ALTER TABLE public.escrow_splits ADD COLUMN is_service_fee boolean NOT NULL DEFAULT false;
+```
+Plus GRANTs (auth read, super-admin write via RLS using `is_super_admin(auth.uid())`) and a validation trigger that ensures the percentages for each `(payment_type, payer_segment)` sum to ≤ 100.
+
+Seed rows for the eight live payment types (`rent_payment`, `rent_combined`, `complaint_fee`, `agreement_sale`, `landlord_registration`, `tenant_registration`, `student_registration`, `student_complaint_fee`) with `enabled=false`, `percentage=0`, and a single `(standard, platform, 100)` row so the engine is wired but inert.
+
+### Server — shared helper `supabase/functions/_shared/service-fee.ts`
+```
+export async function resolveServiceFee(supabase, paymentType, baseAmount, payerSegment): {
+  enabled, percentage, fee, splits: [{recipient, amount, description}]
+}
+```
+- Loads the config row + matching `service_fee_splits` for the segment.
+- Returns `fee = round(base * percentage/100, 2)` and per-recipient split amounts (last row absorbs rounding).
+- `payerSegment` is `"student"` when the user is on `nugs_staff`, when the user has the `student` role, or when the payment_type starts with `student_`; otherwise `"standard"`.
+
+### Checkout integration — `paystack-checkout/index.ts`
+For every supported `type` branch, after computing `splitPlan`:
+```
+const seg = await detectPayerSegment(supabaseAdmin, userId, type);
+const sf = await resolveServiceFee(supabaseAdmin, type, baseAmount, seg);
+if (sf.enabled && sf.fee > 0) {
+  totalAmount += sf.fee;
+  splitPlan.push(...sf.splits.map(s => ({ ...s, is_service_fee: true })));
+  metadata.service_fee = { amount: sf.fee, percentage: sf.percentage, segment: seg };
+}
+```
+The fee is wrapped into the Paystack `amount` so the payer sees one charge. `metadata.service_fee` is returned to the client in the init response (`{ authorization_url, breakdown: { base, service_fee, total } }`).
+
+### Checkout preview UI
+Every initiator that calls `paystack-checkout.invoke(...)` (Payments.tsx, ManageRentCards, FileComplaint, RentalApplications, etc.) wraps the click in a tiny confirmation dialog (new `src/components/CheckoutBreakdownDialog.tsx`) that:
+1. Calls a new lightweight `quote-service-fee` edge function (or piggybacks on a `?quote=1` flag) to fetch `{ base, service_fee, total, percentage }`.
+2. Shows the breakdown and a "Proceed to pay" button that fires the real `paystack-checkout` call.
+
+This is the only place the fee is visible.
+
+### Escrow → receipts (fee absent from receipts)
+- `escrow_splits` rows tagged `is_service_fee=true` flow into the ledger normally for revenue reporting.
+- `finalize-payment.ts` already creates `payment_receipts.amount` from the customer-paid `escrow.total_amount`. We override:
+  - `receiptPayload.amount = escrow.total_amount - sum(service_fee splits)`
+  - `receiptPayload.metadata.service_fee_excluded = <fee>` (auditable but not rendered).
+- `PaymentReceipt.tsx` / receipt PDF — no template change needed; they read `amount` and never see fee lines.
+- Rent splits stay `{recipient: landlord, amount: rent}` — fee is additive, never subtracted from rent.
+
+### Reconciliation safety
+`processor-reconciliation` and `reconcile-internal-ledger` already sum on `escrow_splits.amount`. They keep working because fee splits are real escrow rows. Add a single filter clause in receipt-side comparisons to exclude `is_service_fee=true` when matching against `payment_receipts.amount`.
+
+### Templates UI (new tab)
+
+Table-style editor:
 
 ```
-{ physical: number; quotaRemaining: number; officeRegion: string | null }
+Payment type           Enabled   Fee %    Splits (Standard)            Splits (Student)
+rent_payment           [●]       2.50     platform 100                 platform 25 / nugs 25 / admin 25 / igf 25
+complaint_fee          [ ]       0.00     platform 100                 —
+agreement_sale         [ ]       0.00     ...                          ...
+...
 ```
 
-Update `explainHit` for `status === "available"`:
+Each row expands into two grids (Standard / Student) where the admin types four percentages; row turns red until the total = 100. Super-admin only edits Student splits (enforced both UI-side via `profile.isSuperAdmin` and DB-side via RLS).
 
-- `stock_type === "office"` + `office_name === officeName` → unchanged ("anomaly, contact super admin").
-- `stock_type === "office"` + other office → "In **{office_name}** ({region}) office stock — transfer to your office to assign".
-- `stock_type === "regional"` + `region !== officeRegion` → "In **{region}** regional pool — outside your region".
-- `stock_type === "regional"` + `region === officeRegion`:
-  - if `quotaRemaining <= 0` → keep current "no quota remaining" message.
-  - if `quotaRemaining > 0` → "In your regional pool ({region}) — beyond the currently loaded window. Increase quota usage, or transfer this serial into your office stock to assign it."
-- Always append a small secondary line with `Batch: {batch_label || "—"}` so super admin sees exactly which batch to retrieve from.
+---
 
-### C. Super-admin retrieval hint
-When `profile.isSuperAdmin` is true, append a one-line action hint under each hit:
-- "Open Admin Actions → search **{serial_number}** to transfer or revoke."
-
-(No new admin endpoint — Admin Actions already supports lookup by serial.)
-
-### D. Out of scope
-- No backend change, no migration, no change to assignment math or quota rules.
-- Pool fetch cap (`quotaRemaining + 50`) is unchanged; only the explanation gets honest. (Raising the cap would belong in a separate change — happy to do it next if you want all regional serials loaded when quota remains.)
+## Out of scope
+- Existing past `rent_payments` rows keep their stored `tax_amount` — flag only affects rows created after toggle.
+- Payment-provider switch (UMB) is unrelated and tracked separately.
+- No receipt template redesign — fee is filtered out, not styled away.
 
 ## Technical notes
-- Portal positioning lives entirely in `SerialSearchPicker`; the four call sites in `PendingPurchases` only pass the new `assignableContext` prop.
-- Flip logic: if `rect.bottom + 288 > window.innerHeight` and `rect.top > 288`, render above (`bottom: window.innerHeight - rect.top + 4`); else below (`top: rect.bottom + 4`).
-- No new dependencies — uses `createPortal` from `react-dom`.
+- `gra_tax_enabled` is read server-side on every checkout; client toggle is purely informational.
+- `service_fee_splits` trigger rejects writes whose percentage sum > 100 per segment; sum < 100 is allowed (admin can leave room) and surplus stays with the platform as fallback.
+- `is_service_fee` column is the single discriminator the receipt code uses — no payment_type sniffing, no string matching.
+- Renewal auto-cascade in `finalize-payment.ts` is the only other place rent payments are generated; updated to honor the toggle.
+- Tabs in Templates use existing shadcn `Tabs` — no new shell.
