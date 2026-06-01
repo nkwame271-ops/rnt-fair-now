@@ -1143,11 +1143,19 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
 
           if (!insertErr && newTenancy) {
             await supabaseAdmin.from("tenancies").update({ status: "expired" }).eq("id", tenancyId);
+            // Honor GRA Tax toggle + configured tax rate
+            const { data: tplCfg } = await supabaseAdmin
+              .from("agreement_template_config")
+              .select("gra_tax_enabled, tax_rate")
+              .limit(1)
+              .maybeSingle();
+            const taxOn = tplCfg?.gra_tax_enabled !== false;
+            const taxRateNum = Number(tplCfg?.tax_rate ?? 8) / 100;
             const payments = [];
             for (let i = 0; i < months; i++) {
               const dueDate = new Date(newStart);
               dueDate.setMonth(dueDate.getMonth() + i);
-              const taxAmount = rent * 0.08;
+              const taxAmount = taxOn ? +(rent * taxRateNum).toFixed(2) : 0;
               payments.push({
                 tenancy_id: newTenancy.id,
                 due_date: dueDate.toISOString().split("T")[0],
