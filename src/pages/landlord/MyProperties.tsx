@@ -479,6 +479,14 @@ const MyProperties = () => {
                     </AlertDialogContent>
                   </AlertDialog>
                 </div>
+
+                <div className="mt-3">
+                  <PropertyManagementToggle
+                    propertyId={p.id}
+                    enabled={!!p.management_enabled}
+                    onChange={(v) => setProperties(prev => prev.map(x => x.id === p.id ? { ...x, management_enabled: v } : x))}
+                  />
+                </div>
               </div>
 
               {/* Needs Update banner with suggested price */}
