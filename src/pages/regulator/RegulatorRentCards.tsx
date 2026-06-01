@@ -186,6 +186,21 @@ const RegulatorRentCards = () => {
               <AdminActions refreshKey={refreshKey} onStockChanged={triggerRefresh} />
             </TabsContent>
           )}
+
+          {/* SUPER ADMIN: SERIAL LOOKUP */}
+          {isSuper && (
+            <TabsContent value="serial_lookup">
+              <SerialLookup />
+            </TabsContent>
+          )}
+
+          {/* SUPER ADMIN: STOCK MOVEMENT */}
+          {isSuper && (
+            <TabsContent value="stock_movement">
+              <StockMovement onStockChanged={triggerRefresh} />
+            </TabsContent>
+          )}
+
         </Tabs>
       </div>
     </PageTransition>
