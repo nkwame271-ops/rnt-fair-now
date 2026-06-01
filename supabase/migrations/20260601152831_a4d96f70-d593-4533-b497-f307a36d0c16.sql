@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.lookup_serial_details(text[], uuid);

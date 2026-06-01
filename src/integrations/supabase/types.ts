@@ -7590,9 +7590,7 @@ export type Database = {
       is_nugs_user: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       issue_car_case_number: { Args: never; Returns: string }
-      lookup_serial_details:
-        | { Args: { p_serials: string[] }; Returns: Json }
-        | { Args: { p_actor?: string; p_serials: string[] }; Returns: Json }
+      lookup_serial_details: { Args: { p_serials: string[] }; Returns: Json }
       move_serials_atomic: {
         Args: {
           p_actor: string
