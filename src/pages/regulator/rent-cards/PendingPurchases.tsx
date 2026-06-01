@@ -1191,6 +1191,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                           officeRegion={effectiveOfficeRegion}
                           assignableContext={quotaContext}
                           isSuperAdmin={!!profile?.isSuperAdmin}
+                          onAssignFromPool={handleAssignFromPool}
                         />
                       </div>
                       {startFromSerial && (
