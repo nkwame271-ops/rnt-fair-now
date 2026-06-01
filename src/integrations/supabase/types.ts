@@ -2956,6 +2956,62 @@ export type Database = {
         }
         Relationships: []
       }
+      management_task_assignments: {
+        Row: {
+          assigned_at: string | null
+          assigned_office_id: string | null
+          assigned_staff_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          property_id: string
+          source_id: string | null
+          status: string
+          task_type: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_office_id?: string | null
+          assigned_staff_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          property_id: string
+          source_id?: string | null
+          status?: string
+          task_type: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_office_id?: string | null
+          assigned_staff_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          property_id?: string
+          source_id?: string | null
+          status?: string
+          task_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "management_task_assignments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketplace_messages: {
         Row: {
           created_at: string
@@ -4127,6 +4183,7 @@ export type Database = {
       }
       pending_tenants: {
         Row: {
+          assigned_staff_id: string | null
           claimed_at: string | null
           claimed_by: string | null
           created_at: string
@@ -4135,11 +4192,13 @@ export type Database = {
           id: string
           linked_at: string | null
           linked_user_id: string | null
+          managed_by_platform: boolean
           phone: string
           sms_sent: boolean
           tenancy_id: string | null
         }
         Insert: {
+          assigned_staff_id?: string | null
           claimed_at?: string | null
           claimed_by?: string | null
           created_at?: string
@@ -4148,11 +4207,13 @@ export type Database = {
           id?: string
           linked_at?: string | null
           linked_user_id?: string | null
+          managed_by_platform?: boolean
           phone: string
           sms_sent?: boolean
           tenancy_id?: string | null
         }
         Update: {
+          assigned_staff_id?: string | null
           claimed_at?: string | null
           claimed_by?: string | null
           created_at?: string
@@ -4161,6 +4222,7 @@ export type Database = {
           id?: string
           linked_at?: string | null
           linked_user_id?: string | null
+          managed_by_platform?: boolean
           phone?: string
           sms_sent?: boolean
           tenancy_id?: string | null
@@ -4320,6 +4382,11 @@ export type Database = {
           location_locked_at: string | null
           location_locked_by: string | null
           location_review_required: boolean
+          management_assigned_office_id: string | null
+          management_assigned_staff_id: string | null
+          management_enabled: boolean
+          management_enabled_at: string | null
+          management_notes: string | null
           normalized_address: string | null
           occupancy_type: string | null
           office_id: string | null
@@ -4367,6 +4434,11 @@ export type Database = {
           location_locked_at?: string | null
           location_locked_by?: string | null
           location_review_required?: boolean
+          management_assigned_office_id?: string | null
+          management_assigned_staff_id?: string | null
+          management_enabled?: boolean
+          management_enabled_at?: string | null
+          management_notes?: string | null
           normalized_address?: string | null
           occupancy_type?: string | null
           office_id?: string | null
@@ -4414,6 +4486,11 @@ export type Database = {
           location_locked_at?: string | null
           location_locked_by?: string | null
           location_review_required?: boolean
+          management_assigned_office_id?: string | null
+          management_assigned_staff_id?: string | null
+          management_enabled?: boolean
+          management_enabled_at?: string | null
+          management_notes?: string | null
           normalized_address?: string | null
           occupancy_type?: string | null
           office_id?: string | null
@@ -4594,6 +4671,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "property_location_edits_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_management_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          id: string
+          payload: Json
+          property_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json
+          property_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json
+          property_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_management_log_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
@@ -7146,9 +7258,11 @@ export type Database = {
       }
       viewing_requests: {
         Row: {
+          assigned_staff_id: string | null
           created_at: string
           id: string
           landlord_user_id: string
+          managed_by_platform: boolean
           message: string | null
           preferred_date: string | null
           preferred_time: string | null
@@ -7159,9 +7273,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_staff_id?: string | null
           created_at?: string
           id?: string
           landlord_user_id: string
+          managed_by_platform?: boolean
           message?: string | null
           preferred_date?: string | null
           preferred_time?: string | null
@@ -7172,9 +7288,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_staff_id?: string | null
           created_at?: string
           id?: string
           landlord_user_id?: string
+          managed_by_platform?: boolean
           message?: string | null
           preferred_date?: string | null
           preferred_time?: string | null
@@ -7388,6 +7506,14 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_property_to_staff: {
+        Args: {
+          p_office_id?: string
+          p_property_id: string
+          p_staff_user_id: string
+        }
+        Returns: Json
+      }
       assign_serials_atomic: {
         Args: {
           p_assigned_by: string
@@ -7533,6 +7659,10 @@ export type Database = {
       resolve_office_id: {
         Args: { p_area?: string; p_region: string }
         Returns: string
+      }
+      set_property_management: {
+        Args: { p_enabled: boolean; p_notes?: string; p_property_id: string }
+        Returns: Json
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
