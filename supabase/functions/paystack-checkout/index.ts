@@ -292,6 +292,16 @@ Deno.serve(async (req) => {
     let officeId: string = "accra_central";
     let caseType: string = type;
 
+    // GRA Tax kill-switch — server-side source of truth. When off, tax-bearing
+    // payment types are rejected and rent_combined collapses to plain rent.
+    const graTaxOn = await isGraTaxEnabled(supabaseAdmin);
+    if (!graTaxOn && (type === "rent_tax" || type === "rent_tax_bulk")) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "GRA tax is currently disabled by the regulator." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (type === "rent_tax_bulk") {
       const { tenancyId } = body;
       if (!tenancyId) throw new Error("tenancyId is required");
