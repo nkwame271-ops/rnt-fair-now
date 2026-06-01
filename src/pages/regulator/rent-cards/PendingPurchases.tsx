@@ -504,15 +504,31 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       const officeRegion = officeId ? getRegionForOffice(officeId) : null;
 
       // STEP A: Always fetch this office's physical stock (already transferred serials)
+      // Build alias set from office_allocations so legacy/variant office_name values
+      // (e.g. "Cape Coast" vs "Cape Coast Office") still match the same office_id.
+      const aliasSet = new Set<string>();
+      if (office) aliasSet.add(office);
+      if (officeId) {
+        const { data: aliasRows } = await supabase
+          .from("office_allocations" as any)
+          .select("office_name")
+          .eq("office_id", officeId);
+        for (const r of (aliasRows as any[]) || []) {
+          if (r?.office_name) aliasSet.add(r.office_name);
+        }
+      }
+      const officeNameList = Array.from(aliasSet);
+      setOfficeAliases(officeNameList);
+
       const physicalSerials: SerialOption[] = [];
-      {
+      if (officeNameList.length > 0) {
         let from = 0;
         const PAGE = 1000;
         while (true) {
           const { data, error } = await supabase
             .from("rent_card_serial_stock" as any)
             .select("id, serial_number")
-            .eq("office_name", office)
+            .in("office_name", officeNameList)
             .eq("stock_type", "office")
             .eq("status", "available")
             .eq("pair_index", 1)
