@@ -574,14 +574,16 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       }
     }
 
-    // STEP C: If quota remains, fetch regional pool serials (widened window so common
-    // fragmentation cases stop showing serials as "beyond the loaded window").
+    // STEP C: Fetch ALL available regional-pool serials for this office's region.
+    // The office's assignable balance (quotaRemaining) controls how many can be
+    // ASSIGNED, not how many are searchable/visible. Any available serial in the
+    // regional pool should be selectable as long as it is available, not revoked,
+    // not already assigned, and not locked to another office.
     const poolSerials: SerialOption[] = [];
-    if (quotaRemaining > 0 && officeRegion) {
+    if (officeRegion) {
       let from = 0;
       const PAGE = 1000;
-      const cap = quotaRemaining + 500;
-      while (poolSerials.length < cap) {
+      while (true) {
         const { data, error } = await supabase
           .from("rent_card_serial_stock" as any)
           .select("id, serial_number")
