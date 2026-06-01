@@ -1072,6 +1072,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                           onChange={setStartFromSerial}
                           officeName={effectiveOfficeName}
                           officeRegion={effectiveOfficeRegion}
+                          assignableContext={quotaContext}
+                          isSuperAdmin={!!profile?.isSuperAdmin}
                         />
                       </div>
                       {startFromSerial && (
@@ -1105,6 +1107,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                             onChange={setRangeFrom}
                             officeName={effectiveOfficeName}
                             officeRegion={effectiveOfficeRegion}
+                          assignableContext={quotaContext}
+                          isSuperAdmin={!!profile?.isSuperAdmin}
                           />
                         </div>
                         <div>
@@ -1115,6 +1119,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                             onChange={setRangeTo}
                             officeName={effectiveOfficeName}
                             officeRegion={effectiveOfficeRegion}
+                          assignableContext={quotaContext}
+                          isSuperAdmin={!!profile?.isSuperAdmin}
                           />
                         </div>
                       </div>
@@ -1166,6 +1172,8 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                               }}
                               officeName={effectiveOfficeName}
                               officeRegion={effectiveOfficeRegion}
+                          assignableContext={quotaContext}
+                          isSuperAdmin={!!profile?.isSuperAdmin}
                             />
                           </div>
                         ))}
