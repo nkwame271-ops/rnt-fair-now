@@ -496,7 +496,15 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       .eq("user_id", userId)
       .single();
 
-    const splitBreakdown = splitPlan.map((s: SplitItem) => ({ recipient: s.recipient, amount: s.amount }));
+    // Service-fee splits are real escrow rows for revenue reporting but must
+    // not appear on the customer receipt.
+    const serviceFeeTotal = splitPlan
+      .filter((s: any) => s?.is_service_fee === true)
+      .reduce((sum: number, s: any) => sum + Number(s.amount || 0), 0);
+    const receiptAmount = Math.max(0, +(amountPaid - serviceFeeTotal).toFixed(2));
+    const splitBreakdown = splitPlan
+      .filter((s: any) => s?.is_service_fee !== true)
+      .map((s: SplitItem) => ({ recipient: s.recipient, amount: s.amount }));
 
     // For complaint_fee payments, re-attribute the receipt to the actual complainant
     // (not the admin filer) and link it to the case so it appears in their portal
