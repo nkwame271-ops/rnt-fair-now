@@ -1119,6 +1119,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                           value={startFromSerial}
                           onChange={setStartFromSerial}
                           officeName={effectiveOfficeName}
+                          officeNames={officeAliases}
                           officeRegion={effectiveOfficeRegion}
                           assignableContext={quotaContext}
                           isSuperAdmin={!!profile?.isSuperAdmin}
@@ -1154,6 +1155,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                             value={rangeFrom}
                             onChange={setRangeFrom}
                             officeName={effectiveOfficeName}
+                          officeNames={officeAliases}
                             officeRegion={effectiveOfficeRegion}
                           assignableContext={quotaContext}
                           isSuperAdmin={!!profile?.isSuperAdmin}
@@ -1166,6 +1168,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                             value={rangeTo}
                             onChange={setRangeTo}
                             officeName={effectiveOfficeName}
+                          officeNames={officeAliases}
                             officeRegion={effectiveOfficeRegion}
                           assignableContext={quotaContext}
                           isSuperAdmin={!!profile?.isSuperAdmin}
@@ -1219,6 +1222,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                                 });
                               }}
                               officeName={effectiveOfficeName}
+                          officeNames={officeAliases}
                               officeRegion={effectiveOfficeRegion}
                           assignableContext={quotaContext}
                           isSuperAdmin={!!profile?.isSuperAdmin}
