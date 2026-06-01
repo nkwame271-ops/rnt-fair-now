@@ -37,6 +37,7 @@ const SerialSearchPicker = ({
   value,
   onChange,
   officeName,
+  officeNames,
   officeRegion,
   assignableContext,
   isSuperAdmin,
@@ -45,6 +46,7 @@ const SerialSearchPicker = ({
   value: string;
   onChange: (val: string) => void;
   officeName?: string;
+  officeNames?: string[];
   officeRegion?: string | null;
   assignableContext?: { physical: number; quotaRemaining: number } | null;
   isSuperAdmin?: boolean;
@@ -153,8 +155,13 @@ const SerialSearchPicker = ({
     if (h.status === "revoked") return { bucket: "Revoked", bucketTone: "bg-muted text-muted-foreground", message: "Serial was revoked" };
     if (h.status !== "available") return { bucket: h.status, bucketTone: "bg-muted text-muted-foreground", message: `Status: ${h.status}` };
     if (h.stock_type === "office") {
-      if (officeName && h.office_name === officeName) {
-        return { bucket: "Your office stock", bucketTone: "bg-success/10 text-success", message: "Belongs here but pair_index=2 only — data anomaly, contact super admin" };
+      const aliasSet = new Set<string>([
+        ...(officeNames || []),
+        ...(officeName ? [officeName] : []),
+      ].filter(Boolean));
+      const isYours = h.office_name && aliasSet.has(h.office_name);
+      if (isYours) {
+        return { bucket: "Your office stock", bucketTone: "bg-success/10 text-success", message: "Belongs to your office — should be in the assignable list. If missing, click Refresh." };
       }
       return {
         bucket: `Other office (${h.office_name || "—"})`,
@@ -338,6 +345,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   const [availableSerials, setAvailableSerials] = useState<SerialOption[]>([]);
   const [loadingSerials, setLoadingSerials] = useState(false);
   const [quotaContext, setQuotaContext] = useState<{ physical: number; quotaRemaining: number } | null>(null);
+  const [officeAliases, setOfficeAliases] = useState<string[]>([]);
 
 
   // Client-side filter over loaded list
@@ -496,15 +504,31 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       const officeRegion = officeId ? getRegionForOffice(officeId) : null;
 
       // STEP A: Always fetch this office's physical stock (already transferred serials)
+      // Build alias set from office_allocations so legacy/variant office_name values
+      // (e.g. "Cape Coast" vs "Cape Coast Office") still match the same office_id.
+      const aliasSet = new Set<string>();
+      if (office) aliasSet.add(office);
+      if (officeId) {
+        const { data: aliasRows } = await supabase
+          .from("office_allocations" as any)
+          .select("office_name")
+          .eq("office_id", officeId);
+        for (const r of (aliasRows as any[]) || []) {
+          if (r?.office_name) aliasSet.add(r.office_name);
+        }
+      }
+      const officeNameList = Array.from(aliasSet);
+      setOfficeAliases(officeNameList);
+
       const physicalSerials: SerialOption[] = [];
-      {
+      if (officeNameList.length > 0) {
         let from = 0;
         const PAGE = 1000;
         while (true) {
           const { data, error } = await supabase
             .from("rent_card_serial_stock" as any)
             .select("id, serial_number")
-            .eq("office_name", office)
+            .in("office_name", officeNameList)
             .eq("stock_type", "office")
             .eq("status", "available")
             .eq("pair_index", 1)
@@ -1095,6 +1119,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                           value={startFromSerial}
                           onChange={setStartFromSerial}
                           officeName={effectiveOfficeName}
+                          officeNames={officeAliases}
                           officeRegion={effectiveOfficeRegion}
                           assignableContext={quotaContext}
                           isSuperAdmin={!!profile?.isSuperAdmin}
@@ -1130,6 +1155,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                             value={rangeFrom}
                             onChange={setRangeFrom}
                             officeName={effectiveOfficeName}
+                          officeNames={officeAliases}
                             officeRegion={effectiveOfficeRegion}
                           assignableContext={quotaContext}
                           isSuperAdmin={!!profile?.isSuperAdmin}
@@ -1142,6 +1168,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                             value={rangeTo}
                             onChange={setRangeTo}
                             officeName={effectiveOfficeName}
+                          officeNames={officeAliases}
                             officeRegion={effectiveOfficeRegion}
                           assignableContext={quotaContext}
                           isSuperAdmin={!!profile?.isSuperAdmin}
@@ -1195,6 +1222,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
                                 });
                               }}
                               officeName={effectiveOfficeName}
+                          officeNames={officeAliases}
                               officeRegion={effectiveOfficeRegion}
                           assignableContext={quotaContext}
                           isSuperAdmin={!!profile?.isSuperAdmin}
