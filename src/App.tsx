@@ -58,6 +58,8 @@ const Agreements = lazy(() => import("./pages/landlord/Agreements"));
 const AddTenant = lazy(() => import("./pages/landlord/AddTenant"));
 const LandlordViewingRequests = lazy(() => import("./pages/landlord/ViewingRequests"));
 const LandlordFeedback = lazy(() => import("./pages/landlord/LandlordFeedback"));
+const LandlordManagementSupport = lazy(() => import("./pages/landlord/LandlordManagementSupport"));
+const RegulatorPropertyManagement = lazy(() => import("./pages/regulator/RegulatorPropertyManagement"));
 const LandlordMessages = lazy(() => import("./pages/landlord/Messages"));
 const LandlordApplications = lazy(() => import("./pages/landlord/LandlordApplications"));
 const LandlordComplaints = lazy(() => import("./pages/landlord/LandlordComplaints"));
