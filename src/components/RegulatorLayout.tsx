@@ -79,6 +79,7 @@ const allNavItems = [
   { to: "/regulator/tenants", label: "Tenants", icon: Users },
   { to: "/regulator/landlords", label: "Landlords", icon: Building2 },
   { to: "/regulator/properties", label: "Properties", icon: Building2 },
+  { to: "/regulator/property-management", label: "Property Management", icon: Building2 },
   { to: "/regulator/complaints", label: "Complaint Management", icon: AlertTriangle },
   { to: "/regulator/complaints/command-center", label: "Complaints Command Center", icon: LayoutDashboard },
   { to: "/regulator/complaints/schedule", label: "Hearing Schedule", icon: LayoutDashboard },
