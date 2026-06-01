@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { CreditCard, ShoppingCart, Package } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
@@ -26,6 +27,7 @@ const RegulatorRentCards = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const triggerRefresh = () => setRefreshKey(k => k + 1);
   const { isVisible } = useModuleVisibility("rent_cards");
+  const [searchParams] = useSearchParams();
 
   const isMain = !profile || profile.isMainAdmin;
   const isSuper = !!profile?.isSuperAdmin;
@@ -33,6 +35,14 @@ const RegulatorRentCards = () => {
   const hasRentCards = profile?.allowedFeatures?.includes("rent_cards");
   const hasProcurement = isMain || hasRentCards || profile?.allowedFeatures?.includes("rent_card_procurement");
   const hasSales = isMain || hasRentCards || profile?.allowedFeatures?.includes("rent_card_sales");
+
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<string>(
+    tabParam || (hasProcurement ? "procurement" : "sales")
+  );
+  useEffect(() => {
+    if (tabParam) setActiveTab(tabParam);
+  }, [tabParam]);
 
   if (profileLoading) return <LogoLoader message="Loading..." />;
 
@@ -48,7 +58,7 @@ const RegulatorRentCards = () => {
           </p>
         </div>
 
-        <Tabs defaultValue={hasProcurement ? "procurement" : "sales"}>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex flex-wrap h-auto gap-1">
             {hasProcurement && (
               <TabsTrigger value="procurement" className="gap-1">

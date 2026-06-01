@@ -56,7 +56,7 @@ const SerialSearchPicker = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -75,26 +75,36 @@ const SerialSearchPicker = ({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const PANEL_MAX = 288; // ~max-h-72
+    const GAP = 6;
     const spaceBelow = window.innerHeight - rect.bottom;
     const flipUp = spaceBelow < PANEL_MAX && rect.top > spaceBelow;
     const style: React.CSSProperties = {
       position: "fixed",
       left: rect.left,
       width: rect.width,
-      zIndex: 80,
+      zIndex: 100,
       maxHeight: `min(18rem, 40vh)`,
+      // explicitly clear the opposite axis so a stale value never pins
+      // the panel on top of the input
+      top: "auto",
+      bottom: "auto",
     };
     if (flipUp) {
-      style.bottom = Math.max(8, window.innerHeight - rect.top + 4);
+      style.bottom = Math.max(8, window.innerHeight - rect.top + GAP);
     } else {
-      style.top = rect.bottom + 4;
+      style.top = rect.bottom + GAP;
     }
     setPanelStyle(style);
   };
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setPanelStyle(null);
+      return;
+    }
     reposition();
+    // keep typing without the panel stealing focus
+    requestAnimationFrame(() => inputRef.current?.focus());
     const onScroll = () => reposition();
     const onResize = () => reposition();
     window.addEventListener("scroll", onScroll, true);
@@ -138,29 +148,41 @@ const SerialSearchPicker = ({
     return () => { cancelled = true; clearTimeout(t); };
   }, [filtered.length, query]);
 
-  const explainHit = (h: GlobalHit): string => {
-    if (h.status === "assigned") return "Already assigned";
-    if (h.status === "revoked") return "Revoked";
-    if (h.status !== "available") return `Status: ${h.status}`;
+  const explainHit = (h: GlobalHit): { bucket: string; bucketTone: string; message: string } => {
+    if (h.status === "assigned") return { bucket: "Assigned", bucketTone: "bg-primary/10 text-primary", message: "Already assigned to a card" };
+    if (h.status === "revoked") return { bucket: "Revoked", bucketTone: "bg-muted text-muted-foreground", message: "Serial was revoked" };
+    if (h.status !== "available") return { bucket: h.status, bucketTone: "bg-muted text-muted-foreground", message: `Status: ${h.status}` };
     if (h.stock_type === "office") {
       if (officeName && h.office_name === officeName) {
-        return "Belongs here but pair_index=2 only — data anomaly, contact super admin";
+        return { bucket: "Your office stock", bucketTone: "bg-success/10 text-success", message: "Belongs here but pair_index=2 only — data anomaly, contact super admin" };
       }
-      return `In ${h.office_name || "another office"}${h.region ? ` (${h.region})` : ""} office stock — transfer to your office to assign`;
+      return {
+        bucket: `Other office (${h.office_name || "—"})`,
+        bucketTone: "bg-amber-500/10 text-amber-700",
+        message: `In ${h.office_name || "another office"}${h.region ? ` (${h.region})` : ""} office stock — transfer to your office first, then assign.`,
+      };
     }
     if (h.stock_type === "regional") {
       if (officeRegion && h.region === officeRegion) {
-        if (assignableContext && assignableContext.quotaRemaining > 0) {
-          return `In your regional pool (${h.region}) — beyond the currently loaded window. Transfer this serial into your office stock to assign it.`;
-        }
-        return "In your regional pool — your office has no quota remaining (request a quota or quantity transfer)";
+        const noQuota = assignableContext && assignableContext.quotaRemaining <= 0;
+        return {
+          bucket: `Regional pool (${h.region})`,
+          bucketTone: "bg-indigo-500/10 text-indigo-700",
+          message: noQuota
+            ? `Serial sits in the ${h.region} regional pool (not in any office stock). Your office has used all its regional quota — request more quota, or transfer this specific serial into your office stock to assign it.`
+            : `In your regional pool (${h.region}) — beyond the currently loaded window. Transfer this serial into your office stock to assign it.`,
+        };
       }
-      return `In ${h.region || "another"} regional pool — outside your region`;
+      return {
+        bucket: `Regional pool (${h.region || "—"})`,
+        bucketTone: "bg-muted text-muted-foreground",
+        message: `In ${h.region || "another"} regional pool — outside your region`,
+      };
     }
-    return "Not in your assignable scope";
+    return { bucket: "Out of scope", bucketTone: "bg-muted text-muted-foreground", message: "Not in your assignable scope" };
   };
 
-  const panel = open ? (
+  const panel = open && panelStyle ? (
     <div
       ref={dropdownRef}
       data-serial-picker-dropdown=""
@@ -181,27 +203,29 @@ const SerialSearchPicker = ({
               ) : (
                 <div className="py-1">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-3 py-1">Found elsewhere</p>
-                  {globalHits.map((h) => (
+                  {globalHits.map((h) => {
+                    const info = explainHit(h);
+                    return (
                     <div key={h.serial_number} className="px-3 py-2 text-[11px] border-t border-border/50 first:border-t-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-mono text-card-foreground truncate">{h.serial_number}</span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${
-                          h.status === "available" ? "bg-success/10 text-success" :
-                          h.status === "assigned" ? "bg-primary/10 text-primary" :
-                          "bg-muted text-muted-foreground"
-                        }`}>{h.status}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${info.bucketTone}`}>{info.bucket}</span>
                       </div>
-                      <p className="text-muted-foreground mt-0.5">{explainHit(h)}</p>
+                      <p className="text-muted-foreground mt-0.5">{info.message}</p>
                       <p className="text-muted-foreground/80 mt-0.5">
-                        Location: {h.office_name || "—"} · {h.region || "—"} · Batch: {h.batch_label || "—"}
+                        Location: {h.office_name || "—"} · {h.region || "—"} · Batch: {h.batch_label || "—"} · Status: {h.status}
                       </p>
                       {isSuperAdmin && (
-                        <p className="text-primary/80 mt-0.5">
-                          Open Admin Actions → search <span className="font-mono">{h.serial_number}</span> to transfer or revoke.
-                        </p>
+                        <a
+                          href={`/regulator/rent-cards?tab=admin_actions&serial=${encodeURIComponent(h.serial_number)}`}
+                          className="inline-block mt-1 text-primary underline-offset-2 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Open in Admin Actions → transfer or revoke
+                        </a>
                       )}
                     </div>
-                  ))}
+                  );})}
                 </div>
               )}
             </div>

@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Search, Loader2, RotateCcw, Trash2, ScrollText, Ban, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ interface BatchSummary {
 
 const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
   const { isVisible } = useModuleVisibility("rent_cards");
+  const [searchParams, setSearchParams] = useSearchParams();
   // --- Serial Stock Registry ---
   const [registryBatches, setRegistryBatches] = useState<BatchSummary[]>([]);
   const [registryLoading, setRegistryLoading] = useState(false);
@@ -87,6 +89,23 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
   };
 
   useEffect(() => { loadRegistryBatches(); loadAuditLogs(); }, [refreshKey]);
+
+  // Auto-prefill + search when navigated with ?serial=...
+  const autoSearchedSerial = useRef<string | null>(null);
+  useEffect(() => {
+    const s = searchParams.get("serial");
+    if (s && autoSearchedSerial.current !== s) {
+      autoSearchedSerial.current = s;
+      setSerialSearch(s);
+      // fire search on next tick so state is committed
+      setTimeout(() => { handleSerialSearch(); }, 0);
+      // clean the param so a refresh doesn't keep re-firing
+      const next = new URLSearchParams(searchParams);
+      next.delete("serial");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleBatchSearch = async () => {
     if (!batchSearch.trim()) return;
