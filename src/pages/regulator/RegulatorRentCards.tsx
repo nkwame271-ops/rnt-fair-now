@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CreditCard, ShoppingCart, Package } from "lucide-react";
+import { CreditCard, ShoppingCart, Package, Search, ArrowRightLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { useModuleVisibility } from "@/hooks/useModuleVisibility";
