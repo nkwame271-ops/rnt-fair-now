@@ -75,7 +75,18 @@ const RegulatorRentCards = () => {
               </TabsTrigger>
             )}
             {isMain && isVisible("rent_cards", "admin_actions_tab") && <TabsTrigger value="admin_actions">Admin Actions</TabsTrigger>}
+            {isSuper && (
+              <TabsTrigger value="serial_lookup" className="gap-1">
+                <Search className="h-3.5 w-3.5" /> Serial Lookup
+              </TabsTrigger>
+            )}
+            {isSuper && (
+              <TabsTrigger value="stock_movement" className="gap-1">
+                <ArrowRightLeft className="h-3.5 w-3.5" /> Stock Movement
+              </TabsTrigger>
+            )}
           </TabsList>
+
 
           {/* PROCUREMENT WORKSPACE */}
           {hasProcurement && (
