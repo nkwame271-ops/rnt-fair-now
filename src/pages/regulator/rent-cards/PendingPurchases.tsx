@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { AdminProfile, GHANA_OFFICES, getRegionForOffice } from "@/hooks/useAdminProfile";
 import { useAuth } from "@/hooks/useAuth";
+import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import {
   Dialog,
   DialogContent,
