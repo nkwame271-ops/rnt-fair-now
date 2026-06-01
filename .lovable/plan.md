@@ -1,151 +1,99 @@
-## Goal
+# Landlord Management Support — Implementation Plan
 
-Two new admin-controlled engines inside Templates:
+A new operational layer where landlords can hand over day-to-day tenant interactions to platform staff, while still owning the property and receiving rent.
 
-1. **GRA Tax toggle** — one switch that turns the entire tax workflow off (PDFs, payment rows, checkout, receipts, agreement clauses).
-2. **Service Fee engine** — per-payment-type percentage fee with configurable revenue splits, shown only at checkout, never on receipts, separate from rent.
+## 1. Data Model
 
-## Where this lives
+**`properties` (extend)**
+- `management_enabled` boolean default false
+- `management_enabled_at` timestamptz
+- `management_assigned_staff_id` uuid (admin_staff.user_id, nullable)
+- `management_assigned_office_id` text (region/office routing)
+- `management_notes` text
 
-`Regulator → Templates` (`src/pages/regulator/RegulatorAgreementTemplates.tsx`) gets a top-level **Tabs** wrapper with two tabs:
-- **Agreement** (current screen, unchanged)
-- **GRA Tax & Service Fees** (new)
+**`property_management_log`** (audit) — property_id, action (enabled/disabled/assigned/reassigned), actor_id, payload jsonb, created_at.
 
-No new top-level route needed.
+**`management_task_assignments`** — generic routing table for unit-of-work assignment:
+- id, property_id, task_type (`viewing_request` | `tenant_onboarding` | `inquiry` | `compliance` | `rent_followup`), source_id (uuid of viewing_request / pending_tenant / inquiry), assigned_staff_id, status (`open|in_progress|done|reassigned`), assigned_at, completed_at, notes.
 
----
+**Existing tables touched (foreign-key add):**
+- `viewing_requests`, `pending_tenants`, `support_chats` (tenant-initiated property inquiries) — add `managed_by_platform` boolean (derived/cached) + `assigned_staff_id` uuid.
 
-## 1) GRA Tax toggle
+**RLS**
+- Landlord: read/write own `properties.management_*` columns, read own task assignments (read-only).
+- Tenant: never sees landlord contact when `management_enabled=true` — handled in API/views.
+- Admin staff: read all managed properties; write only those assigned to them; super_admin/main_admin full access via `is_main_admin()`.
+- Service role for routing triggers.
 
-### Schema (new migration)
-```
-ALTER TABLE public.agreement_template_config
-  ADD COLUMN gra_tax_enabled boolean NOT NULL DEFAULT true;
-```
-(Settlement row `rent_tax → gra (100%)` in `split_configurations` stays; gating happens upstream.)
+## 2. Landlord Portal
 
-### Server (single source of truth — never trust client)
-- **`supabase/functions/paystack-checkout/index.ts`**
-  - Read `gra_tax_enabled` once at the top of the handler.
-  - When `false`:
-    - `rent_tax` and `rent_tax_bulk` → return `{ ok: false, error: "GRA tax is currently disabled" }` (UI hides the button so this is just a safety net).
-    - `rent_combined` → behave exactly like `rent_payment` (`totalAmount = rent`, single landlord split, no `getTaxSplitPlan`).
-- **`supabase/functions/_shared/finalize-payment.ts`** (renewal cascade ~line 1140) — replace hardcoded `rent * 0.08` with `gra_tax_enabled ? rent * taxRate : 0`. Read `tax_rate` + flag from `agreement_template_config` once before the loop.
-- **`AddTenant.tsx` / `DeclareExistingTenancy.tsx` / `MyAgreements.tsx` renewal path** — when generating `rent_payments`, set `tax_amount = 0` and `amount_to_landlord = rent` if flag is off. The flag comes from the same `agreement_template_config` row already loaded as `templateConfig`.
+**`MyProperties.tsx`** — new "Management Support" card per property with:
+- Toggle (on/off) — disabled if property has unresolved managed tasks
+- Status badge ("Self-managed" / "Managed by Platform" amber)
+- Helper text: "Platform handles tenant inquiries, viewings, onboarding, and compliance. You still receive rent."
 
-### Agreement PDF — `src/lib/generateAgreementPdf.ts`
-- Accept `templateConfig.gra_tax_enabled`. When false:
-  - Drop the "Govt. Tax" / "To Landlord (X%)" rows from the monthly breakdown; show "Monthly Rent" + "Advance" only.
-  - Skip auto-emitting the two boilerplate clauses that mention 8% tax (filter `terms` for the substrings "8% government tax" / "8% tax has been paid").
+**New page `LandlordManagementSupport.tsx`** (sidebar entry) — overview list of managed properties, current assigned office, open tasks count (read-only), rent settlement summary.
 
-### UI surfaces that today show `tax_amount`
-`src/pages/tenant/Payments.tsx`, `src/pages/tenant/MyAgreements.tsx`, `src/pages/landlord/Agreements.tsx`, `src/pages/regulator/RegulatorAnalytics.tsx` — guard each tax line/sum with `tax_amount > 0`. New tenancies created with flag off will already have `0`, so existing UI degrades cleanly. No conditional fetches needed.
+Landlord rent receipts unchanged — settlements still flow via existing `finalize-payment` splits.
 
-### Templates UI
-A single switch + helper text:
-```
-[●] GRA Tax Enabled
-When disabled: no tax is requested on rent payments, no tax line appears
-on tenancy agreements, no tax clauses are inserted, and rent_combined
-checkout charges only the rent. Existing tax owed on past tenancies is
-unaffected.
-```
+## 3. Tenant-Facing Routing
 
----
+When `properties.management_enabled = true`:
+- **Marketplace listing** — hide landlord name/phone; show "Managed by Rent Control Ghana Platform" badge; CTA "Request Viewing" → routes to platform queue (no extra fee, existing GHS 2.00 viewing fee unchanged per memory).
+- **Viewing request submission** — `viewing-request` edge function sets `assigned_staff_id` from `properties.management_assigned_staff_id` (fallback: office round-robin).
+- **Inquiry / support chat** — `support_chats` created against platform staff, not landlord user.
+- **Onboarding (AddTenant flow)** — when initiated for a managed property, route to platform; landlord notified read-only.
+- **Compliance & complaints** — `complaints` linked to managed property cc the assigned staff.
 
-## 2) Service Fee engine
+A small shared helper `src/lib/managementRouting.ts` resolves recipient (`landlord_user_id` vs `assigned_staff_id`) for every tenant-facing surface.
 
-### Schema (same migration)
-```
-CREATE TABLE public.service_fee_configurations (
-  payment_type        text PRIMARY KEY,
-  enabled             boolean NOT NULL DEFAULT false,
-  percentage          numeric NOT NULL DEFAULT 0,
-  updated_at          timestamptz NOT NULL DEFAULT now(),
-  updated_by          uuid
-);
+## 4. Admin Portal — Property Management module
 
-CREATE TABLE public.service_fee_splits (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  payment_type    text NOT NULL REFERENCES public.service_fee_configurations(payment_type) ON DELETE CASCADE,
-  payer_segment   text NOT NULL CHECK (payer_segment IN ('standard','student')),
-  recipient       text NOT NULL,   -- 'platform' | 'nugs' | 'admin' | 'igf'
-  percentage      numeric NOT NULL,
-  sort_order      int NOT NULL DEFAULT 0,
-  UNIQUE(payment_type, payer_segment, recipient)
-);
+New top-level entry `regulator/PropertyManagement/`:
 
-ALTER TABLE public.escrow_splits ADD COLUMN is_service_fee boolean NOT NULL DEFAULT false;
-```
-Plus GRANTs (auth read, super-admin write via RLS using `is_super_admin(auth.uid())`) and a validation trigger that ensures the percentages for each `(payment_type, payer_segment)` sum to ≤ 100.
+- **Overview** — KPI cards (Managed properties, Open viewings, Pending onboardings, Open inquiries, Compliance backlog).
+- **Managed Properties** — table with filters (region, office, assigned staff, status), bulk assign action.
+- **Assignment Console** — Super/Main Admin only: assign property → staff, bulk assign by region, reassign.
+- **Task Queues** (tabs): Viewing Requests · Tenant Onboarding · Inquiries · Compliance · Rent Follow-ups. Each task row supports assign-to-staff and status updates.
+- **Reports** — managed property reports (occupancy, revenue collected, time-to-respond per staff).
 
-Seed rows for the eight live payment types (`rent_payment`, `rent_combined`, `complaint_fee`, `agreement_sale`, `landlord_registration`, `tenant_registration`, `student_registration`, `student_complaint_fee`) with `enabled=false`, `percentage=0`, and a single `(standard, platform, 100)` row so the engine is wired but inert.
+**Permissions** (extend `nugs_staff.permissions` pattern via new `admin_staff.permissions` keys):
+- `property_management.view`
+- `property_management.assign` (super/main admin only by default)
+- `property_management.handle_viewings`
+- `property_management.handle_onboarding`
+- `property_management.handle_inquiries`
+- `property_management.handle_compliance`
 
-### Server — shared helper `supabase/functions/_shared/service-fee.ts`
-```
-export async function resolveServiceFee(supabase, paymentType, baseAmount, payerSegment): {
-  enabled, percentage, fee, splits: [{recipient, amount, description}]
-}
-```
-- Loads the config row + matching `service_fee_splits` for the segment.
-- Returns `fee = round(base * percentage/100, 2)` and per-recipient split amounts (last row absorbs rounding).
-- `payerSegment` is `"student"` when the user is on `nugs_staff`, when the user has the `student` role, or when the payment_type starts with `student_`; otherwise `"standard"`.
+Use existing `resolve_feature_access()` infrastructure where applicable; otherwise straight permission check in RLS via `is_main_admin()` + admin_staff.permissions JSON.
 
-### Checkout integration — `paystack-checkout/index.ts`
-For every supported `type` branch, after computing `splitPlan`:
-```
-const seg = await detectPayerSegment(supabaseAdmin, userId, type);
-const sf = await resolveServiceFee(supabaseAdmin, type, baseAmount, seg);
-if (sf.enabled && sf.fee > 0) {
-  totalAmount += sf.fee;
-  splitPlan.push(...sf.splits.map(s => ({ ...s, is_service_fee: true })));
-  metadata.service_fee = { amount: sf.fee, percentage: sf.percentage, segment: seg };
-}
-```
-The fee is wrapped into the Paystack `amount` so the payer sees one charge. `metadata.service_fee` is returned to the client in the init response (`{ authorization_url, breakdown: { base, service_fee, total } }`).
+## 5. Rent Payment Through Platform
 
-### Checkout preview UI
-Every initiator that calls `paystack-checkout.invoke(...)` (Payments.tsx, ManageRentCards, FileComplaint, RentalApplications, etc.) wraps the click in a tiny confirmation dialog (new `src/components/CheckoutBreakdownDialog.tsx`) that:
-1. Calls a new lightweight `quote-service-fee` edge function (or piggybacks on a `?quote=1` flag) to fetch `{ base, service_fee, total, percentage }`.
-2. Shows the breakdown and a "Proceed to pay" button that fires the real `paystack-checkout` call.
+Already partially supported by `paystack-checkout` (`rent_payment` / `rent_combined`). Changes:
+- For managed properties, tenant rent payment UI in `MyAgreements.tsx` shows "Paid via Platform" badge; receipts unchanged.
+- Add **Rent Follow-ups** queue: managed property + rent overdue ≥ N days → task auto-created via cron edge function or trigger.
+- Existing splits/GRA tax/service fee engine all apply unchanged — landlord still gets `amount_to_landlord` in the split.
 
-This is the only place the fee is visible.
+## 6. Edge Functions
 
-### Escrow → receipts (fee absent from receipts)
-- `escrow_splits` rows tagged `is_service_fee=true` flow into the ledger normally for revenue reporting.
-- `finalize-payment.ts` already creates `payment_receipts.amount` from the customer-paid `escrow.total_amount`. We override:
-  - `receiptPayload.amount = escrow.total_amount - sum(service_fee splits)`
-  - `receiptPayload.metadata.service_fee_excluded = <fee>` (auditable but not rendered).
-- `PaymentReceipt.tsx` / receipt PDF — no template change needed; they read `amount` and never see fee lines.
-- Rent splits stay `{recipient: landlord, amount: rent}` — fee is additive, never subtracted from rent.
+- `assign-property-management` — toggle on/off, write audit log, optional auto-assign.
+- `assign-management-task` — assign/reassign a task row, notify staff + landlord.
+- `route-tenant-action` — shared helper invoked by viewing-request, support-chat-create, onboarding flows.
 
-### Reconciliation safety
-`processor-reconciliation` and `reconcile-internal-ledger` already sum on `escrow_splits.amount`. They keep working because fee splits are real escrow rows. Add a single filter clause in receipt-side comparisons to exclude `is_service_fee=true` when matching against `payment_receipts.amount`.
+## 7. Out of Scope (this round)
 
-### Templates UI (new tab)
+- Landlord-billed management fee (rule: "tenants should not pay extra"). If platform wants to charge landlord, that's a follow-up via Service Fee engine with new `management_fee` payment_type.
+- Mobile-app push notifications (use existing `notifications` + SMS routing).
 
-Table-style editor:
+## 8. Files to Create / Edit (high level)
 
-```
-Payment type           Enabled   Fee %    Splits (Standard)            Splits (Student)
-rent_payment           [●]       2.50     platform 100                 platform 25 / nugs 25 / admin 25 / igf 25
-complaint_fee          [ ]       0.00     platform 100                 —
-agreement_sale         [ ]       0.00     ...                          ...
-...
-```
+- Migration (properties columns, new tables, RLS, permissions seed).
+- `src/pages/landlord/LandlordManagementSupport.tsx` (new)
+- `src/pages/landlord/MyProperties.tsx` (toggle UI)
+- `src/pages/regulator/property-management/` (new folder: Overview, ManagedProperties, AssignmentConsole, TaskQueues, Reports)
+- `src/lib/managementRouting.ts` (new shared helper)
+- `src/components/layouts/*Sidebar.tsx` (nav entries — landlord + regulator)
+- Edge functions: `assign-property-management/`, `assign-management-task/`, updates to `viewing-request*`, `support-chats*`, AddTenant invoke paths.
+- Permission keys in `admin_staff.permissions` defaults.
 
-Each row expands into two grids (Standard / Student) where the admin types four percentages; row turns red until the total = 100. Super-admin only edits Student splits (enforced both UI-side via `profile.isSuperAdmin` and DB-side via RLS).
-
----
-
-## Out of scope
-- Existing past `rent_payments` rows keep their stored `tax_amount` — flag only affects rows created after toggle.
-- Payment-provider switch (UMB) is unrelated and tracked separately.
-- No receipt template redesign — fee is filtered out, not styled away.
-
-## Technical notes
-- `gra_tax_enabled` is read server-side on every checkout; client toggle is purely informational.
-- `service_fee_splits` trigger rejects writes whose percentage sum > 100 per segment; sum < 100 is allowed (admin can leave room) and surplus stays with the platform as fallback.
-- `is_service_fee` column is the single discriminator the receipt code uses — no payment_type sniffing, no string matching.
-- Renewal auto-cascade in `finalize-payment.ts` is the only other place rent payments are generated; updated to honor the toggle.
-- Tabs in Templates use existing shadcn `Tabs` — no new shell.
+After approval I'll deliver migration first, then frontend + edge functions in a single follow-up build.

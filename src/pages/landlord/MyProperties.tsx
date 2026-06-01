@@ -21,6 +21,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import PropertyManagementToggle from "@/components/PropertyManagementToggle";
 
 interface Unit {
   id: string;
@@ -53,6 +54,7 @@ interface Property {
   property_status: string;
   listed_on_marketplace: boolean;
   approved_rent: number | null;
+  management_enabled?: boolean;
   units: Unit[];
   tenancyCount: number;
 }
@@ -477,6 +479,14 @@ const MyProperties = () => {
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                </div>
+
+                <div className="mt-3">
+                  <PropertyManagementToggle
+                    propertyId={p.id}
+                    enabled={!!p.management_enabled}
+                    onChange={(v) => setProperties(prev => prev.map(x => x.id === p.id ? { ...x, management_enabled: v } : x))}
+                  />
                 </div>
               </div>
 

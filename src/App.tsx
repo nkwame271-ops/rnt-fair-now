@@ -58,6 +58,8 @@ const Agreements = lazy(() => import("./pages/landlord/Agreements"));
 const AddTenant = lazy(() => import("./pages/landlord/AddTenant"));
 const LandlordViewingRequests = lazy(() => import("./pages/landlord/ViewingRequests"));
 const LandlordFeedback = lazy(() => import("./pages/landlord/LandlordFeedback"));
+const LandlordManagementSupport = lazy(() => import("./pages/landlord/LandlordManagementSupport"));
+const RegulatorPropertyManagement = lazy(() => import("./pages/regulator/RegulatorPropertyManagement"));
 const LandlordMessages = lazy(() => import("./pages/landlord/Messages"));
 const LandlordApplications = lazy(() => import("./pages/landlord/LandlordApplications"));
 const LandlordComplaints = lazy(() => import("./pages/landlord/LandlordComplaints"));
@@ -226,6 +228,7 @@ const App = () => (
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="feedback" element={<LandlordFeedback />} />
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
+                <Route path="management-support" element={<LandlordManagementSupport />} />
               </Route>
 
               {/* Regulator Routes */}
@@ -274,6 +277,7 @@ const App = () => (
                 <Route path="office-fund-requests" element={<OfficeFundRequests />} />
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
                 <Route path="payment-errors" element={<PaymentErrors />} />
+                <Route path="property-management" element={<RegulatorPropertyManagement />} />
                 <Route path="receipts" element={<RegulatorReceipts />} />
                 <Route path="processor-reconciliation" element={<ErrorBoundary section="Processor Reconciliation"><ProcessorReconciliation /></ErrorBoundary>} />
                 <Route path="safety" element={<SafetyEmergencyReports />} />
