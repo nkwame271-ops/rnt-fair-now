@@ -295,7 +295,7 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
     ["Advance Period:", `${data.advanceMonths} month(s)`],
     ["Total Advance:", formatGHS(data.monthlyRent * data.advanceMonths)],
   ];
-  if (!data.isExistingTenancy) {
+  if (!data.isExistingTenancy && graTaxEnabled && taxRate > 0) {
     financial.push(
       [`Govt. Tax (${(taxRate * 100).toFixed(0)}%):`, `${formatGHS(taxAmount)} per month`],
       [`To Landlord (${((1 - taxRate) * 100).toFixed(0)}%):`, `${formatGHS(toLandlord)} per month`],
