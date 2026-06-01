@@ -53,6 +53,7 @@ interface Property {
   property_status: string;
   listed_on_marketplace: boolean;
   approved_rent: number | null;
+  management_enabled?: boolean;
   units: Unit[];
   tenancyCount: number;
 }
