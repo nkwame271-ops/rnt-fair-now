@@ -253,6 +253,7 @@ const MyAgreements = () => {
             tax_rate: tplConfig.tax_rate,
             registration_deadline_days: tplConfig.registration_deadline_days,
             terms: tplConfig.terms,
+            gra_tax_enabled: (tplConfig as any).gra_tax_enabled !== false,
           } : undefined,
           landlordSignature: t.landlord_signed_at ? { name: t.landlordName, signedAt: t.landlord_signed_at, method: "Digital (Auto)" } : undefined,
           tenantSignature: { name: tenantName, signedAt: new Date().toISOString(), method: "Digital" },
