@@ -203,27 +203,29 @@ const SerialSearchPicker = ({
               ) : (
                 <div className="py-1">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-3 py-1">Found elsewhere</p>
-                  {globalHits.map((h) => (
+                  {globalHits.map((h) => {
+                    const info = explainHit(h);
+                    return (
                     <div key={h.serial_number} className="px-3 py-2 text-[11px] border-t border-border/50 first:border-t-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-mono text-card-foreground truncate">{h.serial_number}</span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${
-                          h.status === "available" ? "bg-success/10 text-success" :
-                          h.status === "assigned" ? "bg-primary/10 text-primary" :
-                          "bg-muted text-muted-foreground"
-                        }`}>{h.status}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${info.bucketTone}`}>{info.bucket}</span>
                       </div>
-                      <p className="text-muted-foreground mt-0.5">{explainHit(h)}</p>
+                      <p className="text-muted-foreground mt-0.5">{info.message}</p>
                       <p className="text-muted-foreground/80 mt-0.5">
-                        Location: {h.office_name || "—"} · {h.region || "—"} · Batch: {h.batch_label || "—"}
+                        Location: {h.office_name || "—"} · {h.region || "—"} · Batch: {h.batch_label || "—"} · Status: {h.status}
                       </p>
                       {isSuperAdmin && (
-                        <p className="text-primary/80 mt-0.5">
-                          Open Admin Actions → search <span className="font-mono">{h.serial_number}</span> to transfer or revoke.
-                        </p>
+                        <a
+                          href={`/regulator/rent-cards?tab=admin_actions&serial=${encodeURIComponent(h.serial_number)}`}
+                          className="inline-block mt-1 text-primary underline-offset-2 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Open in Admin Actions → transfer or revoke
+                        </a>
                       )}
                     </div>
-                  ))}
+                  );})}
                 </div>
               )}
             </div>
