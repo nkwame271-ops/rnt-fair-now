@@ -1,99 +1,60 @@
-# Landlord Management Support — Implementation Plan
+## Scope
 
-A new operational layer where landlords can hand over day-to-day tenant interactions to platform staff, while still owning the property and receiving rent.
+Both issues live in `src/pages/regulator/rent-cards/PendingPurchases.tsx` (and a small read into Admin Actions for the super-admin deep link).
 
-## 1. Data Model
+---
 
-**`properties` (extend)**
-- `management_enabled` boolean default false
-- `management_enabled_at` timestamptz
-- `management_assigned_staff_id` uuid (admin_staff.user_id, nullable)
-- `management_assigned_office_id` text (region/office routing)
-- `management_notes` text
+## Issue 1 — SerialSearchPicker dropdown overlaps the search box
 
-**`property_management_log`** (audit) — property_id, action (enabled/disabled/assigned/reassigned), actor_id, payload jsonb, created_at.
+### Root cause
+The portaled dropdown panel inside the assignment dialog uses `position: fixed` with style computed in a `useLayoutEffect`. On open, the panel renders **once with an empty style object** (no `top/left/width`), so for one paint it lands at body origin (0,0) covering the field above it. The flip-up branch also leaves a stale `top` from a previous open, which can pin the panel on top of the trigger input.
 
-**`management_task_assignments`** — generic routing table for unit-of-work assignment:
-- id, property_id, task_type (`viewing_request` | `tenant_onboarding` | `inquiry` | `compliance` | `rent_followup`), source_id (uuid of viewing_request / pending_tenant / inquiry), assigned_staff_id, status (`open|in_progress|done|reassigned`), assigned_at, completed_at, notes.
+### Fix
+In `SerialSearchPicker`:
+1. Hide the panel until positioned: render the portal only when `panelStyle.left` is set, OR start the style with `visibility: 'hidden'` and flip to `visible` after reposition.
+2. In `reposition()`, always reset the unused axis (`top: 'auto'` when flipping up, `bottom: 'auto'` when flipping down) so a stale value can't pin the panel over the input.
+3. Run `reposition()` synchronously inside `setOpen(true)` callbacks (call it from a `useLayoutEffect` keyed on `open` AND immediately before the first paint by computing the rect when toggling open via a ref-based handler), so the first frame already has correct coordinates.
+4. Bump panel `zIndex` from 80 to 100 to sit above any sticky dialog headers/footers, and add a small `marginTop` gap so it visually clears the input.
+5. Make the trigger input keep focus when the panel opens (`inputRef.current?.focus()` after `setOpen(true)`), so the user can keep typing without the panel stealing pointer-events.
 
-**Existing tables touched (foreign-key add):**
-- `viewing_requests`, `pending_tenants`, `support_chats` (tenant-initiated property inquiries) — add `managed_by_platform` boolean (derived/cached) + `assigned_staff_id` uuid.
+No backend / RPC changes.
 
-**RLS**
-- Landlord: read/write own `properties.management_*` columns, read own task assignments (read-only).
-- Tenant: never sees landlord contact when `management_enabled=true` — handled in API/views.
-- Admin staff: read all managed properties; write only those assigned to them; super_admin/main_admin full access via `is_main_admin()`.
-- Service role for routing triggers.
+### Verification
+- Open Pending & Assign → select cards → pick "Start From" / "Range" / "Manual" modes.
+- Confirm the picker input is always clickable, the dropdown never overlaps it, and the dropdown flips up cleanly near the dialog's bottom edge on the 724×665 preview viewport.
 
-## 2. Landlord Portal
+---
 
-**`MyProperties.tsx`** — new "Management Support" card per property with:
-- Toggle (on/off) — disabled if property has unresolved managed tasks
-- Status badge ("Self-managed" / "Managed by Platform" amber)
-- Helper text: "Platform handles tenant inquiries, viewings, onboarding, and compliance. You still receive rent."
+## Issue 2 — "Found elsewhere: in your regional pool. No quota remaining" while office balance looks sufficient
 
-**New page `LandlordManagementSupport.tsx`** (sidebar entry) — overview list of managed properties, current assigned office, open tasks count (read-only), rent settlement summary.
+### Root cause
+`quotaRemaining` (lines 502–525) only counts `office_allocations.allocation_mode IN ('quota','quantity_transfer','quota_withdrawal')`. The DB also has `transfer` and `range_transfer` modes (verified via `office_allocations`). Those *do* move physical stock and aren't quota — so the calculation itself is correct — **but** the message conflates two different "balance" concepts:
 
-Landlord rent receipts unchanged — settlements still flow via existing `finalize-payment` splits.
+- The office has **physical stock** balance (assignable today).
+- The searched serial lives in the **regional pool**, not the office.
+- The office has 0 **regional quota** left → the picker cannot pull that pool serial.
 
-## 3. Tenant-Facing Routing
+So the message "your office has no quota remaining" is technically right but reads as wrong because the user is looking at their physical balance. There is also no super-admin path to retrieve / transfer that pool serial from within the picker.
 
-When `properties.management_enabled = true`:
-- **Marketplace listing** — hide landlord name/phone; show "Managed by Rent Control Ghana Platform" badge; CTA "Request Viewing" → routes to platform queue (no extra fee, existing GHS 2.00 viewing fee unchanged per memory).
-- **Viewing request submission** — `viewing-request` edge function sets `assigned_staff_id` from `properties.management_assigned_staff_id` (fallback: office round-robin).
-- **Inquiry / support chat** — `support_chats` created against platform staff, not landlord user.
-- **Onboarding (AddTenant flow)** — when initiated for a managed property, route to platform; landlord notified read-only.
-- **Compliance & complaints** — `complaints` linked to managed property cc the assigned staff.
+### Fix
+In `explainHit()` and the "Found elsewhere" panel:
+1. Make the wording explicit: when a serial is in the regional pool and the office has 0 quota, say:
+   > "Serial is in the {region} regional pool (not currently in any office stock). Your office has used all its regional quota — request more quota OR transfer this specific serial into office stock to assign it."
+2. Always show, for every hit, the **stock location bucket** (Office stock / Regional pool / Other office / Other region) as a colored label so the user immediately sees why it isn't selectable.
+3. For super admins, render an inline "Open in Admin Actions" button that navigates to `/regulator/rent-cards` with a query param `?tab=admin_actions&serial={serial}` (and update `RegulatorRentCards.tsx` to read that query param and switch tabs + prefill the Admin Actions search). This makes the serial directly retrievable.
+4. Surface the **regional-pool count** in the dialog summary box alongside "Assignable balance" so it's clear there is pool stock that isn't assignable without quota.
 
-A small shared helper `src/lib/managementRouting.ts` resolves recipient (`landlord_user_id` vs `assigned_staff_id`) for every tenant-facing surface.
+### Verification
+- Search a known regional-pool serial as a super admin → the panel now shows the bucket badge and an "Open in Admin Actions" link that lands on Admin Actions with the serial pre-filtered.
+- Confirm the message no longer reads as a contradiction with the physical balance.
+- Search an office-stock serial belonging to another office → still gets a clear "in {office} office stock — transfer to your office" message.
 
-## 4. Admin Portal — Property Management module
+---
 
-New top-level entry `regulator/PropertyManagement/`:
+## Files touched
 
-- **Overview** — KPI cards (Managed properties, Open viewings, Pending onboardings, Open inquiries, Compliance backlog).
-- **Managed Properties** — table with filters (region, office, assigned staff, status), bulk assign action.
-- **Assignment Console** — Super/Main Admin only: assign property → staff, bulk assign by region, reassign.
-- **Task Queues** (tabs): Viewing Requests · Tenant Onboarding · Inquiries · Compliance · Rent Follow-ups. Each task row supports assign-to-staff and status updates.
-- **Reports** — managed property reports (occupancy, revenue collected, time-to-respond per staff).
+- `src/pages/regulator/rent-cards/PendingPurchases.tsx` — picker positioning, panel wording, super-admin link, summary additions.
+- `src/pages/regulator/RegulatorRentCards.tsx` — read `?tab=` and `?serial=` query params to open Admin Actions pre-filtered.
+- (Read-only) `src/pages/regulator/rent-cards/AdminActions.tsx` — accept an optional initial search prop/param.
 
-**Permissions** (extend `nugs_staff.permissions` pattern via new `admin_staff.permissions` keys):
-- `property_management.view`
-- `property_management.assign` (super/main admin only by default)
-- `property_management.handle_viewings`
-- `property_management.handle_onboarding`
-- `property_management.handle_inquiries`
-- `property_management.handle_compliance`
-
-Use existing `resolve_feature_access()` infrastructure where applicable; otherwise straight permission check in RLS via `is_main_admin()` + admin_staff.permissions JSON.
-
-## 5. Rent Payment Through Platform
-
-Already partially supported by `paystack-checkout` (`rent_payment` / `rent_combined`). Changes:
-- For managed properties, tenant rent payment UI in `MyAgreements.tsx` shows "Paid via Platform" badge; receipts unchanged.
-- Add **Rent Follow-ups** queue: managed property + rent overdue ≥ N days → task auto-created via cron edge function or trigger.
-- Existing splits/GRA tax/service fee engine all apply unchanged — landlord still gets `amount_to_landlord` in the split.
-
-## 6. Edge Functions
-
-- `assign-property-management` — toggle on/off, write audit log, optional auto-assign.
-- `assign-management-task` — assign/reassign a task row, notify staff + landlord.
-- `route-tenant-action` — shared helper invoked by viewing-request, support-chat-create, onboarding flows.
-
-## 7. Out of Scope (this round)
-
-- Landlord-billed management fee (rule: "tenants should not pay extra"). If platform wants to charge landlord, that's a follow-up via Service Fee engine with new `management_fee` payment_type.
-- Mobile-app push notifications (use existing `notifications` + SMS routing).
-
-## 8. Files to Create / Edit (high level)
-
-- Migration (properties columns, new tables, RLS, permissions seed).
-- `src/pages/landlord/LandlordManagementSupport.tsx` (new)
-- `src/pages/landlord/MyProperties.tsx` (toggle UI)
-- `src/pages/regulator/property-management/` (new folder: Overview, ManagedProperties, AssignmentConsole, TaskQueues, Reports)
-- `src/lib/managementRouting.ts` (new shared helper)
-- `src/components/layouts/*Sidebar.tsx` (nav entries — landlord + regulator)
-- Edge functions: `assign-property-management/`, `assign-management-task/`, updates to `viewing-request*`, `support-chats*`, AddTenant invoke paths.
-- Permission keys in `admin_staff.permissions` defaults.
-
-After approval I'll deliver migration first, then frontend + edge functions in a single follow-up build.
+No database migration. No edge-function changes.
