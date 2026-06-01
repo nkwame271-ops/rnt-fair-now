@@ -1,44 +1,55 @@
-## Problem
+## Problems
 
-In Pending & Assign → Assign Serial, the picker only loads serials that match the admin's office + region + remaining quota. A serial that shows "available" in Admin Actions can still be invisible because it lives in another office, another region, or the office has 0 quota. Today the dropdown just says "No serials found", giving no clue why.
+**1. Dropdown overlaps the search field (Manual mode especially).**
+`SerialSearchPicker` renders its results panel as an absolutely-positioned div with `top-full`. In the Manual mode list (`max-h-[50vh] overflow-y-auto`) every row stacks a picker, so an open dropdown sits on top of the next row's input, and is also clipped by the scroll container. The Pending search box can also be visually crowded by the picker panel inside the mapping dialog above it.
 
-## Fix
+**2. Wrong reason: "your office has no quota remaining" when quota is actually available.**
+`openMappingDialog` only loads the first `quotaRemaining + 50` regional serials (ordered by `serial_number`). If a super admin types a real serial that lives further down the regional pool, the local list shows no match, the global lookup fires, and `explainHit` blindly returns:
+> "In your regional pool — your office has no quota remaining (request a quota or quantity transfer)"
+even though `quotaContext.quotaRemaining > 0`.
 
-Add a global lookup that runs whenever the typed query is long enough (≥ 4 chars) and produces zero local matches. The lookup tells the admin exactly where the serial currently lives and why it can't be assigned from here.
+**3. Super admin can't see exactly where the serial lives.**
+The "Found elsewhere" panel hides `office_name`/`region`/`batch_label` for same-region regional hits, so there's nothing to act on to retrieve it.
 
-### `src/pages/regulator/rent-cards/PendingPurchases.tsx`
+## Fix (frontend-only, `src/pages/regulator/rent-cards/PendingPurchases.tsx`)
 
-**`SerialSearchPicker`**
-- Accept two new props: `officeName: string` and `officeRegion: string | null`.
-- When `filtered.length === 0` and `query.length >= 4`, debounce ~300 ms and call a single Supabase query:
-  ```
-  rent_card_serial_stock
-    .select("serial_number, status, stock_type, region, office_name, batch_label")
-    .eq("pair_index", 1)
-    .ilike("serial_number", `%${query}%`)
-    .limit(5)
-  ```
-- Render results below the "No serials found" line. For each hit show:
-  - serial number + status badge
-  - a one-line reason derived client-side:
-    - `assigned` → "Already assigned"
-    - `revoked` → "Revoked"
-    - `available` + `stock_type='office'` + `office_name !== officeName` → "In **{office_name}** stock — transfer to your office to assign"
-    - `available` + `stock_type='regional'` + `region !== officeRegion` → "In **{region}** regional pool — outside your region"
-    - `available` + `stock_type='regional'` + `region === officeRegion` → "In your regional pool — your office has no quota remaining (request a quota or quantity transfer)"
-    - `available` + `stock_type='office'` + `office_name === officeName` → "Belongs here but `pair_index=2` only — data anomaly, contact super admin"
-- Loading state ("Looking up…") + error swallow (just hide the panel).
-- No selection from these hits — they're informational only.
+### A. Dropdown positioning & layering
+Keep the current lightweight panel but make it escape the scroll container and never hide the input:
 
-**Caller in `PendingPurchases`** (the `<SerialSearchPicker>` instances in manual mode + start/range inputs)
-- Pass `officeName={resolveOffice()}` and `officeRegion={officeId ? getRegionForOffice(officeId) : null}` already computed in `openMappingDialog`. Hoist `officeRegion` into component state so the picker can read it.
+- Render the results panel via a React portal to `document.body`, positioned with `getBoundingClientRect()` of the input wrapper (recomputed on `scroll`/`resize`). This removes the `overflow-y-auto` clipping in Manual mode and the "covers the next row's input" problem.
+- Choose top/bottom placement based on available viewport space (flip up when the input is in the lower half of the viewport). Cap height with `max-h-[min(18rem,40vh)]` and internal scroll.
+- Bump portal z-index to `z-[80]` (above dialog content `z-50`) and keep `pointer-events-auto`.
+- Keep the existing outside-click handler but compare against both the trigger ref and the portaled panel ref.
+- Pending Purchases page search input is unchanged (it's already above the dialog); the dialog's pickers stop overlapping it once the panel is portaled and flips.
 
-### Out of scope
-- No change to assignment logic, scoping rules, or quota math.
-- No new admin action / migration. Read-only lookup against existing table.
-- Range/start-from inputs reuse the same picker so they get the explanation for free.
+### B. Honest "Found elsewhere" reason
+Pass the current `quotaContext` (and the office's region) into `SerialSearchPicker` as a new optional `assignableContext` prop:
+
+```
+{ physical: number; quotaRemaining: number; officeRegion: string | null }
+```
+
+Update `explainHit` for `status === "available"`:
+
+- `stock_type === "office"` + `office_name === officeName` → unchanged ("anomaly, contact super admin").
+- `stock_type === "office"` + other office → "In **{office_name}** ({region}) office stock — transfer to your office to assign".
+- `stock_type === "regional"` + `region !== officeRegion` → "In **{region}** regional pool — outside your region".
+- `stock_type === "regional"` + `region === officeRegion`:
+  - if `quotaRemaining <= 0` → keep current "no quota remaining" message.
+  - if `quotaRemaining > 0` → "In your regional pool ({region}) — beyond the currently loaded window. Increase quota usage, or transfer this serial into your office stock to assign it."
+- Always append a small secondary line with `Batch: {batch_label || "—"}` so super admin sees exactly which batch to retrieve from.
+
+### C. Super-admin retrieval hint
+When `profile.isSuperAdmin` is true, append a one-line action hint under each hit:
+- "Open Admin Actions → search **{serial_number}** to transfer or revoke."
+
+(No new admin endpoint — Admin Actions already supports lookup by serial.)
+
+### D. Out of scope
+- No backend change, no migration, no change to assignment math or quota rules.
+- Pool fetch cap (`quotaRemaining + 50`) is unchanged; only the explanation gets honest. (Raising the cap would belong in a separate change — happy to do it next if you want all regional serials loaded when quota remains.)
 
 ## Technical notes
-- The lookup is a single indexed `ilike` on `serial_number` (already searchable from Admin Actions, so query cost is fine).
-- 5-result cap + 4-char minimum + debounce keep keystroke load negligible.
-- RLS for regulators on `rent_card_serial_stock` already allows reading these fields (Admin Actions uses the same table).
+- Portal positioning lives entirely in `SerialSearchPicker`; the four call sites in `PendingPurchases` only pass the new `assignableContext` prop.
+- Flip logic: if `rect.bottom + 288 > window.innerHeight` and `rect.top > 288`, render above (`bottom: window.innerHeight - rect.top + 4`); else below (`top: rect.bottom + 4`).
+- No new dependencies — uses `createPortal` from `react-dom`.
