@@ -182,7 +182,7 @@ const SerialSearchPicker = ({
     return { bucket: "Out of scope", bucketTone: "bg-muted text-muted-foreground", message: "Not in your assignable scope" };
   };
 
-  const panel = open ? (
+  const panel = open && panelStyle ? (
     <div
       ref={dropdownRef}
       data-serial-picker-dropdown=""
