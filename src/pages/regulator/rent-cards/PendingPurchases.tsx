@@ -345,6 +345,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
   const [availableSerials, setAvailableSerials] = useState<SerialOption[]>([]);
   const [loadingSerials, setLoadingSerials] = useState(false);
   const [quotaContext, setQuotaContext] = useState<{ physical: number; quotaRemaining: number } | null>(null);
+  const [officeAliases, setOfficeAliases] = useState<string[]>([]);
 
 
   // Client-side filter over loaded list
