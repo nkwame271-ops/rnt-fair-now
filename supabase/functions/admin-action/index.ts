@@ -1303,6 +1303,42 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "stock_move": {
+        targetType = "serial";
+        if (adminStaff.admin_type !== "super_admin") {
+          throw new Error("Only Super Admin can move stock");
+        }
+        const serials: string[] = Array.isArray(extra?.serials) ? extra.serials : [];
+        const targetKind: string = extra?.target_kind;
+        const targetRegion: string | null = extra?.target_region ?? null;
+        const targetOfficeId: string | null = extra?.target_office_id ?? null;
+        const targetOfficeName: string | null = extra?.target_office_name ?? null;
+
+        if (!serials.length) throw new Error("No serials provided");
+        if (!["central", "regional", "office"].includes(targetKind)) {
+          throw new Error("Invalid target kind");
+        }
+
+        const { data: moveData, error: moveErr } = await adminClient.rpc(
+          "move_serials_atomic" as any,
+          {
+            p_serials: serials,
+            p_target_kind: targetKind,
+            p_target_region: targetRegion,
+            p_target_office_id: targetOfficeId,
+            p_target_office_name: targetOfficeName,
+            p_actor: user.id,
+            p_reason: reason,
+          }
+        );
+        if (moveErr) throw new Error(moveErr.message);
+
+        // Per-serial audit rows already written by RPC. Return immediately to skip global audit.
+        return new Response(JSON.stringify({ success: true, result: moveData }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

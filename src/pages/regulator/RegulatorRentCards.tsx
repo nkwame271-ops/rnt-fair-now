@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CreditCard, ShoppingCart, Package } from "lucide-react";
+import { CreditCard, ShoppingCart, Package, Search, ArrowRightLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { useModuleVisibility } from "@/hooks/useModuleVisibility";
@@ -20,6 +20,10 @@ import AdminReportView from "./rent-cards/AdminReportView";
 import ProcurementReport from "./rent-cards/ProcurementReport";
 import OfficeReconciliation from "./rent-cards/OfficeReconciliation";
 import SalesChannelsManager from "./rent-cards/SalesChannelsManager";
+import SerialLookup from "./rent-cards/SerialLookup";
+import StockMovement from "./rent-cards/StockMovement";
+
+
 
 
 const RegulatorRentCards = () => {
@@ -71,7 +75,18 @@ const RegulatorRentCards = () => {
               </TabsTrigger>
             )}
             {isMain && isVisible("rent_cards", "admin_actions_tab") && <TabsTrigger value="admin_actions">Admin Actions</TabsTrigger>}
+            {isSuper && (
+              <TabsTrigger value="serial_lookup" className="gap-1">
+                <Search className="h-3.5 w-3.5" /> Serial Lookup
+              </TabsTrigger>
+            )}
+            {isSuper && (
+              <TabsTrigger value="stock_movement" className="gap-1">
+                <ArrowRightLeft className="h-3.5 w-3.5" /> Stock Movement
+              </TabsTrigger>
+            )}
           </TabsList>
+
 
           {/* PROCUREMENT WORKSPACE */}
           {hasProcurement && (
@@ -171,6 +186,21 @@ const RegulatorRentCards = () => {
               <AdminActions refreshKey={refreshKey} onStockChanged={triggerRefresh} />
             </TabsContent>
           )}
+
+          {/* SUPER ADMIN: SERIAL LOOKUP */}
+          {isSuper && (
+            <TabsContent value="serial_lookup">
+              <SerialLookup />
+            </TabsContent>
+          )}
+
+          {/* SUPER ADMIN: STOCK MOVEMENT */}
+          {isSuper && (
+            <TabsContent value="stock_movement">
+              <StockMovement onStockChanged={triggerRefresh} />
+            </TabsContent>
+          )}
+
         </Tabs>
       </div>
     </PageTransition>
