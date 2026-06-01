@@ -41,6 +41,7 @@ const SerialSearchPicker = ({
   officeRegion,
   assignableContext,
   isSuperAdmin,
+  onAssignFromPool,
 }: {
   options: SerialOption[];
   value: string;
@@ -50,6 +51,7 @@ const SerialSearchPicker = ({
   officeRegion?: string | null;
   assignableContext?: { physical: number; quotaRemaining: number } | null;
   isSuperAdmin?: boolean;
+  onAssignFromPool?: (serial: string, applySelection: (s: string) => void) => void;
 }) => {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
