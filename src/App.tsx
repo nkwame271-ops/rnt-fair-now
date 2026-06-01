@@ -277,6 +277,7 @@ const App = () => (
                 <Route path="office-fund-requests" element={<OfficeFundRequests />} />
                 <Route path="office-payout-settings" element={<OfficePayoutSettings />} />
                 <Route path="payment-errors" element={<PaymentErrors />} />
+                <Route path="property-management" element={<RegulatorPropertyManagement />} />
                 <Route path="receipts" element={<RegulatorReceipts />} />
                 <Route path="processor-reconciliation" element={<ErrorBoundary section="Processor Reconciliation"><ProcessorReconciliation /></ErrorBoundary>} />
                 <Route path="safety" element={<SafetyEmergencyReports />} />
