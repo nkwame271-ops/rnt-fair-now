@@ -20,6 +20,10 @@ import AdminReportView from "./rent-cards/AdminReportView";
 import ProcurementReport from "./rent-cards/ProcurementReport";
 import OfficeReconciliation from "./rent-cards/OfficeReconciliation";
 import SalesChannelsManager from "./rent-cards/SalesChannelsManager";
+import SerialLookup from "./rent-cards/SerialLookup";
+import StockMovement from "./rent-cards/StockMovement";
+
+
 
 
 const RegulatorRentCards = () => {
