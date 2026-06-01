@@ -55,6 +55,8 @@ const MyAgreements = () => {
   const [tenantName, setTenantName] = useState("");
   const [tenantIdCode, setTenantIdCode] = useState("");
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
+  const [graTaxEnabled, setGraTaxEnabled] = useState<boolean>(true);
+  const [taxRatePct, setTaxRatePct] = useState<number>(8);
   const [signingTenancyId, setSigningTenancyId] = useState<string | null>(null);
   const [payingTax, setPayingTax] = useState<string | null>(null);
   const [verifyingTenancyId, setVerifyingTenancyId] = useState<string | null>(null);
