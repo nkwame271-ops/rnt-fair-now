@@ -56,7 +56,7 @@ const SerialSearchPicker = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -75,26 +75,36 @@ const SerialSearchPicker = ({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const PANEL_MAX = 288; // ~max-h-72
+    const GAP = 6;
     const spaceBelow = window.innerHeight - rect.bottom;
     const flipUp = spaceBelow < PANEL_MAX && rect.top > spaceBelow;
     const style: React.CSSProperties = {
       position: "fixed",
       left: rect.left,
       width: rect.width,
-      zIndex: 80,
+      zIndex: 100,
       maxHeight: `min(18rem, 40vh)`,
+      // explicitly clear the opposite axis so a stale value never pins
+      // the panel on top of the input
+      top: "auto",
+      bottom: "auto",
     };
     if (flipUp) {
-      style.bottom = Math.max(8, window.innerHeight - rect.top + 4);
+      style.bottom = Math.max(8, window.innerHeight - rect.top + GAP);
     } else {
-      style.top = rect.bottom + 4;
+      style.top = rect.bottom + GAP;
     }
     setPanelStyle(style);
   };
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setPanelStyle(null);
+      return;
+    }
     reposition();
+    // keep typing without the panel stealing focus
+    requestAnimationFrame(() => inputRef.current?.focus());
     const onScroll = () => reposition();
     const onResize = () => reposition();
     window.addEventListener("scroll", onScroll, true);
