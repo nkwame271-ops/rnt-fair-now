@@ -1323,6 +1323,15 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AdminPasswordConfirm
+        open={!!poolAssignReq}
+        onOpenChange={(v) => { if (!v) setPoolAssignReq(null); }}
+        title="Assign From Regional Pool"
+        description={poolAssignReq ? `Transfer serial ${poolAssignReq.serial} from the regional pool into your office stock so it can be assigned immediately. This consumes one unit of your office's regional quota.` : ""}
+        actionLabel="Transfer & Select"
+        onConfirm={confirmAssignFromPool}
+      />
     </div>
   );
 };
