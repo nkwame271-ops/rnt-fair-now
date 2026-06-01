@@ -80,7 +80,12 @@ const MyAgreements = () => {
     setTenantIdCode(tenantRec?.tenant_id || "");
 
     const { data: configData } = await supabase.from("agreement_template_config").select("*").limit(1).single();
-    if (configData) setCustomFields((configData as any).custom_fields || []);
+    if (configData) {
+      setCustomFields((configData as any).custom_fields || []);
+      setGraTaxEnabled((configData as any).gra_tax_enabled !== false);
+      setTaxRatePct(Number((configData as any).tax_rate ?? 8));
+    }
+
 
     const { data: ts } = await supabase
       .from("tenancies")
