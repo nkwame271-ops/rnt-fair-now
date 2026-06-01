@@ -1,60 +1,58 @@
-## Scope
+## What’s actually causing the issue
+The persistent rent card problem is not just the dropdown UI anymore.
 
-Both issues live in `src/pages/regulator/rent-cards/PendingPurchases.tsx` (and a small read into Admin Actions for the super-admin deep link).
+There are two separate causes in the current implementation:
 
----
+1. `PendingPurchases.tsx` calculates quota by `office_id` but loads physical stock by exact `office_name`.
+2. The live data already contains multiple name variants for the same office or grouped office IDs, so a serial can belong to the right office logically but fail the exact-name match.
 
-## Issue 1 — SerialSearchPicker dropdown overlaps the search box
+Examples found in the live backend:
+- `office_allocations` contains mixed names for the same `office_id` such as `Cape Coast` and `Cape Coast Office`
+- Some grouped offices share one `office_id` but different historical `office_name` values such as `Swedru Office`, `Mankessim Office`, `Dambai Office`, `Nkwanta Office`
+- `admin_staff` main/super admins currently have `office_id = null`, while the UI falls back to the first office in the static office list for some flows
 
-### Root cause
-The portaled dropdown panel inside the assignment dialog uses `position: fixed` with style computed in a `useLayoutEffect`. On open, the panel renders **once with an empty style object** (no `top/left/width`), so for one paint it lands at body origin (0,0) covering the field above it. The flip-up branch also leaves a stale `top` from a previous open, which can pin the panel on top of the trigger input.
+That combination explains why users can see enough balance somewhere in the system but still get “found elsewhere” or “no quota remaining” messages.
 
-### Fix
-In `SerialSearchPicker`:
-1. Hide the panel until positioned: render the portal only when `panelStyle.left` is set, OR start the style with `visibility: 'hidden'` and flip to `visible` after reposition.
-2. In `reposition()`, always reset the unused axis (`top: 'auto'` when flipping up, `bottom: 'auto'` when flipping down) so a stale value can't pin the panel over the input.
-3. Run `reposition()` synchronously inside `setOpen(true)` callbacks (call it from a `useLayoutEffect` keyed on `open` AND immediately before the first paint by computing the rect when toggling open via a ref-based handler), so the first frame already has correct coordinates.
-4. Bump panel `zIndex` from 80 to 100 to sit above any sticky dialog headers/footers, and add a small `marginTop` gap so it visually clears the input.
-5. Make the trigger input keep focus when the panel opens (`inputRef.current?.focus()` after `setOpen(true)`), so the user can keep typing without the panel stealing pointer-events.
+## Plan
 
-No backend / RPC changes.
+### 1) Make assignment use a single source of truth for office matching
+- Refactor the pending assignment screen so stock lookup does not rely on exact `office_name` equality.
+- Build office matching from `office_id` and a safe alias set instead of one display string.
+- Ensure the same office identity is used consistently for:
+  - physical stock lookup
+  - quota lookup
+  - “found elsewhere” explanations
+  - assignment submission
 
-### Verification
-- Open Pending & Assign → select cards → pick "Start From" / "Range" / "Manual" modes.
-- Confirm the picker input is always clickable, the dropdown never overlaps it, and the dropdown flips up cleanly near the dialog's bottom edge on the 724×665 preview viewport.
+### 2) Fix super/main admin office resolution
+- Remove the fragile fallback that silently uses the first static office when `office_id` is null.
+- Make the screen require an explicit scoped office for assignment flows when the admin profile is not already scoped.
+- Prevent false calculations caused by “pretend office” defaults.
 
----
+### 3) Improve “Found elsewhere” diagnostics
+- Show the exact stock bucket and exact recorded office/region for the hit.
+- Distinguish clearly between:
+  - your office stock
+  - same-region pool stock
+  - another office’s stock
+  - orphaned/mismatched stock records
+- For super admins, keep the Admin Actions deep link and make sure it opens with the searched serial prefilled.
 
-## Issue 2 — "Found elsewhere: in your regional pool. No quota remaining" while office balance looks sufficient
+### 4) Add defensive handling for legacy office-name data
+- Update the frontend matching logic to tolerate existing name variants already in the database.
+- If needed after code review, add a small backend normalization migration for legacy `office_name` values so future lookups stay consistent.
+- Only do the migration if the code-side alias fix is not enough.
 
-### Root cause
-`quotaRemaining` (lines 502–525) only counts `office_allocations.allocation_mode IN ('quota','quantity_transfer','quota_withdrawal')`. The DB also has `transfer` and `range_transfer` modes (verified via `office_allocations`). Those *do* move physical stock and aren't quota — so the calculation itself is correct — **but** the message conflates two different "balance" concepts:
+### 5) Verify with real data before calling it fixed
+- Re-test the problematic assignment flow against live backend data.
+- Verify that a serial in the regional pool is labeled correctly.
+- Verify that an office with real physical stock no longer shows contradictory “found elsewhere” messaging.
+- Verify that super admin can see where a serial is and jump directly to recovery actions.
 
-- The office has **physical stock** balance (assignable today).
-- The searched serial lives in the **regional pool**, not the office.
-- The office has 0 **regional quota** left → the picker cannot pull that pool serial.
+## Technical notes
+- Primary file: `src/pages/regulator/rent-cards/PendingPurchases.tsx`
+- Secondary files: `src/pages/regulator/RegulatorRentCards.tsx`, `src/pages/regulator/rent-cards/AdminActions.tsx`
+- Possible backend follow-up only if necessary: migration to normalize legacy office names in stock/allocation records
 
-So the message "your office has no quota remaining" is technically right but reads as wrong because the user is looking at their physical balance. There is also no super-admin path to retrieve / transfer that pool serial from within the picker.
-
-### Fix
-In `explainHit()` and the "Found elsewhere" panel:
-1. Make the wording explicit: when a serial is in the regional pool and the office has 0 quota, say:
-   > "Serial is in the {region} regional pool (not currently in any office stock). Your office has used all its regional quota — request more quota OR transfer this specific serial into office stock to assign it."
-2. Always show, for every hit, the **stock location bucket** (Office stock / Regional pool / Other office / Other region) as a colored label so the user immediately sees why it isn't selectable.
-3. For super admins, render an inline "Open in Admin Actions" button that navigates to `/regulator/rent-cards` with a query param `?tab=admin_actions&serial={serial}` (and update `RegulatorRentCards.tsx` to read that query param and switch tabs + prefill the Admin Actions search). This makes the serial directly retrievable.
-4. Surface the **regional-pool count** in the dialog summary box alongside "Assignable balance" so it's clear there is pool stock that isn't assignable without quota.
-
-### Verification
-- Search a known regional-pool serial as a super admin → the panel now shows the bucket badge and an "Open in Admin Actions" link that lands on Admin Actions with the serial pre-filtered.
-- Confirm the message no longer reads as a contradiction with the physical balance.
-- Search an office-stock serial belonging to another office → still gets a clear "in {office} office stock — transfer to your office" message.
-
----
-
-## Files touched
-
-- `src/pages/regulator/rent-cards/PendingPurchases.tsx` — picker positioning, panel wording, super-admin link, summary additions.
-- `src/pages/regulator/RegulatorRentCards.tsx` — read `?tab=` and `?serial=` query params to open Admin Actions pre-filtered.
-- (Read-only) `src/pages/regulator/rent-cards/AdminActions.tsx` — accept an optional initial search prop/param.
-
-No database migration. No edge-function changes.
+## Expected outcome
+After this change, the system should stop treating same-office stock as external stock because of name mismatches, and the validation message should reflect the real stock location and the real reason assignment is blocked.
