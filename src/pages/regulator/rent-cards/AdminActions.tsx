@@ -90,6 +90,23 @@ const AdminActions = ({ refreshKey, onStockChanged }: Props) => {
 
   useEffect(() => { loadRegistryBatches(); loadAuditLogs(); }, [refreshKey]);
 
+  // Auto-prefill + search when navigated with ?serial=...
+  const autoSearchedSerial = useRef<string | null>(null);
+  useEffect(() => {
+    const s = searchParams.get("serial");
+    if (s && autoSearchedSerial.current !== s) {
+      autoSearchedSerial.current = s;
+      setSerialSearch(s);
+      // fire search on next tick so state is committed
+      setTimeout(() => { handleSerialSearch(); }, 0);
+      // clean the param so a refresh doesn't keep re-firing
+      const next = new URLSearchParams(searchParams);
+      next.delete("serial");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const handleBatchSearch = async () => {
     if (!batchSearch.trim()) return;
     setBatchSearching(true);
