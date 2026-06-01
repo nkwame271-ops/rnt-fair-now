@@ -378,6 +378,9 @@ const RegulatorAgreementTemplates = () => {
           {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : "Save Configuration"}
         </Button>
       </div>
+
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
