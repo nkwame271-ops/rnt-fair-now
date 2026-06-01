@@ -156,7 +156,7 @@ const SerialSearchPicker = ({
     return () => { cancelled = true; clearTimeout(t); };
   }, [filtered.length, query]);
 
-  const explainHit = (h: GlobalHit): { bucket: string; bucketTone: string; message: string } => {
+  const explainHit = (h: GlobalHit): { bucket: string; bucketTone: string; message: string; canAssignFromPool?: boolean } => {
     if (h.status === "assigned") return { bucket: "Assigned", bucketTone: "bg-primary/10 text-primary", message: "Already assigned to a card" };
     if (h.status === "revoked") return { bucket: "Revoked", bucketTone: "bg-muted text-muted-foreground", message: "Serial was revoked" };
     if (h.status !== "available") return { bucket: h.status, bucketTone: "bg-muted text-muted-foreground", message: `Status: ${h.status}` };
@@ -177,13 +177,14 @@ const SerialSearchPicker = ({
     }
     if (h.stock_type === "regional") {
       if (officeRegion && h.region === officeRegion) {
-        const noQuota = assignableContext && assignableContext.quotaRemaining <= 0;
+        const hasQuota = !!assignableContext && assignableContext.quotaRemaining > 0;
         return {
           bucket: `Regional pool (${h.region})`,
           bucketTone: "bg-indigo-500/10 text-indigo-700",
-          message: noQuota
-            ? `Serial sits in the ${h.region} regional pool (not in any office stock). Your office has used all its regional quota — request more quota, or transfer this specific serial into your office stock to assign it.`
-            : `In your regional pool (${h.region}) — beyond the currently loaded window. Transfer this serial into your office stock to assign it.`,
+          message: hasQuota
+            ? `In your ${h.region} regional pool — click "Assign From Regional Pool" to transfer it to your office stock and select it in one step.`
+            : `Serial sits in the ${h.region} regional pool. Your office has used all its regional quota — request more quota, or transfer this specific serial into your office stock to assign it.`,
+          canAssignFromPool: hasQuota,
         };
       }
       return {
