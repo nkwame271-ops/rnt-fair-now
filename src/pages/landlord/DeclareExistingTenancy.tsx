@@ -306,6 +306,7 @@ const DeclareExistingTenancy = () => {
             tax_rate: tplConfig.tax_rate,
             registration_deadline_days: tplConfig.registration_deadline_days,
             terms: tplConfig.terms,
+            gra_tax_enabled: (tplConfig as any).gra_tax_enabled !== false,
           } : undefined,
           landlordSignature: { name: landlordProfile?.full_name || "Landlord", signedAt: new Date().toISOString(), method: "Digital (Auto)" },
         });
