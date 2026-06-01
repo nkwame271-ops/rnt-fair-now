@@ -155,8 +155,13 @@ const SerialSearchPicker = ({
     if (h.status === "revoked") return { bucket: "Revoked", bucketTone: "bg-muted text-muted-foreground", message: "Serial was revoked" };
     if (h.status !== "available") return { bucket: h.status, bucketTone: "bg-muted text-muted-foreground", message: `Status: ${h.status}` };
     if (h.stock_type === "office") {
-      if (officeName && h.office_name === officeName) {
-        return { bucket: "Your office stock", bucketTone: "bg-success/10 text-success", message: "Belongs here but pair_index=2 only — data anomaly, contact super admin" };
+      const aliasSet = new Set<string>([
+        ...(officeNames || []),
+        ...(officeName ? [officeName] : []),
+      ].filter(Boolean));
+      const isYours = h.office_name && aliasSet.has(h.office_name);
+      if (isYours) {
+        return { bucket: "Your office stock", bucketTone: "bg-success/10 text-success", message: "Belongs to your office — should be in the assignable list. If missing, click Refresh." };
       }
       return {
         bucket: `Other office (${h.office_name || "—"})`,
