@@ -78,16 +78,20 @@ const SerialSearchPicker = ({
     const rect = el.getBoundingClientRect();
     const PANEL_MAX = 288; // ~max-h-72
     const GAP = 6;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const flipUp = spaceBelow < PANEL_MAX && rect.top > spaceBelow;
+    const MIN_PANEL = 120;
+    const spaceBelow = window.innerHeight - rect.bottom - GAP - 8;
+    const spaceAbove = rect.top - GAP - 8;
+    // Prefer below; only flip up when below is too cramped AND above genuinely has more room.
+    const flipUp = spaceBelow < MIN_PANEL && spaceAbove > spaceBelow;
+    const available = Math.max(MIN_PANEL, flipUp ? spaceAbove : spaceBelow);
     const style: React.CSSProperties = {
       position: "fixed",
       left: rect.left,
       width: rect.width,
-      zIndex: 100,
-      maxHeight: `min(18rem, 40vh)`,
-      // explicitly clear the opposite axis so a stale value never pins
-      // the panel on top of the input
+      // Sit above Radix Dialog content/overlay (which use ~z-50) and toasts (z-[100]).
+      zIndex: 9999,
+      maxHeight: `${Math.min(PANEL_MAX, available)}px`,
+      // explicitly clear the opposite axis so a stale value never pins the panel on top of the input
       top: "auto",
       bottom: "auto",
     };
