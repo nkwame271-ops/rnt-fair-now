@@ -439,14 +439,18 @@ Deno.serve(async (req) => {
       }
 
       const rent = Number((tenancy as any).agreed_rent);
-      const taxAmount = rent * taxRate;
+      const taxAmount = graTaxOn ? rent * taxRate : 0;
       totalAmount = rent + taxAmount;
-      const taxSplits = await getTaxSplitPlan(supabaseAdmin, taxAmount, `Rent tax (${taxRate * 100}%)`);
-      splitPlan = [
-        ...taxSplits,
-        { recipient: "landlord", amount: rent, description: "Monthly rent (held in escrow)" },
-      ];
-      description = `Rent + Tax combined - ${(tenancy as any).registration_code}`;
+      if (graTaxOn && taxAmount > 0) {
+        const taxSplits = await getTaxSplitPlan(supabaseAdmin, taxAmount, `Rent tax (${taxRate * 100}%)`);
+        splitPlan = [
+          ...taxSplits,
+          { recipient: "landlord", amount: rent, description: "Monthly rent (held in escrow)" },
+        ];
+      } else {
+        splitPlan = [{ recipient: "landlord", amount: rent, description: "Monthly rent (held in escrow)" }];
+      }
+      description = graTaxOn ? `Rent + Tax combined - ${(tenancy as any).registration_code}` : `Monthly rent - ${(tenancy as any).registration_code}`;
       reference = `rentcombo_${tenancyId}_${Date.now()}`;
       callbackPath = "/tenant/payments?status=success";
       relatedTenancyId = tenancyId;
