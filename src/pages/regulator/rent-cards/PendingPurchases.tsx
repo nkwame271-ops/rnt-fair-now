@@ -148,26 +148,38 @@ const SerialSearchPicker = ({
     return () => { cancelled = true; clearTimeout(t); };
   }, [filtered.length, query]);
 
-  const explainHit = (h: GlobalHit): string => {
-    if (h.status === "assigned") return "Already assigned";
-    if (h.status === "revoked") return "Revoked";
-    if (h.status !== "available") return `Status: ${h.status}`;
+  const explainHit = (h: GlobalHit): { bucket: string; bucketTone: string; message: string } => {
+    if (h.status === "assigned") return { bucket: "Assigned", bucketTone: "bg-primary/10 text-primary", message: "Already assigned to a card" };
+    if (h.status === "revoked") return { bucket: "Revoked", bucketTone: "bg-muted text-muted-foreground", message: "Serial was revoked" };
+    if (h.status !== "available") return { bucket: h.status, bucketTone: "bg-muted text-muted-foreground", message: `Status: ${h.status}` };
     if (h.stock_type === "office") {
       if (officeName && h.office_name === officeName) {
-        return "Belongs here but pair_index=2 only — data anomaly, contact super admin";
+        return { bucket: "Your office stock", bucketTone: "bg-success/10 text-success", message: "Belongs here but pair_index=2 only — data anomaly, contact super admin" };
       }
-      return `In ${h.office_name || "another office"}${h.region ? ` (${h.region})` : ""} office stock — transfer to your office to assign`;
+      return {
+        bucket: `Other office (${h.office_name || "—"})`,
+        bucketTone: "bg-amber-500/10 text-amber-700",
+        message: `In ${h.office_name || "another office"}${h.region ? ` (${h.region})` : ""} office stock — transfer to your office first, then assign.`,
+      };
     }
     if (h.stock_type === "regional") {
       if (officeRegion && h.region === officeRegion) {
-        if (assignableContext && assignableContext.quotaRemaining > 0) {
-          return `In your regional pool (${h.region}) — beyond the currently loaded window. Transfer this serial into your office stock to assign it.`;
-        }
-        return "In your regional pool — your office has no quota remaining (request a quota or quantity transfer)";
+        const noQuota = assignableContext && assignableContext.quotaRemaining <= 0;
+        return {
+          bucket: `Regional pool (${h.region})`,
+          bucketTone: "bg-indigo-500/10 text-indigo-700",
+          message: noQuota
+            ? `Serial sits in the ${h.region} regional pool (not in any office stock). Your office has used all its regional quota — request more quota, or transfer this specific serial into your office stock to assign it.`
+            : `In your regional pool (${h.region}) — beyond the currently loaded window. Transfer this serial into your office stock to assign it.`,
+        };
       }
-      return `In ${h.region || "another"} regional pool — outside your region`;
+      return {
+        bucket: `Regional pool (${h.region || "—"})`,
+        bucketTone: "bg-muted text-muted-foreground",
+        message: `In ${h.region || "another"} regional pool — outside your region`,
+      };
     }
-    return "Not in your assignable scope";
+    return { bucket: "Out of scope", bucketTone: "bg-muted text-muted-foreground", message: "Not in your assignable scope" };
   };
 
   const panel = open ? (
