@@ -38,12 +38,16 @@ const SerialSearchPicker = ({
   onChange,
   officeName,
   officeRegion,
+  assignableContext,
+  isSuperAdmin,
 }: {
   options: SerialOption[];
   value: string;
   onChange: (val: string) => void;
   officeName?: string;
   officeRegion?: string | null;
+  assignableContext?: { physical: number; quotaRemaining: number } | null;
+  isSuperAdmin?: boolean;
 }) => {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -52,6 +56,7 @@ const SerialSearchPicker = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -63,6 +68,42 @@ const SerialSearchPicker = ({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Position the portaled panel relative to the trigger; flip up when low on space.
+  const reposition = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const PANEL_MAX = 288; // ~max-h-72
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const flipUp = spaceBelow < PANEL_MAX && rect.top > spaceBelow;
+    const style: React.CSSProperties = {
+      position: "fixed",
+      left: rect.left,
+      width: rect.width,
+      zIndex: 80,
+      maxHeight: `min(18rem, 40vh)`,
+    };
+    if (flipUp) {
+      style.bottom = Math.max(8, window.innerHeight - rect.top + 4);
+    } else {
+      style.top = rect.bottom + 4;
+    }
+    setPanelStyle(style);
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    reposition();
+    const onScroll = () => reposition();
+    const onResize = () => reposition();
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open]);
 
   const filtered = useMemo(() => {
     if (!query) return options.slice(0, 100);
@@ -105,16 +146,100 @@ const SerialSearchPicker = ({
       if (officeName && h.office_name === officeName) {
         return "Belongs here but pair_index=2 only — data anomaly, contact super admin";
       }
-      return `In ${h.office_name || "another office"} stock — transfer to your office to assign`;
+      return `In ${h.office_name || "another office"}${h.region ? ` (${h.region})` : ""} office stock — transfer to your office to assign`;
     }
     if (h.stock_type === "regional") {
       if (officeRegion && h.region === officeRegion) {
+        if (assignableContext && assignableContext.quotaRemaining > 0) {
+          return `In your regional pool (${h.region}) — beyond the currently loaded window. Transfer this serial into your office stock to assign it.`;
+        }
         return "In your regional pool — your office has no quota remaining (request a quota or quantity transfer)";
       }
       return `In ${h.region || "another"} regional pool — outside your region`;
     }
     return "Not in your assignable scope";
   };
+
+  const panel = open ? (
+    <div
+      ref={dropdownRef}
+      data-serial-picker-dropdown=""
+      style={{ ...panelStyle, pointerEvents: "auto" }}
+      className="overflow-y-auto rounded-md border border-border bg-popover shadow-md"
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      {filtered.length === 0 ? (
+        <>
+          <p className="text-xs text-muted-foreground text-center py-3">No serials found in your assignable list</p>
+          {query.trim().length >= 4 && (
+            <div className="border-t border-border">
+              {lookingUp ? (
+                <p className="text-[11px] text-muted-foreground text-center py-2">Looking up…</p>
+              ) : globalHits.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground text-center py-2">No matching serial exists in stock</p>
+              ) : (
+                <div className="py-1">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-3 py-1">Found elsewhere</p>
+                  {globalHits.map((h) => (
+                    <div key={h.serial_number} className="px-3 py-2 text-[11px] border-t border-border/50 first:border-t-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-card-foreground truncate">{h.serial_number}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${
+                          h.status === "available" ? "bg-success/10 text-success" :
+                          h.status === "assigned" ? "bg-primary/10 text-primary" :
+                          "bg-muted text-muted-foreground"
+                        }`}>{h.status}</span>
+                      </div>
+                      <p className="text-muted-foreground mt-0.5">{explainHit(h)}</p>
+                      <p className="text-muted-foreground/80 mt-0.5">
+                        Location: {h.office_name || "—"} · {h.region || "—"} · Batch: {h.batch_label || "—"}
+                      </p>
+                      {isSuperAdmin && (
+                        <p className="text-primary/80 mt-0.5">
+                          Open Admin Actions → search <span className="font-mono">{h.serial_number}</span> to transfer or revoke.
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {query.trim().length > 0 && query.trim().length < 4 && (
+            <p className="text-[10px] text-muted-foreground text-center py-1 border-t border-border">Type at least 4 characters to look up globally</p>
+          )}
+        </>
+      ) : (
+        filtered.map(s => (
+          <button
+            key={s.serial_number}
+            type="button"
+            className={`w-full text-left px-3 py-2 text-xs font-mono hover:bg-accent transition-colors flex items-center justify-between gap-2 ${
+              s.serial_number === value ? "bg-accent text-accent-foreground" : "text-popover-foreground"
+            }`}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onChange(s.serial_number);
+              setOpen(false);
+              setQuery("");
+            }}
+          >
+            <span className="truncate">{s.serial_number}</span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${s.source === "physical" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-700"}`}>
+              {s.source === "physical" ? "Physical" : "Pool"}
+            </span>
+          </button>
+        ))
+      )}
+      {options.length > 100 && filtered.length >= 100 && (
+        <p className="text-[10px] text-muted-foreground text-center py-1">
+          Showing first 100 — type to narrow results
+        </p>
+      )}
+    </div>
+  ) : null;
 
   return (
     <div ref={containerRef} className="relative">
@@ -138,82 +263,11 @@ const SerialSearchPicker = ({
           autoComplete="off"
         />
       )}
-      {open && (
-        <div
-          ref={dropdownRef}
-          data-serial-picker-dropdown=""
-          style={{ pointerEvents: "auto" }}
-          className="absolute left-0 right-0 top-full mt-1 z-[60] max-h-72 overflow-y-auto rounded-md border border-border bg-popover shadow-md"
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          {filtered.length === 0 ? (
-            <>
-              <p className="text-xs text-muted-foreground text-center py-3">No serials found in your assignable list</p>
-              {query.trim().length >= 4 && (
-                <div className="border-t border-border">
-                  {lookingUp ? (
-                    <p className="text-[11px] text-muted-foreground text-center py-2">Looking up…</p>
-                  ) : globalHits.length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground text-center py-2">No matching serial exists in stock</p>
-                  ) : (
-                    <div className="py-1">
-                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-3 py-1">Found elsewhere</p>
-                      {globalHits.map((h) => (
-                        <div key={h.serial_number} className="px-3 py-2 text-[11px] border-t border-border/50 first:border-t-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-mono text-card-foreground truncate">{h.serial_number}</span>
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${
-                              h.status === "available" ? "bg-success/10 text-success" :
-                              h.status === "assigned" ? "bg-primary/10 text-primary" :
-                              "bg-muted text-muted-foreground"
-                            }`}>{h.status}</span>
-                          </div>
-                          <p className="text-muted-foreground mt-0.5">{explainHit(h)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {query.trim().length > 0 && query.trim().length < 4 && (
-                <p className="text-[10px] text-muted-foreground text-center py-1 border-t border-border">Type at least 4 characters to look up globally</p>
-              )}
-            </>
-          ) : (
-            filtered.map(s => (
-              <button
-                key={s.serial_number}
-                type="button"
-                className={`w-full text-left px-3 py-2 text-xs font-mono hover:bg-accent transition-colors flex items-center justify-between gap-2 ${
-                  s.serial_number === value ? "bg-accent text-accent-foreground" : "text-popover-foreground"
-                }`}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onChange(s.serial_number);
-                  setOpen(false);
-                  setQuery("");
-                }}
-              >
-                <span className="truncate">{s.serial_number}</span>
-                <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${s.source === "physical" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-700"}`}>
-                  {s.source === "physical" ? "Physical" : "Pool"}
-                </span>
-              </button>
-            ))
-
-          )}
-          {options.length > 100 && filtered.length >= 100 && (
-            <p className="text-[10px] text-muted-foreground text-center py-1">
-              Showing first 100 — type to narrow results
-            </p>
-          )}
-        </div>
-      )}
+      {panel && createPortal(panel, document.body)}
     </div>
   );
 };
+
 
 interface PendingCard {
   id: string;
