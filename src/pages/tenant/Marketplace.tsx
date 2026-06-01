@@ -423,6 +423,9 @@ const Marketplace = () => {
                     {unit.electricity_available && <span className="flex items-center gap-1"><Zap className="h-3 w-3" /> Power</span>}
                   </div>
                   <div className="flex gap-1.5 mt-3 flex-wrap">
+                    {(unit.property as any).management_enabled && (
+                      <Badge className="text-[10px] bg-amber-500 hover:bg-amber-500 text-white">Managed by Platform</Badge>
+                    )}
                     {unit.availableSoon && (
                       <Badge variant="outline" className="text-[10px] border-secondary text-secondary-foreground bg-secondary/10">
                         Available Soon
