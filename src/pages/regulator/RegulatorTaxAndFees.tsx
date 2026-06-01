@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useAdminProfile } from "@/hooks/useAdminProfile";
 
 type Segment = "standard" | "student";
 type Recipient = "platform" | "nugs" | "admin" | "igf" | "rent_control";
