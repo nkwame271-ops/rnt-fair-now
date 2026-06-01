@@ -414,6 +414,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
 
         // NUGS / student-revenue recipients are office-agnostic central pools
         const isCentralPool = ["nugs", "cm", "igf", "platform"].includes(s.recipient);
+        const isServiceFee = (s as any).is_service_fee === true;
 
         splitRows.push({
           escrow_transaction_id: escrowId,
@@ -425,6 +426,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
           office_id: isCentralPool ? null : officeId,
           release_mode: releaseMode,
           complaint_basket_item_id: (s as any).complaint_basket_item_id ?? null,
+          is_service_fee: isServiceFee,
         });
       }
     }
