@@ -1,58 +1,56 @@
-## What’s actually causing the issue
-The persistent rent card problem is not just the dropdown UI anymore.
+## Root cause
 
-There are two separate causes in the current implementation:
+Toggling Management Support calls the `set_property_management` RPC, which updates `public.properties`. That fires the `trg_propagate_mgmt_flag` trigger, whose function `propagate_property_management_flag()` runs:
 
-1. `PendingPurchases.tsx` calculates quota by `office_id` but loads physical stock by exact `office_name`.
-2. The live data already contains multiple name variants for the same office or grouped office IDs, so a serial can belong to the right office logically but fail the exact-name match.
+```sql
+UPDATE public.pending_tenants
+  SET managed_by_platform = NEW.management_enabled, ...
+  WHERE property_id = NEW.id;
+```
 
-Examples found in the live backend:
-- `office_allocations` contains mixed names for the same `office_id` such as `Cape Coast` and `Cape Coast Office`
-- Some grouped offices share one `office_id` but different historical `office_name` values such as `Swedru Office`, `Mankessim Office`, `Dambai Office`, `Nkwanta Office`
-- `admin_staff` main/super admins currently have `office_id = null`, while the UI falls back to the first office in the static office list for some flows
+But `pending_tenants` has no `property_id` column (verified against the live schema — it only has `tenancy_id`, plus the `managed_by_platform` / `assigned_staff_id` columns added in the same migration). Postgres aborts the trigger with `column "property_id" does not exist`, which bubbles up as the error the landlord sees when flipping the toggle.
 
-That combination explains why users can see enough balance somewhere in the system but still get “found elsewhere” or “no quota remaining” messages.
+The `viewing_requests` branch of the same trigger is fine — that table does have `property_id`.
 
-## Plan
+## Fix
 
-### 1) Make assignment use a single source of truth for office matching
-- Refactor the pending assignment screen so stock lookup does not rely on exact `office_name` equality.
-- Build office matching from `office_id` and a safe alias set instead of one display string.
-- Ensure the same office identity is used consistently for:
-  - physical stock lookup
-  - quota lookup
-  - “found elsewhere” explanations
-  - assignment submission
+Replace `propagate_property_management_flag()` so the `pending_tenants` propagation joins through `tenancies` → `units` → `properties` instead of a non-existent direct `property_id`. The `viewing_requests` branch stays unchanged.
 
-### 2) Fix super/main admin office resolution
-- Remove the fragile fallback that silently uses the first static office when `office_id` is null.
-- Make the screen require an explicit scoped office for assignment flows when the admin profile is not already scoped.
-- Prevent false calculations caused by “pretend office” defaults.
+New body (conceptually):
 
-### 3) Improve “Found elsewhere” diagnostics
-- Show the exact stock bucket and exact recorded office/region for the hit.
-- Distinguish clearly between:
-  - your office stock
-  - same-region pool stock
-  - another office’s stock
-  - orphaned/mismatched stock records
-- For super admins, keep the Admin Actions deep link and make sure it opens with the searched serial prefilled.
+```sql
+UPDATE public.viewing_requests
+   SET managed_by_platform = NEW.management_enabled,
+       assigned_staff_id   = CASE WHEN NEW.management_enabled
+                                  THEN NEW.management_assigned_staff_id END
+ WHERE property_id = NEW.id
+   AND status IN ('pending','awaiting_payment');
 
-### 4) Add defensive handling for legacy office-name data
-- Update the frontend matching logic to tolerate existing name variants already in the database.
-- If needed after code review, add a small backend normalization migration for legacy `office_name` values so future lookups stay consistent.
-- Only do the migration if the code-side alias fix is not enough.
+UPDATE public.pending_tenants pt
+   SET managed_by_platform = NEW.management_enabled,
+       assigned_staff_id   = CASE WHEN NEW.management_enabled
+                                  THEN NEW.management_assigned_staff_id END
+ WHERE pt.tenancy_id IN (
+   SELECT t.id
+     FROM public.tenancies t
+     JOIN public.units u ON u.id = t.unit_id
+    WHERE u.property_id = NEW.id
+ );
+```
 
-### 5) Verify with real data before calling it fixed
-- Re-test the problematic assignment flow against live backend data.
-- Verify that a serial in the regional pool is labeled correctly.
-- Verify that an office with real physical stock no longer shows contradictory “found elsewhere” messaging.
-- Verify that super admin can see where a serial is and jump directly to recovery actions.
+Wrap both updates in the existing `IF management_enabled OR assigned_staff_id changed` guard so behaviour is unchanged otherwise.
+
+## Implementation steps
+
+1. **Migration** — `CREATE OR REPLACE FUNCTION public.propagate_property_management_flag()` with the corrected body above (SECURITY DEFINER, `SET search_path = public`, same trigger binding). No table schema changes, no new GRANTs needed.
+2. **Verify** — after the migration runs:
+   - Call `set_property_management` for a real landlord property with `p_enabled = true` and confirm it returns `{success: true}` with no error.
+   - Confirm `properties.management_enabled` flipped and `property_management_log` got a row.
+   - Confirm matching `viewing_requests` and `pending_tenants` rows received the propagated `managed_by_platform` / `assigned_staff_id`.
+3. **No frontend changes** — `PropertyManagementToggle.tsx` and `LandlordManagementSupport.tsx` already call the RPC correctly; the failure was purely the trigger.
 
 ## Technical notes
-- Primary file: `src/pages/regulator/rent-cards/PendingPurchases.tsx`
-- Secondary files: `src/pages/regulator/RegulatorRentCards.tsx`, `src/pages/regulator/rent-cards/AdminActions.tsx`
-- Possible backend follow-up only if necessary: migration to normalize legacy office names in stock/allocation records
 
-## Expected outcome
-After this change, the system should stop treating same-office stock as external stock because of name mismatches, and the validation message should reflect the real stock location and the real reason assignment is blocked.
+- `units.property_id` is the documented link from tenancy to property in this schema; the join above mirrors what other RPCs in the project already use.
+- The fix is idempotent and safe to re-run.
+- No data backfill is required: `managed_by_platform` defaults to `false`, and the next toggle for each property will propagate correctly through the corrected trigger.
