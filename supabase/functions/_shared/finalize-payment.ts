@@ -414,6 +414,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
 
         // NUGS / student-revenue recipients are office-agnostic central pools
         const isCentralPool = ["nugs", "cm", "igf", "platform"].includes(s.recipient);
+        const isServiceFee = (s as any).is_service_fee === true;
 
         splitRows.push({
           escrow_transaction_id: escrowId,
@@ -425,6 +426,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
           office_id: isCentralPool ? null : officeId,
           release_mode: releaseMode,
           complaint_basket_item_id: (s as any).complaint_basket_item_id ?? null,
+          is_service_fee: isServiceFee,
         });
       }
     }
@@ -494,7 +496,15 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       .eq("user_id", userId)
       .single();
 
-    const splitBreakdown = splitPlan.map((s: SplitItem) => ({ recipient: s.recipient, amount: s.amount }));
+    // Service-fee splits are real escrow rows for revenue reporting but must
+    // not appear on the customer receipt.
+    const serviceFeeTotal = splitPlan
+      .filter((s: any) => s?.is_service_fee === true)
+      .reduce((sum: number, s: any) => sum + Number(s.amount || 0), 0);
+    const receiptAmount = Math.max(0, +(amountPaid - serviceFeeTotal).toFixed(2));
+    const splitBreakdown = splitPlan
+      .filter((s: any) => s?.is_service_fee !== true)
+      .map((s: SplitItem) => ({ recipient: s.recipient, amount: s.amount }));
 
     // For complaint_fee payments, re-attribute the receipt to the actual complainant
     // (not the admin filer) and link it to the case so it appears in their portal
@@ -563,7 +573,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       payer_name: payerName,
       payer_email: payerEmail,
       payer_phone: payerPhone,
-      total_amount: amountPaid,
+      total_amount: receiptAmount,
       payment_type: paymentType,
       description: meta.description || `Payment for ${paymentType.replace(/_/g, " ")}`,
       split_breakdown: splitBreakdown.length > 0 ? splitBreakdown : null,
@@ -1133,11 +1143,19 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
 
           if (!insertErr && newTenancy) {
             await supabaseAdmin.from("tenancies").update({ status: "expired" }).eq("id", tenancyId);
+            // Honor GRA Tax toggle + configured tax rate
+            const { data: tplCfg } = await supabaseAdmin
+              .from("agreement_template_config")
+              .select("gra_tax_enabled, tax_rate")
+              .limit(1)
+              .maybeSingle();
+            const taxOn = tplCfg?.gra_tax_enabled !== false;
+            const taxRateNum = Number(tplCfg?.tax_rate ?? 8) / 100;
             const payments = [];
             for (let i = 0; i < months; i++) {
               const dueDate = new Date(newStart);
               dueDate.setMonth(dueDate.getMonth() + i);
-              const taxAmount = rent * 0.08;
+              const taxAmount = taxOn ? +(rent * taxRateNum).toFixed(2) : 0;
               payments.push({
                 tenancy_id: newTenancy.id,
                 due_date: dueDate.toISOString().split("T")[0],

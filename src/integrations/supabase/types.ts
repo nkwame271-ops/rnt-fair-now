@@ -142,6 +142,7 @@ export type Database = {
       agreement_template_config: {
         Row: {
           custom_fields: Json | null
+          gra_tax_enabled: boolean
           id: string
           max_advance_months: number
           max_lease_duration: number
@@ -157,6 +158,7 @@ export type Database = {
         }
         Insert: {
           custom_fields?: Json | null
+          gra_tax_enabled?: boolean
           id?: string
           max_advance_months?: number
           max_lease_duration?: number
@@ -172,6 +174,7 @@ export type Database = {
         }
         Update: {
           custom_fields?: Json | null
+          gra_tax_enabled?: boolean
           id?: string
           max_advance_months?: number
           max_lease_duration?: number
@@ -1749,6 +1752,7 @@ export type Database = {
           disbursement_status: string
           escrow_transaction_id: string
           id: string
+          is_service_fee: boolean
           office_id: string | null
           payout_readiness: string
           recipient: string
@@ -1765,6 +1769,7 @@ export type Database = {
           disbursement_status?: string
           escrow_transaction_id: string
           id?: string
+          is_service_fee?: boolean
           office_id?: string | null
           payout_readiness?: string
           recipient: string
@@ -1781,6 +1786,7 @@ export type Database = {
           disbursement_status?: string
           escrow_transaction_id?: string
           id?: string
+          is_service_fee?: boolean
           office_id?: string | null
           payout_readiness?: string
           recipient?: string
@@ -6242,6 +6248,65 @@ export type Database = {
           source?: string
         }
         Relationships: []
+      }
+      service_fee_configurations: {
+        Row: {
+          enabled: boolean
+          payment_type: string
+          percentage: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          payment_type: string
+          percentage?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          payment_type?: string
+          percentage?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      service_fee_splits: {
+        Row: {
+          id: string
+          payer_segment: string
+          payment_type: string
+          percentage: number
+          recipient: string
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          payer_segment: string
+          payment_type: string
+          percentage: number
+          recipient: string
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          payer_segment?: string
+          payment_type?: string
+          percentage?: number
+          recipient?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_fee_splits_payment_type_fkey"
+            columns: ["payment_type"]
+            isOneToOne: false
+            referencedRelation: "service_fee_configurations"
+            referencedColumns: ["payment_type"]
+          },
+        ]
       }
       side_payment_declarations: {
         Row: {

@@ -55,6 +55,8 @@ const MyAgreements = () => {
   const [tenantName, setTenantName] = useState("");
   const [tenantIdCode, setTenantIdCode] = useState("");
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
+  const [graTaxEnabled, setGraTaxEnabled] = useState<boolean>(true);
+  const [taxRatePct, setTaxRatePct] = useState<number>(8);
   const [signingTenancyId, setSigningTenancyId] = useState<string | null>(null);
   const [payingTax, setPayingTax] = useState<string | null>(null);
   const [verifyingTenancyId, setVerifyingTenancyId] = useState<string | null>(null);
@@ -78,7 +80,12 @@ const MyAgreements = () => {
     setTenantIdCode(tenantRec?.tenant_id || "");
 
     const { data: configData } = await supabase.from("agreement_template_config").select("*").limit(1).single();
-    if (configData) setCustomFields((configData as any).custom_fields || []);
+    if (configData) {
+      setCustomFields((configData as any).custom_fields || []);
+      setGraTaxEnabled((configData as any).gra_tax_enabled !== false);
+      setTaxRatePct(Number((configData as any).tax_rate ?? 8));
+    }
+
 
     const { data: ts } = await supabase
       .from("tenancies")
@@ -253,6 +260,7 @@ const MyAgreements = () => {
             tax_rate: tplConfig.tax_rate,
             registration_deadline_days: tplConfig.registration_deadline_days,
             terms: tplConfig.terms,
+            gra_tax_enabled: (tplConfig as any).gra_tax_enabled !== false,
           } : undefined,
           landlordSignature: t.landlord_signed_at ? { name: t.landlordName, signedAt: t.landlord_signed_at, method: "Digital (Auto)" } : undefined,
           tenantSignature: { name: tenantName, signedAt: new Date().toISOString(), method: "Digital" },
@@ -403,8 +411,12 @@ const MyAgreements = () => {
               ["Monthly Rent", `GH₵ ${t.agreed_rent.toLocaleString()}`],
               ["Advance", `${t.advance_months} month(s)`],
               ["Period", `${new Date(t.start_date).toLocaleDateString("en-GB")} — ${new Date(t.end_date).toLocaleDateString("en-GB")}`],
-              ["8% Tax/mo", `GH₵ ${(t.agreed_rent * 0.08).toLocaleString()}`],
-              ["To Landlord/mo", `GH₵ ${(t.agreed_rent * 0.92).toLocaleString()}`],
+              ...(graTaxEnabled ? [
+                [`${taxRatePct}% Tax/mo`, `GH₵ ${(t.agreed_rent * (taxRatePct / 100)).toLocaleString()}`],
+                ["To Landlord/mo", `GH₵ ${(t.agreed_rent * (1 - taxRatePct / 100)).toLocaleString()}`],
+              ] : [
+                ["To Landlord/mo", `GH₵ ${t.agreed_rent.toLocaleString()}`],
+              ]),
               ...customFields.map(f => [f.label, t.customFieldValues[f.label] || "—"]),
             ].map(([label, value]) => (
               <div key={label}><span className="text-muted-foreground">{label}</span><div className="font-semibold text-card-foreground">{value}</div></div>

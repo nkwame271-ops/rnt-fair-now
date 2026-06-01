@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PUBLIC_URL, ROOT_DOMAIN } from "../_shared/project-domain.ts";
+import { detectPayerSegment, isGraTaxEnabled, resolveServiceFee } from "../_shared/service-fee.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -291,6 +292,16 @@ Deno.serve(async (req) => {
     let officeId: string = "accra_central";
     let caseType: string = type;
 
+    // GRA Tax kill-switch — server-side source of truth. When off, tax-bearing
+    // payment types are rejected and rent_combined collapses to plain rent.
+    const graTaxOn = await isGraTaxEnabled(supabaseAdmin);
+    if (!graTaxOn && (type === "rent_tax" || type === "rent_tax_bulk")) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "GRA tax is currently disabled by the regulator." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (type === "rent_tax_bulk") {
       const { tenancyId } = body;
       if (!tenancyId) throw new Error("tenancyId is required");
@@ -428,14 +439,18 @@ Deno.serve(async (req) => {
       }
 
       const rent = Number((tenancy as any).agreed_rent);
-      const taxAmount = rent * taxRate;
+      const taxAmount = graTaxOn ? rent * taxRate : 0;
       totalAmount = rent + taxAmount;
-      const taxSplits = await getTaxSplitPlan(supabaseAdmin, taxAmount, `Rent tax (${taxRate * 100}%)`);
-      splitPlan = [
-        ...taxSplits,
-        { recipient: "landlord", amount: rent, description: "Monthly rent (held in escrow)" },
-      ];
-      description = `Rent + Tax combined - ${(tenancy as any).registration_code}`;
+      if (graTaxOn && taxAmount > 0) {
+        const taxSplits = await getTaxSplitPlan(supabaseAdmin, taxAmount, `Rent tax (${taxRate * 100}%)`);
+        splitPlan = [
+          ...taxSplits,
+          { recipient: "landlord", amount: rent, description: "Monthly rent (held in escrow)" },
+        ];
+      } else {
+        splitPlan = [{ recipient: "landlord", amount: rent, description: "Monthly rent (held in escrow)" }];
+      }
+      description = graTaxOn ? `Rent + Tax combined - ${(tenancy as any).registration_code}` : `Monthly rent - ${(tenancy as any).registration_code}`;
       reference = `rentcombo_${tenancyId}_${Date.now()}`;
       callbackPath = "/tenant/payments?status=success";
       relatedTenancyId = tenancyId;
@@ -1285,6 +1300,51 @@ Deno.serve(async (req) => {
 
     } else {
       throw new Error("Invalid payment type");
+    }
+
+    // ─── SERVICE FEE ENGINE ───
+    // Per-payment-type, percentage-based, admin-controlled. Fee is additive
+    // (never subtracted from rent). Splits land in escrow_splits with
+    // is_service_fee=true so receipts can exclude them.
+    const baseAmount = totalAmount;
+    const effectivePaymentTypeForFee = (body as any).type || type;
+    const payerSegment = await detectPayerSegment(supabaseAdmin, userId, effectivePaymentTypeForFee);
+    const serviceFee = await resolveServiceFee(
+      supabaseAdmin,
+      effectivePaymentTypeForFee,
+      baseAmount,
+      payerSegment,
+    );
+    if (serviceFee.enabled && serviceFee.fee > 0) {
+      totalAmount = Math.round((baseAmount + serviceFee.fee) * 100) / 100;
+      splitPlan = [...splitPlan, ...serviceFee.splits];
+      metadata = {
+        ...metadata,
+        service_fee: {
+          amount: serviceFee.fee,
+          percentage: serviceFee.percentage,
+          segment: serviceFee.segment,
+          base_amount: baseAmount,
+        },
+      };
+    }
+
+    // Quote mode — return the breakdown without initializing a Paystack transaction.
+    // Used by the checkout confirmation dialog to show the payer what they'll be charged.
+    if (body?.quote === true) {
+      return new Response(JSON.stringify({
+        ok: true,
+        quote: true,
+        breakdown: {
+          base_amount: baseAmount,
+          service_fee: serviceFee.fee,
+          service_fee_percentage: serviceFee.percentage,
+          service_fee_enabled: serviceFee.enabled,
+          payer_segment: serviceFee.segment,
+          total: totalAmount,
+          description,
+        },
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Create a Case record

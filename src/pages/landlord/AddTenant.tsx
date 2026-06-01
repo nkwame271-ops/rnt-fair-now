@@ -159,6 +159,9 @@ const AddTenant = () => {
   }, [autoSubmitPending, drafts, loading]);
 
   const resolveTaxRate = () => {
+    // GRA Tax kill-switch: when disabled, no tax is requested on rent payments
+    // and no tax is required for digital tenancy agreement signing.
+    if ((templateConfig as any)?.gra_tax_enabled === false) return 0;
     const taxRates = (templateConfig as any)?.tax_rates;
     if (taxRates && property) {
       const category = property.property_category || "residential";
