@@ -488,6 +488,108 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     }
   };
 
+  // Extracted: load this office's assignable serials (physical office stock + regional pool up to quota).
+  // Returns true on success. Used by openMappingDialog and by the one-click "Assign From Regional Pool" flow.
+  const loadAssignableSerials = async (office: string): Promise<boolean> => {
+    const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
+    const officeRegion = officeId ? getRegionForOffice(officeId) : null;
+
+    // STEP A: Always fetch this office's physical stock (already transferred serials)
+    const aliasSet = new Set<string>();
+    if (office) aliasSet.add(office);
+    if (officeId) {
+      const { data: aliasRows } = await supabase
+        .from("office_allocations" as any)
+        .select("office_name")
+        .eq("office_id", officeId);
+      for (const r of (aliasRows as any[]) || []) {
+        if (r?.office_name) aliasSet.add(r.office_name);
+      }
+    }
+    const officeNameList = Array.from(aliasSet);
+    setOfficeAliases(officeNameList);
+
+    const physicalSerials: SerialOption[] = [];
+    if (officeNameList.length > 0) {
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("rent_card_serial_stock" as any)
+          .select("id, serial_number")
+          .in("office_name", officeNameList)
+          .eq("stock_type", "office")
+          .eq("status", "available")
+          .eq("pair_index", 1)
+          .order("serial_number", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const s of data as any[]) {
+          physicalSerials.push({ id: s.id, serial_number: s.serial_number, source: "physical" });
+        }
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+    }
+
+    // STEP B: Compute remaining quota
+    let quotaRemaining = 0;
+    if (officeId) {
+      const { data: quotaAllocations } = await supabase
+        .from("office_allocations" as any)
+        .select("quota_limit")
+        .eq("office_id", officeId)
+        .in("allocation_mode", ["quota", "quantity_transfer", "quota_withdrawal"]);
+      const totalQuota = (quotaAllocations || []).reduce(
+        (sum: number, a: any) => sum + (a.quota_limit || 0), 0,
+      );
+      if (totalQuota > 0) {
+        const { data: assignments } = await supabase
+          .from("serial_assignments" as any)
+          .select("card_count, source")
+          .eq("office_id", officeId)
+          .eq("source", "quota");
+        const used = (assignments || []).reduce(
+          (sum: number, a: any) => sum + (a.card_count || 0), 0,
+        );
+        quotaRemaining = Math.max(0, totalQuota - used);
+      }
+    }
+
+    // STEP C: If quota remains, fetch regional pool serials (widened window so common
+    // fragmentation cases stop showing serials as "beyond the loaded window").
+    const poolSerials: SerialOption[] = [];
+    if (quotaRemaining > 0 && officeRegion) {
+      let from = 0;
+      const PAGE = 1000;
+      const cap = quotaRemaining + 500;
+      while (poolSerials.length < cap) {
+        const { data, error } = await supabase
+          .from("rent_card_serial_stock" as any)
+          .select("id, serial_number")
+          .eq("region", officeRegion)
+          .eq("stock_type", "regional")
+          .eq("status", "available")
+          .eq("pair_index", 1)
+          .order("serial_number", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const s of data as any[]) {
+          poolSerials.push({ id: s.id, serial_number: s.serial_number, source: "quota" });
+        }
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+    }
+
+    const combined = [...physicalSerials, ...poolSerials];
+    setAvailableSerials(combined);
+    setQuotaContext({ physical: physicalSerials.length, quotaRemaining });
+    return combined.length > 0;
+  };
+
   const openMappingDialog = async () => {
     const selected = pendingCards.filter(c => selectedCardIds.has(c.id));
     if (selected.length === 0) { toast.error("Select at least one card"); return; }
@@ -504,122 +606,67 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     setRangeTo("");
 
     try {
-      const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
-      const officeRegion = officeId ? getRegionForOffice(officeId) : null;
-
-      // STEP A: Always fetch this office's physical stock (already transferred serials)
-      // Build alias set from office_allocations so legacy/variant office_name values
-      // (e.g. "Cape Coast" vs "Cape Coast Office") still match the same office_id.
-      const aliasSet = new Set<string>();
-      if (office) aliasSet.add(office);
-      if (officeId) {
-        const { data: aliasRows } = await supabase
-          .from("office_allocations" as any)
-          .select("office_name")
-          .eq("office_id", officeId);
-        for (const r of (aliasRows as any[]) || []) {
-          if (r?.office_name) aliasSet.add(r.office_name);
-        }
-      }
-      const officeNameList = Array.from(aliasSet);
-      setOfficeAliases(officeNameList);
-
-      const physicalSerials: SerialOption[] = [];
-      if (officeNameList.length > 0) {
-        let from = 0;
-        const PAGE = 1000;
-        while (true) {
-          const { data, error } = await supabase
-            .from("rent_card_serial_stock" as any)
-            .select("id, serial_number")
-            .in("office_name", officeNameList)
-            .eq("stock_type", "office")
-            .eq("status", "available")
-            .eq("pair_index", 1)
-            .order("serial_number", { ascending: true })
-            .range(from, from + PAGE - 1);
-          if (error) throw error;
-          if (!data || data.length === 0) break;
-          for (const s of data as any[]) {
-            physicalSerials.push({ id: s.id, serial_number: s.serial_number, source: "physical" });
-          }
-          if (data.length < PAGE) break;
-          from += PAGE;
-        }
-      }
-
-      // STEP B: Compute remaining quota (quota draws from regional pool)
-      // total quota = quota + quantity_transfer + quota_withdrawal (negatives included)
-      // used quota  = serial_assignments where source='quota' for this office
-      let quotaRemaining = 0;
-      if (officeId) {
-        const { data: quotaAllocations } = await supabase
-          .from("office_allocations" as any)
-          .select("quota_limit")
-          .eq("office_id", officeId)
-          .in("allocation_mode", ["quota", "quantity_transfer", "quota_withdrawal"]);
-        const totalQuota = (quotaAllocations || []).reduce(
-          (sum: number, a: any) => sum + (a.quota_limit || 0),
-          0,
-        );
-        if (totalQuota > 0) {
-          const { data: assignments } = await supabase
-            .from("serial_assignments" as any)
-            .select("card_count, source")
-            .eq("office_id", officeId)
-            .eq("source", "quota");
-          const used = (assignments || []).reduce(
-            (sum: number, a: any) => sum + (a.card_count || 0),
-            0,
-          );
-          quotaRemaining = Math.max(0, totalQuota - used);
-        }
-      }
-
-      // STEP C: If quota remains, fetch regional pool serials (up to quotaRemaining)
-      const poolSerials: SerialOption[] = [];
-      if (quotaRemaining > 0 && officeRegion) {
-        let from = 0;
-        const PAGE = 1000;
-        const cap = quotaRemaining + 50; // small buffer for safety
-        while (poolSerials.length < cap) {
-          const { data, error } = await supabase
-            .from("rent_card_serial_stock" as any)
-            .select("id, serial_number")
-            .eq("region", officeRegion)
-            .eq("stock_type", "regional")
-            .eq("status", "available")
-            .eq("pair_index", 1)
-            .order("serial_number", { ascending: true })
-            .range(from, from + PAGE - 1);
-          if (error) throw error;
-          if (!data || data.length === 0) break;
-          for (const s of data as any[]) {
-            poolSerials.push({ id: s.id, serial_number: s.serial_number, source: "quota" });
-          }
-          if (data.length < PAGE) break;
-          from += PAGE;
-        }
-      }
-
-      // Combined assignable list — physical first, then pool (visually tagged downstream)
-      const combined = [...physicalSerials, ...poolSerials];
-      if (combined.length === 0) {
+      const hasAny = await loadAssignableSerials(office);
+      if (!hasAny) {
         toast.error("No assignable serials — office has no physical stock and no quota remaining");
         setMappingCards([]);
-        setLoadingSerials(false);
-        return;
       }
-      setAvailableSerials(combined);
-      setQuotaContext({ physical: physicalSerials.length, quotaRemaining });
-
-
     } catch (err: any) {
       toast.error(err.message || "Failed to load serials");
       setMappingCards([]);
     }
     setLoadingSerials(false);
   };
+
+  // One-click: transfer a single regional-pool serial into this office's stock,
+  // then auto-select it in the picker that triggered the action.
+  const [poolAssignReq, setPoolAssignReq] = useState<{ serial: string; apply: (s: string) => void } | null>(null);
+
+  const handleAssignFromPool = (serial: string, apply: (s: string) => void) => {
+    setPoolAssignReq({ serial, apply });
+  };
+
+  const confirmAssignFromPool = async (password: string, reason: string) => {
+    if (!poolAssignReq) return;
+    const office = resolveOffice();
+    const officeId = profile?.isMainAdmin ? profile?.officeId || GHANA_OFFICES[0]?.id : profile?.officeId;
+    const officeRegion = officeId ? getRegionForOffice(officeId) : null;
+    if (!office || !officeId || !officeRegion) {
+      throw new Error("Office context missing — cannot transfer");
+    }
+
+    const { data, error } = await supabase.functions.invoke("admin-action", {
+      body: {
+        action: "allocate_to_office",
+        target_id: `POOL1CLICK-${poolAssignReq.serial}-${Date.now()}`,
+        reason,
+        password,
+        extra: {
+          region: officeRegion,
+          office_id: officeId,
+          office_name: office,
+          quantity: 1,
+          allocation_mode: "range_transfer",
+          start_serial: poolAssignReq.serial,
+          end_serial: poolAssignReq.serial,
+        },
+      },
+    });
+    if (error) throw new Error(error.message);
+    if ((data as any)?.error) throw new Error((data as any).error);
+
+    toast.success(`Transferred ${poolAssignReq.serial} from regional pool to your office — ready to assign.`);
+
+    try {
+      await loadAssignableSerials(office);
+    } catch (e) {
+      console.warn("Reload after pool transfer failed:", e);
+    }
+    poolAssignReq.apply(poolAssignReq.serial);
+    onStockChanged();
+    setPoolAssignReq(null);
+  };
+
 
   const allMapped = mappingCards.length > 0 && mappingCards.every(c => serialMap[c.id]);
 
