@@ -138,7 +138,7 @@ const RegulatorTaxAndFees = () => {
           enabled: cfg.enabled,
           percentage: cfg.percentage,
           updated_at: new Date().toISOString(),
-          updated_by: profile?.userId || null,
+          updated_by: (await supabase.auth.getUser()).data.user?.id || null,
         } as any)
         .eq("payment_type", paymentType);
       if (cErr) throw cErr;
