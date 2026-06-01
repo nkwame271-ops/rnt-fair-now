@@ -1302,6 +1302,51 @@ Deno.serve(async (req) => {
       throw new Error("Invalid payment type");
     }
 
+    // ─── SERVICE FEE ENGINE ───
+    // Per-payment-type, percentage-based, admin-controlled. Fee is additive
+    // (never subtracted from rent). Splits land in escrow_splits with
+    // is_service_fee=true so receipts can exclude them.
+    const baseAmount = totalAmount;
+    const effectivePaymentTypeForFee = (body as any).type || type;
+    const payerSegment = await detectPayerSegment(supabaseAdmin, userId, effectivePaymentTypeForFee);
+    const serviceFee = await resolveServiceFee(
+      supabaseAdmin,
+      effectivePaymentTypeForFee,
+      baseAmount,
+      payerSegment,
+    );
+    if (serviceFee.enabled && serviceFee.fee > 0) {
+      totalAmount = Math.round((baseAmount + serviceFee.fee) * 100) / 100;
+      splitPlan = [...splitPlan, ...serviceFee.splits];
+      metadata = {
+        ...metadata,
+        service_fee: {
+          amount: serviceFee.fee,
+          percentage: serviceFee.percentage,
+          segment: serviceFee.segment,
+          base_amount: baseAmount,
+        },
+      };
+    }
+
+    // Quote mode — return the breakdown without initializing a Paystack transaction.
+    // Used by the checkout confirmation dialog to show the payer what they'll be charged.
+    if (body?.quote === true) {
+      return new Response(JSON.stringify({
+        ok: true,
+        quote: true,
+        breakdown: {
+          base_amount: baseAmount,
+          service_fee: serviceFee.fee,
+          service_fee_percentage: serviceFee.percentage,
+          service_fee_enabled: serviceFee.enabled,
+          payer_segment: serviceFee.segment,
+          total: totalAmount,
+          description,
+        },
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // Create a Case record
     const { caseId, caseNumber } = await createCase(supabaseAdmin, {
       officeId,
