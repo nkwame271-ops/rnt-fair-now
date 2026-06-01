@@ -46,7 +46,7 @@ const STANDARD_RECIPIENTS: Recipient[] = ["platform", "rent_control", "admin"];
 const STUDENT_RECIPIENTS: Recipient[] = ["platform", "nugs", "admin", "igf"];
 
 const RegulatorTaxAndFees = () => {
-  const { profile } = useAuth();
+  const { profile } = useAdminProfile();
   const isSuperAdmin = !!(profile as any)?.isSuperAdmin;
 
   // GRA Tax
