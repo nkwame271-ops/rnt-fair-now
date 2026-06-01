@@ -87,7 +87,7 @@ const Marketplace = () => {
     const fetchUnits = async () => {
       let vacantQuery: any = supabase
         .from("units")
-        .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace, property_category)")
+        .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace, property_category, management_enabled)")
         .eq("status", "vacant");
       vacantQuery = vacantQuery.eq("property.listed_on_marketplace", true);
       if (isStudent) vacantQuery = vacantQuery.eq("property.property_category", "hostel");
@@ -109,7 +109,7 @@ const Marketplace = () => {
         const expiringUnitIds = expiringTenancies.map((t) => t.unit_id);
         let occupiedQuery: any = supabase
           .from("units")
-          .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace, property_category)")
+          .select("*, property:properties!inner(id, property_name, address, region, area, landlord_user_id, gps_location, property_condition, listed_on_marketplace, property_category, management_enabled)")
           .in("id", expiringUnitIds);
         occupiedQuery = occupiedQuery.eq("property.listed_on_marketplace", true);
         if (isStudent) occupiedQuery = occupiedQuery.eq("property.property_category", "hostel");
