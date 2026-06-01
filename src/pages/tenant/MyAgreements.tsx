@@ -411,8 +411,12 @@ const MyAgreements = () => {
               ["Monthly Rent", `GH₵ ${t.agreed_rent.toLocaleString()}`],
               ["Advance", `${t.advance_months} month(s)`],
               ["Period", `${new Date(t.start_date).toLocaleDateString("en-GB")} — ${new Date(t.end_date).toLocaleDateString("en-GB")}`],
-              ["8% Tax/mo", `GH₵ ${(t.agreed_rent * 0.08).toLocaleString()}`],
-              ["To Landlord/mo", `GH₵ ${(t.agreed_rent * 0.92).toLocaleString()}`],
+              ...(graTaxEnabled ? [
+                [`${taxRatePct}% Tax/mo`, `GH₵ ${(t.agreed_rent * (taxRatePct / 100)).toLocaleString()}`],
+                ["To Landlord/mo", `GH₵ ${(t.agreed_rent * (1 - taxRatePct / 100)).toLocaleString()}`],
+              ] : [
+                ["To Landlord/mo", `GH₵ ${t.agreed_rent.toLocaleString()}`],
+              ]),
               ...customFields.map(f => [f.label, t.customFieldValues[f.label] || "—"]),
             ].map(([label, value]) => (
               <div key={label}><span className="text-muted-foreground">{label}</span><div className="font-semibold text-card-foreground">{value}</div></div>
