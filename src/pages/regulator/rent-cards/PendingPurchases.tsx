@@ -229,10 +229,23 @@ const SerialSearchPicker = ({
                       <p className="text-muted-foreground/80 mt-0.5">
                         Location: {h.office_name || "—"} · {h.region || "—"} · Batch: {h.batch_label || "—"} · Status: {h.status}
                       </p>
+                      {info.canAssignFromPool && onAssignFromPool && (
+                        <button
+                          type="button"
+                          className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:bg-primary/90 transition-colors"
+                          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAssignFromPool(h.serial_number, (s) => { onChange(s); setOpen(false); setQuery(""); });
+                          }}
+                        >
+                          Assign From Regional Pool
+                        </button>
+                      )}
                       {isSuperAdmin && (
                         <a
                           href={`/regulator/rent-cards?tab=admin_actions&serial=${encodeURIComponent(h.serial_number)}`}
-                          className="inline-block mt-1 text-primary underline-offset-2 hover:underline"
+                          className="inline-block mt-1 ml-2 text-primary underline-offset-2 hover:underline"
                           onClick={(e) => e.stopPropagation()}
                         >
                           Open in Admin Actions → transfer or revoke
