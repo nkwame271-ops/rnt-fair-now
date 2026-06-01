@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PUBLIC_URL, ROOT_DOMAIN } from "../_shared/project-domain.ts";
+import { detectPayerSegment, isGraTaxEnabled, resolveServiceFee } from "../_shared/service-fee.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
