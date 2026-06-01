@@ -573,7 +573,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       payer_name: payerName,
       payer_email: payerEmail,
       payer_phone: payerPhone,
-      total_amount: amountPaid,
+      total_amount: receiptAmount,
       payment_type: paymentType,
       description: meta.description || `Payment for ${paymentType.replace(/_/g, " ")}`,
       split_breakdown: splitBreakdown.length > 0 ? splitBreakdown : null,
