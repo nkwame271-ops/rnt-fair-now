@@ -17,15 +17,25 @@ interface Props {
 
 const generateAndUploadFinalPdf = async (tenancyId: string, userId: string) => {
   try {
-    // Fetch full tenancy data for PDF generation
+    // Fetch full tenancy data + active template config so the generated PDF
+    // matches the current Templates settings (terms, max advance, GRA tax flag).
     const { data: tenancy } = await supabase.from("tenancies").select("*, unit:units(unit_name, unit_type, property_id)").eq("id", tenancyId).single();
     if (!tenancy) return;
 
     const t = tenancy as any;
-    const { data: prop } = await supabase.from("properties").select("property_name, address, region").eq("id", t.unit.property_id).single();
-    const { data: tenantProfile } = await (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", t.tenant_user_id).single();
-    const { data: landlordProfile } = await (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", t.landlord_user_id).single();
-    const { data: tenantRec } = await supabase.from("tenants").select("tenant_id").eq("user_id", t.tenant_user_id).single();
+    const [
+      { data: prop },
+      { data: tenantProfile },
+      { data: landlordProfile },
+      { data: tenantRec },
+      { data: tplConfig },
+    ] = await Promise.all([
+      supabase.from("properties").select("property_name, address, region").eq("id", t.unit.property_id).single(),
+      (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", t.tenant_user_id).single(),
+      (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", t.landlord_user_id).single(),
+      supabase.from("tenants").select("tenant_id").eq("user_id", t.tenant_user_id).single(),
+      supabase.from("agreement_template_config").select("*").limit(1).single(),
+    ]);
 
     // Fetch rent card serials
     let rentCardSerials: { landlord?: string; tenant?: string } = {};
@@ -54,11 +64,21 @@ const generateAndUploadFinalPdf = async (tenancyId: string, userId: string) => {
       startDate: t.start_date,
       endDate: t.end_date,
       region: prop?.region || "",
+      templateConfig: tplConfig ? {
+        max_advance_months: (tplConfig as any).max_advance_months,
+        min_lease_duration: (tplConfig as any).min_lease_duration,
+        max_lease_duration: (tplConfig as any).max_lease_duration,
+        tax_rate: (tplConfig as any).tax_rate,
+        registration_deadline_days: (tplConfig as any).registration_deadline_days,
+        terms: (tplConfig as any).terms,
+        gra_tax_enabled: (tplConfig as any).gra_tax_enabled !== false,
+      } : undefined,
       landlordSignature: t.landlord_signed_at ? { name: landlordProfile?.full_name || "Landlord", signedAt: t.landlord_signed_at, method: "Digital (Auto)" } : undefined,
       tenantSignature: { name: tenantProfile?.full_name || "Tenant", signedAt: new Date().toISOString(), method: "Digital" },
       version: 2,
       rentCardSerials: (rentCardSerials.landlord || rentCardSerials.tenant) ? rentCardSerials : undefined,
     });
+
 
     // Convert to blob and upload
     const pdfBlob = doc.output("blob");

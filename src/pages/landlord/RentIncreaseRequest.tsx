@@ -64,9 +64,10 @@ const RentIncreaseRequest = () => {
         const path = `rent-increase/${user.id}/${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage.from("application-evidence").upload(path, file);
         if (upErr) continue;
-        const { data: { publicUrl } } = supabase.storage.from("application-evidence").getPublicUrl(path);
-        evidenceUrls.push(publicUrl);
+        // Store the storage path — the bucket is private, viewers generate signed URLs on demand.
+        evidenceUrls.push(path);
       }
+
 
       const { error } = await supabase.from("rent_increase_requests").insert({
         property_id: selectedPropertyId,
