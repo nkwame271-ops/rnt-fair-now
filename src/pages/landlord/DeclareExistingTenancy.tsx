@@ -83,7 +83,9 @@ const DeclareExistingTenancy = () => {
   const [availableRentCards, setAvailableRentCards] = useState<{ id: string; serial_number: string }[]>([]);
   const [feeEnabled, setFeeEnabled] = useState(true);
   const [bands, setBands] = useState<{ min_rent: number; max_rent: number | null; register_fee: number; filing_fee: number; agreement_fee: number }[]>([]);
+  const [paymentSettings, setPaymentSettings] = useState<any | null>(null);
   const [batchResult, setBatchResult] = useState<{ created: { code: string; unit: string }[]; failed: { unit: string; error: string }[] } | null>(null);
+
 
   const property = properties.find(p => p.id === selectedPropertyId);
 
@@ -91,11 +93,12 @@ const DeclareExistingTenancy = () => {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [{ data: propData }, { data: cardData }, { data: bandData }, { data: flagData }] = await Promise.all([
+      const [{ data: propData }, { data: cardData }, { data: bandData }, { data: flagData }, { data: paySettings }] = await Promise.all([
         supabase.from("properties").select("id, property_name, address, region, area, ghana_post_gps, units(id, unit_name, unit_type, monthly_rent, status)").eq("landlord_user_id", user.id),
         supabase.from("rent_cards").select("id, serial_number").eq("landlord_user_id", user.id).in("status", ["valid", "awaiting_serial"]).is("tenancy_id", null),
         supabase.from("rent_bands").select("min_rent, max_rent, fee_amount, register_fee, filing_fee, agreement_fee").eq("band_type", "existing_tenancy").order("min_rent"),
         supabase.from("feature_flags").select("fee_enabled").eq("feature_key", "agreement_sale_fee").single(),
+        supabase.from("landlord_payment_settings").select("*").eq("landlord_user_id", user.id).maybeSingle(),
       ]);
       setProperties((propData || []) as PropertyWithUnits[]);
       setAvailableRentCards((cardData || []).filter((c: any) => c.serial_number) as { id: string; serial_number: string }[]);
@@ -107,7 +110,9 @@ const DeclareExistingTenancy = () => {
         agreement_fee: Number(b.agreement_fee ?? 0),
       })));
       if (flagData) setFeeEnabled(flagData.fee_enabled);
+      setPaymentSettings(paySettings || null);
       setLoading(false);
+
 
       // Auto-resume after payment
       if (sessionStorage.getItem("declare_auto_submit") === "true") {
@@ -634,7 +639,8 @@ const DeclareExistingTenancy = () => {
                     <div className="grid sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Monthly Rent (GH₵)</Label>
-                        <Input type="number" value={draft.rent} onChange={(e) => updateDraft(unit.id, { rent: e.target.value })} />
+                        <Input type="number" value={draft.rent} readOnly className="bg-muted cursor-not-allowed" />
+                        <p className="text-[10px] text-muted-foreground">Locked to the approved rent on this unit. Submit a Rent Increase Application to change it.</p>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Advance Already Paid (months)</Label>
@@ -649,6 +655,23 @@ const DeclareExistingTenancy = () => {
                         <Input type="date" value={draft.expiryDate} onChange={(e) => updateDraft(unit.id, { expiryDate: e.target.value })} />
                       </div>
                     </div>
+
+                    {/* Read-only payee details from Payment Settings */}
+                    <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs space-y-1">
+                      <div className="font-semibold text-foreground flex items-center justify-between">
+                        <span>Rent will be paid to</span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">Recommended: pay on platform</span>
+                      </div>
+                      {paymentSettings?.payment_method === "momo" && paymentSettings?.momo_number ? (
+                        <p className="text-muted-foreground">Mobile Money ({paymentSettings.momo_provider || "MTN"}): <span className="font-mono text-foreground">{paymentSettings.momo_number}</span></p>
+                      ) : paymentSettings?.payment_method === "bank" && paymentSettings?.account_number ? (
+                        <p className="text-muted-foreground">{paymentSettings.bank_name || "Bank"}{paymentSettings.bank_branch ? ` · ${paymentSettings.bank_branch}` : ""}: <span className="font-mono text-foreground">{paymentSettings.account_number}</span>{paymentSettings.account_name ? <> · {paymentSettings.account_name}</> : null}</p>
+                      ) : (
+                        <p className="text-warning">No payout method set. Update <Link to="/landlord/payment-settings" className="underline">Payment Settings</Link>.</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground">Read-only. To change, update Payment Settings.</p>
+                    </div>
+
 
                     {/* Agreement choice */}
                     <div className="space-y-2 pt-2 border-t border-border">
