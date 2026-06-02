@@ -354,7 +354,8 @@ const Payments = () => {
           </div>
           <p className="text-xs text-muted-foreground text-center mt-3">Pay the remaining GH₵ {advancePayments.reduce((s, p) => s + p.amount_to_landlord, 0).toLocaleString()} directly to {tenancy.landlordName}</p>
         </motion.div>
-      )}
+      ))}
+
 
       {/* Payment Schedule */}
       <div>
