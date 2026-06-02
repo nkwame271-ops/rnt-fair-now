@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import EvidenceImage from "@/components/EvidenceImage";
+
 
 const applicationTypes: Record<string, string> = {
   rent_increase: "Rent Increase",
@@ -220,11 +222,10 @@ const RegulatorApplications = () => {
                       <div className="text-xs font-semibold text-muted-foreground mb-2">EVIDENCE IMAGES</div>
                       <div className="grid grid-cols-3 gap-2">
                         {a.evidence_urls.map((url: string, i: number) => (
-                          <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                            <img src={url} alt={`Evidence ${i + 1}`} className="rounded-lg w-full h-32 object-cover border border-border hover:opacity-80 transition-opacity" />
-                          </a>
+                          <EvidenceImage key={i} value={url} alt={`Evidence ${i + 1}`} />
                         ))}
                       </div>
+
                     </div>
                   )}
 
