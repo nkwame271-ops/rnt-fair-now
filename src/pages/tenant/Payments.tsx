@@ -37,7 +37,20 @@ const Payments = () => {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [graTaxEnabled, setGraTaxEnabled] = useState(true);
   const isPaid = (p: Payment) => p.tenant_marked_paid || p.landlord_confirmed || p.status === "confirmed" || p.status === "tenant_paid";
+
+  useEffect(() => {
+    supabase
+      .from("agreement_template_config")
+      .select("gra_tax_enabled")
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data) setGraTaxEnabled((data as any).gra_tax_enabled !== false);
+      });
+  }, []);
+
 
   useEffect(() => {
     if (!user) return;
@@ -194,8 +207,13 @@ const Payments = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Pay Rent</h1>
-        <p className="text-muted-foreground mt-1">Validate your tenancy by paying the 8% rent tax through Rent Control</p>
+        <p className="text-muted-foreground mt-1">
+          {graTaxEnabled
+            ? "Validate your tenancy by paying the rent tax through Rent Control"
+            : "Review your advance rent and settle the balance with your landlord"}
+        </p>
       </div>
+
 
       {/* Tenancy selector when multiple */}
       {tenancies.length > 1 && (
@@ -264,12 +282,16 @@ const Payments = () => {
         <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p className="font-semibold text-foreground text-sm">How rent payment works</p>
-          <p>Your advance rent of <strong>GH₵ {totalAdvanceRent.toLocaleString()}</strong> for {advanceMonths} months includes a government tax processed through this app. Pay the tax online to validate your tenancy. The remaining amount goes directly to your landlord.</p>
+          {graTaxEnabled ? (
+            <p>Your advance rent of <strong>GH₵ {totalAdvanceRent.toLocaleString()}</strong> for {advanceMonths} months includes a government tax processed through this app. Pay the tax online to validate your tenancy. The remaining amount goes directly to your landlord.</p>
+          ) : (
+            <p>Your advance rent of <strong>GH₵ {totalAdvanceRent.toLocaleString()}</strong> covers {advanceMonths} month(s). Settle this amount directly with your landlord — we recommend paying on the platform for safer records and stronger evidence in any future dispute.</p>
+          )}
         </div>
       </div>
 
-      {/* Pay All Advance Tax — or Remaining Balance after tax paid */}
-      {!allAdvancePaid ? (
+      {/* Pay All Advance Tax — only when GRA tax collection is enabled */}
+      {graTaxEnabled && (!allAdvancePaid ? (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl p-6 shadow-elevated border-2 border-primary/30">
           <div className="flex items-center gap-2 mb-4">
             <Wallet className="h-5 w-5 text-primary" />
@@ -287,13 +309,14 @@ const Payments = () => {
               </div>
             )}
           </div>
-          <Button className="w-full" size="lg" onClick={() => handlePayBulkTax(tenancy.id)} disabled={paying}>
+          <Button className="w-full" size="lg" onClick={() => handlePayBulkTax(tenancy.id)} disabled={paying || unpaidAdvanceTax <= 0}>
             <CreditCard className="h-4 w-4 mr-2" />
             {paying ? "Redirecting..." : `Pay GH₵ ${unpaidAdvanceTax.toLocaleString()} Online`}
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-3">After online payment, settle the remaining balance directly with {tenancy.landlordName}</p>
         </motion.div>
       ) : (
+
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl p-6 shadow-elevated border-2 border-success/30">
           <div className="flex items-center gap-2 mb-3">
             <CheckCircle2 className="h-5 w-5 text-success" />
