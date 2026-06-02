@@ -63,33 +63,27 @@ const ProcessorReconciliation = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const { data: res, error } = await supabase.functions.invoke("processor-reconciliation", {
-        body: null,
-        method: "GET",
-      } as any).catch(() => ({ data: null, error: { message: "invoke failed" } } as any));
-      // The functions.invoke shape doesn't support query params natively; fall back to fetch.
-      let payload: ReconciliationResponse | null = null;
-      if (res) payload = res as ReconciliationResponse;
-      if (!payload) {
-        const url = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/processor-reconciliation?processor=${processor}&from=${from}&to=${to}`;
-        const session = (await supabase.auth.getSession()).data.session;
-        const r = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session?.access_token || ""}`,
-            apikey: (import.meta as any).env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-        });
-        const json = await r.json();
-        if (!r.ok) throw new Error(json?.error || `HTTP ${r.status}`);
-        payload = json;
-      }
-      setData(payload);
+      // Always use fetch so the from/to/processor query params are honored.
+      // functions.invoke() doesn't support query strings, which caused the page to
+      // ignore the date pickers and always show the server default.
+      const url = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/processor-reconciliation?processor=${encodeURIComponent(processor)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+      const session = (await supabase.auth.getSession()).data.session;
+      const r = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+          apikey: (import.meta as any).env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json?.error || `HTTP ${r.status}`);
+      setData(json as ReconciliationResponse);
     } catch (e: any) {
       toast.error(e?.message || "Failed to load reconciliation");
     } finally {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     if (profileLoading) return;
