@@ -80,7 +80,9 @@ const AddTenant = () => {
   const [templateConfig, setTemplateConfig] = useState<TemplateConfig | null>(null);
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
   const [availableRentCards, setAvailableRentCards] = useState<{ id: string; serial_number: string }[]>([]);
+  const [paymentSettings, setPaymentSettings] = useState<any | null>(null);
   const [batchResult, setBatchResult] = useState<{ created: { code: string; unit: string }[]; failed: { unit: string; error: string }[] } | null>(null);
+
 
   // Bulk-apply helper inputs
   const [bulkRent, setBulkRent] = useState("");
@@ -98,12 +100,13 @@ const AddTenant = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const [propsRes, profileRes, configRes, rentCardsRes, bandsRes] = await Promise.all([
+      const [propsRes, profileRes, configRes, rentCardsRes, bandsRes, paySettingsRes] = await Promise.all([
         supabase.from("properties").select("id, property_name, address, region, property_category, units(id, unit_name, unit_type, monthly_rent, status)").eq("landlord_user_id", user.id).eq("assessment_status", "approved").in("property_status", ["approved", "live", "occupied"]),
         (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", user.id).single(),
         supabase.from("agreement_template_config").select("*").limit(1).single(),
         supabase.from("rent_cards").select("id, serial_number").eq("landlord_user_id", user.id).eq("status", "valid"),
         supabase.from("rent_bands").select("min_rent, max_rent, fee_amount").eq("band_type", "add_tenant").order("min_rent"),
+        supabase.from("landlord_payment_settings").select("*").eq("landlord_user_id", user.id).maybeSingle(),
       ]);
       setProperties((propsRes.data || []) as PropertyWithUnits[]);
       setLandlordName(profileRes.data?.full_name || "");
@@ -114,8 +117,10 @@ const AddTenant = () => {
       }
       setAvailableRentCards((rentCardsRes.data || []) as { id: string; serial_number: string }[]);
       setRentBands((bandsRes.data || []) as { min_rent: number; max_rent: number | null; fee_amount: number }[]);
+      setPaymentSettings(paySettingsRes.data || null);
       setLoading(false);
     };
+
     fetchData();
   }, [user]);
 
@@ -686,7 +691,8 @@ const AddTenant = () => {
                     <div className="grid sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Monthly Rent (GH₵)</Label>
-                        <Input type="number" value={draft.rent} onChange={(e) => updateDraft(unit.id, { rent: e.target.value })} />
+                        <Input type="number" value={draft.rent} readOnly className="bg-muted cursor-not-allowed" />
+                        <p className="text-[10px] text-muted-foreground">Locked to the approved rent on this unit. Submit a Rent Increase Application to change it.</p>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Advance (months)</Label>
@@ -719,6 +725,23 @@ const AddTenant = () => {
                         <Input type="date" value={endDate} readOnly className="bg-muted" />
                       </div>
                     </div>
+
+                    {/* Read-only payee details from Payment Settings */}
+                    <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs space-y-1">
+                      <div className="font-semibold text-foreground flex items-center justify-between">
+                        <span>Rent will be paid to</span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">Recommended: pay on platform</span>
+                      </div>
+                      {paymentSettings?.payment_method === "momo" && paymentSettings?.momo_number ? (
+                        <p className="text-muted-foreground">Mobile Money ({paymentSettings.momo_provider || "MTN"}): <span className="font-mono text-foreground">{paymentSettings.momo_number}</span></p>
+                      ) : paymentSettings?.payment_method === "bank" && paymentSettings?.account_number ? (
+                        <p className="text-muted-foreground">{paymentSettings.bank_name || "Bank"}{paymentSettings.bank_branch ? ` · ${paymentSettings.bank_branch}` : ""}: <span className="font-mono text-foreground">{paymentSettings.account_number}</span>{paymentSettings.account_name ? <> · {paymentSettings.account_name}</> : null}</p>
+                      ) : (
+                        <p className="text-warning">No payout method set. Update <Link to="/landlord/payment-settings" className="underline">Payment Settings</Link> so tenants know where to pay.</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground">Read-only. To change, update Payment Settings.</p>
+                    </div>
+
 
                     {/* Custom fields */}
                     {customFields.length > 0 && (
