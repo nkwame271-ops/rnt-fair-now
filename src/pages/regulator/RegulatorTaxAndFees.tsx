@@ -266,7 +266,9 @@ interface PaymentTypeRowProps {
 }
 
 const PaymentTypeRow = ({ cfg, splits, isSuperAdmin, saving, onConfigChange, onSplitChange, onSave, sumOf }: PaymentTypeRowProps) => {
-  const [expanded, setExpanded] = useState(false);
+  // Default expanded so admins can edit splits directly under each fee.
+  const [expanded, setExpanded] = useState(true);
+
   const label = PAYMENT_TYPE_LABELS[cfg.payment_type] || cfg.payment_type;
 
   const getPct = (segment: Segment, recipient: Recipient) =>
