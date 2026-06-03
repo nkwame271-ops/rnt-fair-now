@@ -1,79 +1,72 @@
-# Fix batch: Rent Review, Applications, Reconciliation, Add Tenant, Agreements, Templates, Engine Room
+## What I’ll fix
 
-Seven independent fixes. Each item lists root cause + fix.
+1. **Rent Cards → Pending & Assign**
+   - Change the serial picker so the dropdown does **not open until staff actually types or explicitly opens it**, keeping the top search box clickable first on desktop.
+   - Tighten the picker’s desktop positioning and stacking so the dropdown never sits over the page search field.
+   - Keep outside-click handling working without the portal blocking focus.
+   - Fix landlord name lookup for sub-admin/staff by reading names from the safe counterparty profile source instead of the restricted full-profile table.
 
----
+2. **Staff feature visibility**
+   - Add **Property Management** to the shared feature map so it appears in **Invite Staff → Allowed Features** and can be granted to sub-admins.
+   - Add **Management Support** to the feature map / Engine Room feature lists so it appears under landlord features where admins expect it.
+   - If the underlying feature-flag rows are missing, add a migration to create those missing records instead of only changing the frontend.
 
-## 3. Rent Review — `column "asking_rent" of relation "units" does not exist`
+3. **Applications evidence images**
+   - Fix evidence rendering so regulator/staff screens can open both:
+     - newer private-bucket storage paths, and
+     - older legacy public URLs already saved in the database.
+   - Update the evidence component to detect legacy `.../object/public/application-evidence/...` URLs and convert them to signed private access instead of treating them as direct public files.
 
-**Cause:** `public.approve_rent_increase_request` (migration `20260513105316`) writes `SET monthly_rent = ..., asking_rent = ...` on `units`. Confirmed via DB introspection — `units` has `monthly_rent`, `rent_locked_at`, `rent_locked_amount` but **no `asking_rent`** column.
+4. **Add Tenant / tax-off payment flow**
+   - Update the tenant-side agreement/payment flow so when GRA tax is turned off in Templates, the tenant can proceed with signing by choosing the non-tax payment route instead of being blocked behind tax verification.
+   - Surface the intended options for payment-to-landlord flow in the relevant tenant agreement/payment screens.
 
-**Fix:** New migration to `CREATE OR REPLACE` the function dropping the `asking_rent` assignment. Keep all other behavior identical (locks, tenancy sync, property event log).
+5. **Agreement PDFs**
+   - Make sure draft/final agreement downloads always use the latest template configuration when generated.
+   - Remove all Govt. Tax rows from generated PDFs whenever the tax toggle is off.
+   - Fix places still saving private agreement files as public URLs so downloads open through signed access consistently.
 
----
+6. **Engine Room → Add Tenant Fee splits**
+   - Adjust the Add Tenant rent-band editor so its split structure behaves like Existing Tenancy: each band has its own allocation set, validation is clear, and totals must match the band fee exactly.
+   - Remove the current cross-type confusion where unrelated payment types can appear under Add Tenant band allocations.
 
-## 4. Applications — landlord rent-increase images return `bucket not found` 404
+## What I found
 
-**Cause:** `RentIncreaseRequest.tsx` uploads to bucket `application-evidence` (which exists, private) and then calls `getPublicUrl()`. Because the bucket is **private**, public URLs return 404 in `RegulatorApplications.tsx`.
+- The **desktop overlap** issue is likely still happening because the serial picker opens on focus immediately and is portaled at a very high z-index, so it can still compete with the page search area.
+- **Sub-admin landlord names showing “Unknown”** is real: that screen currently queries `profiles`, while staff access was later restricted and other staff-safe screens now use `profiles_counterparty`.
+- **Property Management** and **Management Support** are not present in the current feature map, and the database currently has **no matching feature_flag rows** for either one.
+- **Application evidence** is still failing for older rows because the DB contains legacy public URLs, but the bucket is now private. The current component only signs raw paths, not those legacy URLs.
+- Some agreement flows were updated, but there are still places where private files are stored/opened as if they were public URLs.
+- Add Tenant rent bands already have allocations in the database, but the current Engine Room UI still shows mixed payment-type structure instead of the cleaner per-band setup you want.
 
-**Fix:** Two changes:
-1. In `RentIncreaseRequest.tsx`, store the storage **path** (not the public URL) into `evidence_urls`.
-2. In `RegulatorApplications.tsx`, when rendering attachments, generate a `createSignedUrl(path, 3600)` on demand and open/preview that signed URL. Backward-compat: if the stored value already looks like a full http(s) URL, fall back to using it directly.
+## Technical changes
 
-No bucket privacy change (evidence must stay private).
+- **Frontend files likely to update**
+  - `src/pages/regulator/rent-cards/PendingPurchases.tsx`
+  - `src/hooks/useAdminProfile.ts`
+  - `src/pages/regulator/InviteStaff.tsx`
+  - `src/pages/regulator/EngineRoom.tsx`
+  - `src/components/EvidenceImage.tsx`
+  - `src/pages/tenant/MyAgreements.tsx`
+  - `src/pages/tenant/Payments.tsx`
+  - `src/components/DigitalSignatureDialog.tsx`
+  - possibly `src/pages/landlord/Agreements.tsx` / landlord draft-generation paths if they still bypass signed-access handling
 
----
+- **Database migration likely needed**
+  - Insert missing `feature_flags` records for:
+    - `property_management`
+    - `management_support`
+  - Only if they truly do not exist already (confirmed missing now).
 
-## 5. Processor Reconciliation — custom date range ignored
+- **Data compatibility**
+  - I’ll preserve support for both legacy stored evidence URLs and new storage-path values so old application records start working without data loss.
 
-**Cause to verify and fix:** `ProcessorReconciliation.tsx` likely loads data once with a default 30-day window and the date inputs don't re-trigger the fetch (missing `useEffect` dep / no "Apply" handler). Will read the file, wire the `from`/`to` state into the query keys / fetch trigger, and add an Apply button that refetches.
+## Validation after implementation
 
----
-
-## 6. Add Tenant workflow — multiple GRA-tax-off fixes
-
-a. **Hide "Pay All Advance Tax" card** in `tenant/MyAgreements.tsx` when `gra_tax_enabled === false` (the flag is already read at line 85). The "Pay 0 GHS Online → Invalid amount" error disappears because the entry point is gone.
-
-b. **Rewrite the "How rent payment works" card** so it has two variants: tax-on (current copy) and tax-off (talk only about advance rent + landlord settlement, no tax wording).
-
-c. **Pay landlord on the platform — default & read-only MoMo/bank number:**
-   - In `landlord/AddTenant.tsx` and `landlord/DeclareExistingTenancy.tsx`, after the landlord selects the offline-collect option, fetch the landlord's `payment_settings` (MoMo or bank account) and pre-fill the payee number field.
-   - Render it `readOnly` with helper text: "To change this, update Payment Settings in your dashboard."
-   - Mark "Pay landlord on the platform" as the **Recommended** option in the UI for both add-tenant and existing-tenancy flows.
-
-d. **Rent amount is read-only** in Add Tenant and Declare Existing Tenancy. The rent field is bound to the declared/approved rent on the unit/property. Disable the input and show a tooltip: "Locked. Submit a Rent Increase Application to change." (DB triggers already enforce this; this just stops users typing into a field they can't change.)
-
----
-
-## 7. Agreements — draft PDF must match Templates; hide GRA tax when off
-
-**Fix:** `src/lib/generateAgreementPdf.ts` should read the active template config (the same `tplConfig` Templates writes) and:
-- Use the **current clauses/sections** from Templates instead of any hard-coded copy.
-- Omit the GRA-tax clause/line entirely when `gra_tax_enabled === false`.
-
----
-
-## 8. Templates — inline split editor under each fee
-
-**Fix:** In `RegulatorAgreementTemplates.tsx` (and/or `RegulatorTaxAndFees.tsx` where GRA Tax + Service Fees live), render the recipient split editor directly under each fee row. Reuse the split editor already used for "Existing Tenancy" splits. Validation: sum of split percentages == 100. Persist to the same config blob the fee belongs to.
-
----
-
-## 9. Engine Room → Add Tenant Fee — independent splits, sum == band total
-
-**Fix:** In the Add Tenant Fee section of `EngineRoom.tsx`, mirror the Existing Tenancy splits behavior:
-- Each rent band has its own independent split rows (recipient + amount).
-- Validation: per-band, `sum(split.amount) === band.total`. Block save with an inline error otherwise.
-- Show a live "remaining: X" helper while editing.
-
----
-
-## Technical notes
-
-- Only one DB migration needed (item 3). Items 4–9 are app-code only.
-- Item 6c relies on the existing `payment_settings` table — will confirm field name on implementation.
-- Backward-compat for stored `evidence_urls`: signed-URL helper accepts both paths and full URLs.
-
-## Out of scope
-
-- No changes to RLS, no bucket privacy changes, no escrow/payment-processor logic changes.
+- Verify desktop Pending & Assign search box can be clicked before any dropdown appears.
+- Verify sub-admin/staff can search pending purchases by landlord name and names no longer show as Unknown.
+- Verify Invite Staff shows Property Management, and Engine Room shows Management Support.
+- Verify a real older landlord application with legacy evidence URLs displays images again.
+- Verify tax-off tenant agreement flow allows completion/signing without Govt. Tax steps.
+- Verify generated agreement PDFs omit Govt. Tax when tax is off.
+- Verify Add Tenant band split totals are enforced per band and displayed in the intended structure.

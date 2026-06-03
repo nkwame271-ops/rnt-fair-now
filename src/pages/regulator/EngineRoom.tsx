@@ -1059,7 +1059,9 @@ const EngineRoom = () => {
                           acc[a.payment_type].push(a);
                           return acc;
                         }, {} as Record<string, BandAllocation[]>);
-                        const types = Object.keys(allocsByType).length > 0 ? Object.keys(allocsByType) : ["add_tenant_fee"];
+                        // Add Tenant bands only manage the `add_tenant_fee` payment type — ignore stray allocations
+                        // that may have been inserted under a different payment_type for this band.
+                        const types = ["add_tenant_fee"];
                         return (
                           <div className="bg-muted/30 px-4 py-3 space-y-3">
                             <p className="text-xs font-medium text-muted-foreground">Allocation splits for this band (must sum to GH₵ {band.fee_amount})</p>

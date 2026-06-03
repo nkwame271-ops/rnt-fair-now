@@ -12,21 +12,56 @@ interface Props {
 
 const isHttpUrl = (v: string) => /^https?:\/\//i.test(v);
 
+/**
+ * Extract a storage path from a legacy public/signed URL like
+ * `.../storage/v1/object/public/<bucket>/<path>` or `.../object/sign/<bucket>/<path>?token=...`.
+ * Returns null when the URL doesn't match a Supabase storage URL shape.
+ */
+const extractStoragePath = (url: string, bucket: string): string | null => {
+  try {
+    const u = new URL(url);
+    const marker = `/storage/v1/object/`;
+    const i = u.pathname.indexOf(marker);
+    if (i === -1) return null;
+    const after = u.pathname.slice(i + marker.length); // e.g. "public/<bucket>/path/file" or "sign/<bucket>/path/file"
+    const parts = after.split("/");
+    if (parts.length < 3) return null;
+    const kind = parts[0]; // public | sign | authenticated
+    const urlBucket = parts[1];
+    if (urlBucket !== bucket) return null;
+    if (!["public", "sign", "authenticated"].includes(kind)) return null;
+    return parts.slice(2).join("/");
+  } catch {
+    return null;
+  }
+};
+
 const EvidenceImage = ({ value, bucket = "application-evidence", alt = "Evidence", className }: Props) => {
-  const [url, setUrl] = useState<string | null>(isHttpUrl(value) ? value : null);
+  const [url, setUrl] = useState<string | null>(null);
   const [errored, setErrored] = useState(false);
 
   useEffect(() => {
     let alive = true;
+    setErrored(false);
+
+    // 1) If the value is an http(s) URL, try to convert it to a signed URL for the private bucket.
+    //    Falls back to opening the raw URL only when it doesn't look like a Supabase storage URL
+    //    for this bucket (e.g. external image hosting).
+    let storagePath: string | null = null;
     if (isHttpUrl(value)) {
-      setUrl(value);
-      return;
+      storagePath = extractStoragePath(value, bucket);
+      if (!storagePath) {
+        setUrl(value);
+        return;
+      }
+    } else {
+      // Strip an accidental bucket prefix if present.
+      storagePath = value.startsWith(`${bucket}/`) ? value.slice(bucket.length + 1) : value;
     }
-    // Strip an accidental bucket prefix if present.
-    const path = value.startsWith(`${bucket}/`) ? value.slice(bucket.length + 1) : value;
+
     supabase.storage
       .from(bucket)
-      .createSignedUrl(path, 3600)
+      .createSignedUrl(storagePath, 3600)
       .then(({ data, error }) => {
         if (!alive) return;
         if (error || !data?.signedUrl) {

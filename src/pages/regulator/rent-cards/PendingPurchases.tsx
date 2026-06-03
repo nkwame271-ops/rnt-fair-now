@@ -309,8 +309,8 @@ const SerialSearchPicker = ({
           ref={inputRef}
           placeholder="Type to search serial…"
           value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+          onChange={e => { setQuery(e.target.value); if (e.target.value.length > 0) setOpen(true); }}
+          onClick={() => { if (query.length > 0) setOpen(true); }}
           className="font-mono text-xs"
           autoComplete="off"
         />
@@ -459,12 +459,22 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
       }
 
       const landlordUserIds = [...new Set(cards.map((c: any) => c.landlord_user_id))];
-      const [profilesRes, landlordsRes] = await Promise.all([
+      const [profilesRes, counterpartyRes, landlordsRes] = await Promise.all([
+        // Main admins can read profiles directly; sub-admins cannot (RLS restricted).
         supabase.from("profiles").select("user_id, full_name").in("user_id", landlordUserIds),
+        // Counterparty view works for both, including sub-admin/staff via regulator role grant.
+        (supabase.from("profiles_counterparty" as any) as any).select("user_id, full_name").in("user_id", landlordUserIds),
         supabase.from("landlords").select("user_id, landlord_id").in("user_id", landlordUserIds),
       ]);
 
-      const profileMap = new Map((profilesRes.data || []).map((p: any) => [p.user_id, p.full_name]));
+      const profileMap = new Map<string, string>();
+      for (const p of (counterpartyRes.data || []) as any[]) {
+        if (p?.user_id && p?.full_name) profileMap.set(p.user_id, p.full_name);
+      }
+      // Prefer profiles row (main admin path) when available, else counterparty (sub-admin path).
+      for (const p of (profilesRes.data || []) as any[]) {
+        if (p?.user_id && p?.full_name) profileMap.set(p.user_id, p.full_name);
+      }
       const landlordIdMap = new Map((landlordsRes.data || []).map((l: any) => [l.user_id, l.landlord_id]));
 
       const results: PendingCard[] = cards.map((card: any) => ({
