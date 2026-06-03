@@ -284,6 +284,8 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   staff_feature_mutes: ["/regulator/staff-feature-mutes"],
   student_revenue: ["/regulator/student-revenue"],
   hearings: ["/regulator/hearings"],
+  property_management: ["/regulator/properties"],
+  management_support: ["/regulator/management-support"],
 };
 
 // Reverse: route → feature key

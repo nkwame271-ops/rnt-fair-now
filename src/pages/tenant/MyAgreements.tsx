@@ -300,6 +300,13 @@ const MyAgreements = () => {
   const handleAcceptAndPay = async (tenancyId: string) => {
     setPayingTax(tenancyId);
     try {
+      // When GRA tax is disabled in Templates, no online tax payment is required.
+      // The tenant can accept & sign directly; rent settlement happens with the landlord.
+      if (!graTaxEnabled) {
+        clearPaymentRedirectFlags();
+        await markAgreementAccepted(tenancyId);
+        return;
+      }
       if (digitalSignaturesEnabled) {
         const paid = await verifyPaymentWithRetry(tenancyId);
 
@@ -349,6 +356,9 @@ const MyAgreements = () => {
   }, [digitalSignaturesEnabled, loading, tenancies]);
 
   const handleDownload = async (t: TenancyView) => {
+    // Always pull the latest template config so the generated PDF matches Templates
+    // (terms, tax toggle, advance limits, etc.).
+    const { data: tplConfig } = await supabase.from("agreement_template_config").select("*").limit(1).single();
     const doc = await generateAgreementPdf({
       tenancyId: t.id,
       registrationCode: t.registration_code,
@@ -364,6 +374,15 @@ const MyAgreements = () => {
       startDate: t.start_date,
       endDate: t.end_date,
       region: t.region,
+      templateConfig: tplConfig ? {
+        max_advance_months: (tplConfig as any).max_advance_months,
+        min_lease_duration: (tplConfig as any).min_lease_duration,
+        max_lease_duration: (tplConfig as any).max_lease_duration,
+        tax_rate: (tplConfig as any).tax_rate,
+        registration_deadline_days: (tplConfig as any).registration_deadline_days,
+        terms: (tplConfig as any).terms,
+        gra_tax_enabled: (tplConfig as any).gra_tax_enabled !== false,
+      } : undefined,
       landlordSignature: t.landlord_signed_at ? { name: t.landlordName, signedAt: t.landlord_signed_at, method: "Digital (Auto)" } : undefined,
       tenantSignature: t.tenant_signed_at ? { name: tenantName, signedAt: t.tenant_signed_at, method: "Digital" } : undefined,
     });
