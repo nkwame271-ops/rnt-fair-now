@@ -52,6 +52,11 @@ const taskIcons: Record<string, any> = {
   inquiry: MessageCircle,
   compliance: Shield,
   rent_followup: Wallet,
+  landlord_request: Sparkles,
+  buy_rent_card: Sparkles,
+  rent_card_delivery: Sparkles,
+  onboard_new_tenant: UserPlus,
+  other_request: MessageCircle,
 };
 
 const taskLabels: Record<string, string> = {
@@ -60,6 +65,11 @@ const taskLabels: Record<string, string> = {
   inquiry: "Inquiries",
   compliance: "Compliance",
   rent_followup: "Rent Follow-ups",
+  landlord_request: "Landlord Requests",
+  buy_rent_card: "Buy Rent Card",
+  rent_card_delivery: "Card Delivery",
+  onboard_new_tenant: "Onboard Tenant",
+  other_request: "Other Requests",
 };
 
 const RegulatorPropertyManagement = () => {
