@@ -228,7 +228,18 @@ const RegulatorPropertyManagement = () => {
                       <Badge className="bg-amber-500 hover:bg-amber-500 text-white text-[10px]">Managed</Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><MapPin className="h-3 w-3" /> {p.address}, {p.area}, {p.region}</div>
-                    <div className="text-xs text-muted-foreground mt-1">Landlord: <strong>{p.landlord_name}</strong></div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Landlord: <strong>{p.landlord_name}</strong>
+                      {p.landlord_phone && (
+                        <>
+                          {" · "}
+                          <a href={`tel:${p.landlord_phone}`} className="underline">{p.landlord_phone}</a>
+                          {" · "}
+                          <a href={`https://wa.me/${(p.landlord_phone || "").replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener" className="text-primary underline">WhatsApp</a>
+                        </>
+                      )}
+                      {p.landlord_email && <> {" · "}<a href={`mailto:${p.landlord_email}`} className="underline">{p.landlord_email}</a></>}
+                    </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                       <UserCheck className="h-3 w-3" /> {assigned ? <>Assigned to <strong>{assigned.full_name}</strong> {assigned.office_name && <span>• {assigned.office_name}</span>}</> : <span className="text-amber-600">Unassigned</span>}
                     </div>
