@@ -92,6 +92,17 @@ const MyCases = () => {
         (items || []).forEach((it: any) => { (bm[it.complaint_id] ||= []).push(it); });
         setBasketMap(bm);
       }
+
+      // Load finalized statutory documents (Form 7, Form 33, etc.) per complaint
+      const { data: docs } = await supabase
+        .from("complaint_documents")
+        .select("id, case_id, form_type, version_number, title, file_url, finalized_at, status")
+        .in("case_id", ids)
+        .eq("status", "finalized")
+        .order("finalized_at", { ascending: false });
+      const dm: Record<string, any[]> = {};
+      (docs || []).forEach((d: any) => { (dm[d.case_id] ||= []).push(d); });
+      setDocsMap(dm);
     }
     setLoading(false);
   };
