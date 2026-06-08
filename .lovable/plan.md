@@ -1,72 +1,60 @@
-## What I’ll fix
+# Plan: Multi-Module Fixes
 
-1. **Rent Cards → Pending & Assign**
-   - Change the serial picker so the dropdown does **not open until staff actually types or explicitly opens it**, keeping the top search box clickable first on desktop.
-   - Tighten the picker’s desktop positioning and stacking so the dropdown never sits over the page search field.
-   - Keep outside-click handling working without the portal blocking focus.
-   - Fix landlord name lookup for sub-admin/staff by reading names from the safe counterparty profile source instead of the restricted full-profile table.
+## 1. Rent Cards → Pending and Assign (Search UX)
+**File:** `src/pages/regulator/rent-cards/PendingPurchases.tsx`
+- Verify `SerialSearchPicker` only opens dropdown when `query.length > 0` AND input is focused.
+- Add `position: relative` wrapper + `z-50` on dropdown panel, `z-10` on input.
+- Add backdrop click-outside handler. Ensure dropdown renders BELOW input (not over it) by using `top-full mt-1` positioning.
+- Make sure pointer-events on dropdown don't block sibling search filter input on desktop.
 
-2. **Staff feature visibility**
-   - Add **Property Management** to the shared feature map so it appears in **Invite Staff → Allowed Features** and can be granted to sub-admins.
-   - Add **Management Support** to the feature map / Engine Room feature lists so it appears under landlord features where admins expect it.
-   - If the underlying feature-flag rows are missing, add a migration to create those missing records instead of only changing the frontend.
+## 2. Property Management — Staff Feature Visibility & Workflow
+**Issue:** Feature toggle in Engine Room / Invite Staff doesn't surface "Property Management" page for staff.
 
-3. **Applications evidence images**
-   - Fix evidence rendering so regulator/staff screens can open both:
-     - newer private-bucket storage paths, and
-     - older legacy public URLs already saved in the database.
-   - Update the evidence component to detect legacy `.../object/public/application-evidence/...` URLs and convert them to signed private access instead of treating them as direct public files.
+**Files:**
+- `src/hooks/useAdminProfile.ts` — confirm `property_management` route mapping resolves for staff with the override.
+- `src/components/RegulatorLayout.tsx` — add nav link for `property_management` (gated by `useFeatureGate`).
+- `src/pages/regulator/RegulatorPropertyManagement.tsx` — add landlord contact card (phone, email, WhatsApp deep link) to each managed property row + assignment dialog.
+- Verify `staff_feature_overrides` is being read; seed `feature_flags` row for `property_management` if missing.
 
-4. **Add Tenant / tax-off payment flow**
-   - Update the tenant-side agreement/payment flow so when GRA tax is turned off in Templates, the tenant can proceed with signing by choosing the non-tax payment route instead of being blocked behind tax verification.
-   - Surface the intended options for payment-to-landlord flow in the relevant tenant agreement/payment screens.
+## 3. Landlord → Management Support Requests + Messaging
+**Files:**
+- `src/pages/landlord/LandlordManagementSupport.tsx` — add "Submit Request" button per managed property, opens dialog with request types: `buy_rent_card`, `rent_card_delivery`, `onboard_new_tenant`, `other`.
+- Insert into `management_task_assignments` (task_type=request subtype, source=landlord).
+- Add a Messages thread component using `support_messages` / `support_conversations` scoped to the property's assigned staff.
+- Regulator side: `RegulatorPropertyManagement.tsx` already shows tasks — extend Task Queues tabs to include `landlord_request` type.
+- Super Admin sees all via existing `is_main_admin()` RLS (no policy change needed; verify).
 
-5. **Agreement PDFs**
-   - Make sure draft/final agreement downloads always use the latest template configuration when generated.
-   - Remove all Govt. Tax rows from generated PDFs whenever the tax toggle is off.
-   - Fix places still saving private agreement files as public URLs so downloads open through signed access consistently.
+## 4. Tenant Portal — Tax-Off Payment Buttons
+**Files:**
+- `src/pages/tenant/Payments.tsx` & `src/pages/tenant/MyAgreements.tsx`
+- When `gra_tax_enabled = false`: show TWO buttons side-by-side:
+  - **Pay Rent on Platform** → existing Paystack checkout flow.
+  - **Pay Rent Off Platform** → opens confirmation modal with landlord MoMo/Bank details from `landlord_payment_settings`; on confirm, marks payment as `off_platform_pending` and unlocks agreement signing.
+- When `gra_tax_enabled = true`: keep current flow (tax first, then buttons appear).
 
-6. **Engine Room → Add Tenant Fee splits**
-   - Adjust the Add Tenant rent-band editor so its split structure behaves like Existing Tenancy: each band has its own allocation set, validation is clear, and totals must match the band fee exactly.
-   - Remove the current cross-type confusion where unrelated payment types can appear under Add Tenant band allocations.
+## 5. Agreements Download
+**Files:**
+- `src/pages/landlord/Agreements.tsx` — add two download buttons per tenancy: **Draft** (uses current draft state) and **Final** (uses signed/active agreement).
+- Both call `generateAgreementPdf.ts` — Final variant always re-fetches latest `agreement_template_config` to reflect admin Template changes.
+- Admin portal: ensure `DigitalSignatureDialog.tsx` and the agreement renderer always pull live `agreement_template_config` at generation time (already done previously; verify cache-busting).
 
-## What I found
+## 6. Complaint Command Center
+**A. Form 33 → SMS to respondent**
+- File: `src/lib/pdf/form33.ts` or wherever Form 33 generation is triggered (likely `ComplaintWorkspace.tsx` / regulator complaint detail).
+- After successful PDF generation + storage, look up respondent phone from `complaints.respondent_phone` (or related) and call `send-sms` edge function with templated message: "You have been summoned to Rent Control. Case #<ref>. Hearing date: <date>."
 
-- The **desktop overlap** issue is likely still happening because the serial picker opens on focus immediately and is portaled at a very high z-index, so it can still compete with the page search area.
-- **Sub-admin landlord names showing “Unknown”** is real: that screen currently queries `profiles`, while staff access was later restricted and other staff-safe screens now use `profiles_counterparty`.
-- **Property Management** and **Management Support** are not present in the current feature map, and the database currently has **no matching feature_flag rows** for either one.
-- **Application evidence** is still failing for older rows because the DB contains legacy public URLs, but the bucket is now private. The current component only signs raw paths, not those legacy URLs.
-- Some agreement flows were updated, but there are still places where private files are stored/opened as if they were public URLs.
-- Add Tenant rent bands already have allocations in the database, but the current Engine Room UI still shows mixed payment-type structure instead of the cleaner per-band setup you want.
+**B. My Cases — show generated forms**
+- File: `src/pages/tenant/MyCases.tsx`
+- Query `complaint_documents` where `complaint_id` matches and `document_type IN ('form_7','form_33')`; render with signed-URL download buttons via `EvidenceImage`/`openSignedStorageUrl` helpers.
+- Ensure RLS on `complaint_documents` allows complainant SELECT (verify; add policy if missing).
 
-## Technical changes
+## Technical Notes
+- Migrations needed only if: (a) `feature_flags` missing `property_management` row, (b) `complaint_documents` RLS lacks complainant read policy.
+- All other changes are frontend + edge-function calls.
+- No schema changes to existing tables.
 
-- **Frontend files likely to update**
-  - `src/pages/regulator/rent-cards/PendingPurchases.tsx`
-  - `src/hooks/useAdminProfile.ts`
-  - `src/pages/regulator/InviteStaff.tsx`
-  - `src/pages/regulator/EngineRoom.tsx`
-  - `src/components/EvidenceImage.tsx`
-  - `src/pages/tenant/MyAgreements.tsx`
-  - `src/pages/tenant/Payments.tsx`
-  - `src/components/DigitalSignatureDialog.tsx`
-  - possibly `src/pages/landlord/Agreements.tsx` / landlord draft-generation paths if they still bypass signed-access handling
+## Out of Scope
+- Redesigns beyond the buttons/dialogs described.
+- New notification channels beyond SMS for Form 33.
 
-- **Database migration likely needed**
-  - Insert missing `feature_flags` records for:
-    - `property_management`
-    - `management_support`
-  - Only if they truly do not exist already (confirmed missing now).
-
-- **Data compatibility**
-  - I’ll preserve support for both legacy stored evidence URLs and new storage-path values so old application records start working without data loss.
-
-## Validation after implementation
-
-- Verify desktop Pending & Assign search box can be clicked before any dropdown appears.
-- Verify sub-admin/staff can search pending purchases by landlord name and names no longer show as Unknown.
-- Verify Invite Staff shows Property Management, and Engine Room shows Management Support.
-- Verify a real older landlord application with legacy evidence URLs displays images again.
-- Verify tax-off tenant agreement flow allows completion/signing without Govt. Tax steps.
-- Verify generated agreement PDFs omit Govt. Tax when tax is off.
-- Verify Add Tenant band split totals are enforced per band and displayed in the intended structure.
+Confirm to proceed and I'll implement in this order: 1 → 4 → 5 → 6 → 2 → 3 (quickest wins first, then deeper workflow items).
