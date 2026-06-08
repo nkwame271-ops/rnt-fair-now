@@ -29,15 +29,31 @@ Deno.serve(async (req) => {
 
     const normalized = normalizePhone(resolvedPhone);
 
-    const { data: otp, error } = await admin
+    // Prefer an active (unverified, unexpired) OTP. Fall back to the most
+    // recent record for clearer error reporting (expired vs incorrect).
+    const nowIso = new Date().toISOString();
+    const { data: active } = await admin
       .from("otp_verifications")
       .select("*")
       .eq("phone", normalized)
+      .eq("verified", false)
+      .gte("expires_at", nowIso)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (error) throw error;
+    let otp = active;
+    if (!otp) {
+      const { data: latest } = await admin
+        .from("otp_verifications")
+        .select("*")
+        .eq("phone", normalized)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      otp = latest;
+    }
+
     if (!otp) return json({ verified: false, error: "No verification code found for this number. Please request a new one." });
     if (otp.verified && otp.code === code) return json({ verified: true });
     if (new Date(otp.expires_at) < new Date()) return json({ verified: false, error: "Verification code has expired. Please request a new one." });
