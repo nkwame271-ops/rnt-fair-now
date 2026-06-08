@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { FileText, Clock, CheckCircle2, AlertTriangle, Loader2, CreditCard, CalendarDays, Hash, Receipt } from "lucide-react";
+import { FileText, Clock, CheckCircle2, AlertTriangle, Loader2, CreditCard, CalendarDays, Hash, Receipt, Download, FileSignature } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import AppointmentSlotPicker from "@/components/AppointmentSlotPicker";
+import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 
 const statusIcon: Record<string, React.ReactNode> = {
   awaiting_payment: <Clock className="h-4 w-4 text-info" />,
