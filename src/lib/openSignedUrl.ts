@@ -35,8 +35,12 @@ export const openSignedStorageUrl = async (url: string, bucketOverride?: string)
   } else {
     // Raw storage path stored without the bucket prefix — guess the bucket from path hints.
     const clean = url.replace(/^\/+/, "");
-    const hint = PRIVATE_BUCKET_PATH_HINTS.find(h => h.prefixes.some(p => clean.startsWith(p)));
-    bucket = hint?.bucket || DEFAULT_PRIVATE_BUCKET;
+    if (bucketOverride) {
+      bucket = bucketOverride;
+    } else {
+      const hint = PRIVATE_BUCKET_PATH_HINTS.find(h => h.prefixes.some(p => clean.startsWith(p)));
+      bucket = hint?.bucket || DEFAULT_PRIVATE_BUCKET;
+    }
     path = clean;
   }
 
