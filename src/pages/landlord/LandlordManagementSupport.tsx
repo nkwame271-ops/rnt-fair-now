@@ -25,12 +25,24 @@ interface ManagedProp {
   openTasks: number;
 }
 
+const REQUEST_TYPES: { value: string; label: string }[] = [
+  { value: "buy_rent_card", label: "Buy Rent Card" },
+  { value: "rent_card_delivery", label: "Rent Card Delivery" },
+  { value: "onboard_new_tenant", label: "Onboard New Tenant" },
+  { value: "inquiry", label: "General Inquiry" },
+  { value: "other_request", label: "Other" },
+];
+
 const LandlordManagementSupport = () => {
   const { user } = useAuth();
   const [rows, setRows] = useState<ManagedProp[]>([]);
   const [loading, setLoading] = useState(true);
+  const [requestFor, setRequestFor] = useState<ManagedProp | null>(null);
+  const [reqType, setReqType] = useState<string>("buy_rent_card");
+  const [reqNotes, setReqNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const fetch = async () => {
+  const fetchData = async () => {
     if (!user) return;
     setLoading(true);
     const { data: props } = await supabase
@@ -52,7 +64,32 @@ const LandlordManagementSupport = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetch(); }, [user]);
+  useEffect(() => { fetchData(); }, [user]);
+
+  const submitRequest = async () => {
+    if (!requestFor || !user) return;
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from("management_task_assignments" as any).insert({
+        property_id: requestFor.id,
+        task_type: reqType,
+        status: "open",
+        assigned_office_id: requestFor.management_assigned_office_id,
+        assigned_staff_id: requestFor.management_assigned_staff_id,
+        notes: reqNotes,
+        created_by: user.id,
+      });
+      if (error) throw error;
+      toast.success("Request submitted — your management team will follow up.");
+      setRequestFor(null); setReqNotes(""); setReqType("buy_rent_card");
+      fetchData();
+    } catch (e: any) {
+      toast.error(e.message || "Could not submit request");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
 
   const managed = rows.filter(r => r.management_enabled);
   const selfManaged = rows.filter(r => !r.management_enabled);
