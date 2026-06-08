@@ -298,6 +298,24 @@ const MyCases = () => {
                 </div>
               )}
 
+              {docsMap[c.id]?.length > 0 && (
+                <div className="mt-3 bg-primary/5 border border-primary/20 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                    <FileSignature className="h-4 w-4 text-primary" /> Official Documents
+                  </div>
+                  <div className="space-y-1.5">
+                    {docsMap[c.id].map((d) => (
+                      <div key={d.id} className="flex items-center justify-between text-sm">
+                        <span className="text-foreground">{d.title || d.form_type} <span className="text-xs text-muted-foreground">v{d.version_number}</span></span>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openSignedStorageUrl(d.file_url, "form-outputs")}>
+                          <Download className="h-3 w-3 mr-1" /> Download
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <p className="text-sm text-muted-foreground mt-3 border-t border-border pt-3">{c.description}</p>
             </div>
           ))}
