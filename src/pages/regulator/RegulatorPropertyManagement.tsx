@@ -85,14 +85,17 @@ const RegulatorPropertyManagement = () => {
       supabase.from("management_task_assignments" as any).select("*").order("created_at", { ascending: false }).limit(500),
     ]);
     const propsArr = (p || []) as any as ManagedProperty[];
-    // pull landlord names
+    // pull landlord names + contact
     const landlordIds = Array.from(new Set(propsArr.map(x => x.landlord_user_id)));
-    let nameMap = new Map<string, string>();
+    let nameMap = new Map<string, { full_name?: string; phone?: string; email?: string }>();
     if (landlordIds.length) {
-      const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", landlordIds);
-      nameMap = new Map((profs || []).map((x: any) => [x.user_id, x.full_name]));
+      const { data: profs } = await supabase.from("profiles").select("user_id, full_name, phone, email").in("user_id", landlordIds);
+      nameMap = new Map((profs || []).map((x: any) => [x.user_id, x]));
     }
-    setProps(propsArr.map(x => ({ ...x, landlord_name: nameMap.get(x.landlord_user_id) || "—" })));
+    setProps(propsArr.map(x => {
+      const prof = nameMap.get(x.landlord_user_id);
+      return { ...x, landlord_name: prof?.full_name || "—", landlord_phone: prof?.phone || null, landlord_email: prof?.email || null };
+    }));
 
     // staff names
     const staffIds = (s || []).map((x: any) => x.user_id);
