@@ -66,11 +66,3 @@ Deno.serve(async (req) => {
     return json({ verified: false, error: "Server error during verification. Please try again." }, 500);
   }
 });
-
-    await admin.from("otp_verifications").update({ verified: true }).eq("id", otp.id);
-    return json({ verified: true });
-  } catch (err: any) {
-    console.error("verify-otp crash:", err);
-    return json({ verified: false, error: "Server error during verification. Please try again." }, 500);
-  }
-});
