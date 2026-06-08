@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { FileText, Clock, CheckCircle2, AlertTriangle, Loader2, CreditCard, CalendarDays, Hash, Receipt } from "lucide-react";
+import { FileText, Clock, CheckCircle2, AlertTriangle, Loader2, CreditCard, CalendarDays, Hash, Receipt, Download, FileSignature } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import AppointmentSlotPicker from "@/components/AppointmentSlotPicker";
+import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 
 const statusIcon: Record<string, React.ReactNode> = {
   awaiting_payment: <Clock className="h-4 w-4 text-info" />,
@@ -54,6 +55,7 @@ const MyCases = () => {
   const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
   const [paying, setPaying] = useState<string | null>(null);
   const [basketMap, setBasketMap] = useState<Record<string, any[]>>({});
+  const [docsMap, setDocsMap] = useState<Record<string, any[]>>({});
 
   const fetchComplaints = async () => {
     if (!user) return;
@@ -90,6 +92,17 @@ const MyCases = () => {
         (items || []).forEach((it: any) => { (bm[it.complaint_id] ||= []).push(it); });
         setBasketMap(bm);
       }
+
+      // Load finalized statutory documents (Form 7, Form 33, etc.) per complaint
+      const { data: docs } = await supabase
+        .from("complaint_documents")
+        .select("id, case_id, form_type, version_number, title, file_url, finalized_at, status")
+        .in("case_id", ids)
+        .eq("status", "finalized")
+        .order("finalized_at", { ascending: false });
+      const dm: Record<string, any[]> = {};
+      (docs || []).forEach((d: any) => { (dm[d.case_id] ||= []).push(d); });
+      setDocsMap(dm);
     }
     setLoading(false);
   };
@@ -282,6 +295,24 @@ const MyCases = () => {
                   ) : (
                     <div className="text-sm mt-1 text-warning font-medium">Awaiting your slot selection (check above)</div>
                   )}
+                </div>
+              )}
+
+              {docsMap[c.id]?.length > 0 && (
+                <div className="mt-3 bg-primary/5 border border-primary/20 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                    <FileSignature className="h-4 w-4 text-primary" /> Official Documents
+                  </div>
+                  <div className="space-y-1.5">
+                    {docsMap[c.id].map((d) => (
+                      <div key={d.id} className="flex items-center justify-between text-sm">
+                        <span className="text-foreground">{d.title || d.form_type} <span className="text-xs text-muted-foreground">v{d.version_number}</span></span>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openSignedStorageUrl(d.file_url, "form-outputs")}>
+                          <Download className="h-3 w-3 mr-1" /> Download
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

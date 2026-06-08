@@ -24,6 +24,8 @@ interface ManagedProperty {
   management_assigned_office_id: string | null;
   management_enabled_at: string | null;
   landlord_name?: string;
+  landlord_phone?: string | null;
+  landlord_email?: string | null;
 }
 
 interface Staff {
@@ -50,6 +52,11 @@ const taskIcons: Record<string, any> = {
   inquiry: MessageCircle,
   compliance: Shield,
   rent_followup: Wallet,
+  landlord_request: Sparkles,
+  buy_rent_card: Sparkles,
+  rent_card_delivery: Sparkles,
+  onboard_new_tenant: UserPlus,
+  other_request: MessageCircle,
 };
 
 const taskLabels: Record<string, string> = {
@@ -58,6 +65,11 @@ const taskLabels: Record<string, string> = {
   inquiry: "Inquiries",
   compliance: "Compliance",
   rent_followup: "Rent Follow-ups",
+  landlord_request: "Landlord Requests",
+  buy_rent_card: "Buy Rent Card",
+  rent_card_delivery: "Card Delivery",
+  onboard_new_tenant: "Onboard Tenant",
+  other_request: "Other Requests",
 };
 
 const RegulatorPropertyManagement = () => {
@@ -83,14 +95,17 @@ const RegulatorPropertyManagement = () => {
       supabase.from("management_task_assignments" as any).select("*").order("created_at", { ascending: false }).limit(500),
     ]);
     const propsArr = (p || []) as any as ManagedProperty[];
-    // pull landlord names
+    // pull landlord names + contact
     const landlordIds = Array.from(new Set(propsArr.map(x => x.landlord_user_id)));
-    let nameMap = new Map<string, string>();
+    let nameMap = new Map<string, { full_name?: string; phone?: string; email?: string }>();
     if (landlordIds.length) {
-      const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", landlordIds);
-      nameMap = new Map((profs || []).map((x: any) => [x.user_id, x.full_name]));
+      const { data: profs } = await supabase.from("profiles").select("user_id, full_name, phone, email").in("user_id", landlordIds);
+      nameMap = new Map((profs || []).map((x: any) => [x.user_id, x]));
     }
-    setProps(propsArr.map(x => ({ ...x, landlord_name: nameMap.get(x.landlord_user_id) || "—" })));
+    setProps(propsArr.map(x => {
+      const prof = nameMap.get(x.landlord_user_id);
+      return { ...x, landlord_name: prof?.full_name || "—", landlord_phone: prof?.phone || null, landlord_email: prof?.email || null };
+    }));
 
     // staff names
     const staffIds = (s || []).map((x: any) => x.user_id);
@@ -119,7 +134,7 @@ const RegulatorPropertyManagement = () => {
   });
 
   const tasksByType = useMemo(() => {
-    const grouped: Record<string, Task[]> = { viewing_request: [], tenant_onboarding: [], inquiry: [], compliance: [], rent_followup: [] };
+    const grouped: Record<string, Task[]> = { viewing_request: [], tenant_onboarding: [], inquiry: [], compliance: [], rent_followup: [], landlord_request: [], buy_rent_card: [], rent_card_delivery: [], onboard_new_tenant: [], other_request: [] };
     tasks.forEach(t => { if (grouped[t.task_type]) grouped[t.task_type].push(t); });
     return grouped;
   }, [tasks]);
@@ -223,7 +238,18 @@ const RegulatorPropertyManagement = () => {
                       <Badge className="bg-amber-500 hover:bg-amber-500 text-white text-[10px]">Managed</Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><MapPin className="h-3 w-3" /> {p.address}, {p.area}, {p.region}</div>
-                    <div className="text-xs text-muted-foreground mt-1">Landlord: <strong>{p.landlord_name}</strong></div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Landlord: <strong>{p.landlord_name}</strong>
+                      {p.landlord_phone && (
+                        <>
+                          {" · "}
+                          <a href={`tel:${p.landlord_phone}`} className="underline">{p.landlord_phone}</a>
+                          {" · "}
+                          <a href={`https://wa.me/${(p.landlord_phone || "").replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener" className="text-primary underline">WhatsApp</a>
+                        </>
+                      )}
+                      {p.landlord_email && <> {" · "}<a href={`mailto:${p.landlord_email}`} className="underline">{p.landlord_email}</a></>}
+                    </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                       <UserCheck className="h-3 w-3" /> {assigned ? <>Assigned to <strong>{assigned.full_name}</strong> {assigned.office_name && <span>• {assigned.office_name}</span>}</> : <span className="text-amber-600">Unassigned</span>}
                     </div>

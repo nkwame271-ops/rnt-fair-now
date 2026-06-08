@@ -284,7 +284,7 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   staff_feature_mutes: ["/regulator/staff-feature-mutes"],
   student_revenue: ["/regulator/student-revenue"],
   hearings: ["/regulator/hearings"],
-  property_management: ["/regulator/properties"],
+  property_management: ["/regulator/property-management"],
   management_support: ["/regulator/management-support"],
 };
 

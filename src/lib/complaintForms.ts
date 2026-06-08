@@ -260,5 +260,25 @@ export async function generateForm33Draft(
   const office = await officeName(complaint.office_id);
   const data = prefillForm33({ ...complaint, case_number: caseNumber || complaint.case_number }, office, hearing);
   const result = await generateStatutoryForm(caseId, "form_33", data, { metadata: { hearing } });
+
+  // Fire-and-forget SMS to respondent (summons notice)
+  try {
+    const respondents: any[] = Array.isArray(complaint.respondents) ? complaint.respondents : [];
+    const phones = respondents.map(r => r?.phone).filter(Boolean);
+    const fallback = complaint.placeholder_respondent_phone;
+    const targets = phones.length ? phones : (fallback ? [fallback] : []);
+    if (targets.length) {
+      const ref = complaint.complaint_code || caseNumber || caseId.slice(0, 8);
+      const when = hearing.scheduled_at ? new Date(hearing.scheduled_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "TBA";
+      const venue = hearing.venue || office;
+      const message = `Rent Control: You have been summoned for Case ${ref}. Hearing: ${when} at ${venue}. Reply or visit Rent Control to confirm.`;
+      for (const to of targets) {
+        supabase.functions.invoke("send-sms", { body: { to, message } }).catch(() => {});
+      }
+    }
+  } catch (e) {
+    console.warn("Form 33 SMS dispatch failed", e);
+  }
+
   return { case_number: caseNumber, documents: [result] };
 }

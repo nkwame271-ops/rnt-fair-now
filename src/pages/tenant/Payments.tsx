@@ -356,6 +356,47 @@ const Payments = () => {
         </motion.div>
       ))}
 
+      {/* When GRA tax is disabled — let tenants pay rent on or off the platform */}
+      {!graTaxEnabled && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl p-6 shadow-elevated border-2 border-primary/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-card-foreground">Settle Advance Rent</h2>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            No government tax is currently collected through the platform. Choose how you want to settle the rent with <strong>{tenancy.landlordName}</strong>.
+          </p>
+          <div className="bg-muted rounded-lg p-4 space-y-2 text-sm mb-5">
+            <div className="flex justify-between"><span className="text-muted-foreground">Advance ({advanceMonths} months)</span><span className="font-semibold text-card-foreground">GH₵ {totalAdvanceRent.toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Months paid</span><span className="font-semibold text-card-foreground">{advancePaidCount}/{advanceMonths}</span></div>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Button size="lg" onClick={() => handlePayBulkTax(tenancy.id)} disabled={paying}>
+              <CreditCard className="h-4 w-4 mr-2" />
+              {paying ? "Redirecting..." : "Pay Rent on Platform"}
+            </Button>
+            <Button size="lg" variant="secondary" onClick={async () => {
+              try {
+                await supabase.from("rent_payments").update({ tenant_marked_paid: true, status: "tenant_paid" } as any)
+                  .eq("tenancy_id", tenancy.id)
+                  .in("id", advancePayments.filter(p => !isPaid(p)).map(p => p.id));
+                toast.success("Marked as paid off-platform. Landlord will be asked to confirm.");
+                window.location.reload();
+              } catch (e: any) {
+                toast.error(e.message || "Could not update");
+              }
+            }}>
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Pay Rent Off Platform
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground text-center mt-3">
+            Paying on the platform produces an automatic receipt and stronger evidence if a dispute arises.
+          </p>
+        </motion.div>
+      )}
+
+
 
       {/* Payment Schedule */}
       <div>

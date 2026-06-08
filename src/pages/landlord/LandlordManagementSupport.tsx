@@ -3,10 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Building2, UserCheck } from "lucide-react";
+import { Sparkles, Building2, UserCheck, Send, MessageCircle } from "lucide-react";
 import PropertyManagementToggle from "@/components/PropertyManagementToggle";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 interface ManagedProp {
   id: string;
@@ -21,12 +25,24 @@ interface ManagedProp {
   openTasks: number;
 }
 
+const REQUEST_TYPES: { value: string; label: string }[] = [
+  { value: "buy_rent_card", label: "Buy Rent Card" },
+  { value: "rent_card_delivery", label: "Rent Card Delivery" },
+  { value: "onboard_new_tenant", label: "Onboard New Tenant" },
+  { value: "inquiry", label: "General Inquiry" },
+  { value: "other_request", label: "Other" },
+];
+
 const LandlordManagementSupport = () => {
   const { user } = useAuth();
   const [rows, setRows] = useState<ManagedProp[]>([]);
   const [loading, setLoading] = useState(true);
+  const [requestFor, setRequestFor] = useState<ManagedProp | null>(null);
+  const [reqType, setReqType] = useState<string>("buy_rent_card");
+  const [reqNotes, setReqNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const fetch = async () => {
+  const fetchData = async () => {
     if (!user) return;
     setLoading(true);
     const { data: props } = await supabase
@@ -48,7 +64,32 @@ const LandlordManagementSupport = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetch(); }, [user]);
+  useEffect(() => { fetchData(); }, [user]);
+
+  const submitRequest = async () => {
+    if (!requestFor || !user) return;
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from("management_task_assignments" as any).insert({
+        property_id: requestFor.id,
+        task_type: reqType,
+        status: "open",
+        assigned_office_id: requestFor.management_assigned_office_id,
+        assigned_staff_id: requestFor.management_assigned_staff_id,
+        notes: reqNotes,
+        created_by: user.id,
+      });
+      if (error) throw error;
+      toast.success("Request submitted — your management team will follow up.");
+      setRequestFor(null); setReqNotes(""); setReqType("buy_rent_card");
+      fetchData();
+    } catch (e: any) {
+      toast.error(e.message || "Could not submit request");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
 
   const managed = rows.filter(r => r.management_enabled);
   const selfManaged = rows.filter(r => !r.management_enabled);
@@ -98,6 +139,16 @@ const LandlordManagementSupport = () => {
                       <span>Open tasks: <strong>{p.openTasks}</strong></span>
                     </div>
                   )}
+                  {p.management_enabled && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setRequestFor(p); setReqType("buy_rent_card"); setReqNotes(""); }}>
+                        <Send className="h-3 w-3 mr-1" /> Submit Request
+                      </Button>
+                      <Button asChild size="sm" variant="ghost" className="h-8 text-xs">
+                        <Link to="/landlord/messages"><MessageCircle className="h-3 w-3 mr-1" /> Message Team</Link>
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="min-w-[260px]">
                   <PropertyManagementToggle
@@ -112,6 +163,37 @@ const LandlordManagementSupport = () => {
           ))}
         </CardContent>
       </Card>
+
+      <Dialog open={!!requestFor} onOpenChange={(o) => !o && setRequestFor(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Submit Management Request</DialogTitle></DialogHeader>
+          {requestFor && (
+            <div className="space-y-3">
+              <div className="text-sm">
+                <strong>{requestFor.property_name || requestFor.property_code}</strong>
+                <div className="text-xs text-muted-foreground">{requestFor.address}, {requestFor.area}</div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">Request type</label>
+                <Select value={reqType} onValueChange={setReqType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {REQUEST_TYPES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">Details</label>
+                <Textarea value={reqNotes} onChange={(e) => setReqNotes(e.target.value)} placeholder="Add context for the management team…" className="min-h-[100px]" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setRequestFor(null)}>Cancel</Button>
+                <Button onClick={submitRequest} disabled={submitting}>{submitting ? "Submitting…" : "Submit"}</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardContent className="p-4 text-xs text-muted-foreground space-y-1">
