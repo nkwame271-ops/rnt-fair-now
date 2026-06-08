@@ -134,7 +134,7 @@ const RegulatorPropertyManagement = () => {
   });
 
   const tasksByType = useMemo(() => {
-    const grouped: Record<string, Task[]> = { viewing_request: [], tenant_onboarding: [], inquiry: [], compliance: [], rent_followup: [] };
+    const grouped: Record<string, Task[]> = { viewing_request: [], tenant_onboarding: [], inquiry: [], compliance: [], rent_followup: [], landlord_request: [], buy_rent_card: [], rent_card_delivery: [], onboard_new_tenant: [], other_request: [] };
     tasks.forEach(t => { if (grouped[t.task_type]) grouped[t.task_type].push(t); });
     return grouped;
   }, [tasks]);
