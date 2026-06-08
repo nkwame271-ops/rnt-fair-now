@@ -24,6 +24,8 @@ interface ManagedProperty {
   management_assigned_office_id: string | null;
   management_enabled_at: string | null;
   landlord_name?: string;
+  landlord_phone?: string | null;
+  landlord_email?: string | null;
 }
 
 interface Staff {
