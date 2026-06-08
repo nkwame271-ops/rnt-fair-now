@@ -55,6 +55,7 @@ const MyCases = () => {
   const [scheduleMap, setScheduleMap] = useState<Record<string, any>>({});
   const [paying, setPaying] = useState<string | null>(null);
   const [basketMap, setBasketMap] = useState<Record<string, any[]>>({});
+  const [docsMap, setDocsMap] = useState<Record<string, any[]>>({});
 
   const fetchComplaints = async () => {
     if (!user) return;
