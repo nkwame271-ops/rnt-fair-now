@@ -211,23 +211,29 @@ const ProfilePage = () => {
     }
     setChangingPhone(true);
     try {
-      const currentEmail = user?.email || "";
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: currentEmail,
-        password: phoneChangePassword,
+      // Calls a secure edge function that updates BOTH the auth user
+      // (synthetic email derived from phone, used for login) AND profiles.phone.
+      // Without this, login with the new phone returns "Invalid credentials".
+      const { data, error } = await supabase.functions.invoke("change-phone", {
+        body: {
+          new_phone: newPhone.replace(/\s/g, ""),
+          current_password: phoneChangePassword,
+        },
       });
-      if (signInErr) throw new Error("Incorrect password. Please try again.");
+      if (error) throw new Error(error.message || "Failed to update phone number");
+      if (!data?.ok) throw new Error(data?.error || "Failed to update phone number");
 
-      const { error } = await supabase.from("profiles").update({ phone: newPhone.replace(/\s/g, "") }).eq("user_id", user!.id);
-      if (error) throw error;
-      setPhone(newPhone.replace(/\s/g, ""));
-      toast.success("Phone number updated successfully");
+      const stored = (data.phone as string) || newPhone.replace(/\s/g, "");
+      setPhone(stored);
+      toast.success("Phone number updated. Use the new number to sign in next time.");
       setPhoneDialogOpen(false);
       setNewPhone("");
       setPhoneChangePassword("");
+      // Refresh session so the auth email change is picked up
+      await supabase.auth.refreshSession();
       // Notify about contact change (non-blocking)
       sendNotification("contact_changed", {
-        phone: newPhone.replace(/\s/g, "") || undefined,
+        phone: stored,
         email: email || user?.email || undefined,
         user_id: user?.id,
         data: { name: fullName },
