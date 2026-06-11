@@ -19,6 +19,7 @@ import { renderForm7 } from "@/lib/pdf/form7";
 import { renderForm33 } from "@/lib/pdf/form33";
 import { renderForm32A } from "@/lib/pdf/form32a";
 import PdfLivePreview from "./PdfLivePreview";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   open: boolean;
@@ -94,7 +95,32 @@ export default function FormEditorDialog({
     setBusy(true);
     try {
       await generateStatutoryForm(complaint.id, formType, data);
-      toast({ title: `${TITLES[formType].split(" — ")[0]} generated`, description: "Saved to Complaint Documents." });
+      // Auto-SMS respondents when Form 33 (Summons) is generated
+      if (formType === "form_33") {
+        try {
+          const respondents: any[] = Array.isArray(complaint.respondents) ? complaint.respondents : [];
+          const phones = respondents.map((r: any) => r?.phone).filter(Boolean);
+          const fallback = complaint.placeholder_respondent_phone || data.respondent_phone;
+          const targets = phones.length ? phones : (fallback ? [fallback] : []);
+          if (targets.length) {
+            const ref = complaint.complaint_code || complaint.case_number || data.case_number || complaint.id?.slice(0, 8);
+            const when = data.hearing_date ? `${data.hearing_date}${data.hearing_time ? " " + data.hearing_time : ""}` : "TBA";
+            const venue = data.hearing_venue || officeName || "Rent Control Office";
+            const message = `Rent Control: You have been summoned for Case ${ref}. Hearing: ${when} at ${venue}. Please attend or contact Rent Control.`;
+            for (const to of targets) {
+              supabase.functions.invoke("send-sms", { body: { to, message } }).catch(() => {});
+            }
+            toast({ title: "Form 33 generated", description: `Summons SMS sent to ${targets.length} respondent(s).` });
+          } else {
+            toast({ title: "Form 33 generated", description: "Saved to Complaint Documents. No respondent phone on file — SMS not sent." });
+          }
+        } catch (e) {
+          console.warn("Form 33 SMS dispatch failed", e);
+          toast({ title: "Form 33 generated", description: "Saved, but summons SMS could not be sent." });
+        }
+      } else {
+        toast({ title: `${TITLES[formType].split(" — ")[0]} generated`, description: "Saved to Complaint Documents." });
+      }
       onOpenChange(false);
       onGenerated();
     } catch (e: any) {

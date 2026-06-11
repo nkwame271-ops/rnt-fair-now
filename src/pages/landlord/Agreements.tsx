@@ -207,19 +207,14 @@ const Agreements = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {t.tenancy_type === "existing_migration" && t.agreement_pdf_url && !t.final_agreement_pdf_url && (
-                      <Button size="sm" variant="outline" className="text-xs" onClick={() => openSignedStorageUrl(t.agreement_pdf_url!)}>
-                        <FileCheck className="h-3 w-3 mr-1" /> Draft
-                      </Button>
-                    )}
-                    {t.tenancy_type !== "existing_migration" && t.agreement_pdf_url && !t.final_agreement_pdf_url && (
+                    {t.agreement_pdf_url && (
                       <Button size="sm" variant="outline" className="text-xs" onClick={() => openSignedStorageUrl(t.agreement_pdf_url!)}>
                         <FileCheck className="h-3 w-3 mr-1" /> Draft Agreement
                       </Button>
                     )}
                     {t.final_agreement_pdf_url && (
                       <Button size="sm" variant="default" className="text-xs" onClick={() => openSignedStorageUrl(t.final_agreement_pdf_url!)}>
-                        <FileCheck className="h-3 w-3 mr-1" /> Final
+                        <FileCheck className="h-3 w-3 mr-1" /> Final Agreement
                       </Button>
                     )}
                     {t.tenancy_type === "existing_migration" && t.existing_agreement_url && (

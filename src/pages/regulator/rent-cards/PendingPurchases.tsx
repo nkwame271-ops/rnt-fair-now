@@ -82,8 +82,9 @@ const SerialSearchPicker = ({
     const PANEL_MAX = 288; // ~max-h-72
     const GAP = 6;
     const MIN_PANEL = 120;
+    const HEADER_SAFE = 140; // reserve space for the sticky search header
     const spaceBelow = window.innerHeight - rect.bottom - GAP - 8;
-    const spaceAbove = rect.top - GAP - 8;
+    const spaceAbove = rect.top - GAP - HEADER_SAFE;
     // Prefer below; only flip up when below is too cramped AND above genuinely has more room.
     const flipUp = spaceBelow < MIN_PANEL && spaceAbove > spaceBelow;
     const available = Math.max(MIN_PANEL, flipUp ? spaceAbove : spaceBelow);
@@ -91,7 +92,7 @@ const SerialSearchPicker = ({
       position: "fixed",
       left: rect.left,
       width: rect.width,
-      // Sit above Radix Dialog content/overlay (which use ~z-50) and toasts (z-[100]).
+      // Sit BELOW the sticky search header (z-[10000]) and above dialogs/toasts.
       zIndex: 9999,
       maxHeight: `${Math.min(PANEL_MAX, available)}px`,
       // explicitly clear the opposite axis so a stale value never pins the panel on top of the input
@@ -975,7 +976,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+      <div className="bg-card rounded-xl border border-border p-6 space-y-4 sticky top-0 z-[10000]">
         <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
           <Search className="h-5 w-5 text-primary" /> Pending Purchases & Assign
         </h2>
