@@ -34,6 +34,7 @@ import UserProofReviewTab from "@/components/regulator/UserProofReviewTab";
 import ReceiptDriftTile from "@/components/regulator/ReceiptDriftTile";
 import SystemHealthTile from "@/components/regulator/SystemHealthTile";
 import TransactionExplorer from "@/components/regulator/TransactionExplorer";
+import OrphanBundlesTile from "@/components/regulator/OrphanBundlesTile";
 
 /**
  * Payment Reconciliation & Recovery Centre
@@ -242,6 +243,9 @@ const PaymentReconciliationCentre = () => {
       <SystemHealthTile />
 
       <ReceiptDriftTile />
+
+      <OrphanBundlesTile />
+
 
       <Card className="p-4 space-y-3 border-amber-500/40">
         <div className="flex items-center gap-2">
