@@ -2,11 +2,12 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useDeveloperOrg } from "@/hooks/useDeveloperOrg";
 import { Button } from "@/components/ui/button";
-import { Shield, LayoutDashboard, KeyRound, FlaskConical, Webhook, BarChart3, CreditCard, BookOpen, Settings, LogOut, Loader2 } from "lucide-react";
+import { Shield, LayoutDashboard, KeyRound, FlaskConical, Webhook, BarChart3, CreditCard, BookOpen, Settings, LogOut, Loader2, ClipboardCheck } from "lucide-react";
 
 const NAV = [
   { to: "/developers/dashboard", icon: LayoutDashboard, label: "Overview", end: true },
   { to: "/developers/dashboard/keys", icon: KeyRound, label: "API Keys" },
+  { to: "/developers/dashboard/request-status", icon: ClipboardCheck, label: "Access request" },
   { to: "/developers/dashboard/sandbox", icon: FlaskConical, label: "Sandbox" },
   { to: "/developers/dashboard/webhooks", icon: Webhook, label: "Webhooks" },
   { to: "/developers/dashboard/usage", icon: BarChart3, label: "Usage" },

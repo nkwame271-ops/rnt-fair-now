@@ -88,8 +88,8 @@ export default function DeveloperSignup() {
         member_role: "owner",
       });
 
-      toast.success("Account created. Check your email to verify, then log in.");
-      navigate("/developers/login");
+      toast.success("Account created. Your sandbox key will be ready once you verify your email and log in.");
+      navigate("/developers/login?signup=ok");
     } catch (e: any) {
       toast.error(e.message ?? "Signup failed");
     } finally {
