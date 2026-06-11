@@ -97,6 +97,7 @@ const RegulatorKyc = lazy(() => import("./pages/regulator/RegulatorKyc"));
 const RegulatorFeedback = lazy(() => import("./pages/regulator/RegulatorFeedback"));
 const RegulatorSupportChats = lazy(() => import("./pages/regulator/RegulatorSupportChats"));
 const AgencyApiKeys = lazy(() => import("./pages/regulator/AgencyApiKeys"));
+const PublicApiDocs = lazy(() => import("./pages/developers/ApiDocs"));
 const EngineRoom = lazy(() => import("./pages/regulator/EngineRoom"));
 const RegulatorRentAssessments = lazy(() => import("./pages/regulator/RegulatorRentAssessments"));
 const RegulatorApplications = lazy(() => import("./pages/regulator/RegulatorApplications"));
