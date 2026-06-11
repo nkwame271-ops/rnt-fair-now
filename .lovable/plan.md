@@ -1,60 +1,104 @@
-# Plan: Multi-Module Fixes
+# External Agency API Access Program
 
-## 1. Rent Cards → Pending and Assign (Search UX)
-**File:** `src/pages/regulator/rent-cards/PendingPurchases.tsx`
-- Verify `SerialSearchPicker` only opens dropdown when `query.length > 0` AND input is focused.
-- Add `position: relative` wrapper + `z-50` on dropdown panel, `z-10` on input.
-- Add backdrop click-outside handler. Ensure dropdown renders BELOW input (not over it) by using `top-full mt-1` positioning.
-- Make sure pointer-events on dropdown don't block sibling search filter input on desktop.
+Build a complete admin-controlled API gateway so third-party agencies can read **Landlords, Tenants, Properties, and Complaints** with scoped, revocable tokens — and we can see in real time what they're doing.
 
-## 2. Property Management — Staff Feature Visibility & Workflow
-**Issue:** Feature toggle in Engine Room / Invite Staff doesn't surface "Property Management" page for staff.
+The existing `agency-api` edge function + `api_keys` table give us the foundation; this plan upgrades it to a proper product surface.
 
-**Files:**
-- `src/hooks/useAdminProfile.ts` — confirm `property_management` route mapping resolves for staff with the override.
-- `src/components/RegulatorLayout.tsx` — add nav link for `property_management` (gated by `useFeatureGate`).
-- `src/pages/regulator/RegulatorPropertyManagement.tsx` — add landlord contact card (phone, email, WhatsApp deep link) to each managed property row + assignment dialog.
-- Verify `staff_feature_overrides` is being read; seed `feature_flags` row for `property_management` if missing.
+---
 
-## 3. Landlord → Management Support Requests + Messaging
-**Files:**
-- `src/pages/landlord/LandlordManagementSupport.tsx` — add "Submit Request" button per managed property, opens dialog with request types: `buy_rent_card`, `rent_card_delivery`, `onboard_new_tenant`, `other`.
-- Insert into `management_task_assignments` (task_type=request subtype, source=landlord).
-- Add a Messages thread component using `support_messages` / `support_conversations` scoped to the property's assigned staff.
-- Regulator side: `RegulatorPropertyManagement.tsx` already shows tasks — extend Task Queues tabs to include `landlord_request` type.
-- Super Admin sees all via existing `is_main_admin()` RLS (no policy change needed; verify).
+## 1. Data model (migration)
 
-## 4. Tenant Portal — Tax-Off Payment Buttons
-**Files:**
-- `src/pages/tenant/Payments.tsx` & `src/pages/tenant/MyAgreements.tsx`
-- When `gra_tax_enabled = false`: show TWO buttons side-by-side:
-  - **Pay Rent on Platform** → existing Paystack checkout flow.
-  - **Pay Rent Off Platform** → opens confirmation modal with landlord MoMo/Bank details from `landlord_payment_settings`; on confirm, marks payment as `off_platform_pending` and unlocks agreement signing.
-- When `gra_tax_enabled = true`: keep current flow (tax first, then buttons appear).
+Extend the API system to track issuance, usage, and rate limits.
 
-## 5. Agreements Download
-**Files:**
-- `src/pages/landlord/Agreements.tsx` — add two download buttons per tenancy: **Draft** (uses current draft state) and **Final** (uses signed/active agreement).
-- Both call `generateAgreementPdf.ts` — Final variant always re-fetches latest `agreement_template_config` to reflect admin Template changes.
-- Admin portal: ensure `DigitalSignatureDialog.tsx` and the agreement renderer always pull live `agreement_template_config` at generation time (already done previously; verify cache-busting).
+- **`api_keys`** — add columns:
+  - `key_prefix text` (first 8 chars, shown in UI so admins can identify keys without seeing the secret)
+  - `agency_contact_email text`, `agency_contact_phone text`
+  - `environment text` (`sandbox` | `production`)
+  - `rate_limit_per_minute int default 60`
+  - `allowed_ip_cidrs text[]` (optional IP allowlist)
+  - `expires_at timestamptz`
+  - `revoked_at timestamptz`, `revoked_by uuid`, `revoke_reason text`
+  - `last_used_ip inet`
 
-## 6. Complaint Command Center
-**A. Form 33 → SMS to respondent**
-- File: `src/lib/pdf/form33.ts` or wherever Form 33 generation is triggered (likely `ComplaintWorkspace.tsx` / regulator complaint detail).
-- After successful PDF generation + storage, look up respondent phone from `complaints.respondent_phone` (or related) and call `send-sms` edge function with templated message: "You have been summoned to Rent Control. Case #<ref>. Hearing date: <date>."
+- **`api_request_log`** (new) — one row per API call for the real-time monitor:
+  - `id`, `api_key_id`, `agency_name`, `endpoint`, `scope_used`, `method`,
+    `status_code`, `response_ms`, `ip`, `user_agent`,
+    `request_params jsonb`, `error_message`, `created_at`
+  - Indexed on `(api_key_id, created_at desc)` and `(created_at desc)`.
+  - RLS: only `is_main_admin()` reads; service_role writes.
 
-**B. My Cases — show generated forms**
-- File: `src/pages/tenant/MyCases.tsx`
-- Query `complaint_documents` where `complaint_id` matches and `document_type IN ('form_7','form_33')`; render with signed-URL download buttons via `EvidenceImage`/`openSignedStorageUrl` helpers.
-- Ensure RLS on `complaint_documents` allows complainant SELECT (verify; add policy if missing).
+- **`api_scopes`** (new lookup) — admin-editable catalogue of scopes:
+  - `scope_key`, `label`, `description`, `category` (landlord/tenant/property/complaint/stats/identity/tax), `is_active`.
+  - Seeded with the seven scopes already in `SCOPE_MAP`.
 
-## Technical Notes
-- Migrations needed only if: (a) `feature_flags` missing `property_management` row, (b) `complaint_documents` RLS lacks complainant read policy.
-- All other changes are frontend + edge-function calls.
-- No schema changes to existing tables.
+- Add `ALTER PUBLICATION supabase_realtime ADD TABLE public.api_request_log` so the admin dashboard can stream calls live.
 
-## Out of Scope
-- Redesigns beyond the buttons/dialogs described.
-- New notification channels beyond SMS for Form 33.
+All tables get the required `GRANT` block + RLS policies gated on `is_main_admin()`.
 
-Confirm to proceed and I'll implement in this order: 1 → 4 → 5 → 6 → 2 → 3 (quickest wins first, then deeper workflow items).
+## 2. Edge functions
+
+- **`agency-api`** (existing — extend):
+  - Look up key by `key_prefix` + verify hash (avoids full-table scan).
+  - Reject if `revoked_at`, `expires_at < now()`, IP outside `allowed_ip_cidrs`, or rate limit exceeded (sliding window in `api_request_log`).
+  - On every request, insert into `api_request_log` with timing and status. Update `last_used_at` / `last_used_ip`.
+  - Add endpoints requested: `landlords/list`, `landlords/detail`, `tenants/list`, `tenants/detail`, `properties/list`, `properties/detail`, `complaints/list`, `complaints/detail` — all **read-only**, paginated, no PII beyond what the scope allows (Ghana Card numbers always masked unless `identity:read` scope is granted).
+
+- **`agency-api-admin`** (new, JWT-verified, `is_main_admin()` gated):
+  - `POST /issue` — generates a new key (`rcg_live_…` / `rcg_test_…`), returns plaintext **once**, stores hash + prefix.
+  - `POST /revoke`, `POST /rotate`, `POST /update-scopes`, `POST /update-rate-limit`.
+  - All actions write to `admin_audit_log`.
+
+## 3. Admin panel — "Agency API Console"
+
+Replace/expand `src/pages/regulator/AgencyApiKeys.tsx` into a tabbed console at `/regulator/agency-api` (sidebar item already exists as "Agency APIs"). Tabs:
+
+1. **Keys** — table of agencies: name, prefix (`rcg_live_a1b2…`), environment, scopes (chips), status, last used, requests today. Actions: Issue, Rotate, Revoke, Edit scopes/rate-limit/IP allowlist/expiry. Issue dialog reveals the plaintext key once with copy + download buttons and a "I've stored this" confirmation.
+2. **Live Activity** — real-time feed (Supabase Realtime subscription on `api_request_log`) showing every call as it happens: timestamp, agency, endpoint, status pill, latency, IP. Filter by agency/endpoint/status. Pause/resume.
+3. **Usage Analytics** — charts: requests per agency (7/30 days), top endpoints, error rate, p95 latency, rate-limit hits. Powered by aggregate queries on `api_request_log`.
+4. **Scopes** — manage the `api_scopes` catalogue (label, description, active).
+5. **Documentation** — renders the same docs we expose publicly (see §4), so admins can preview what agencies see.
+
+## 4. Public developer docs portal
+
+New public route `/developers/api` (no auth required) rendered from MDX-style React content:
+
+- Overview, base URL, auth header (`X-API-Key`), error format, rate limits, environments.
+- Scope reference (auto-rendered from `api_scopes`).
+- Endpoint reference for Landlord / Tenant / Property / Complaint with request/response examples and a "Try it" curl snippet.
+- Changelog + status.
+- Linked from the main site footer; SEO meta + JSON-LD.
+
+## 5. Security & compliance
+
+- Plaintext keys never stored — only SHA-256 hash + prefix.
+- Service-role key never exposed; admin endpoints require `is_main_admin()`.
+- All read endpoints respect Ghana data minimisation: Ghana Card numbers, phone numbers, and exact GPS are **masked** by default; full values only with the matching elevated scope and a signed data-sharing agreement flag on `api_keys.dsa_signed_at`.
+- IP allowlist + per-key rate limit + global circuit breaker.
+- Every admin action audited in `admin_audit_log`.
+
+## 6. Files touched
+
+```text
+supabase/migrations/<new>__agency_api_v2.sql        (schema + RLS + grants + realtime)
+supabase/functions/agency-api/index.ts              (extend + logging + rate limit + new endpoints)
+supabase/functions/agency-api-admin/index.ts        (new)
+src/pages/regulator/AgencyApiKeys.tsx               (refactor into tabbed console)
+src/pages/regulator/agency-api/KeysTab.tsx          (new)
+src/pages/regulator/agency-api/LiveActivityTab.tsx  (new — realtime feed)
+src/pages/regulator/agency-api/UsageAnalyticsTab.tsx(new)
+src/pages/regulator/agency-api/ScopesTab.tsx        (new)
+src/pages/regulator/agency-api/DocsTab.tsx          (new)
+src/pages/developers/ApiDocs.tsx                    (new public docs)
+src/App.tsx                                         (route registration)
+src/components/RegulatorLayout.tsx                  (rename nav label if needed)
+```
+
+## 7. Out of scope (ask before adding)
+
+- Write/mutation endpoints (current ask is read-only).
+- OAuth2 / per-end-user delegation (we're using static agency tokens).
+- Billing / metered pricing for API calls.
+
+---
+
+**Confirm and I'll switch to build mode and implement in this order:** migration → edge functions → admin console → public docs.

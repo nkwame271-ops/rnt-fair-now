@@ -97,6 +97,7 @@ const RegulatorKyc = lazy(() => import("./pages/regulator/RegulatorKyc"));
 const RegulatorFeedback = lazy(() => import("./pages/regulator/RegulatorFeedback"));
 const RegulatorSupportChats = lazy(() => import("./pages/regulator/RegulatorSupportChats"));
 const AgencyApiKeys = lazy(() => import("./pages/regulator/AgencyApiKeys"));
+const PublicApiDocs = lazy(() => import("./pages/developers/ApiDocs"));
 const EngineRoom = lazy(() => import("./pages/regulator/EngineRoom"));
 const RegulatorRentAssessments = lazy(() => import("./pages/regulator/RegulatorRentAssessments"));
 const RegulatorApplications = lazy(() => import("./pages/regulator/RegulatorApplications"));
@@ -175,6 +176,7 @@ const App = () => (
               <Route path="/verify/rent-card/:token" element={<VerifyRentCard />} />
               <Route path="/verify/receipt/:receiptNumber" element={<VerifyReceipt />} />
               <Route path="/verify/form/:code" element={<VerifyForm />} />
+              <Route path="/developers/api" element={<PublicApiDocs />} />
 
               {/* Tenant Routes */}
               <Route path="/tenant" element={<ProtectedRoute requiredRole="tenant"><TenantLayout /></ProtectedRoute>}>
