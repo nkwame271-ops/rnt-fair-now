@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Shield, Loader2, PauseCircle } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -24,6 +26,15 @@ const schema = z.object({
 export default function DeveloperSignup() {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
+
+  const { data: paused } = useQuery({
+    queryKey: ["developer-signups-paused"],
+    queryFn: async () => {
+      const { data } = await supabase.from("platform_config")
+        .select("config_value").eq("config_key", "developer_signups_paused").maybeSingle();
+      return !!(data?.config_value as any)?.paused;
+    },
+  });
   const [form, setForm] = useState({
     full_name: "",
     email: "",
@@ -111,11 +122,21 @@ export default function DeveloperSignup() {
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-10">
+        {paused ? (
+          <Alert>
+            <PauseCircle className="h-4 w-4" />
+            <AlertTitle>Signups temporarily closed</AlertTitle>
+            <AlertDescription>
+              New developer signups are paused while we onboard our first wave of partners.
+              Existing developers can still log in. Email <a className="underline" href="mailto:api@rentcontrolghana.com">api@rentcontrolghana.com</a> if you need access urgently.
+            </AlertDescription>
+          </Alert>
+        ) : (
         <Card>
           <CardHeader>
             <CardTitle>Create your developer account</CardTitle>
             <CardDescription>
-              You'll get a sandbox API key automatically. Live access requires regulator approval.
+              You'll get a sandbox API key automatically. Live access requires admin approval (1–3 business days).
             </CardDescription>
           </CardHeader>
           <CardContent>
