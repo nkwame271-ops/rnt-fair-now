@@ -354,13 +354,20 @@ Deno.serve(async (req) => {
         throw new Error(`Advance exceeds the maximum lawful limit of GH₵ ${maxLawful.toLocaleString()}`);
       }
 
-      splitPlan = await getTaxSplitPlan(supabaseAdmin, totalAmount, "Rent tax (bulk advance)");
-      description = `Bulk advance rent tax (${dedupedPayments.length} months) - ${(tenancy as any).registration_code}`;
+      if (!graTaxOn) {
+        // GRA tax disabled — collect full advance rent and route to landlord escrow.
+        totalAmount = Number((tenancy as any).agreed_rent) * dedupedPayments.length;
+        splitPlan = [{ recipient: "landlord", amount: totalAmount, description: `Advance rent (${dedupedPayments.length} months, held in escrow)` }];
+        description = `Advance rent (${dedupedPayments.length} months) - ${(tenancy as any).registration_code}`;
+      } else {
+        splitPlan = await getTaxSplitPlan(supabaseAdmin, totalAmount, "Rent tax (bulk advance)");
+        description = `Bulk advance rent tax (${dedupedPayments.length} months) - ${(tenancy as any).registration_code}`;
+      }
       reference = `rentbulk_${tenancyId}_${Date.now()}`;
       callbackPath = "/tenant/payments?status=success";
       relatedTenancyId = tenancyId;
-      metadata = { paymentIds: dedupedPayments.map((p: any) => p.id) };
-      caseType = "rent_tax";
+      metadata = { paymentIds: dedupedPayments.map((p: any) => p.id), gra_tax_on: graTaxOn };
+      caseType = graTaxOn ? "rent_tax" : "rent_payment";
 
     } else if (type === "rent_tax") {
       const { paymentId } = body;
