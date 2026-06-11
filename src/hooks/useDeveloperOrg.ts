@@ -43,7 +43,7 @@ export function useDeveloperOrg() {
         .select("*")
         .eq("owner_user_id", user!.id)
         .maybeSingle();
-      return (data as DeveloperOrg | null) ?? null;
+      return ((data as unknown) as DeveloperOrg | null) ?? null;
     },
   });
 }
@@ -58,7 +58,7 @@ export function useDeveloperKeys(orgId?: string | null) {
         .select("*")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
-      return (data as DeveloperKey[] | null) ?? [];
+      return ((data as unknown) as DeveloperKey[] | null) ?? [];
     },
   });
 }
