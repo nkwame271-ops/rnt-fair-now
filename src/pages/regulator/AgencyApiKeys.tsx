@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ import { DollarSign, CreditCard, Webhook, Settings2 } from "lucide-react";
 
 function KeysTab() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -38,6 +40,29 @@ function KeysTab() {
     expires_at: "",
     selectedScopes: [] as string[],
   });
+
+  // Deep-link prefill from ApiAccessRequests "Issue live key now" shortcut.
+  useEffect(() => {
+    const issueForOrg = searchParams.get("issueForOrg");
+    if (!issueForOrg) return;
+    const agency = searchParams.get("agency") || "";
+    const scopes = (searchParams.get("scopes") || "").split(",").filter(Boolean);
+    const email = searchParams.get("email") || "";
+    const phone = searchParams.get("phone") || "";
+    setForm((f) => ({
+      ...f,
+      agency_name: agency,
+      environment: "production",
+      selectedScopes: scopes,
+      agency_contact_email: email,
+      agency_contact_phone: phone,
+    }));
+    setCreateOpen(true);
+    // Clean query params so reload doesn't re-trigger.
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const { data: keys = [], isLoading } = useQuery({
     queryKey: ["agency-api-keys"],
