@@ -192,34 +192,159 @@ export type Database = {
       }
       api_keys: {
         Row: {
+          agency_contact_email: string | null
+          agency_contact_phone: string | null
           agency_name: string
+          allowed_ip_cidrs: string[] | null
           api_key_hash: string
           created_at: string
           created_by: string | null
+          dsa_signed_at: string | null
+          environment: string
+          expires_at: string | null
           id: string
           is_active: boolean
+          key_prefix: string | null
           last_used_at: string | null
+          last_used_ip: unknown
+          notes: string | null
+          rate_limit_per_minute: number
+          revoke_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
           scopes: string[]
         }
         Insert: {
+          agency_contact_email?: string | null
+          agency_contact_phone?: string | null
           agency_name: string
+          allowed_ip_cidrs?: string[] | null
           api_key_hash: string
           created_at?: string
           created_by?: string | null
+          dsa_signed_at?: string | null
+          environment?: string
+          expires_at?: string | null
           id?: string
           is_active?: boolean
+          key_prefix?: string | null
           last_used_at?: string | null
+          last_used_ip?: unknown
+          notes?: string | null
+          rate_limit_per_minute?: number
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
           scopes?: string[]
         }
         Update: {
+          agency_contact_email?: string | null
+          agency_contact_phone?: string | null
           agency_name?: string
+          allowed_ip_cidrs?: string[] | null
           api_key_hash?: string
           created_at?: string
           created_by?: string | null
+          dsa_signed_at?: string | null
+          environment?: string
+          expires_at?: string | null
           id?: string
           is_active?: boolean
+          key_prefix?: string | null
           last_used_at?: string | null
+          last_used_ip?: unknown
+          notes?: string | null
+          rate_limit_per_minute?: number
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
           scopes?: string[]
+        }
+        Relationships: []
+      }
+      api_request_log: {
+        Row: {
+          agency_name: string | null
+          api_key_id: string | null
+          created_at: string
+          endpoint: string
+          error_message: string | null
+          id: string
+          ip: unknown
+          method: string
+          request_params: Json | null
+          response_ms: number | null
+          scope_used: string | null
+          status_code: number
+          user_agent: string | null
+        }
+        Insert: {
+          agency_name?: string | null
+          api_key_id?: string | null
+          created_at?: string
+          endpoint: string
+          error_message?: string | null
+          id?: string
+          ip?: unknown
+          method?: string
+          request_params?: Json | null
+          response_ms?: number | null
+          scope_used?: string | null
+          status_code: number
+          user_agent?: string | null
+        }
+        Update: {
+          agency_name?: string | null
+          api_key_id?: string | null
+          created_at?: string
+          endpoint?: string
+          error_message?: string | null
+          id?: string
+          ip?: unknown
+          method?: string
+          request_params?: Json | null
+          response_ms?: number | null
+          scope_used?: string | null
+          status_code?: number
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_request_log_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_scopes: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          is_active: boolean
+          label: string
+          scope_key: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          is_active?: boolean
+          label: string
+          scope_key: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          is_active?: boolean
+          label?: string
+          scope_key?: string
+          updated_at?: string
         }
         Relationships: []
       }
