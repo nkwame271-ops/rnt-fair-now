@@ -19,6 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { format, formatDistanceToNow, subDays } from "date-fns";
 import ApiDocsContent from "@/components/agency-api/ApiDocsContent";
+import { PlansTab, BillingTab, WebhooksTab } from "@/pages/regulator/agency-api/BillingTabs";
+import { DollarSign, CreditCard, Webhook } from "lucide-react";
 
 // ───────────────────────── Keys tab ─────────────────────────
 
