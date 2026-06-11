@@ -465,6 +465,127 @@ async function handleEndpoint(supabase: any, endpoint: string, filters: any) {
       return { ghana_cards_used: count || 0 };
     }
 
+    // ── LANDLORDS LIST / DETAIL ──
+    case "landlords/list": {
+      const reveal = !!filters._hasIdentityScope;
+      const { data, error } = await supabase
+        .from("landlords")
+        .select("user_id, landlord_id, status, registration_date, expiry_date, registration_fee_paid, compliance_score, profiles!inner(full_name, phone, email, region:delivery_region)")
+        .range(offset, offset + limit - 1);
+      if (error) throw error;
+      return (data || []).map((l: any) => ({
+        landlord_id: l.landlord_id,
+        user_id: l.user_id,
+        full_name: l.profiles?.full_name,
+        phone: reveal ? l.profiles?.phone : maskPhone(l.profiles?.phone),
+        email: reveal ? l.profiles?.email : maskEmail(l.profiles?.email),
+        region: l.profiles?.region,
+        status: l.status,
+        registration_date: l.registration_date,
+        expiry_date: l.expiry_date,
+        registration_fee_paid: l.registration_fee_paid,
+        compliance_score: l.compliance_score,
+      }));
+    }
+    case "landlords/detail": {
+      if (!filters.landlord_id) throw new Error("filters.landlord_id required");
+      const reveal = !!filters._hasIdentityScope;
+      const { data: l, error } = await supabase
+        .from("landlords")
+        .select("user_id, landlord_id, status, registration_date, expiry_date, registration_fee_paid, compliance_score, profiles!inner(full_name, phone, email, ghana_card_no, region:delivery_region)")
+        .eq("landlord_id", filters.landlord_id).maybeSingle();
+      if (error) throw error;
+      if (!l) return null;
+      const { count: propertyCount } = await supabase.from("properties")
+        .select("id", { count: "exact", head: true }).eq("landlord_user_id", l.user_id);
+      return {
+        landlord_id: l.landlord_id,
+        full_name: l.profiles?.full_name,
+        phone: reveal ? l.profiles?.phone : maskPhone(l.profiles?.phone),
+        email: reveal ? l.profiles?.email : maskEmail(l.profiles?.email),
+        ghana_card_no: reveal ? l.profiles?.ghana_card_no : "***-****-****",
+        region: l.profiles?.region,
+        status: l.status,
+        compliance_score: l.compliance_score,
+        property_count: propertyCount || 0,
+      };
+    }
+
+    // ── TENANTS LIST / DETAIL ──
+    case "tenants/list": {
+      const reveal = !!filters._hasIdentityScope;
+      const { data, error } = await supabase
+        .from("tenants")
+        .select("user_id, tenant_id, status, registration_date, expiry_date, registration_fee_paid, profiles!inner(full_name, phone, email, region:delivery_region)")
+        .range(offset, offset + limit - 1);
+      if (error) throw error;
+      return (data || []).map((t: any) => ({
+        tenant_id: t.tenant_id,
+        user_id: t.user_id,
+        full_name: t.profiles?.full_name,
+        phone: reveal ? t.profiles?.phone : maskPhone(t.profiles?.phone),
+        email: reveal ? t.profiles?.email : maskEmail(t.profiles?.email),
+        region: t.profiles?.region,
+        status: t.status,
+        registration_date: t.registration_date,
+        expiry_date: t.expiry_date,
+      }));
+    }
+    case "tenants/detail": {
+      if (!filters.tenant_id) throw new Error("filters.tenant_id required");
+      const reveal = !!filters._hasIdentityScope;
+      const { data: t, error } = await supabase.from("tenants")
+        .select("user_id, tenant_id, status, registration_date, expiry_date, profiles!inner(full_name, phone, email, ghana_card_no, region:delivery_region)")
+        .eq("tenant_id", filters.tenant_id).maybeSingle();
+      if (error) throw error;
+      if (!t) return null;
+      const { data: tenancies } = await supabase.from("tenancies")
+        .select("registration_code, status, agreed_rent, start_date, end_date")
+        .eq("tenant_user_id", t.user_id);
+      return {
+        tenant_id: t.tenant_id,
+        full_name: t.profiles?.full_name,
+        phone: reveal ? t.profiles?.phone : maskPhone(t.profiles?.phone),
+        email: reveal ? t.profiles?.email : maskEmail(t.profiles?.email),
+        ghana_card_no: reveal ? t.profiles?.ghana_card_no : "***-****-****",
+        region: t.profiles?.region,
+        status: t.status,
+        tenancies: tenancies || [],
+      };
+    }
+
+    // ── PROPERTIES LIST / DETAIL ──
+    case "properties/list": {
+      let query = supabase.from("properties")
+        .select("id, property_code, property_name, address, area, region, property_status, property_type, property_condition, approved_rent, created_at")
+        .range(offset, offset + limit - 1);
+      if (region) query = query.eq("region", region);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    }
+    case "properties/detail": {
+      if (!filters.property_code) throw new Error("filters.property_code required");
+      const { data: p, error } = await supabase.from("properties")
+        .select("id, property_code, property_name, address, area, region, property_status, property_type, property_condition, approved_rent, landlord_user_id")
+        .eq("property_code", filters.property_code).maybeSingle();
+      if (error) throw error;
+      if (!p) return null;
+      const { data: units } = await supabase.from("units")
+        .select("unit_name, unit_type, monthly_rent, status").eq("property_id", p.id);
+      return { ...p, units: units || [] };
+    }
+
+    // ── COMPLAINTS DETAIL ──
+    case "complaints/detail": {
+      if (!filters.complaint_code) throw new Error("filters.complaint_code required");
+      const { data: c, error } = await supabase.from("complaints")
+        .select("complaint_code, complaint_type, region, status, created_at, payment_status, landlord_name, property_address, description")
+        .eq("complaint_code", filters.complaint_code).maybeSingle();
+      if (error) throw error;
+      return c;
+    }
+
     default:
       throw new Error(`Unknown endpoint: ${endpoint}`);
   }
