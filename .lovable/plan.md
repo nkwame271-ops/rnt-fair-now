@@ -1,163 +1,125 @@
-# Agency API v3 — Industry Standards + Paystack Monetization
 
-Building on the existing Agency API console, this plan adds the missing industry-standard features and a full pricing/billing layer payable via Paystack, with a master switch to keep the API free.
+# Developer Portal for the Agency API
 
----
+A self-service portal where third parties sign up, get a sandbox key instantly, browse endpoints, test calls, and request live access (regulator approval required). Reuses existing auth and the existing `api_keys` / `api_pricing_plans` / `api_request_log` / `api_webhook_endpoints` tables — no parallel system.
 
-## Part A — Industry-Standard API Features (currently missing)
+## 1. Public marketing surface (no login)
 
-### 1. Webhooks (event subscriptions)
-Let agencies subscribe to events instead of polling.
-- New tables: `api_webhook_endpoints` (url, secret, events[], status, last_delivery_at, failure_count), `api_webhook_deliveries` (endpoint_id, event_type, payload, status_code, response_body, attempt, next_retry_at).
-- Events emitted: `landlord.created`, `tenant.registered`, `tenancy.activated`, `tenancy.terminated`, `complaint.filed`, `complaint.status_changed`, `property.listed`, `payment.reconciled`.
-- HMAC-SHA256 signature header (`X-RentControl-Signature`) using the per-endpoint secret. Standard `t=` + `v1=` format (Stripe-compatible) so devs can reuse libraries.
-- Retry: exponential backoff (1m, 5m, 30m, 2h, 12h), max 6 attempts, then mark `disabled` and email the agency.
-- Edge function: `agency-webhook-dispatcher` invoked by DB triggers via `pg_net`.
-- Admin tab "Webhooks": view endpoints per key, force re-deliver, view delivery log.
+- **Homepage** — add a small "For developers" link in the footer and a "Build with our API" CTA card on the homepage that goes to `/developers`.
+- **`/developers`** — new landing page: what the API does, who it's for, four product pillars (Landlord, Tenant, Property, Complaints), "Free during beta" banner, two buttons: **Get an API key** (→ signup) and **Read the docs** (→ existing `/developers/api`).
+- Existing `/developers/api` (docs) and `/developers/api/pricing` stay; they get a top nav linking back to the landing + login.
 
-### 2. API Versioning
-- Header `X-API-Version: 2026-06-11` (date-based, Stripe-style) OR URL path `/v1/...`. Choose URL path for simplicity.
-- All current endpoints move under `/v1/`. `/` returns a version index.
-- `api_keys.pinned_version` column so breaking changes don't surprise integrators.
+## 2. Account model
 
-### 3. Standard pagination, filtering, sorting
-- All list endpoints accept `?page=&page_size=` (max 100), `?sort=field:asc`, basic `?filter[field]=value`.
-- Response envelope: `{ data: [...], meta: { page, page_size, total, total_pages }, links: { next, prev } }`.
+- **Same auth, new `developer` app_role.** Signup at `/developers/signup` creates a Supabase user, a `profiles` row, and assigns the `developer` role.
+- A new `developer_organizations` table represents the company behind the key (one user can belong to one org for v1).
+- An `organization_id` column is added to `api_keys` so a key belongs to an org (in addition to the existing `agency_name`). Regulator-issued keys keep working unchanged (nullable column).
+- Membership table `developer_org_members(org_id, user_id, role)` so we can add teammates later. v1 only "owner".
 
-### 4. Idempotency keys
-- `Idempotency-Key` header on any future write endpoint; stored in `api_idempotency_keys` (key, request_hash, response_body, expires_at — 24h).
+## 3. Signup → sandbox key flow (auto)
 
-### 5. Standardized errors
-- RFC 7807 problem+json: `{ type, title, status, detail, request_id }`.
-- Every response carries `X-Request-Id` (uuid) that ties back to `api_request_log` for support.
+1. User signs up at `/developers/signup` with name, email, password, organization name, intended use case.
+2. Email verification via existing Lovable auth.
+3. On first login, portal auto-provisions:
+   - one `developer_organizations` row,
+   - one **sandbox** `api_keys` row (`environment = 'sandbox'`, plan = `free`, scopes = all `:read` scopes restricted to sandbox data),
+   - the plaintext key is shown **once** in a modal with copy button + "I've stored it" confirmation.
+4. From that point the portal shows only the masked prefix + last-rotated date.
 
-### 6. Rate limit response headers
-- `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After` on 429. Already enforced server-side; just expose them.
+## 4. Live key flow (regulator approval)
 
-### 7. CORS + security headers
-- Strict CORS allowlist per key (`allowed_origins` column).
-- `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy` on all responses.
+- New table `api_access_requests` captures: org, requested scopes, agency type, contact, intended volume, DSA acceptance.
+- Submitting the request creates a row with status `pending`; it shows up in the existing regulator console (`AgencyApiKeys.tsx`) under a new **Requests** tab.
+- Regulator can **approve** (issues a `rcg_live_…` key against the org, sets scopes + plan, emails the developer that the key is ready), **request changes**, or **deny**.
+- Developer dashboard shows the request status in real time.
 
-### 8. Health + metadata endpoints
-- `GET /v1/health` → `{ status, time, version }` (public).
-- `GET /v1/me` → returns key metadata (scopes, plan, quotas remaining, expiry). Useful for integrators to self-diagnose.
+## 5. Developer dashboard (`/developers/dashboard`)
 
-### 9. OpenAPI 3.1 spec
-- Serve `/v1/openapi.json` generated from a single source of truth. Embed Swagger UI at `/developers/api/reference`.
-- Lets agencies generate client SDKs automatically.
+Sidebar layout, all scoped to the signed-in org:
 
-### 10. Usage exports + alerts
-- Agency-facing CSV export of their own usage (when we add an agency portal later — out of scope here, but schema supports it).
-- Admin alerts when an agency hits 80% / 100% of monthly quota.
+- **Overview** — sandbox vs live status, calls today / this month, error rate, p95 latency. Quick links.
+- **API Keys** — list of keys (env, plan, status, last used, rotation grace countdown). Actions: copy prefix, rotate (shows new key once), revoke. Big primary button **Request live access** if no live key exists.
+- **Sandbox console** — interactive "Try it" panel: pick endpoint, fill filters (form generated from the same catalogue used in docs), pick a key, hit Send. Calls go through the existing `agency-api` edge function with the user's sandbox key and renders the JSON + headers (`X-Request-Id`, rate-limit). No new backend code; this is just a UI on top of `fetch`.
+- **Webhooks** — add endpoint URL, choose events, view recent deliveries (reads `api_webhook_endpoints` + `api_webhook_deliveries`), rotate signing secret.
+- **Usage** — 30-day chart of requests, status-code breakdown, top endpoints (reads `api_request_log` filtered by org's keys).
+- **Billing** — plan card with current plan, included calls, used calls, next renewal. While billing master switch is OFF, shows "Free during beta — no payment required" banner; plan upgrade buttons are visible but disabled with tooltip "Available when billing opens". When the switch flips on, the existing `agency-api-billing` checkout opens.
+- **Docs** — embeds the existing `ApiDocsContent` component (no duplication).
+- **Settings** — org name, contact email, DSA status, members (placeholder), delete org.
 
-### 11. Sandbox / Test mode
-- `environment = 'sandbox' | 'live'` already exists. Sandbox keys hit the same endpoints but return synthetic, deterministic fixtures and are exempt from billing.
+## 6. Regulator side (small additions to existing console)
 
-### 12. Key rotation grace period
-- When rotating, keep old hash valid for 24h (configurable) under `api_keys.previous_key_hash` + `previous_key_expires_at`. Log calls on the old key as `rotation_grace` so agencies have time to redeploy.
+- New **Requests** tab in `AgencyApiKeys.tsx` listing pending `api_access_requests` with one-click Approve / Deny.
+- Existing Keys tab gains an "Org" column when a key has `organization_id`.
 
-### 13. Data Sharing Agreement (DSA) versioning
-- `api_dsa_versions` table; `api_keys.dsa_version_accepted`. Force re-acceptance when DSA changes.
+## 7. Security & guardrails
 
-### 14. Audit + compliance exports
-- Admin one-click export of all calls a given agency made against a given citizen (Ghana Card or phone) — required for DPA subject-access requests.
+- New RLS:
+  - `developer_organizations`, `developer_org_members`, `api_access_requests` → users see only rows for orgs they belong to; regulators see all.
+  - `api_keys` → developers can SELECT only keys whose `organization_id` is theirs (no `api_key_hash` column exposed via a view: `api_keys_developer_view` strips the hash).
+  - `api_request_log`, `api_webhook_*` → filtered by org's `api_keys.id`.
+- The plaintext key is **never** stored or returned again after issuance — same contract as today.
+- Sandbox keys are hard-capped: can only call sandbox-flagged data sources, max 1,000 calls/month (already enforced by the Free plan).
+- New edge function `developer-api-self-service` handles: provisioning sandbox key on first login, rotating own key, revoking own key, submitting access requests. Server-side validation that `auth.uid()` owns the target key/org.
+- Audit: every self-service action writes to `admin_audit_log` with actor + action + target.
 
----
+## 8. Notifications
 
-## Part B — Paystack Pricing & Billing
+- Email on: signup verification (existing), sandbox key issued, access request submitted, access request approved/denied, key rotated, key revoked, monthly usage at 80% and 100%.
+- Regulator email on new access request.
+- All via existing `send-transactional-email`.
 
-### 1. Master switch
-- `platform_config` row: `agency_api_billing_enabled` (bool, default `false`).
-- When `false`: all keys are free, no metering charges, "Free Mode" banner shown in admin + dev docs. Toggle is one click in admin.
+## 9. Routes added
 
-### 2. Plans
-- New table `api_pricing_plans`:
-  - `name`, `slug`, `description`
-  - `price_ghs` (monthly)
-  - `included_calls` (per month)
-  - `overage_price_ghs_per_1k` (nullable — if null, hard cap at included_calls)
-  - `rate_limit_per_minute`
-  - `allowed_scopes[]`
-  - `webhook_endpoints_max`
-  - `environment_access` (`sandbox` / `live` / `both`)
-  - `is_active`, `is_public`, `sort_order`
-- Seed plans: **Free** (1,000 calls/mo, sandbox only), **Starter** (GHS 500/mo, 50k calls, live), **Growth** (GHS 2,500/mo, 500k calls), **Enterprise** (custom, GHS 0 placeholder, manually provisioned).
-- Admin tab "Plans": CRUD with live preview of what agencies see in docs.
+```text
+/developers                       public landing
+/developers/signup                public signup form
+/developers/login                 public login (reuses /auth with redirect)
+/developers/dashboard             gated, role=developer
+/developers/dashboard/keys
+/developers/dashboard/sandbox
+/developers/dashboard/webhooks
+/developers/dashboard/usage
+/developers/dashboard/billing
+/developers/dashboard/docs
+/developers/dashboard/settings
+/developers/request-access        gated form, creates api_access_requests row
+```
 
-### 3. Subscriptions
-- `api_subscriptions` table: `api_key_id`, `plan_id`, `status` (`trialing`/`active`/`past_due`/`canceled`), `current_period_start/end`, `paystack_subscription_code`, `paystack_customer_code`, `cancel_at_period_end`.
-- One active subscription per key.
+## 10. Technical details
 
-### 4. Paystack integration
-- New edge function `agency-api-billing`:
-  - `POST /create-subscription` → creates Paystack customer + plan + subscription, returns authorization URL.
-  - `POST /cancel-subscription`
-  - `POST /change-plan` (proration handled by Paystack).
-  - `POST /webhook` (Paystack → us): handles `subscription.create`, `subscription.disable`, `invoice.create`, `invoice.payment_failed`, `charge.success`. Verifies `x-paystack-signature` HMAC.
-- On payment success → mark subscription `active`, reset monthly call counter, enable live key.
-- On payment failure (3 retries by Paystack) → mark `past_due`, downgrade key to sandbox-only after grace period (7 days).
+**Migrations**
 
-### 5. Metering & enforcement
-- New table `api_usage_counters` (api_key_id, period_start, period_end, calls_count, overage_calls, overage_amount_ghs).
-- `agency-api` increments the counter atomically per call.
-- When `calls_count >= included_calls`:
-  - If overage allowed → keep serving, accrue `overage_amount_ghs`.
-  - Else → return 429 with `error: quota_exceeded` and a link to upgrade.
-- End of billing period: edge function `agency-api-bill-overages` charges overage via Paystack `transaction/charge_authorization` using the saved authorization code, writes a receipt.
+- `developer_organizations(id, name, contact_email, contact_phone, dsa_version_accepted, dsa_signed_at, owner_user_id, created_at, updated_at)` + GRANT + RLS.
+- `developer_org_members(org_id, user_id, role enum 'owner', created_at)` + GRANT + RLS, unique (org_id, user_id).
+- `api_access_requests(id, org_id, requested_environment, requested_scopes text[], intended_volume_monthly, agency_type, justification, status enum pending|approved|denied|changes_requested, reviewed_by, reviewed_at, review_notes, issued_api_key_id, created_at, updated_at)` + GRANT + RLS.
+- `ALTER TABLE api_keys ADD COLUMN organization_id uuid REFERENCES developer_organizations(id)`.
+- Add `'developer'` to the `app_role` enum.
+- View `api_keys_developer_view` exposing safe columns (no `api_key_hash`, no `previous_key_hash`).
+- RPC `developer_provision_sandbox_key(org_id)` (SECURITY DEFINER) returning the plaintext key once.
 
-### 6. Invoices & receipts
-- Reuse existing `payment_receipts` infra. New `api_invoices` table records line items (base subscription, overage, taxes if any).
-- Admin "Billing" tab: list invoices per agency, mark paid, refund, download PDF.
+**Frontend**
 
-### 7. Public pricing page
-- Add `/developers/api/pricing` route — public, marketing-style, with the four plan cards, FAQ, and "Request Enterprise" form.
-- Hidden when `agency_api_billing_enabled = false`; instead shows a "Currently free during beta" notice.
+- `src/pages/developers/Landing.tsx`, `Signup.tsx`, `Dashboard.tsx` shell with nested routes, plus one file per tab in `src/pages/developers/dashboard/`.
+- Shared hook `useDeveloperOrg()` returns the signed-in user's org + keys.
+- Sandbox console uses `BASE_URL = https://${VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/agency-api` and calls it directly from the browser with the user's chosen sandbox key (sandbox CORS already enabled).
+- Route guard in `App.tsx`: `<RequireRole role="developer">`.
 
-### 8. Admin pricing console
-- Extend `AgencyApiKeys.tsx` with two new tabs:
-  - **Plans** — CRUD on `api_pricing_plans`, plus the master billing toggle.
-  - **Billing** — per-key subscription status, current period usage bar, manual override (comp a key for free, force-cancel, refund last invoice), revenue chart (MRR, churn).
+**Edge functions**
 
-### 9. Per-key billing overrides
-- `api_keys.billing_override` (`free` / `custom_price` / `null`) lets ops give a partner a free or negotiated rate without touching the plan catalog. Always wins over the plan price.
+- `developer-api-self-service` — single function, action-based body: `issue_sandbox_key`, `rotate_key`, `revoke_key`, `submit_access_request`, `add_webhook`, `remove_webhook`, `rotate_webhook_secret`.
+- `agency-api-admin` already handles regulator-side issue/approve — extend it with an `approve_access_request` action that creates a live key on the requesting org.
 
----
+## 11. Out of scope for v1
 
-## Technical Details
+- Multi-member orgs (schema supports it; UI is single-owner only).
+- OAuth client-credentials flow (sticks with `X-API-Key`).
+- Paid plan checkout (UI present, gated by master billing switch which stays OFF).
+- Self-service DSA signing flow (regulator still signs off; developer just accepts terms).
 
-### New migrations
-1. Webhooks: `api_webhook_endpoints`, `api_webhook_deliveries`, triggers + `pg_net` queue.
-2. API hardening: `api_idempotency_keys`, `api_dsa_versions`, add `pinned_version`/`allowed_origins`/`previous_key_hash`/`previous_key_expires_at` to `api_keys`.
-3. Billing: `api_pricing_plans`, `api_subscriptions`, `api_usage_counters`, `api_invoices`. Add `agency_api_billing_enabled` to `platform_config`.
-4. All tables: standard `GRANT`s, RLS (admin write, public read for `api_pricing_plans` where `is_public`), `is_main_admin()` gates.
+## 12. Acceptance criteria
 
-### Edge functions
-- `agency-api` (refactor): move to `/v1/...`, add pagination, idempotency, error envelope, rate-limit headers, OpenAPI handler, metering hook, `/me`, `/health`.
-- `agency-webhook-dispatcher` (new): consumes webhook event queue, signs + delivers + retries.
-- `agency-api-billing` (new): Paystack subscription lifecycle + webhook receiver.
-- `agency-api-bill-overages` (new, scheduled monthly): charges overages on saved authorizations.
-
-### Frontend
-- `src/pages/regulator/AgencyApiKeys.tsx`: add `Webhooks`, `Plans`, `Billing` tabs.
-- `src/pages/regulator/agency-api/WebhooksTab.tsx`, `PlansTab.tsx`, `BillingTab.tsx`, `BillingToggle.tsx`.
-- `src/pages/developers/ApiPricing.tsx` (new public route).
-- `src/components/agency-api/ApiDocsContent.tsx`: add sections for Webhooks, Versioning, Pagination, Errors, Idempotency, Pricing link.
-- Embed Swagger UI at `/developers/api/reference` (via `swagger-ui-react`).
-
-### Secrets required
-- `PAYSTACK_SECRET_KEY` (already in project? to confirm — will request via `add_secret` if missing).
-- `PAYSTACK_WEBHOOK_SECRET` (same value as secret key for Paystack — HMAC uses the secret key).
-
-### Out of scope (future)
-- Self-service agency portal (agencies log in to manage their own keys/subscriptions). For now everything is admin-mediated; agencies email/contact to request keys, admin issues + assigns plan, sends Paystack checkout link.
-- OAuth2 client credentials flow.
-- Per-endpoint pricing (only per-call metering for now).
-- Multi-currency (GHS only).
-
----
-
-## Questions before building
-1. **Billing toggle default**: start with billing **OFF** (free beta) so existing partners keep working, then flip on when ready? (recommended)
-2. **Free plan**: should the Free plan allow **live** data (with masking + low quota), or **sandbox only**? Sandbox-only is safer.
-3. **Overage behavior default**: hard cap at quota (block with 429) or soft cap (keep serving + bill)? Recommend hard cap on Starter, soft on Growth+.
-4. **Enterprise pricing**: show "Contact sales" CTA only, or allow admin to set a custom GHS price visible to that one key?
+- A new visitor can land on `/developers`, sign up, verify email, log in, and have a working sandbox `rcg_test_…` key inside 2 minutes without regulator involvement.
+- The sandbox console can successfully call `landlords/list` and render the JSON response and rate-limit headers.
+- Submitting a live-access request creates a row visible to the regulator; approving it issues a live key visible (masked) in the developer's dashboard and emails them.
+- A developer cannot see another org's keys, usage, webhooks, or requests (verified by RLS).
+- The existing regulator console keeps working unchanged for legacy regulator-issued keys.
