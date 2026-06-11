@@ -975,7 +975,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+      <div className="bg-card rounded-xl border border-border p-6 space-y-4 sticky top-0 z-[10000]">
         <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
           <Search className="h-5 w-5 text-primary" /> Pending Purchases & Assign
         </h2>
