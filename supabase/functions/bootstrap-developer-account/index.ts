@@ -90,5 +90,44 @@ Deno.serve(async (req) => {
     .insert({ org_id: org.id, user_id: userId, member_role: "owner" });
   if (memErr) return rollback("Could not create owner membership: " + memErr.message);
 
+  // 5. Notify developer (welcome) + every admin staff member. Best-effort.
+  const notify = (payload: Record<string, unknown>) =>
+    admin.functions.invoke("send-notification", { body: payload }).catch((e) => {
+      console.error("send-notification failed:", e);
+    });
+
+  await notify({
+    event: "developer_account_created",
+    email: body.email.trim().toLowerCase(),
+    user_id: userId,
+    data: {
+      name: body.full_name,
+      org_name: body.org_name,
+      tier: "Sandbox (auto-issued) · Live (admin approval required)",
+    },
+  });
+
+  try {
+    const { data: admins } = await admin
+      .from("admin_staff")
+      .select("user_id, email")
+      .eq("is_active", true);
+    for (const a of (admins ?? []) as Array<{ user_id: string; email: string | null }>) {
+      await notify({
+        event: "developer_account_created_admin",
+        email: a.email,
+        user_id: a.user_id,
+        data: {
+          org_name: body.org_name,
+          contact_email: body.email,
+          agency_type: body.agency_type || "—",
+          use_case: body.intended_use_case.slice(0, 240),
+        },
+      });
+    }
+  } catch (e) {
+    console.error("admin notify loop failed", e);
+  }
+
   return json({ ok: true, user_id: userId, org_id: org.id });
 });
