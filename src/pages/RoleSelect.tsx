@@ -256,7 +256,15 @@ const RoleSelect = () => {
                   <p className="text-white/70 text-xs">Ministry of Works & Housing</p>
                 </div>
               </div>
-              <img src={rcdLogo} alt="Rent Control Department logo" className="h-10 w-auto rounded-lg" />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => navigate("/developers")}
+                  className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-white/90 hover:text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-full px-3 py-1.5 transition-colors"
+                >
+                  <Code2 className="h-3.5 w-3.5" /> Developer Portal
+                </button>
+                <img src={rcdLogo} alt="Rent Control Department logo" className="h-10 w-auto rounded-lg" />
+              </div>
             </div>
 
             {/* Hero content */}
@@ -431,8 +439,29 @@ const RoleSelect = () => {
                 <p className="text-foreground">{"}"}</p>
               </div>
               <p className="text-muted-foreground text-xs mt-3">
-                Contact the Rent Control Department to request API access for your agency.
+                Create a developer account to get an instant sandbox key. Live (production) access is granted after admin approval.
               </p>
+            </div>
+
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                onClick={() => navigate("/developers/signup")}
+                className="inline-flex items-center gap-2 h-11 px-6 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors"
+              >
+                <Code2 className="h-4 w-4" /> Request API Access
+              </button>
+              <button
+                onClick={() => navigate("/developers/docs/quickstart")}
+                className="inline-flex items-center gap-2 h-11 px-6 rounded-lg border border-border bg-card text-foreground font-medium text-sm hover:bg-muted transition-colors"
+              >
+                <FileJson className="h-4 w-4" /> Read the Documentation
+              </button>
+              <button
+                onClick={() => navigate("/developers/login")}
+                className="inline-flex items-center gap-2 h-11 px-6 rounded-lg text-foreground font-medium text-sm hover:bg-muted transition-colors"
+              >
+                Developer Login <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </section>
@@ -475,10 +504,12 @@ const RoleSelect = () => {
                 </div>
               </div>
               <div>
-                <h4 className="font-semibold text-foreground text-sm mb-3">Legal</h4>
+                <h4 className="font-semibold text-foreground text-sm mb-3">Developers</h4>
                 <div className="space-y-2 text-muted-foreground text-xs">
-                  <p>Rent Act, 1963 (Act 220)</p>
-                  <p>Rent (Amendment) Decree, 1973</p>
+                  <button onClick={() => navigate("/developers")} className="block hover:text-foreground transition-colors">Developer Portal</button>
+                  <button onClick={() => navigate("/developers/docs/quickstart")} className="block hover:text-foreground transition-colors">API Documentation</button>
+                  <button onClick={() => navigate("/developers/signup")} className="block hover:text-foreground transition-colors">Request API Access</button>
+                  <p className="pt-2">Rent Act, 1963 (Act 220)</p>
                 </div>
               </div>
             </div>
