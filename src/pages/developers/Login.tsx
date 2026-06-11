@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Shield, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function DeveloperLogin() {
@@ -43,7 +44,17 @@ export default function DeveloperLogin() {
           <Link to="/developers/signup" className="text-sm text-primary hover:underline">Create account</Link>
         </div>
       </header>
-      <main className="mx-auto max-w-md px-4 py-12">
+      <main className="mx-auto max-w-md px-4 py-12 space-y-4">
+        {params.get("signup") === "ok" && (
+          <Alert className="border-emerald-300 bg-emerald-50/50">
+            <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+            <AlertTitle>Account created — verify your email</AlertTitle>
+            <AlertDescription>
+              We sent you a verification link. After you verify and log in, your sandbox API key is issued automatically.
+              To call production data, you'll then request live access — an admin reviews each request within 1–3 business days.
+            </AlertDescription>
+          </Alert>
+        )}
         <Card>
           <CardHeader><CardTitle>Log in</CardTitle></CardHeader>
           <CardContent>
