@@ -86,9 +86,42 @@ const DeclareExistingTenancy = () => {
   const [paymentSettings, setPaymentSettings] = useState<any | null>(null);
   const [batchResult, setBatchResult] = useState<{ created: { code: string; unit: string }[]; failed: { unit: string; error: string }[] } | null>(null);
   const [pendingAutoSubmit, setPendingAutoSubmit] = useState(false);
+  const [orphanPaidBundles, setOrphanPaidBundles] = useState<{ id: string; reference: string; total_amount: number; created_at: string }[]>([]);
 
 
   const property = properties.find(p => p.id === selectedPropertyId);
+
+  // Detect paid existing-tenancy bundles that never resulted in a tenancy.
+  // Lets the landlord know they don't need to pay again — they just need to
+  // re-enter the form and submit; handleSubmitBatch will find the completed
+  // escrow and skip the payment step.
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: paid } = await supabase
+        .from("escrow_transactions")
+        .select("id, reference, total_amount, created_at")
+        .eq("user_id", user.id)
+        .eq("payment_type", "existing_tenancy_bundle")
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (!paid || paid.length === 0) { setOrphanPaidBundles([]); return; }
+      // A bundle is "consumed" when a tenancy created after it exists for this landlord.
+      const { data: recentTenancies } = await supabase
+        .from("tenancies")
+        .select("id, created_at")
+        .eq("landlord_user_id", user.id)
+        .gte("created_at", paid[paid.length - 1].created_at);
+      const tenancyTimes = (recentTenancies || []).map((t: any) => new Date(t.created_at).getTime()).sort();
+      const orphans = paid.filter((p: any) => {
+        const pt = new Date(p.created_at).getTime();
+        // consider consumed if any tenancy was created within 30 min after this payment
+        return !tenancyTimes.some((tt) => tt >= pt && tt - pt < 30 * 60_000);
+      });
+      setOrphanPaidBundles(orphans as any);
+    })();
+  }, [user]);
 
   // Load
   useEffect(() => {
