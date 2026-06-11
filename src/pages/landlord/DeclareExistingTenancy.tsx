@@ -86,9 +86,42 @@ const DeclareExistingTenancy = () => {
   const [paymentSettings, setPaymentSettings] = useState<any | null>(null);
   const [batchResult, setBatchResult] = useState<{ created: { code: string; unit: string }[]; failed: { unit: string; error: string }[] } | null>(null);
   const [pendingAutoSubmit, setPendingAutoSubmit] = useState(false);
+  const [orphanPaidBundles, setOrphanPaidBundles] = useState<{ id: string; reference: string; total_amount: number; created_at: string }[]>([]);
 
 
   const property = properties.find(p => p.id === selectedPropertyId);
+
+  // Detect paid existing-tenancy bundles that never resulted in a tenancy.
+  // Lets the landlord know they don't need to pay again — they just need to
+  // re-enter the form and submit; handleSubmitBatch will find the completed
+  // escrow and skip the payment step.
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: paid } = await supabase
+        .from("escrow_transactions")
+        .select("id, reference, total_amount, created_at")
+        .eq("user_id", user.id)
+        .eq("payment_type", "existing_tenancy_bundle")
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (!paid || paid.length === 0) { setOrphanPaidBundles([]); return; }
+      // A bundle is "consumed" when a tenancy created after it exists for this landlord.
+      const { data: recentTenancies } = await supabase
+        .from("tenancies")
+        .select("id, created_at")
+        .eq("landlord_user_id", user.id)
+        .gte("created_at", paid[paid.length - 1].created_at);
+      const tenancyTimes = (recentTenancies || []).map((t: any) => new Date(t.created_at).getTime()).sort();
+      const orphans = paid.filter((p: any) => {
+        const pt = new Date(p.created_at).getTime();
+        // consider consumed if any tenancy was created within 30 min after this payment
+        return !tenancyTimes.some((tt) => tt >= pt && tt - pt < 30 * 60_000);
+      });
+      setOrphanPaidBundles(orphans as any);
+    })();
+  }, [user]);
 
   // Load
   useEffect(() => {
@@ -525,6 +558,31 @@ const DeclareExistingTenancy = () => {
           <p className="text-muted-foreground mt-1">Migrate one or many existing tenancies under a property</p>
         </div>
       </div>
+
+      {orphanPaidBundles.length > 0 && step !== "done" && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-5 w-5 text-amber-700 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-semibold text-amber-900">
+                You have {orphanPaidBundles.length} paid declaration{orphanPaidBundles.length > 1 ? "s" : ""} awaiting setup
+              </div>
+              <p className="text-amber-800 mt-1">
+                Payment was received but the tenancy wasn't fully created (likely interrupted browser session).
+                Fill in the form below as usual — <strong>you will not be charged again</strong>; the system will reuse your existing payment.
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-amber-900">
+                {orphanPaidBundles.slice(0, 5).map((b) => (
+                  <li key={b.id} className="font-mono">
+                    GHS {Number(b.total_amount).toLocaleString()} · {new Date(b.created_at).toLocaleString()} · {b.reference}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       <div className="flex items-center gap-2 text-xs font-medium flex-wrap">
         {["Select Units", "Tenant & Terms", "Review & Pay"].map((s, i) => {
