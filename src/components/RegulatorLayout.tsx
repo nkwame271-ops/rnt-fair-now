@@ -107,6 +107,7 @@ const allNavItems = [
   { to: "/regulator/sms-broadcast", label: "SMS Broadcast", icon: Send },
   { to: "/regulator/api-keys", label: "Agency APIs", icon: Shield },
   { to: "/regulator/api-access-requests", label: "API Access Requests", icon: Shield },
+  { to: "/regulator/developer-accounts", label: "Developer Accounts", icon: Shield },
   { to: "/regulator/office-fund-requests", label: "Office Wallet", icon: BarChart3 },
   { to: "/regulator/office-payout-settings", label: "Payout Settings", icon: Settings },
   { to: "/regulator/payment-errors", label: "Payment Errors", icon: AlertTriangle },
