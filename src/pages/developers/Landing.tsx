@@ -35,7 +35,8 @@ export default function DevelopersLanding() {
             <span className="font-semibold">Rent Control Ghana — Developers</span>
           </Link>
           <nav className="flex items-center gap-2 text-sm">
-            <Link to="/developers/api" className="px-3 py-1.5 hover:underline">Docs</Link>
+            <Link to="/developers/docs" className="px-3 py-1.5 hover:underline">Docs</Link>
+            <Link to="/developers/docs/quickstart" className="px-3 py-1.5 hover:underline">Quickstart</Link>
             <Link to="/developers/api/pricing" className="px-3 py-1.5 hover:underline">Pricing</Link>
             <Link to="/developers/login"><Button variant="ghost" size="sm">Log in</Button></Link>
             <Link to="/developers/signup"><Button size="sm">Get started</Button></Link>
@@ -56,7 +57,7 @@ export default function DevelopersLanding() {
           </p>
           <div className="mt-8 flex items-center justify-center gap-3">
             <Link to="/developers/signup"><Button size="lg">Get a sandbox key <ArrowRight className="h-4 w-4 ml-1.5" /></Button></Link>
-            <Link to="/developers/api"><Button size="lg" variant="outline">Read the docs</Button></Link>
+            <Link to="/developers/docs/quickstart"><Button size="lg" variant="outline">Read the docs</Button></Link>
           </div>
         </section>
 
@@ -118,7 +119,8 @@ export default function DevelopersLanding() {
         <div className="mx-auto max-w-6xl px-4 py-6 text-sm text-muted-foreground flex items-center justify-between flex-wrap gap-2">
           <span>© Rent Control Ghana</span>
           <div className="flex gap-4">
-            <Link to="/developers/api" className="hover:underline">API Docs</Link>
+            <Link to="/developers/docs" className="hover:underline">Documentation</Link>
+            <Link to="/developers/docs/quickstart" className="hover:underline">Quickstart</Link>
             <Link to="/developers/api/pricing" className="hover:underline">Pricing</Link>
             <Link to="/contact" className="hover:underline">Contact</Link>
           </div>
