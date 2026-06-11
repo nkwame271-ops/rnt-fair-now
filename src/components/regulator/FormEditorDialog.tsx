@@ -19,6 +19,7 @@ import { renderForm7 } from "@/lib/pdf/form7";
 import { renderForm33 } from "@/lib/pdf/form33";
 import { renderForm32A } from "@/lib/pdf/form32a";
 import PdfLivePreview from "./PdfLivePreview";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   open: boolean;
