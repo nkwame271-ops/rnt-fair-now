@@ -114,9 +114,31 @@ const DeclareExistingTenancy = () => {
       setLoading(false);
 
 
-      // Auto-resume after payment
-      if (sessionStorage.getItem("declare_auto_submit") === "true") {
+      // Detect post-payment return (status=fee_paid OR a reference param)
+      const urlStatus = searchParams.get("status");
+      const urlRef =
+        searchParams.get("reference") ||
+        searchParams.get("trxref") ||
+        sessionStorage.getItem("pendingPaymentReference");
+      const isPaymentReturn =
+        urlStatus === "fee_paid" ||
+        !!urlRef ||
+        sessionStorage.getItem("declare_auto_submit") === "true";
+
+      if (isPaymentReturn) {
+        // Verify the payment first so escrow is marked completed before submitOneDraft runs
+        if (urlRef) {
+          sessionStorage.removeItem("pendingPaymentReference");
+          try {
+            const { data } = await supabase.functions.invoke("verify-payment", {
+              body: { reference: urlRef },
+            });
+            if (data?.verified) toast.success("Payment confirmed!");
+          } catch { /* ignore */ }
+        }
+        window.history.replaceState({}, "", window.location.pathname);
         sessionStorage.removeItem("declare_auto_submit");
+
         const saved = sessionStorage.getItem(SESSION_KEY);
         if (saved) {
           try {
@@ -127,29 +149,23 @@ const DeclareExistingTenancy = () => {
             setTimeout(() => handleSubmitBatch(true), 600);
           } catch { /* ignore */ }
           sessionStorage.removeItem(SESSION_KEY);
+        } else {
+          toast.error("Payment received but draft data was lost. Please re-enter the tenancy details.");
         }
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Restore form on payment redirect
+  // Fallback: if user wasn't ready when redirect landed, stash the flag so the
+  // loader effect above resumes once user resolves.
   useEffect(() => {
     const status = searchParams.get("status");
-    const ref = searchParams.get("reference") || searchParams.get("trxref") || sessionStorage.getItem("pendingPaymentReference");
-    if (ref) {
-      sessionStorage.removeItem("pendingPaymentReference");
-      supabase.functions.invoke("verify-payment", { body: { reference: ref } })
-        .then(({ data }) => {
-          if (data?.verified) toast.success("Payment confirmed!");
-        })
-        .catch(() => { /* ignore */ });
-    }
-    if (status === "fee_paid" || ref) {
+    const ref = searchParams.get("reference") || searchParams.get("trxref");
+    if ((status === "fee_paid" || ref) && !user) {
       sessionStorage.setItem("declare_auto_submit", "true");
-      window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [searchParams]);
+  }, [searchParams, user]);
 
   const findBand = (rent: number) => bands.find(b => rent >= b.min_rent && (b.max_rent === null || rent <= b.max_rent)) || null;
 
