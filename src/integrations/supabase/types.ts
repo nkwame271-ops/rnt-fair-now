@@ -193,6 +193,7 @@ export type Database = {
       api_access_requests: {
         Row: {
           agency_type: string | null
+          cancelled_at: string | null
           contact_email: string | null
           contact_phone: string | null
           created_at: string
@@ -201,6 +202,7 @@ export type Database = {
           intended_volume_monthly: number | null
           issued_api_key_id: string | null
           justification: string | null
+          notified_at: string | null
           org_id: string
           requested_environment: string
           requested_scopes: string[]
@@ -212,6 +214,7 @@ export type Database = {
         }
         Insert: {
           agency_type?: string | null
+          cancelled_at?: string | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -220,6 +223,7 @@ export type Database = {
           intended_volume_monthly?: number | null
           issued_api_key_id?: string | null
           justification?: string | null
+          notified_at?: string | null
           org_id: string
           requested_environment?: string
           requested_scopes?: string[]
@@ -231,6 +235,7 @@ export type Database = {
         }
         Update: {
           agency_type?: string | null
+          cancelled_at?: string | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -239,6 +244,7 @@ export type Database = {
           intended_volume_monthly?: number | null
           issued_api_key_id?: string | null
           justification?: string | null
+          notified_at?: string | null
           org_id?: string
           requested_environment?: string
           requested_scopes?: string[]

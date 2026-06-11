@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "@/components/ui/input";
 import { Loader2, Copy, RotateCw, ShieldOff, Plus, KeyRound } from "lucide-react";
 import { toast } from "sonner";
+import AccessRequestBanner from "@/components/developers/AccessRequestBanner";
 
 export default function DeveloperKeys() {
   const qc = useQueryClient();
@@ -66,6 +67,7 @@ export default function DeveloperKeys() {
 
   return (
     <div className="space-y-4">
+      <AccessRequestBanner />
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-semibold">API Keys</h1>

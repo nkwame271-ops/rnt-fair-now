@@ -72,8 +72,8 @@ export default function RequestAccess() {
     });
     setBusy(false);
     if (error) return toast.error(error.message);
-    toast.success("Request submitted. We'll email you when it's reviewed.");
-    navigate("/developers/dashboard/keys");
+    toast.success("Request submitted — an admin will review it.");
+    navigate("/developers/dashboard/request-status");
   };
 
   return (

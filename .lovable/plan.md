@@ -1,125 +1,137 @@
 
-# Developer Portal for the Agency API
+# Developer Portal — Approvals, Pending UX, and Proper Documentation
 
-A self-service portal where third parties sign up, get a sandbox key instantly, browse endpoints, test calls, and request live access (regulator approval required). Reuses existing auth and the existing `api_keys` / `api_pricing_plans` / `api_request_log` / `api_webhook_endpoints` tables — no parallel system.
+Builds on the existing developer portal. Keeps the agreed model: **sandbox auto-issued, live key requires admin approval**. Adds clear pending-state messaging, hardens the admin-only approval surface, and ships a real public documentation site (not just an endpoint dump).
 
-## 1. Public marketing surface (no login)
+---
 
-- **Homepage** — add a small "For developers" link in the footer and a "Build with our API" CTA card on the homepage that goes to `/developers`.
-- **`/developers`** — new landing page: what the API does, who it's for, four product pillars (Landlord, Tenant, Property, Complaints), "Free during beta" banner, two buttons: **Get an API key** (→ signup) and **Read the docs** (→ existing `/developers/api`).
-- Existing `/developers/api` (docs) and `/developers/api/pricing` stay; they get a top nav linking back to the landing + login.
+## 1. Live-access approval flow — clearer messaging
 
-## 2. Account model
+### What the developer sees
+- After submitting `/developers/request-access` they're redirected to a new status page **`/developers/dashboard/request-status`** that shows:
+  - A big "Your request is under review" card with submitted-at timestamp, requested scopes, contact email.
+  - Status pill: `Pending review` / `Changes requested` / `Approved` / `Denied`.
+  - Reviewer notes (when present).
+  - "What happens next" checklist: 1) Admin reviews (1–3 business days), 2) You receive an email, 3) Your live key appears in the Keys tab.
+  - Email + in-app notification when status changes (uses existing `notifications` table + `send-transactional-email`).
+- The **Keys tab** gets a yellow banner above the "Request live access" CTA when a pending request exists: *"Live access request submitted on … — awaiting admin review."*
+- The **Overview tab** surfaces the same status card.
 
-- **Same auth, new `developer` app_role.** Signup at `/developers/signup` creates a Supabase user, a `profiles` row, and assigns the `developer` role.
-- A new `developer_organizations` table represents the company behind the key (one user can belong to one org for v1).
-- An `organization_id` column is added to `api_keys` so a key belongs to an org (in addition to the existing `agency_name`). Regulator-issued keys keep working unchanged (nullable column).
-- Membership table `developer_org_members(org_id, user_id, role)` so we can add teammates later. v1 only "owner".
+### Admin side
+- Only users with `regulator` role (already enforced via RLS + `is_main_admin()`) can see and act on `api_access_requests`.
+- The existing `src/pages/regulator/ApiAccessRequests.tsx` gets:
+  - A required **review notes** field when denying / requesting changes (currently optional).
+  - On **Approve**: a confirm dialog explaining "this only records the decision — you still need to issue the live key from Agency API → Keys".
+  - A new **"Issue live key now"** shortcut button on approved rows that deep-links to `/regulator/agency-api?issueForOrg=<org_id>&scopes=…` so the regulator doesn't have to retype org/scopes.
+- `AgencyApiKeys.tsx` "Issue key" dialog reads those query params and pre-fills.
+- Every decision writes to `admin_audit_log` (actor, action, target org, target request, notes).
 
-## 3. Signup → sandbox key flow (auto)
+### Pending-account UX (sandbox case)
+Sandbox is still auto-issued on first login (no admin gate) — that's the agreed model. But signup confirmation now sets clear expectations:
+- Signup success screen: *"Account created. Your sandbox key is ready. To call production data, request live access — an admin will review within 1–3 business days."*
+- Verification email reuses the same copy.
 
-1. User signs up at `/developers/signup` with name, email, password, organization name, intended use case.
-2. Email verification via existing Lovable auth.
-3. On first login, portal auto-provisions:
-   - one `developer_organizations` row,
-   - one **sandbox** `api_keys` row (`environment = 'sandbox'`, plan = `free`, scopes = all `:read` scopes restricted to sandbox data),
-   - the plaintext key is shown **once** in a modal with copy button + "I've stored it" confirmation.
-4. From that point the portal shows only the masked prefix + last-rotated date.
+---
 
-## 4. Live key flow (regulator approval)
+## 2. Master admin controls (admin-only)
 
-- New table `api_access_requests` captures: org, requested scopes, agency type, contact, intended volume, DSA acceptance.
-- Submitting the request creates a row with status `pending`; it shows up in the existing regulator console (`AgencyApiKeys.tsx`) under a new **Requests** tab.
-- Regulator can **approve** (issues a `rcg_live_…` key against the org, sets scopes + plan, emails the developer that the key is ready), **request changes**, or **deny**.
-- Developer dashboard shows the request status in real time.
+In `/regulator/agency-api`, add an **Access Control** section visible only to `is_main_admin()`:
+- Toggle: **"Pause new developer signups"** — when on, `/developers/signup` shows a "Signups temporarily closed" page and the public landing CTA is disabled.
+- Toggle: **"Auto-approve sandbox keys"** (default ON) — when off, even sandbox keys require admin approval (future-proof for tightening).
+- Toggle: **"Require DSA re-acceptance"** — flips a flag on `developer_organizations` so all orgs must re-accept on next login.
 
-## 5. Developer dashboard (`/developers/dashboard`)
+Stored in `platform_config` (existing table). No new schema needed.
 
-Sidebar layout, all scoped to the signed-in org:
+---
 
-- **Overview** — sandbox vs live status, calls today / this month, error rate, p95 latency. Quick links.
-- **API Keys** — list of keys (env, plan, status, last used, rotation grace countdown). Actions: copy prefix, rotate (shows new key once), revoke. Big primary button **Request live access** if no live key exists.
-- **Sandbox console** — interactive "Try it" panel: pick endpoint, fill filters (form generated from the same catalogue used in docs), pick a key, hit Send. Calls go through the existing `agency-api` edge function with the user's sandbox key and renders the JSON + headers (`X-Request-Id`, rate-limit). No new backend code; this is just a UI on top of `fetch`.
-- **Webhooks** — add endpoint URL, choose events, view recent deliveries (reads `api_webhook_endpoints` + `api_webhook_deliveries`), rotate signing secret.
-- **Usage** — 30-day chart of requests, status-code breakdown, top endpoints (reads `api_request_log` filtered by org's keys).
-- **Billing** — plan card with current plan, included calls, used calls, next renewal. While billing master switch is OFF, shows "Free during beta — no payment required" banner; plan upgrade buttons are visible but disabled with tooltip "Available when billing opens". When the switch flips on, the existing `agency-api-billing` checkout opens.
-- **Docs** — embeds the existing `ApiDocsContent` component (no duplication).
-- **Settings** — org name, contact email, DSA status, members (placeholder), delete org.
+## 3. Public documentation site — proper, step-by-step
 
-## 6. Regulator side (small additions to existing console)
+Replaces the bare `/developers/api` page with a real docs site at **`/developers/docs/*`** (legacy URL keeps working via redirect).
 
-- New **Requests** tab in `AgencyApiKeys.tsx` listing pending `api_access_requests` with one-click Approve / Deny.
-- Existing Keys tab gains an "Org" column when a key has `organization_id`.
-
-## 7. Security & guardrails
-
-- New RLS:
-  - `developer_organizations`, `developer_org_members`, `api_access_requests` → users see only rows for orgs they belong to; regulators see all.
-  - `api_keys` → developers can SELECT only keys whose `organization_id` is theirs (no `api_key_hash` column exposed via a view: `api_keys_developer_view` strips the hash).
-  - `api_request_log`, `api_webhook_*` → filtered by org's `api_keys.id`.
-- The plaintext key is **never** stored or returned again after issuance — same contract as today.
-- Sandbox keys are hard-capped: can only call sandbox-flagged data sources, max 1,000 calls/month (already enforced by the Free plan).
-- New edge function `developer-api-self-service` handles: provisioning sandbox key on first login, rotating own key, revoking own key, submitting access requests. Server-side validation that `auth.uid()` owns the target key/org.
-- Audit: every self-service action writes to `admin_audit_log` with actor + action + target.
-
-## 8. Notifications
-
-- Email on: signup verification (existing), sandbox key issued, access request submitted, access request approved/denied, key rotated, key revoked, monthly usage at 80% and 100%.
-- Regulator email on new access request.
-- All via existing `send-transactional-email`.
-
-## 9. Routes added
+### Structure (left sidebar, mkdocs-style)
 
 ```text
-/developers                       public landing
-/developers/signup                public signup form
-/developers/login                 public login (reuses /auth with redirect)
-/developers/dashboard             gated, role=developer
-/developers/dashboard/keys
-/developers/dashboard/sandbox
-/developers/dashboard/webhooks
-/developers/dashboard/usage
-/developers/dashboard/billing
-/developers/dashboard/docs
-/developers/dashboard/settings
-/developers/request-access        gated form, creates api_access_requests row
+Getting started
+  Introduction                /developers/docs
+  Quickstart (5 minutes)      /developers/docs/quickstart
+  Authentication              /developers/docs/auth
+  Environments (sandbox/live) /developers/docs/environments
+  Rate limits & quotas        /developers/docs/rate-limits
+  Errors & status codes       /developers/docs/errors
+
+Tutorials
+  Verify a landlord           /developers/docs/tutorials/verify-landlord
+  Check a tenancy             /developers/docs/tutorials/check-tenancy
+  Look up a property          /developers/docs/tutorials/lookup-property
+  Receive webhooks            /developers/docs/tutorials/webhooks
+  Handle pagination           /developers/docs/tutorials/pagination
+  Retries & idempotency       /developers/docs/tutorials/retries
+
+Reference
+  Landlords endpoints         /developers/docs/reference/landlords
+  Tenants endpoints           /developers/docs/reference/tenants
+  Properties endpoints        /developers/docs/reference/properties
+  Complaints endpoints        /developers/docs/reference/complaints
+  Webhook events              /developers/docs/reference/webhooks
+
+Going live
+  Request live access         /developers/docs/go-live
+  Data Sharing Agreement      /developers/docs/dsa
+  Pricing & billing           /developers/docs/pricing
+  Support & SLA               /developers/docs/support
 ```
 
-## 10. Technical details
+### Every page includes
+- A plain-English explainer ("What this does, who uses it, when to use it").
+- A copy-button **curl** snippet AND a **JavaScript (fetch)** snippet, both with realistic Ghana sample data (e.g. `0244111222` landlord lookup).
+- A live "Open in sandbox console" button that pre-fills the dashboard Sandbox tab via querystring (`?endpoint=landlords/list&params=…`).
+- Response example with field-by-field table.
+- "Common mistakes" callout.
 
-**Migrations**
+### Quickstart specifically (the "dumbed-down" one the user asked for)
+Five numbered steps, each with a screenshot placeholder + copy-paste block:
+1. **Create your developer account** — `/developers/signup`.
+2. **Copy your sandbox key** — shown once after first login; format `rcg_test_…`.
+3. **Make your first call** — single curl command hitting `GET /landlords/lookup?phone=0244111222`.
+4. **Read the response** — annotated JSON.
+5. **Request live access when ready** — link to `/developers/request-access`.
 
-- `developer_organizations(id, name, contact_email, contact_phone, dsa_version_accepted, dsa_signed_at, owner_user_id, created_at, updated_at)` + GRANT + RLS.
-- `developer_org_members(org_id, user_id, role enum 'owner', created_at)` + GRANT + RLS, unique (org_id, user_id).
-- `api_access_requests(id, org_id, requested_environment, requested_scopes text[], intended_volume_monthly, agency_type, justification, status enum pending|approved|denied|changes_requested, reviewed_by, reviewed_at, review_notes, issued_api_key_id, created_at, updated_at)` + GRANT + RLS.
-- `ALTER TABLE api_keys ADD COLUMN organization_id uuid REFERENCES developer_organizations(id)`.
-- Add `'developer'` to the `app_role` enum.
-- View `api_keys_developer_view` exposing safe columns (no `api_key_hash`, no `previous_key_hash`).
-- RPC `developer_provision_sandbox_key(org_id)` (SECURITY DEFINER) returning the plaintext key once.
+### Implementation
+- New folder `src/pages/developers/docs/` with one file per page above (small MDX-style React components — no MDX runtime, just JSX with shared `<DocLayout>`, `<CodeBlock>`, `<EndpointTable>`, `<Callout>` primitives).
+- Shared `src/components/developers/docs/` for those primitives + a sticky sidebar nav and search-as-you-type filter.
+- The existing `ApiDocsContent` component becomes the body of the four `reference/*` pages (chunked by domain instead of one giant page).
+- Top navigation on every docs page: Quickstart · Tutorials · Reference · Pricing · Dashboard.
+- SEO: `<Helmet>` with per-page title/description, canonical URLs, JSON-LD `TechArticle`, sitemap entries added to `public/sitemap.xml`.
+- Footer link "For developers → Documentation" added to homepage.
 
-**Frontend**
+---
 
-- `src/pages/developers/Landing.tsx`, `Signup.tsx`, `Dashboard.tsx` shell with nested routes, plus one file per tab in `src/pages/developers/dashboard/`.
-- Shared hook `useDeveloperOrg()` returns the signed-in user's org + keys.
-- Sandbox console uses `BASE_URL = https://${VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/agency-api` and calls it directly from the browser with the user's chosen sandbox key (sandbox CORS already enabled).
-- Route guard in `App.tsx`: `<RequireRole role="developer">`.
+## 4. Data / backend changes
 
-**Edge functions**
+Only one tiny migration — most plumbing already exists:
 
-- `developer-api-self-service` — single function, action-based body: `issue_sandbox_key`, `rotate_key`, `revoke_key`, `submit_access_request`, `add_webhook`, `remove_webhook`, `rotate_webhook_secret`.
-- `agency-api-admin` already handles regulator-side issue/approve — extend it with an `approve_access_request` action that creates a live key on the requesting org.
+- `api_access_requests`: add `notified_at timestamptz` (so we don't send duplicate decision emails).
+- `developer_organizations`: add `signup_paused_acknowledged_at` (unused for v1; reserved for the admin pause toggle).
+- New edge function action in `developer-api-self-service`: `cancel_access_request` so a developer can withdraw a pending request.
+- New scheduled trigger in `agency-api-admin`: when a request flips to `approved` / `denied` / `changes_requested`, queue an email via `send-transactional-email` and a row in `notifications`.
 
-## 11. Out of scope for v1
+No changes to RLS beyond the existing policies — `regulator` role already covers admin approval.
 
-- Multi-member orgs (schema supports it; UI is single-owner only).
-- OAuth client-credentials flow (sticks with `X-API-Key`).
-- Paid plan checkout (UI present, gated by master billing switch which stays OFF).
-- Self-service DSA signing flow (regulator still signs off; developer just accepts terms).
+---
 
-## 12. Acceptance criteria
+## 5. Acceptance criteria
 
-- A new visitor can land on `/developers`, sign up, verify email, log in, and have a working sandbox `rcg_test_…` key inside 2 minutes without regulator involvement.
-- The sandbox console can successfully call `landlords/list` and render the JSON response and rate-limit headers.
-- Submitting a live-access request creates a row visible to the regulator; approving it issues a live key visible (masked) in the developer's dashboard and emails them.
-- A developer cannot see another org's keys, usage, webhooks, or requests (verified by RLS).
-- The existing regulator console keeps working unchanged for legacy regulator-issued keys.
+- A signed-up developer who submits a live-access request is redirected to a status page that clearly says "under review" and updates in real time when admin acts.
+- Admin (regulator role) can approve / deny / request changes; non-admins get a 403 from RLS and never see the queue.
+- Approving a request emails the developer and surfaces a one-click "Issue live key" shortcut for the admin.
+- `/developers/docs/quickstart` walks a non-technical reader from signup to first successful API call in under 5 minutes using copy-paste snippets.
+- Reference pages for landlords / tenants / properties / complaints each load standalone and link to the sandbox console.
+- Homepage footer links to the docs; sitemap and meta tags are populated.
+- Admin "Pause new developer signups" toggle blocks `/developers/signup` immediately.
+
+## 6. Out of scope (still)
+
+- Paid plan checkout (master billing switch stays OFF — Free during beta).
+- Multi-member developer orgs.
+- OAuth client-credentials flow.
+- Auto-issuing live keys on approval (admin still presses "Issue key" — by design, for auditability).

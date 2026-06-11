@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Sparkles, ArrowRight, KeyRound, FlaskConical, ShieldCheck } from "lucide-react";
+import AccessRequestBanner from "@/components/developers/AccessRequestBanner";
 
 export default function DeveloperOverview() {
   const { data: org } = useDeveloperOrg();
@@ -46,6 +47,8 @@ export default function DeveloperOverview() {
           All API calls are free while we're in beta. You'll see your plan and usage here once billing opens.
         </AlertDescription>
       </Alert>
+
+      <AccessRequestBanner />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Card><CardContent className="p-4">

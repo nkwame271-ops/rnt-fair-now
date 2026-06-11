@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,12 +21,14 @@ import { Switch } from "@/components/ui/switch";
 import { format, formatDistanceToNow, subDays } from "date-fns";
 import ApiDocsContent from "@/components/agency-api/ApiDocsContent";
 import { PlansTab, BillingTab, WebhooksTab } from "@/pages/regulator/agency-api/BillingTabs";
-import { DollarSign, CreditCard, Webhook } from "lucide-react";
+import DeveloperAccessControl from "@/pages/regulator/agency-api/DeveloperAccessControl";
+import { DollarSign, CreditCard, Webhook, Settings2 } from "lucide-react";
 
 // ───────────────────────── Keys tab ─────────────────────────
 
 function KeysTab() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -37,6 +40,29 @@ function KeysTab() {
     expires_at: "",
     selectedScopes: [] as string[],
   });
+
+  // Deep-link prefill from ApiAccessRequests "Issue live key now" shortcut.
+  useEffect(() => {
+    const issueForOrg = searchParams.get("issueForOrg");
+    if (!issueForOrg) return;
+    const agency = searchParams.get("agency") || "";
+    const scopes = (searchParams.get("scopes") || "").split(",").filter(Boolean);
+    const email = searchParams.get("email") || "";
+    const phone = searchParams.get("phone") || "";
+    setForm((f) => ({
+      ...f,
+      agency_name: agency,
+      environment: "production",
+      selectedScopes: scopes,
+      agency_contact_email: email,
+      agency_contact_phone: phone,
+    }));
+    setCreateOpen(true);
+    // Clean query params so reload doesn't re-trigger.
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const { data: keys = [], isLoading } = useQuery({
     queryKey: ["agency-api-keys"],
@@ -581,6 +607,7 @@ export default function AgencyApiKeys() {
           <TabsTrigger value="billing"><CreditCard className="h-4 w-4 mr-1" /> Billing</TabsTrigger>
           <TabsTrigger value="webhooks"><Webhook className="h-4 w-4 mr-1" /> Webhooks</TabsTrigger>
           <TabsTrigger value="scopes"><Shield className="h-4 w-4 mr-1" /> Scopes</TabsTrigger>
+          <TabsTrigger value="access-control"><Settings2 className="h-4 w-4 mr-1" /> Access Control</TabsTrigger>
           <TabsTrigger value="docs"><FileText className="h-4 w-4 mr-1" /> Documentation</TabsTrigger>
         </TabsList>
         <TabsContent value="keys" className="mt-4"><KeysTab /></TabsContent>
@@ -590,6 +617,7 @@ export default function AgencyApiKeys() {
         <TabsContent value="billing" className="mt-4"><BillingTab /></TabsContent>
         <TabsContent value="webhooks" className="mt-4"><WebhooksTab /></TabsContent>
         <TabsContent value="scopes" className="mt-4"><ScopesTab /></TabsContent>
+        <TabsContent value="access-control" className="mt-4"><DeveloperAccessControl /></TabsContent>
         <TabsContent value="docs" className="mt-4"><ApiDocsContent /></TabsContent>
       </Tabs>
     </div>
