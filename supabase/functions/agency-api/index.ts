@@ -1,27 +1,51 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const API_VERSION = "v1";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key, idempotency-key, x-api-version",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Expose-Headers": "x-request-id, x-ratelimit-limit, x-ratelimit-remaining, x-ratelimit-reset, retry-after, x-api-version",
+};
+const securityHeaders = {
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
 };
 
 async function hashKey(key: string): Promise<string> {
   const encoded = new TextEncoder().encode(key);
   const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function jsonResponse(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+type ResponseExtras = {
+  requestId: string;
+  rateLimit?: { limit: number; remaining: number; reset: number };
+  apiVersion?: string;
+};
+
+function jsonResponse(data: unknown, status: number, extras: ResponseExtras) {
+  const headers: Record<string, string> = {
+    ...corsHeaders, ...securityHeaders,
+    "Content-Type": "application/json",
+    "X-Request-Id": extras.requestId,
+    "X-API-Version": extras.apiVersion || API_VERSION,
+  };
+  if (extras.rateLimit) {
+    headers["X-RateLimit-Limit"] = String(extras.rateLimit.limit);
+    headers["X-RateLimit-Remaining"] = String(extras.rateLimit.remaining);
+    headers["X-RateLimit-Reset"] = String(extras.rateLimit.reset);
+    if (status === 429) headers["Retry-After"] = "60";
+  }
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
-// Scope-to-endpoint mapping
+function problem(extras: ResponseExtras, status: number, title: string, detail?: string, type = "about:blank") {
+  return jsonResponse({ type, title, status, detail, request_id: extras.requestId }, status, extras);
+}
+
 const SCOPE_MAP: Record<string, string[]> = {
   "tax:read": ["tax/landlord-income", "tax/rent-tax-collected", "tax/landlord-list"],
   "tenants:read": [
@@ -58,18 +82,54 @@ function getClientIp(req: Request): string | null {
     req.headers.get("x-real-ip") || null;
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+function buildOpenApi() {
+  const endpoints = Object.entries(SCOPE_MAP).flatMap(([scope, list]) =>
+    list.map((ep) => ({ endpoint: ep, scope }))
+  );
+  return {
+    openapi: "3.1.0",
+    info: { title: "Rent Control Ghana — Agency API", version: API_VERSION,
+      description: "Read-only API for accredited Ghanaian agencies." },
+    servers: [{ url: "/agency-api" }],
+    components: { securitySchemes: { ApiKeyAuth: { type: "apiKey", in: "header", name: "X-API-Key" } } },
+    security: [{ ApiKeyAuth: [] }],
+    paths: {
+      "/v1/health": { get: { summary: "Health check" } },
+      "/v1/me": { get: { summary: "Key introspection" } },
+      "/": { post: { summary: "Invoke a data endpoint",
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["endpoint"],
+          properties: { endpoint: { type: "string", enum: endpoints.map((e) => e.endpoint) }, filters: { type: "object" } } } } } } } },
+    },
+    "x-endpoints": endpoints,
+  };
+}
 
-  const startedAt = Date.now();
-  const ip = getClientIp(req);
-  const userAgent = req.headers.get("user-agent");
+serve(async (req) => {
+  const requestId = crypto.randomUUID();
+  const url = new URL(req.url);
+  const path = url.pathname.replace(/^\/agency-api\/?/, "").replace(/^\/+/, "").replace(/\/+$/, "");
+  const extras: ResponseExtras = { requestId, apiVersion: API_VERSION };
+
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: { ...corsHeaders, "X-Request-Id": requestId } });
+  }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
+  // ── Public endpoints (no auth) ──
+  if (path === "health" || path === "v1/health") {
+    return jsonResponse({ status: "ok", time: new Date().toISOString(), version: API_VERSION }, 200, extras);
+  }
+  if (path === "openapi.json" || path === "v1/openapi.json") {
+    return jsonResponse(buildOpenApi(), 200, extras);
+  }
+
+  const startedAt = Date.now();
+  const ip = getClientIp(req);
+  const userAgent = req.headers.get("user-agent");
 
   const logCtx: {
     api_key_id?: string; agency_name?: string; endpoint?: string;
@@ -81,7 +141,7 @@ serve(async (req) => {
     const apiKey = req.headers.get("x-api-key");
     if (!apiKey) {
       logCtx.status_code = 401; logCtx.error_message = "Missing X-API-Key";
-      return jsonResponse({ error: "Missing X-API-Key header" }, 401);
+      return problem(extras, 401, "Missing API key", "Send your key in the X-API-Key header.");
     }
 
     const keyHash = await hashKey(apiKey);
@@ -94,8 +154,15 @@ serve(async (req) => {
       keyRecord = fb.data;
     }
     if (!keyRecord) {
+      const { data: gr } = await supabase.from("api_keys").select("*")
+        .eq("previous_key_hash", keyHash)
+        .gte("previous_key_expires_at", new Date().toISOString())
+        .maybeSingle();
+      if (gr) { keyRecord = gr; logCtx.error_message = "rotation_grace"; }
+    }
+    if (!keyRecord) {
       logCtx.status_code = 403; logCtx.error_message = "Invalid key";
-      return jsonResponse({ error: "Invalid or inactive API key" }, 403);
+      return problem(extras, 403, "Invalid API key", "The key was not recognised.");
     }
 
     logCtx.api_key_id = keyRecord.id;
@@ -103,16 +170,16 @@ serve(async (req) => {
 
     if (!keyRecord.is_active || keyRecord.revoked_at) {
       logCtx.status_code = 403; logCtx.error_message = "Revoked";
-      return jsonResponse({ error: "API key has been revoked" }, 403);
+      return problem(extras, 403, "API key revoked");
     }
     if (keyRecord.expires_at && new Date(keyRecord.expires_at) < new Date()) {
       logCtx.status_code = 403; logCtx.error_message = "Expired";
-      return jsonResponse({ error: "API key has expired" }, 403);
+      return problem(extras, 403, "API key expired");
     }
     if (Array.isArray(keyRecord.allowed_ip_cidrs) && keyRecord.allowed_ip_cidrs.length > 0) {
       if (!ip || !keyRecord.allowed_ip_cidrs.includes(ip)) {
         logCtx.status_code = 403; logCtx.error_message = `IP ${ip ?? "?"} blocked`;
-        return jsonResponse({ error: "Request IP not allowed for this key" }, 403);
+        return problem(extras, 403, "IP not allowed", `Request IP ${ip ?? "unknown"} not in allowlist.`);
       }
     }
 
@@ -121,30 +188,96 @@ serve(async (req) => {
     const { count: recentCount } = await supabase.from("api_request_log")
       .select("id", { count: "exact", head: true })
       .eq("api_key_id", keyRecord.id).gte("created_at", since);
-    if ((recentCount ?? 0) >= rl) {
+    const used = recentCount ?? 0;
+    extras.rateLimit = { limit: rl, remaining: Math.max(0, rl - used), reset: 60 };
+    if (used >= rl) {
       logCtx.status_code = 429; logCtx.error_message = `Rate limit ${rl}/min`;
-      return jsonResponse({ error: `Rate limit exceeded (${rl}/min)` }, 429);
+      return problem(extras, 429, "Rate limit exceeded", `Limit ${rl}/min. Retry after 60s.`);
     }
 
+    // ── /v1/me introspection ──
+    if (path === "me" || path === "v1/me") {
+      const { data: sub } = await supabase.from("api_subscriptions")
+        .select("*, plan:api_pricing_plans(name, slug, included_calls, environment_access)")
+        .eq("api_key_id", keyRecord.id).in("status", ["active", "trialing", "past_due"])
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const { data: counter } = await supabase.from("api_usage_counters")
+        .select("*").eq("api_key_id", keyRecord.id)
+        .order("period_start", { ascending: false }).limit(1).maybeSingle();
+      logCtx.status_code = 200; logCtx.endpoint = "v1/me";
+      return jsonResponse({
+        agency: keyRecord.agency_name,
+        environment: keyRecord.environment,
+        scopes: keyRecord.scopes || [],
+        rate_limit_per_minute: rl,
+        expires_at: keyRecord.expires_at,
+        plan: sub?.plan ?? null,
+        usage: counter ? {
+          period_start: counter.period_start, period_end: counter.period_end,
+          calls_count: counter.calls_count, overage_calls: counter.overage_calls,
+        } : null,
+      }, 200, extras);
+    }
+
+    if (req.method !== "POST") {
+      logCtx.status_code = 405;
+      return problem(extras, 405, "Method not allowed", "Use POST for data endpoints.");
+    }
     const body = await req.json();
     const { endpoint, filters = {} } = body || {};
     logCtx.endpoint = endpoint;
     logCtx.request_params = filters;
     if (!endpoint) {
       logCtx.status_code = 400; logCtx.error_message = "Missing endpoint";
-      return jsonResponse({ error: "Missing endpoint in request body" }, 400);
+      return problem(extras, 400, "Missing endpoint", "Body must contain `endpoint`.");
     }
 
     const scopes: string[] = keyRecord.scopes || [];
     const matchingScope = scopes.find((s) => (SCOPE_MAP[s] || []).includes(endpoint));
     if (!matchingScope) {
-      logCtx.status_code = 403;
-      logCtx.error_message = `Not authorised: ${endpoint}`;
-      return jsonResponse({
-        error: `Endpoint '${endpoint}' not authorized. Authorized scopes: ${scopes.join(", ")}`,
-      }, 403);
+      logCtx.status_code = 403; logCtx.error_message = `Not authorised: ${endpoint}`;
+      return problem(extras, 403, "Endpoint not authorised",
+        `Endpoint '${endpoint}' not allowed. Granted scopes: ${scopes.join(", ") || "(none)"}.`);
     }
     logCtx.scope_used = matchingScope;
+
+    // ── Billing / quota enforcement (only when master switch ON) ──
+    const { data: billCfg } = await supabase.from("platform_config")
+      .select("config_value").eq("config_key", "agency_api_billing_enabled").maybeSingle();
+    const billingOn = !!(billCfg?.config_value as any)?.enabled;
+    const overrideFree = keyRecord.billing_override === "free";
+
+    if (billingOn && !overrideFree) {
+      let planRow: any = null;
+      if (keyRecord.current_plan_id) {
+        const { data } = await supabase.from("api_pricing_plans").select("*").eq("id", keyRecord.current_plan_id).maybeSingle();
+        planRow = data;
+      }
+      if (!planRow) {
+        logCtx.status_code = 402;
+        return problem(extras, 402, "Subscription required",
+          "Billing is enabled but this key has no active plan. Contact the regulator to subscribe.");
+      }
+      if (planRow.environment_access !== "both" && planRow.environment_access !== keyRecord.environment) {
+        logCtx.status_code = 403;
+        return problem(extras, 403, "Environment not allowed by plan",
+          `Plan '${planRow.slug}' grants ${planRow.environment_access} access only.`);
+      }
+      const periodStart = new Date(); periodStart.setUTCDate(1); periodStart.setUTCHours(0, 0, 0, 0);
+      const periodEnd = new Date(periodStart); periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
+      const { data: usage } = await supabase.rpc("api_increment_usage", {
+        p_api_key_id: keyRecord.id,
+        p_period_start: periodStart.toISOString(),
+        p_period_end: periodEnd.toISOString(),
+        p_included_calls: planRow.included_calls,
+        p_overage_price_per_1k: planRow.overage_price_ghs_per_1k,
+      });
+      if (usage && (usage as any).over_quota && !(usage as any).overage_billable) {
+        logCtx.status_code = 429;
+        return problem(extras, 429, "Monthly quota exceeded",
+          `Plan '${planRow.slug}' includes ${planRow.included_calls} calls/month. Upgrade to continue.`);
+      }
+    }
 
     await supabase.from("api_keys")
       .update({ last_used_at: new Date().toISOString(), last_used_ip: ip })
@@ -161,12 +294,15 @@ serve(async (req) => {
     });
 
     logCtx.status_code = 200;
-    return jsonResponse({ success: true, endpoint, agency: keyRecord.agency_name, data: result });
+    return jsonResponse({
+      success: true, endpoint, agency: keyRecord.agency_name, data: result,
+      meta: { page, page_size: limit, request_id: requestId },
+    }, 200, extras);
   } catch (error: unknown) {
     console.error("Agency API error:", error);
     const msg = error instanceof Error ? error.message : "Unknown error";
     logCtx.error_message = msg;
-    return jsonResponse({ error: msg }, 500);
+    return problem(extras, 500, "Internal server error", msg);
   } finally {
     try {
       await supabase.from("api_request_log").insert({
@@ -174,11 +310,10 @@ serve(async (req) => {
         agency_name: logCtx.agency_name ?? null,
         endpoint: logCtx.endpoint ?? "(unknown)",
         scope_used: logCtx.scope_used ?? null,
-        method: "POST",
+        method: req.method,
         status_code: logCtx.status_code,
         response_ms: Date.now() - startedAt,
-        ip,
-        user_agent: userAgent,
+        ip, user_agent: userAgent,
         request_params: logCtx.request_params ?? null,
         error_message: logCtx.error_message ?? null,
       });

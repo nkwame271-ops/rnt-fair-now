@@ -19,6 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { format, formatDistanceToNow, subDays } from "date-fns";
 import ApiDocsContent from "@/components/agency-api/ApiDocsContent";
+import { PlansTab, BillingTab, WebhooksTab } from "@/pages/regulator/agency-api/BillingTabs";
+import { DollarSign, CreditCard, Webhook } from "lucide-react";
 
 // ───────────────────────── Keys tab ─────────────────────────
 
@@ -575,12 +577,18 @@ export default function AgencyApiKeys() {
           <TabsTrigger value="keys"><Key className="h-4 w-4 mr-1" /> Keys</TabsTrigger>
           <TabsTrigger value="live"><Activity className="h-4 w-4 mr-1" /> Live Activity</TabsTrigger>
           <TabsTrigger value="usage"><BarChart3 className="h-4 w-4 mr-1" /> Usage</TabsTrigger>
+          <TabsTrigger value="plans"><DollarSign className="h-4 w-4 mr-1" /> Plans</TabsTrigger>
+          <TabsTrigger value="billing"><CreditCard className="h-4 w-4 mr-1" /> Billing</TabsTrigger>
+          <TabsTrigger value="webhooks"><Webhook className="h-4 w-4 mr-1" /> Webhooks</TabsTrigger>
           <TabsTrigger value="scopes"><Shield className="h-4 w-4 mr-1" /> Scopes</TabsTrigger>
           <TabsTrigger value="docs"><FileText className="h-4 w-4 mr-1" /> Documentation</TabsTrigger>
         </TabsList>
         <TabsContent value="keys" className="mt-4"><KeysTab /></TabsContent>
         <TabsContent value="live" className="mt-4"><LiveActivityTab /></TabsContent>
         <TabsContent value="usage" className="mt-4"><UsageAnalyticsTab /></TabsContent>
+        <TabsContent value="plans" className="mt-4"><PlansTab /></TabsContent>
+        <TabsContent value="billing" className="mt-4"><BillingTab /></TabsContent>
+        <TabsContent value="webhooks" className="mt-4"><WebhooksTab /></TabsContent>
         <TabsContent value="scopes" className="mt-4"><ScopesTab /></TabsContent>
         <TabsContent value="docs" className="mt-4"><ApiDocsContent /></TabsContent>
       </Tabs>

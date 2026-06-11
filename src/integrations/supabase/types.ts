@@ -190,16 +190,155 @@ export type Database = {
         }
         Relationships: []
       }
+      api_dsa_versions: {
+        Row: {
+          body_markdown: string
+          created_at: string
+          effective_from: string
+          id: string
+          is_current: boolean
+          title: string
+          version: string
+        }
+        Insert: {
+          body_markdown: string
+          created_at?: string
+          effective_from?: string
+          id?: string
+          is_current?: boolean
+          title: string
+          version: string
+        }
+        Update: {
+          body_markdown?: string
+          created_at?: string
+          effective_from?: string
+          id?: string
+          is_current?: boolean
+          title?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      api_idempotency_keys: {
+        Row: {
+          api_key_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          idempotency_key: string
+          request_hash: string
+          response_body: Json | null
+          response_status: number
+        }
+        Insert: {
+          api_key_id: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          idempotency_key: string
+          request_hash: string
+          response_body?: Json | null
+          response_status: number
+        }
+        Update: {
+          api_key_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          idempotency_key?: string
+          request_hash?: string
+          response_body?: Json | null
+          response_status?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_idempotency_keys_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_invoices: {
+        Row: {
+          amount_ghs: number
+          api_key_id: string
+          created_at: string
+          id: string
+          invoice_number: string
+          line_items: Json
+          paid_at: string | null
+          paystack_reference: string | null
+          period_end: string | null
+          period_start: string | null
+          status: string
+          subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_ghs: number
+          api_key_id: string
+          created_at?: string
+          id?: string
+          invoice_number?: string
+          line_items?: Json
+          paid_at?: string | null
+          paystack_reference?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_ghs?: number
+          api_key_id?: string
+          created_at?: string
+          id?: string
+          invoice_number?: string
+          line_items?: Json
+          paid_at?: string | null
+          paystack_reference?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_invoices_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_invoices_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "api_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           agency_contact_email: string | null
           agency_contact_phone: string | null
           agency_name: string
           allowed_ip_cidrs: string[] | null
+          allowed_origins: string[] | null
           api_key_hash: string
+          billing_override: string | null
+          billing_override_price_ghs: number | null
           created_at: string
           created_by: string | null
+          current_plan_id: string | null
           dsa_signed_at: string | null
+          dsa_version_accepted: string | null
           environment: string
           expires_at: string | null
           id: string
@@ -208,6 +347,9 @@ export type Database = {
           last_used_at: string | null
           last_used_ip: unknown
           notes: string | null
+          pinned_version: string | null
+          previous_key_expires_at: string | null
+          previous_key_hash: string | null
           rate_limit_per_minute: number
           revoke_reason: string | null
           revoked_at: string | null
@@ -219,10 +361,15 @@ export type Database = {
           agency_contact_phone?: string | null
           agency_name: string
           allowed_ip_cidrs?: string[] | null
+          allowed_origins?: string[] | null
           api_key_hash: string
+          billing_override?: string | null
+          billing_override_price_ghs?: number | null
           created_at?: string
           created_by?: string | null
+          current_plan_id?: string | null
           dsa_signed_at?: string | null
+          dsa_version_accepted?: string | null
           environment?: string
           expires_at?: string | null
           id?: string
@@ -231,6 +378,9 @@ export type Database = {
           last_used_at?: string | null
           last_used_ip?: unknown
           notes?: string | null
+          pinned_version?: string | null
+          previous_key_expires_at?: string | null
+          previous_key_hash?: string | null
           rate_limit_per_minute?: number
           revoke_reason?: string | null
           revoked_at?: string | null
@@ -242,10 +392,15 @@ export type Database = {
           agency_contact_phone?: string | null
           agency_name?: string
           allowed_ip_cidrs?: string[] | null
+          allowed_origins?: string[] | null
           api_key_hash?: string
+          billing_override?: string | null
+          billing_override_price_ghs?: number | null
           created_at?: string
           created_by?: string | null
+          current_plan_id?: string | null
           dsa_signed_at?: string | null
+          dsa_version_accepted?: string | null
           environment?: string
           expires_at?: string | null
           id?: string
@@ -254,11 +409,77 @@ export type Database = {
           last_used_at?: string | null
           last_used_ip?: unknown
           notes?: string | null
+          pinned_version?: string | null
+          previous_key_expires_at?: string | null
+          previous_key_hash?: string | null
           rate_limit_per_minute?: number
           revoke_reason?: string | null
           revoked_at?: string | null
           revoked_by?: string | null
           scopes?: string[]
+        }
+        Relationships: []
+      }
+      api_pricing_plans: {
+        Row: {
+          allowed_scopes: string[]
+          created_at: string
+          description: string | null
+          environment_access: string
+          id: string
+          included_calls: number
+          is_active: boolean
+          is_enterprise: boolean
+          is_public: boolean
+          name: string
+          overage_price_ghs_per_1k: number | null
+          paystack_plan_code: string | null
+          price_ghs: number
+          rate_limit_per_minute: number
+          slug: string
+          sort_order: number
+          updated_at: string
+          webhook_endpoints_max: number
+        }
+        Insert: {
+          allowed_scopes?: string[]
+          created_at?: string
+          description?: string | null
+          environment_access?: string
+          id?: string
+          included_calls?: number
+          is_active?: boolean
+          is_enterprise?: boolean
+          is_public?: boolean
+          name: string
+          overage_price_ghs_per_1k?: number | null
+          paystack_plan_code?: string | null
+          price_ghs?: number
+          rate_limit_per_minute?: number
+          slug: string
+          sort_order?: number
+          updated_at?: string
+          webhook_endpoints_max?: number
+        }
+        Update: {
+          allowed_scopes?: string[]
+          created_at?: string
+          description?: string | null
+          environment_access?: string
+          id?: string
+          included_calls?: number
+          is_active?: boolean
+          is_enterprise?: boolean
+          is_public?: boolean
+          name?: string
+          overage_price_ghs_per_1k?: number | null
+          paystack_plan_code?: string | null
+          price_ghs?: number
+          rate_limit_per_minute?: number
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+          webhook_endpoints_max?: number
         }
         Relationships: []
       }
@@ -347,6 +568,225 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      api_subscriptions: {
+        Row: {
+          api_key_id: string
+          cancel_at_period_end: boolean
+          canceled_at: string | null
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          paystack_authorization_code: string | null
+          paystack_customer_code: string | null
+          paystack_subscription_code: string | null
+          plan_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          api_key_id: string
+          cancel_at_period_end?: boolean
+          canceled_at?: string | null
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          paystack_authorization_code?: string | null
+          paystack_customer_code?: string | null
+          paystack_subscription_code?: string | null
+          plan_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          api_key_id?: string
+          cancel_at_period_end?: boolean
+          canceled_at?: string | null
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          paystack_authorization_code?: string | null
+          paystack_customer_code?: string | null
+          paystack_subscription_code?: string | null
+          plan_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_subscriptions_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "api_pricing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_usage_counters: {
+        Row: {
+          api_key_id: string
+          calls_count: number
+          created_at: string
+          id: string
+          last_call_at: string | null
+          overage_amount_ghs: number
+          overage_calls: number
+          period_end: string
+          period_start: string
+          updated_at: string
+        }
+        Insert: {
+          api_key_id: string
+          calls_count?: number
+          created_at?: string
+          id?: string
+          last_call_at?: string | null
+          overage_amount_ghs?: number
+          overage_calls?: number
+          period_end: string
+          period_start: string
+          updated_at?: string
+        }
+        Update: {
+          api_key_id?: string
+          calls_count?: number
+          created_at?: string
+          id?: string
+          last_call_at?: string | null
+          overage_amount_ghs?: number
+          overage_calls?: number
+          period_end?: string
+          period_start?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_usage_counters_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_webhook_deliveries: {
+        Row: {
+          attempt: number
+          created_at: string
+          duration_ms: number | null
+          endpoint_id: string
+          event_id: string
+          event_type: string
+          id: string
+          next_retry_at: string | null
+          payload: Json
+          response_body: string | null
+          response_status: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          created_at?: string
+          duration_ms?: number | null
+          endpoint_id: string
+          event_id?: string
+          event_type: string
+          id?: string
+          next_retry_at?: string | null
+          payload: Json
+          response_body?: string | null
+          response_status?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          created_at?: string
+          duration_ms?: number | null
+          endpoint_id?: string
+          event_id?: string
+          event_type?: string
+          id?: string
+          next_retry_at?: string | null
+          payload?: Json
+          response_body?: string | null
+          response_status?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_webhook_deliveries_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "api_webhook_endpoints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_webhook_endpoints: {
+        Row: {
+          api_key_id: string
+          consecutive_failures: number
+          created_at: string
+          description: string | null
+          events: string[]
+          id: string
+          last_delivery_at: string | null
+          last_success_at: string | null
+          secret: string
+          status: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          api_key_id: string
+          consecutive_failures?: number
+          created_at?: string
+          description?: string | null
+          events?: string[]
+          id?: string
+          last_delivery_at?: string | null
+          last_success_at?: string | null
+          secret: string
+          status?: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          api_key_id?: string
+          consecutive_failures?: number
+          created_at?: string
+          description?: string | null
+          events?: string[]
+          id?: string
+          last_delivery_at?: string | null
+          last_success_at?: string | null
+          secret?: string
+          status?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_webhook_endpoints_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       beta_feedback: {
         Row: {
@@ -7623,6 +8063,20 @@ export type Database = {
       }
     }
     Functions: {
+      api_enqueue_webhook_event: {
+        Args: { p_event_type: string; p_payload: Json }
+        Returns: number
+      }
+      api_increment_usage: {
+        Args: {
+          p_api_key_id: string
+          p_included_calls: number
+          p_overage_price_per_1k: number
+          p_period_end: string
+          p_period_start: string
+        }
+        Returns: Json
+      }
       approve_rent_increase_request: {
         Args: {
           p_request_id: string
