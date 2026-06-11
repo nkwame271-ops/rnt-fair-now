@@ -61,3 +61,5 @@ project_id = "qjrvwcwmhuxygdanbxsz"
     verify_jwt = true
   [functions.lookup-tenant]
     verify_jwt = false
+  [functions.bootstrap-developer-account]
+    verify_jwt = false
