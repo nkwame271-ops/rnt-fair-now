@@ -244,6 +244,9 @@ const PaymentReconciliationCentre = () => {
 
       <ReceiptDriftTile />
 
+      <OrphanBundlesTile />
+
+
       <Card className="p-4 space-y-3 border-amber-500/40">
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-primary" />
