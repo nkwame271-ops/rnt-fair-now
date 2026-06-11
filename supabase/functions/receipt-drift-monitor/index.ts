@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
   // 1. Paid escrows older than 5 min with no receipt → re-run finalize
   const { data: orphanEscrows } = await supabaseAdmin
     .from("escrow_transactions")
-    .select("id, reference, amount, paystack_reference")
+    .select("id, reference, total_amount, paystack_transaction_id")
     .in("status", ["success", "completed", "paid"])
     .lt("created_at", new Date(Date.now() - 5 * 60_000).toISOString())
     .limit(50);
@@ -48,8 +48,8 @@ Deno.serve(async (req) => {
       await finalizePayment({
         supabaseAdmin,
         reference: esc.reference,
-        amountPaid: Number(esc.amount),
-        transactionId: esc.paystack_reference ?? esc.reference,
+        amountPaid: Number(esc.total_amount),
+        transactionId: esc.paystack_transaction_id ?? esc.reference,
         logError,
       });
       result.repaired_escrows += 1;
