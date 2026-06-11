@@ -33,6 +33,8 @@ const CHANNEL_MAP: Record<string, Channel[]> = {
   complaint_summary:     ["email", "inapp"],
   contact_received:      ["email"],
   beta_feedback_received:["email"],
+  developer_account_created:       ["email", "inapp"],
+  developer_account_created_admin: ["email", "inapp"],
 };
 
 // ── SMS Templates ──
@@ -214,6 +216,32 @@ const EMAIL_TEMPLATES: Record<string, (d: Record<string, string>) => { subject: 
       <p style="white-space:pre-wrap;border-left:3px solid #2d7a4f;padding:8px 12px;background:#f7faf8;">${d.message || ""}</p>
     `),
   }),
+  developer_account_created: (d) => ({
+    subject: "Your developer account is ready — RentControlGhana",
+    html: emailLayout(`
+      <p>Hello ${d.name || "there"},</p>
+      <p>Your developer account for <strong>${d.org_name || "your organization"}</strong> has been created.</p>
+      <p><strong>Access tiers</strong></p>
+      <ul>
+        <li><strong>Sandbox</strong> — issued automatically. Use it to build and test against safe synthetic data.</li>
+        <li><strong>Live (production)</strong> — requires admin approval. Submit a request from your dashboard and sign the Data Sharing Agreement; a regulator will review within 1–3 business days.</li>
+      </ul>
+      <p>Sign in at <a href="https://www.rentcontrolghana.com/developers/login">rentcontrolghana.com/developers/login</a> to create your sandbox key and read the quickstart.</p>
+    `),
+  }),
+  developer_account_created_admin: (d) => ({
+    subject: `New developer signup — ${d.org_name || "Unknown org"}`,
+    html: emailLayout(`
+      <p><strong>A new developer account has been created.</strong></p>
+      <table style="margin:16px 0;border-collapse:collapse;">
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Organization:</td><td style="padding:4px 0;">${d.org_name || ""}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Contact:</td><td style="padding:4px 0;">${d.contact_email || ""}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Agency type:</td><td style="padding:4px 0;">${d.agency_type || "—"}</td></tr>
+      </table>
+      <p style="white-space:pre-wrap;border-left:3px solid #2d7a4f;padding:8px 12px;background:#f7faf8;">${d.use_case || ""}</p>
+      <p>Sandbox keys are auto-issued. Live access still requires your approval. Review the account at <a href="https://www.rentcontrolghana.com/regulator/developer-accounts">Regulator → Developer Accounts</a>.</p>
+    `),
+  }),
 };
 
 // ── In-App notification titles/bodies ──
@@ -236,6 +264,8 @@ const INAPP_TEMPLATES: Record<string, (d: Record<string, string>) => { title: st
   complaint_summary: (d) => ({ title: "Complaint Filed", body: `Complaint ${d.code} has been submitted.`, link: "/tenant/my-cases" }),
   contact_received: (d) => ({ title: "New Contact Message", body: `${d.name || "User"} (${d.from_email || ""}): ${(d.message || "").slice(0, 80)}`, link: "/regulator/feedback" }),
   beta_feedback_received: (d) => ({ title: `Beta Feedback (${d.category || "general"})`, body: `${d.from_email || ""}: ${(d.message || "").slice(0, 80)}`, link: "/regulator/feedback" }),
+  developer_account_created: (d) => ({ title: "Developer account ready", body: `Sandbox key is yours; live access needs admin approval. Org: ${d.org_name || ""}`, link: "/developers/dashboard" }),
+  developer_account_created_admin: (d) => ({ title: "New developer signup", body: `${d.org_name || "Unknown"} (${d.contact_email || ""}) just signed up.`, link: "/regulator/developer-accounts" }),
 };
 
 function emailLayout(content: string): string {
