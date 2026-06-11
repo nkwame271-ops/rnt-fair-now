@@ -85,6 +85,7 @@ const DeclareExistingTenancy = () => {
   const [bands, setBands] = useState<{ min_rent: number; max_rent: number | null; register_fee: number; filing_fee: number; agreement_fee: number }[]>([]);
   const [paymentSettings, setPaymentSettings] = useState<any | null>(null);
   const [batchResult, setBatchResult] = useState<{ created: { code: string; unit: string }[]; failed: { unit: string; error: string }[] } | null>(null);
+  const [pendingAutoSubmit, setPendingAutoSubmit] = useState(false);
 
 
   const property = properties.find(p => p.id === selectedPropertyId);
