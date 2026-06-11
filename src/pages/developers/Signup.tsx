@@ -58,49 +58,31 @@ export default function DeveloperSignup() {
     }
     setSubmitting(true);
     try {
-      const { data: signUp, error: signErr } = await supabase.auth.signUp({
-        email: parsed.data.email,
-        password: parsed.data.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/developers/dashboard`,
-          data: { full_name: parsed.data.full_name, intended_role: "developer" },
-        },
-      });
-      if (signErr) throw signErr;
-      const userId = signUp.user?.id;
-      if (!userId) {
-        toast.success("Check your email to confirm your account.");
-        navigate("/developers/login");
-        return;
-      }
-
-      // Assign developer role
-      await supabase.from("user_roles").insert({ user_id: userId, role: "developer" as any });
-
-      // Create organization
-      const { data: org, error: orgErr } = await supabase
-        .from("developer_organizations" as any)
-        .insert({
-          name: parsed.data.org_name,
-          contact_email: parsed.data.email,
+      const { data, error } = await supabase.functions.invoke("bootstrap-developer-account", {
+        body: {
+          full_name: parsed.data.full_name,
+          email: parsed.data.email,
+          password: parsed.data.password,
+          org_name: parsed.data.org_name,
           contact_phone: parsed.data.contact_phone || null,
           agency_type: parsed.data.agency_type || null,
           intended_use_case: parsed.data.intended_use_case,
-          owner_user_id: userId,
-        })
-        .select()
-        .single();
-      if (orgErr) throw orgErr;
-
-      // Add owner as member
-      await supabase.from("developer_org_members" as any).insert({
-        org_id: (org as any).id,
-        user_id: userId,
-        member_role: "owner",
+        },
       });
+      if (error) throw error;
+      if (!(data as any)?.ok) throw new Error((data as any)?.error || "Signup failed");
 
-      toast.success("Account created. Your sandbox key will be ready once you verify your email and log in.");
-      navigate("/developers/login?signup=ok");
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: parsed.data.email,
+        password: parsed.data.password,
+      });
+      if (signInErr) {
+        toast.success("Account created. Please log in.");
+        navigate("/developers/login");
+        return;
+      }
+      toast.success("Account created — your sandbox key is one click away.");
+      navigate("/developers/dashboard");
     } catch (e: any) {
       toast.error(e.message ?? "Signup failed");
     } finally {
