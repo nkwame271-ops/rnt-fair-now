@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useDeveloperOrg, useDeveloperKeys } from "@/hooks/useDeveloperOrg";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,12 +24,22 @@ export default function DeveloperSandbox() {
   const { data: keys = [] } = useDeveloperKeys(org?.id);
   const usableKeys = keys.filter((k) => k.is_active);
 
+  const [params] = useSearchParams();
   const [keyId, setKeyId] = useState<string>("");
-  const [endpoint, setEndpoint] = useState("landlords/list");
-  const [filters, setFilters] = useState('{ "page": 1, "limit": 10 }');
+  const [endpoint, setEndpoint] = useState(params.get("endpoint") || "landlords/list");
+  const [filters, setFilters] = useState(params.get("params") || '{ "page": 1, "limit": 10 }');
   const [usePlaintext, setUsePlaintext] = useState("");
   const [busy, setBusy] = useState(false);
   const [resp, setResp] = useState<{ status: number; headers: Record<string, string>; body: string } | null>(null);
+
+  useEffect(() => {
+    const ep = params.get("endpoint");
+    const pr = params.get("params");
+    if (ep) setEndpoint(ep);
+    if (pr) {
+      try { setFilters(JSON.stringify(JSON.parse(pr), null, 2)); } catch { setFilters(pr); }
+    }
+  }, [params]);
 
   const selectedKey = keys.find((k) => k.id === keyId);
 
