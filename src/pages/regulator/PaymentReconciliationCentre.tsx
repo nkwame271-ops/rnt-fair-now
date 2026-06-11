@@ -34,6 +34,7 @@ import UserProofReviewTab from "@/components/regulator/UserProofReviewTab";
 import ReceiptDriftTile from "@/components/regulator/ReceiptDriftTile";
 import SystemHealthTile from "@/components/regulator/SystemHealthTile";
 import TransactionExplorer from "@/components/regulator/TransactionExplorer";
+import OrphanBundlesTile from "@/components/regulator/OrphanBundlesTile";
 
 /**
  * Payment Reconciliation & Recovery Centre
