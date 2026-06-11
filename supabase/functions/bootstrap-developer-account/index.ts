@@ -110,12 +110,12 @@ Deno.serve(async (req) => {
   try {
     const { data: admins } = await admin
       .from("admin_staff")
-      .select("user_id, email")
-      .eq("is_active", true);
-    for (const a of (admins ?? []) as Array<{ user_id: string; email: string | null }>) {
+      .select("user_id, profiles:profiles!inner(email)");
+    for (const a of (admins ?? []) as Array<{ user_id: string; profiles: { email: string | null } | null }>) {
+      const email = a.profiles?.email;
       await notify({
         event: "developer_account_created_admin",
-        email: a.email,
+        email,
         user_id: a.user_id,
         data: {
           org_name: body.org_name,
