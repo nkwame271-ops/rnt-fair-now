@@ -27,75 +27,162 @@ const SCOPE_MAP: Record<string, string[]> = {
   "tenants:read": [
     "tenants/registered", "tenants/without-landlord", "tenants/expired-registration",
     "tenants/rent-card-delivery", "tenants/non-citizens",
+    "tenants/list", "tenants/detail",
   ],
-  "landlords:read": ["landlords/registered", "landlords/unregistered-fee", "landlords/property-count"],
-  "properties:read": ["properties/by-region", "properties/vacant-units", "properties/conditions"],
-  "complaints:read": ["complaints/list", "complaints/summary"],
+  "landlords:read": [
+    "landlords/registered", "landlords/unregistered-fee", "landlords/property-count",
+    "landlords/list", "landlords/detail",
+  ],
+  "properties:read": [
+    "properties/by-region", "properties/vacant-units", "properties/conditions",
+    "properties/list", "properties/detail",
+  ],
+  "complaints:read": ["complaints/list", "complaints/summary", "complaints/detail"],
   "stats:read": ["stats/overview", "stats/regional-breakdown", "stats/citizen-breakdown"],
   "identity:read": ["identity/kyc-stats", "identity/ghana-card-usage"],
 };
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+function maskPhone(p?: string | null) {
+  if (!p) return null;
+  const s = String(p);
+  return s.length < 6 ? "***" : s.slice(0, 3) + "****" + s.slice(-3);
+}
+function maskEmail(e?: string | null) {
+  if (!e) return null;
+  const [u, d] = String(e).split("@");
+  if (!d) return "***";
+  return (u?.[0] || "*") + "***@" + d;
+}
+function getClientIp(req: Request): string | null {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") || null;
+}
 
-  if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
-  }
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+
+  const startedAt = Date.now();
+  const ip = getClientIp(req);
+  const userAgent = req.headers.get("user-agent");
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  const logCtx: {
+    api_key_id?: string; agency_name?: string; endpoint?: string;
+    scope_used?: string; status_code: number; error_message?: string;
+    request_params?: unknown;
+  } = { status_code: 500 };
 
   try {
     const apiKey = req.headers.get("x-api-key");
     if (!apiKey) {
+      logCtx.status_code = 401; logCtx.error_message = "Missing X-API-Key";
       return jsonResponse({ error: "Missing X-API-Key header" }, 401);
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    // Validate API key
     const keyHash = await hashKey(apiKey);
-    const { data: keyRecord, error: keyError } = await supabase
-      .from("api_keys")
-      .select("*")
-      .eq("api_key_hash", keyHash)
-      .eq("is_active", true)
-      .maybeSingle();
+    const prefix = apiKey.slice(0, 16);
 
-    if (keyError || !keyRecord) {
+    let { data: keyRecord } = await supabase.from("api_keys").select("*")
+      .eq("key_prefix", prefix).eq("api_key_hash", keyHash).maybeSingle();
+    if (!keyRecord) {
+      const fb = await supabase.from("api_keys").select("*").eq("api_key_hash", keyHash).maybeSingle();
+      keyRecord = fb.data;
+    }
+    if (!keyRecord) {
+      logCtx.status_code = 403; logCtx.error_message = "Invalid key";
       return jsonResponse({ error: "Invalid or inactive API key" }, 403);
     }
 
-    // Update last_used_at
-    await supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", keyRecord.id);
+    logCtx.api_key_id = keyRecord.id;
+    logCtx.agency_name = keyRecord.agency_name;
 
-    const { endpoint, filters = {} } = await req.json();
+    if (!keyRecord.is_active || keyRecord.revoked_at) {
+      logCtx.status_code = 403; logCtx.error_message = "Revoked";
+      return jsonResponse({ error: "API key has been revoked" }, 403);
+    }
+    if (keyRecord.expires_at && new Date(keyRecord.expires_at) < new Date()) {
+      logCtx.status_code = 403; logCtx.error_message = "Expired";
+      return jsonResponse({ error: "API key has expired" }, 403);
+    }
+    if (Array.isArray(keyRecord.allowed_ip_cidrs) && keyRecord.allowed_ip_cidrs.length > 0) {
+      if (!ip || !keyRecord.allowed_ip_cidrs.includes(ip)) {
+        logCtx.status_code = 403; logCtx.error_message = `IP ${ip ?? "?"} blocked`;
+        return jsonResponse({ error: "Request IP not allowed for this key" }, 403);
+      }
+    }
+
+    const rl = Number(keyRecord.rate_limit_per_minute) || 60;
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const { count: recentCount } = await supabase.from("api_request_log")
+      .select("id", { count: "exact", head: true })
+      .eq("api_key_id", keyRecord.id).gte("created_at", since);
+    if ((recentCount ?? 0) >= rl) {
+      logCtx.status_code = 429; logCtx.error_message = `Rate limit ${rl}/min`;
+      return jsonResponse({ error: `Rate limit exceeded (${rl}/min)` }, 429);
+    }
+
+    const body = await req.json();
+    const { endpoint, filters = {} } = body || {};
+    logCtx.endpoint = endpoint;
+    logCtx.request_params = filters;
     if (!endpoint) {
+      logCtx.status_code = 400; logCtx.error_message = "Missing endpoint";
       return jsonResponse({ error: "Missing endpoint in request body" }, 400);
     }
 
-    // Check scope authorization
     const scopes: string[] = keyRecord.scopes || [];
-    const allowedEndpoints = scopes.flatMap((s: string) => SCOPE_MAP[s] || []);
-    if (!allowedEndpoints.includes(endpoint)) {
-      return jsonResponse({ error: `Endpoint '${endpoint}' not authorized for this API key. Authorized scopes: ${scopes.join(", ")}` }, 403);
+    const matchingScope = scopes.find((s) => (SCOPE_MAP[s] || []).includes(endpoint));
+    if (!matchingScope) {
+      logCtx.status_code = 403;
+      logCtx.error_message = `Not authorised: ${endpoint}`;
+      return jsonResponse({
+        error: `Endpoint '${endpoint}' not authorized. Authorized scopes: ${scopes.join(", ")}`,
+      }, 403);
     }
+    logCtx.scope_used = matchingScope;
+
+    await supabase.from("api_keys")
+      .update({ last_used_at: new Date().toISOString(), last_used_ip: ip })
+      .eq("id", keyRecord.id);
 
     const page = filters.page || 1;
     const limit = Math.min(filters.limit || 100, 500);
     const offset = (page - 1) * limit;
     const region = filters.region;
 
-    // Route to handler
-    const result = await handleEndpoint(supabase, endpoint, { ...filters, limit, offset, region });
-    return jsonResponse({ success: true, endpoint, agency: keyRecord.agency_name, data: result });
+    const result = await handleEndpoint(supabase, endpoint, {
+      ...filters, limit, offset, region,
+      _hasIdentityScope: scopes.includes("identity:read") && !!keyRecord.dsa_signed_at,
+    });
 
+    logCtx.status_code = 200;
+    return jsonResponse({ success: true, endpoint, agency: keyRecord.agency_name, data: result });
   } catch (error: unknown) {
     console.error("Agency API error:", error);
     const msg = error instanceof Error ? error.message : "Unknown error";
+    logCtx.error_message = msg;
     return jsonResponse({ error: msg }, 500);
+  } finally {
+    try {
+      await supabase.from("api_request_log").insert({
+        api_key_id: logCtx.api_key_id ?? null,
+        agency_name: logCtx.agency_name ?? null,
+        endpoint: logCtx.endpoint ?? "(unknown)",
+        scope_used: logCtx.scope_used ?? null,
+        method: "POST",
+        status_code: logCtx.status_code,
+        response_ms: Date.now() - startedAt,
+        ip,
+        user_agent: userAgent,
+        request_params: logCtx.request_params ?? null,
+        error_message: logCtx.error_message ?? null,
+      });
+    } catch (e) { console.error("log insert failed:", e); }
   }
 });
 
