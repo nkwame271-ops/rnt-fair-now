@@ -559,6 +559,31 @@ const DeclareExistingTenancy = () => {
         </div>
       </div>
 
+      {orphanPaidBundles.length > 0 && step !== "done" && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-5 w-5 text-amber-700 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-semibold text-amber-900">
+                You have {orphanPaidBundles.length} paid declaration{orphanPaidBundles.length > 1 ? "s" : ""} awaiting setup
+              </div>
+              <p className="text-amber-800 mt-1">
+                Payment was received but the tenancy wasn't fully created (likely interrupted browser session).
+                Fill in the form below as usual — <strong>you will not be charged again</strong>; the system will reuse your existing payment.
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-amber-900">
+                {orphanPaidBundles.slice(0, 5).map((b) => (
+                  <li key={b.id} className="font-mono">
+                    GHS {Number(b.total_amount).toLocaleString()} · {new Date(b.created_at).toLocaleString()} · {b.reference}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       <div className="flex items-center gap-2 text-xs font-medium flex-wrap">
         {["Select Units", "Tenant & Terms", "Review & Pay"].map((s, i) => {
           const steps: Step[] = ["select-units", "tenant-details", "review"];
