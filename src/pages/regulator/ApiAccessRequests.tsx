@@ -60,24 +60,19 @@ export default function ApiAccessRequests() {
         .eq("id", r.id);
       if (error) throw error;
 
-      // Audit log
+      // Audit log (best-effort; regulator role can insert per policy)
       await supabase.from("admin_audit_log" as any).insert({
-        actor_user_id: user?.id ?? null,
+        admin_user_id: user?.id ?? null,
         action: `api_access_request_${action}`,
         target_type: "api_access_request",
         target_id: r.id,
-        metadata: { org_id: r.org_id, scopes: r.requested_scopes, notes: note || null },
+        reason: note || `Decision: ${action}`,
+        new_state: { status: action, org_id: r.org_id, scopes: r.requested_scopes },
       });
 
-      // In-app notification to the requesting user (best-effort)
-      if (r.created_by) {
-        await supabase.from("notifications" as any).insert({
-          user_id: r.created_by,
-          type: "api_access",
-          title: `Live API access ${action === "approved" ? "approved" : action === "denied" ? "denied" : "needs changes"}`,
-          message: note || (action === "approved" ? "Your live key will appear in the dashboard shortly." : "See the dashboard for details."),
-        });
-      }
+      // Note: in-app notification + email are dispatched server-side by the
+      // agency-api-admin edge function on the next sweep (it watches
+      // api_access_requests for status changes where notified_at IS NULL).
 
       toast.success(`Request ${action.replace("_", " ")}`);
       qc.invalidateQueries({ queryKey: ["regulator-access-requests"] });
