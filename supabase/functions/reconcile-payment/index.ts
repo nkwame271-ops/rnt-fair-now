@@ -170,6 +170,47 @@ Deno.serve(async (req) => {
       throw new Error("No platform transaction found for this Paystack reference. The user may not have initiated the checkout against this app.");
     }
 
+    // 2b. IDEMPOTENCY — if this Paystack reference has already been fulfilled/reconciled,
+    //     block any further reconciliation. One payment = one reconciliation = one ledger = one receipt.
+    const { data: priorFulfillment } = await supabaseAdmin
+      .from("payment_fulfillments")
+      .select("id, fulfillment_status, fulfilled_at, fulfilled_via, officer_id, receipt_id, metadata")
+      .eq("paystack_reference", reference)
+      .in("fulfillment_status", ["fulfilled", "completed", "manually_reconciled", "success"])
+      .maybeSingle();
+
+    if (priorFulfillment) {
+      const { data: priorReceipt } = await supabaseAdmin
+        .from("payment_receipts")
+        .select("id, receipt_number")
+        .or(`platform_reference.eq.${reference},paystack_reference.eq.${reference}`)
+        .maybeSingle();
+
+      await audit({
+        actor_type: "admin",
+        actor_id: user.id,
+        action: "idempotent_skip",
+        paystack_reference: reference,
+        platform_reference: escrow.reference,
+        payment_fulfillment_id: priorFulfillment.id,
+        office_id: escrow.office_id || null,
+        service_type: escrow.payment_type,
+        old_status: escrow.status,
+        new_status: priorFulfillment.fulfillment_status,
+        amount: amountPaid,
+        failure_reason: "Transaction already reconciled — idempotency block",
+        notes,
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        already_reconciled: true,
+        message: "This transaction has already been reconciled. No further reconciliation is allowed.",
+        fulfillment: priorFulfillment,
+        receipt: priorReceipt || null,
+      }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // 3. Run shared finalize pipeline (idempotent)
     const result = await finalizePayment({
       supabaseAdmin,
