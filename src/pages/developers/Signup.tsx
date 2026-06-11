@@ -184,6 +184,7 @@ export default function DeveloperSignup() {
             </form>
           </CardContent>
         </Card>
+        )}
       </main>
     </div>
   );
