@@ -215,6 +215,7 @@ const EMAIL_TEMPLATES: Record<string, (d: Record<string, string>) => { subject: 
       </table>
       <p style="white-space:pre-wrap;border-left:3px solid #2d7a4f;padding:8px 12px;background:#f7faf8;">${d.message || ""}</p>
     `),
+  }),
   developer_account_created: (d) => ({
     subject: "Your developer account is ready — RentControlGhana",
     html: emailLayout(`
