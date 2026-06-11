@@ -85,6 +85,7 @@ const DeclareExistingTenancy = () => {
   const [bands, setBands] = useState<{ min_rent: number; max_rent: number | null; register_fee: number; filing_fee: number; agreement_fee: number }[]>([]);
   const [paymentSettings, setPaymentSettings] = useState<any | null>(null);
   const [batchResult, setBatchResult] = useState<{ created: { code: string; unit: string }[]; failed: { unit: string; error: string }[] } | null>(null);
+  const [pendingAutoSubmit, setPendingAutoSubmit] = useState(false);
 
 
   const property = properties.find(p => p.id === selectedPropertyId);
@@ -146,7 +147,7 @@ const DeclareExistingTenancy = () => {
             setSelectedPropertyId(data.selectedPropertyId || "");
             setDrafts(data.drafts || []);
             setStep("review");
-            setTimeout(() => handleSubmitBatch(true), 600);
+            setPendingAutoSubmit(true);
           } catch { /* ignore */ }
           sessionStorage.removeItem(SESSION_KEY);
         } else {
@@ -156,6 +157,17 @@ const DeclareExistingTenancy = () => {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Once the restored property + drafts are present in state, auto-run the batch
+  // submission. This avoids the stale-closure trap from calling handleSubmitBatch
+  // directly inside the loader effect (where drafts/property were still empty).
+  useEffect(() => {
+    if (!pendingAutoSubmit) return;
+    if (!user || !property || drafts.length === 0) return;
+    setPendingAutoSubmit(false);
+    handleSubmitBatch(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAutoSubmit, user, property, drafts]);
 
   // Fallback: if user wasn't ready when redirect landed, stash the flag so the
   // loader effect above resumes once user resolves.
