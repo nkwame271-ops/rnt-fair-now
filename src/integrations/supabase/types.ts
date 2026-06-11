@@ -190,6 +190,88 @@ export type Database = {
         }
         Relationships: []
       }
+      api_access_requests: {
+        Row: {
+          agency_type: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string
+          id: string
+          intended_volume_monthly: number | null
+          issued_api_key_id: string | null
+          justification: string | null
+          org_id: string
+          requested_environment: string
+          requested_scopes: string[]
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          agency_type?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          intended_volume_monthly?: number | null
+          issued_api_key_id?: string | null
+          justification?: string | null
+          org_id: string
+          requested_environment?: string
+          requested_scopes?: string[]
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          agency_type?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          intended_volume_monthly?: number | null
+          issued_api_key_id?: string | null
+          justification?: string | null
+          org_id?: string
+          requested_environment?: string
+          requested_scopes?: string[]
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_access_requests_issued_api_key_id_fkey"
+            columns: ["issued_api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_access_requests_issued_api_key_id_fkey"
+            columns: ["issued_api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys_developer_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_access_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "developer_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_dsa_versions: {
         Row: {
           body_markdown: string
@@ -259,6 +341,13 @@ export type Database = {
             referencedRelation: "api_keys"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "api_idempotency_keys_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys_developer_view"
+            referencedColumns: ["id"]
+          },
         ]
       }
       api_invoices: {
@@ -316,6 +405,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "api_invoices_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys_developer_view"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "api_invoices_subscription_id_fkey"
             columns: ["subscription_id"]
             isOneToOne: false
@@ -347,6 +443,7 @@ export type Database = {
           last_used_at: string | null
           last_used_ip: unknown
           notes: string | null
+          organization_id: string | null
           pinned_version: string | null
           previous_key_expires_at: string | null
           previous_key_hash: string | null
@@ -378,6 +475,7 @@ export type Database = {
           last_used_at?: string | null
           last_used_ip?: unknown
           notes?: string | null
+          organization_id?: string | null
           pinned_version?: string | null
           previous_key_expires_at?: string | null
           previous_key_hash?: string | null
@@ -409,6 +507,7 @@ export type Database = {
           last_used_at?: string | null
           last_used_ip?: unknown
           notes?: string | null
+          organization_id?: string | null
           pinned_version?: string | null
           previous_key_expires_at?: string | null
           previous_key_hash?: string | null
@@ -418,7 +517,15 @@ export type Database = {
           revoked_by?: string | null
           scopes?: string[]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "api_keys_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "developer_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       api_pricing_plans: {
         Row: {
@@ -537,6 +644,13 @@ export type Database = {
             referencedRelation: "api_keys"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "api_request_log_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys_developer_view"
+            referencedColumns: ["id"]
+          },
         ]
       }
       api_scopes: {
@@ -624,6 +738,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "api_subscriptions_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys_developer_view"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "api_subscriptions_plan_id_fkey"
             columns: ["plan_id"]
             isOneToOne: false
@@ -675,6 +796,13 @@ export type Database = {
             columns: ["api_key_id"]
             isOneToOne: false
             referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_usage_counters_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys_developer_view"
             referencedColumns: ["id"]
           },
         ]
@@ -784,6 +912,13 @@ export type Database = {
             columns: ["api_key_id"]
             isOneToOne: false
             referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_webhook_endpoints_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys_developer_view"
             referencedColumns: ["id"]
           },
         ]
@@ -2218,6 +2353,83 @@ export type Database = {
           spoilt_today?: number
           staff_name?: string
           staff_user_id?: string
+        }
+        Relationships: []
+      }
+      developer_org_members: {
+        Row: {
+          created_at: string
+          id: string
+          member_role: string
+          org_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_role?: string
+          org_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_role?: string
+          org_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "developer_org_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "developer_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      developer_organizations: {
+        Row: {
+          agency_type: string | null
+          contact_email: string
+          contact_phone: string | null
+          created_at: string
+          dsa_signed_at: string | null
+          dsa_version_accepted: string | null
+          id: string
+          intended_use_case: string | null
+          name: string
+          owner_user_id: string
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          agency_type?: string | null
+          contact_email: string
+          contact_phone?: string | null
+          created_at?: string
+          dsa_signed_at?: string | null
+          dsa_version_accepted?: string | null
+          id?: string
+          intended_use_case?: string | null
+          name: string
+          owner_user_id: string
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          agency_type?: string | null
+          contact_email?: string
+          contact_phone?: string | null
+          created_at?: string
+          dsa_signed_at?: string | null
+          dsa_version_accepted?: string | null
+          id?: string
+          intended_use_case?: string | null
+          name?: string
+          owner_user_id?: string
+          updated_at?: string
+          website_url?: string | null
         }
         Relationships: []
       }
@@ -7915,6 +8127,86 @@ export type Database = {
       }
     }
     Views: {
+      api_keys_developer_view: {
+        Row: {
+          agency_name: string | null
+          allowed_ip_cidrs: string[] | null
+          billing_override: string | null
+          created_at: string | null
+          current_plan_id: string | null
+          dsa_signed_at: string | null
+          dsa_version_accepted: string | null
+          environment: string | null
+          expires_at: string | null
+          id: string | null
+          is_active: boolean | null
+          key_prefix: string | null
+          last_used_at: string | null
+          last_used_ip: unknown
+          organization_id: string | null
+          pinned_version: string | null
+          previous_key_expires_at: string | null
+          rate_limit_per_minute: number | null
+          revoke_reason: string | null
+          revoked_at: string | null
+          scopes: string[] | null
+        }
+        Insert: {
+          agency_name?: string | null
+          allowed_ip_cidrs?: string[] | null
+          billing_override?: string | null
+          created_at?: string | null
+          current_plan_id?: string | null
+          dsa_signed_at?: string | null
+          dsa_version_accepted?: string | null
+          environment?: string | null
+          expires_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          key_prefix?: string | null
+          last_used_at?: string | null
+          last_used_ip?: unknown
+          organization_id?: string | null
+          pinned_version?: string | null
+          previous_key_expires_at?: string | null
+          rate_limit_per_minute?: number | null
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          scopes?: string[] | null
+        }
+        Update: {
+          agency_name?: string | null
+          allowed_ip_cidrs?: string[] | null
+          billing_override?: string | null
+          created_at?: string | null
+          current_plan_id?: string | null
+          dsa_signed_at?: string | null
+          dsa_version_accepted?: string | null
+          environment?: string | null
+          expires_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          key_prefix?: string | null
+          last_used_at?: string | null
+          last_used_ip?: unknown
+          organization_id?: string | null
+          pinned_version?: string | null
+          previous_key_expires_at?: string | null
+          rate_limit_per_minute?: number | null
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          scopes?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_keys_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "developer_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mv_global_dashboard_stats: {
         Row: {
           active_tenancies: number | null
@@ -8112,6 +8404,25 @@ export type Database = {
         Returns: boolean
       }
       detect_receipt_drift: { Args: never; Returns: Json }
+      developer_provision_sandbox_key: {
+        Args: never
+        Returns: {
+          api_key: string
+          key_id: string
+          key_prefix: string
+        }[]
+      }
+      developer_revoke_api_key: {
+        Args: { p_key_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      developer_rotate_api_key: {
+        Args: { p_key_id: string }
+        Returns: {
+          api_key: string
+          key_prefix: string
+        }[]
+      }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
@@ -8272,9 +8583,13 @@ export type Database = {
         }
         Returns: Json
       }
+      user_in_developer_org: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      app_role: "tenant" | "landlord" | "regulator" | "nugs_admin"
+      app_role: "tenant" | "landlord" | "regulator" | "nugs_admin" | "developer"
       issue_service:
         | "rent_card"
         | "complaint"
@@ -8483,7 +8798,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["tenant", "landlord", "regulator", "nugs_admin"],
+      app_role: ["tenant", "landlord", "regulator", "nugs_admin", "developer"],
       issue_service: [
         "rent_card",
         "complaint",
