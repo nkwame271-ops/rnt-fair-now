@@ -112,8 +112,31 @@ const DeveloperUsage = lazy(() => import("./pages/developers/dashboard/Usage"));
 const DeveloperBilling = lazy(() => import("./pages/developers/dashboard/Billing"));
 const DeveloperDocsPage = lazy(() => import("./pages/developers/dashboard/Docs"));
 const DeveloperSettings = lazy(() => import("./pages/developers/dashboard/Settings"));
+const DeveloperRequestStatus = lazy(() => import("./pages/developers/dashboard/RequestStatus"));
 const RequestAccess = lazy(() => import("./pages/developers/RequestAccess"));
 const DeveloperRoute = lazy(() => import("./components/developers/DeveloperRoute"));
+// Public docs site
+const DocsIntroduction = lazy(() => import("./pages/developers/docs/Introduction"));
+const DocsQuickstart = lazy(() => import("./pages/developers/docs/Quickstart"));
+const DocsAuth = lazy(() => import("./pages/developers/docs/Auth"));
+const DocsEnvironments = lazy(() => import("./pages/developers/docs/Environments"));
+const DocsRateLimits = lazy(() => import("./pages/developers/docs/RateLimits"));
+const DocsErrors = lazy(() => import("./pages/developers/docs/Errors"));
+const DocsTutVerifyLandlord = lazy(() => import("./pages/developers/docs/tutorials/VerifyLandlord"));
+const DocsTutCheckTenancy = lazy(() => import("./pages/developers/docs/tutorials/CheckTenancy"));
+const DocsTutLookupProperty = lazy(() => import("./pages/developers/docs/tutorials/LookupProperty"));
+const DocsTutWebhooks = lazy(() => import("./pages/developers/docs/tutorials/Webhooks"));
+const DocsTutPagination = lazy(() => import("./pages/developers/docs/tutorials/Pagination"));
+const DocsTutRetries = lazy(() => import("./pages/developers/docs/tutorials/Retries"));
+const DocsRefLandlords = lazy(() => import("./pages/developers/docs/reference/Landlords"));
+const DocsRefTenants = lazy(() => import("./pages/developers/docs/reference/Tenants"));
+const DocsRefProperties = lazy(() => import("./pages/developers/docs/reference/Properties"));
+const DocsRefComplaints = lazy(() => import("./pages/developers/docs/reference/Complaints"));
+const DocsRefWebhookEvents = lazy(() => import("./pages/developers/docs/reference/WebhookEvents"));
+const DocsGoLive = lazy(() => import("./pages/developers/docs/GoLive"));
+const DocsDSA = lazy(() => import("./pages/developers/docs/DSA"));
+const DocsPricing = lazy(() => import("./pages/developers/docs/Pricing"));
+const DocsSupport = lazy(() => import("./pages/developers/docs/Support"));
 const EngineRoom = lazy(() => import("./pages/regulator/EngineRoom"));
 const RegulatorRentAssessments = lazy(() => import("./pages/regulator/RegulatorRentAssessments"));
 const RegulatorApplications = lazy(() => import("./pages/regulator/RegulatorApplications"));
@@ -197,10 +220,33 @@ const App = () => (
               <Route path="/developers" element={<DevelopersLanding />} />
               <Route path="/developers/signup" element={<DeveloperSignup />} />
               <Route path="/developers/login" element={<DeveloperLogin />} />
+              {/* Public step-by-step docs */}
+              <Route path="/developers/docs" element={<DocsIntroduction />} />
+              <Route path="/developers/docs/quickstart" element={<DocsQuickstart />} />
+              <Route path="/developers/docs/auth" element={<DocsAuth />} />
+              <Route path="/developers/docs/environments" element={<DocsEnvironments />} />
+              <Route path="/developers/docs/rate-limits" element={<DocsRateLimits />} />
+              <Route path="/developers/docs/errors" element={<DocsErrors />} />
+              <Route path="/developers/docs/tutorials/verify-landlord" element={<DocsTutVerifyLandlord />} />
+              <Route path="/developers/docs/tutorials/check-tenancy" element={<DocsTutCheckTenancy />} />
+              <Route path="/developers/docs/tutorials/lookup-property" element={<DocsTutLookupProperty />} />
+              <Route path="/developers/docs/tutorials/webhooks" element={<DocsTutWebhooks />} />
+              <Route path="/developers/docs/tutorials/pagination" element={<DocsTutPagination />} />
+              <Route path="/developers/docs/tutorials/retries" element={<DocsTutRetries />} />
+              <Route path="/developers/docs/reference/landlords" element={<DocsRefLandlords />} />
+              <Route path="/developers/docs/reference/tenants" element={<DocsRefTenants />} />
+              <Route path="/developers/docs/reference/properties" element={<DocsRefProperties />} />
+              <Route path="/developers/docs/reference/complaints" element={<DocsRefComplaints />} />
+              <Route path="/developers/docs/reference/webhooks" element={<DocsRefWebhookEvents />} />
+              <Route path="/developers/docs/go-live" element={<DocsGoLive />} />
+              <Route path="/developers/docs/dsa" element={<DocsDSA />} />
+              <Route path="/developers/docs/pricing" element={<DocsPricing />} />
+              <Route path="/developers/docs/support" element={<DocsSupport />} />
               <Route path="/developers/request-access" element={<DeveloperRoute><RequestAccess /></DeveloperRoute>} />
               <Route path="/developers/dashboard" element={<DeveloperRoute><DeveloperDashboardLayout /></DeveloperRoute>}>
                 <Route index element={<DeveloperOverview />} />
                 <Route path="keys" element={<DeveloperKeys />} />
+                <Route path="request-status" element={<DeveloperRequestStatus />} />
                 <Route path="sandbox" element={<DeveloperSandbox />} />
                 <Route path="webhooks" element={<DeveloperWebhooks />} />
                 <Route path="usage" element={<DeveloperUsage />} />
