@@ -99,6 +99,20 @@ const RegulatorSupportChats = lazy(() => import("./pages/regulator/RegulatorSupp
 const AgencyApiKeys = lazy(() => import("./pages/regulator/AgencyApiKeys"));
 const PublicApiDocs = lazy(() => import("./pages/developers/ApiDocs"));
 const PublicApiPricing = lazy(() => import("./pages/developers/ApiPricing"));
+const DevelopersLanding = lazy(() => import("./pages/developers/Landing"));
+const DeveloperSignup = lazy(() => import("./pages/developers/Signup"));
+const DeveloperLogin = lazy(() => import("./pages/developers/Login"));
+const DeveloperDashboardLayout = lazy(() => import("./pages/developers/dashboard/DashboardLayout"));
+const DeveloperOverview = lazy(() => import("./pages/developers/dashboard/Overview"));
+const DeveloperKeys = lazy(() => import("./pages/developers/dashboard/Keys"));
+const DeveloperSandbox = lazy(() => import("./pages/developers/dashboard/Sandbox"));
+const DeveloperWebhooks = lazy(() => import("./pages/developers/dashboard/Webhooks"));
+const DeveloperUsage = lazy(() => import("./pages/developers/dashboard/Usage"));
+const DeveloperBilling = lazy(() => import("./pages/developers/dashboard/Billing"));
+const DeveloperDocsPage = lazy(() => import("./pages/developers/dashboard/Docs"));
+const DeveloperSettings = lazy(() => import("./pages/developers/dashboard/Settings"));
+const RequestAccess = lazy(() => import("./pages/developers/RequestAccess"));
+const DeveloperRoute = lazy(() => import("./components/developers/DeveloperRoute"));
 const EngineRoom = lazy(() => import("./pages/regulator/EngineRoom"));
 const RegulatorRentAssessments = lazy(() => import("./pages/regulator/RegulatorRentAssessments"));
 const RegulatorApplications = lazy(() => import("./pages/regulator/RegulatorApplications"));
@@ -179,6 +193,21 @@ const App = () => (
               <Route path="/verify/form/:code" element={<VerifyForm />} />
               <Route path="/developers/api" element={<PublicApiDocs />} />
               <Route path="/developers/api/pricing" element={<PublicApiPricing />} />
+              <Route path="/developers" element={<DevelopersLanding />} />
+              <Route path="/developers/signup" element={<DeveloperSignup />} />
+              <Route path="/developers/login" element={<DeveloperLogin />} />
+              <Route path="/developers/request-access" element={<DeveloperRoute><RequestAccess /></DeveloperRoute>} />
+              <Route path="/developers/dashboard" element={<DeveloperRoute><DeveloperDashboardLayout /></DeveloperRoute>}>
+                <Route index element={<DeveloperOverview />} />
+                <Route path="keys" element={<DeveloperKeys />} />
+                <Route path="sandbox" element={<DeveloperSandbox />} />
+                <Route path="webhooks" element={<DeveloperWebhooks />} />
+                <Route path="usage" element={<DeveloperUsage />} />
+                <Route path="billing" element={<DeveloperBilling />} />
+                <Route path="docs" element={<DeveloperDocsPage />} />
+                <Route path="settings" element={<DeveloperSettings />} />
+              </Route>
+
 
               {/* Tenant Routes */}
               <Route path="/tenant" element={<ProtectedRoute requiredRole="tenant"><TenantLayout /></ProtectedRoute>}>
