@@ -2396,6 +2396,7 @@ export type Database = {
       }
       developer_organizations: {
         Row: {
+          account_status: string
           agency_type: string | null
           contact_email: string
           contact_phone: string | null
@@ -2406,10 +2407,14 @@ export type Database = {
           intended_use_case: string | null
           name: string
           owner_user_id: string
+          status_changed_at: string | null
+          status_changed_by: string | null
+          status_reason: string | null
           updated_at: string
           website_url: string | null
         }
         Insert: {
+          account_status?: string
           agency_type?: string | null
           contact_email: string
           contact_phone?: string | null
@@ -2420,10 +2425,14 @@ export type Database = {
           intended_use_case?: string | null
           name: string
           owner_user_id: string
+          status_changed_at?: string | null
+          status_changed_by?: string | null
+          status_reason?: string | null
           updated_at?: string
           website_url?: string | null
         }
         Update: {
+          account_status?: string
           agency_type?: string | null
           contact_email?: string
           contact_phone?: string | null
@@ -2434,6 +2443,9 @@ export type Database = {
           intended_use_case?: string | null
           name?: string
           owner_user_id?: string
+          status_changed_at?: string | null
+          status_changed_by?: string | null
+          status_reason?: string | null
           updated_at?: string
           website_url?: string | null
         }
@@ -8541,6 +8553,10 @@ export type Database = {
         Returns: Json
       }
       refresh_dashboard_stats: { Args: never; Returns: undefined }
+      regulator_set_developer_org_status: {
+        Args: { p_org_id: string; p_reason?: string; p_status: string }
+        Returns: Json
+      }
       rentcare_admin_update: {
         Args: {
           p_application_id: string
