@@ -121,6 +121,7 @@ function expandSecondarySplit(
         office_id: officeId,
         release_mode: "auto",
         complaint_basket_item_id: item.complaint_basket_item_id ?? null,
+        is_service_fee: false,
       }];
     }
     // Admin legacy path
@@ -134,6 +135,7 @@ function expandSecondarySplit(
       office_id: isDeferredOffice ? null : officeId,
       release_mode: officeReleaseMode,
       complaint_basket_item_id: item.complaint_basket_item_id ?? null,
+      is_service_fee: false,
     }];
   }
 
@@ -152,6 +154,7 @@ function expandSecondarySplit(
       office_id: (parentRecipient === "admin" && isDeferredOffice) ? null : officeId,
       release_mode: officeReleaseMode,
       complaint_basket_item_id: item.complaint_basket_item_id ?? null,
+      is_service_fee: false,
     });
   }
 
@@ -168,6 +171,7 @@ function expandSecondarySplit(
       office_id: null,
       release_mode: "auto",
       complaint_basket_item_id: item.complaint_basket_item_id ?? null,
+      is_service_fee: false,
     });
   }
 
