@@ -495,14 +495,44 @@ const MyAgreements = () => {
             ))}
           </div>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            {(t.agreement_pdf_url || t.final_agreement_pdf_url) && (
-              <Button
-                variant="outline"
-                onClick={() => openSignedStorageUrl((t.final_agreement_pdf_url || t.agreement_pdf_url) as string)}
-              >
-                <Download className="h-4 w-4 mr-1" /> Download Agreement
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const { downloadTenancyAgreement } = await import("@/lib/getActiveAgreementTemplate");
+                  await downloadTenancyAgreement(t.id, "draft");
+                } catch (e: any) {
+                  const fallback = t.final_agreement_pdf_url || t.agreement_pdf_url;
+                  if (fallback) await openSignedStorageUrl(fallback);
+                  else toast.error(e.message || "Could not generate agreement");
+                }
+              }}
+            >
+              <Download className="h-4 w-4 mr-1" /> Download Draft Agreement
+            </Button>
+            <Button
+              variant="default"
+              onClick={async () => {
+                try {
+                  const { downloadTenancyAgreement, FinalAgreementNotReadyError } = await import("@/lib/getActiveAgreementTemplate");
+                  try {
+                    await downloadTenancyAgreement(t.id, "final");
+                  } catch (e: any) {
+                    if (e instanceof FinalAgreementNotReadyError) {
+                      toast.info(e.message);
+                    } else if (t.final_agreement_pdf_url) {
+                      await openSignedStorageUrl(t.final_agreement_pdf_url);
+                    } else {
+                      toast.error(e.message || "Could not generate final agreement");
+                    }
+                  }
+                } catch (e: any) {
+                  toast.error(e.message || "Could not generate final agreement");
+                }
+              }}
+            >
+              <Download className="h-4 w-4 mr-1" /> Download Final Agreement
+            </Button>
             <Button
               variant="destructive"
               onClick={() => handleReject(t.id)}

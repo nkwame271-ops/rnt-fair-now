@@ -215,7 +215,7 @@ export async function generateStatutoryForm(
   const nextVersion = (existing?.[0]?.version_number || 0) + 1;
   const path = await uploadPdf(caseId, code, nextVersion, blob);
   // Persist the original formData (without qr_data_url payload bloat) plus verification metadata
-  return insertDoc(
+  const result = await insertDoc(
     caseId,
     formType,
     opts.title || defaultTitle,
@@ -225,6 +225,82 @@ export async function generateStatutoryForm(
     opts.metadata || {},
     verificationCode
   );
+
+  // Form 33 = summons. Fire SMS to every respondent on EVERY generation path
+  // (editor dialog, autogenerate helper, future callers). Fire-and-forget so PDF
+  // generation never blocks on telecoms.
+  if (formType === "form_33") {
+    try {
+      await dispatchForm33Sms(caseId, formData as Form33Data, opts.metadata?.hearing);
+    } catch (e) {
+      console.warn("Form 33 SMS dispatch failed (non-blocking)", e);
+    }
+  }
+  return result;
+}
+
+async function dispatchForm33Sms(
+  caseId: string,
+  formData: Form33Data,
+  hearing?: { scheduled_at?: string; venue?: string }
+) {
+  // Resolve respondent phones from the underlying complaint
+  const { data: complaint } = await supabase
+    .from("complaints")
+    .select("id, complaint_code, ticket_number, case_number, respondents, placeholder_respondent_phone")
+    .eq("id", caseId)
+    .maybeSingle();
+  let respondents: any[] = Array.isArray((complaint as any)?.respondents) ? (complaint as any).respondents : [];
+  let fallbackPhone: string | null = (complaint as any)?.placeholder_respondent_phone || null;
+  let ref: string = (complaint as any)?.complaint_code
+    || (complaint as any)?.case_number
+    || (formData as any)?.case_number
+    || caseId.slice(0, 8);
+
+  // Fallback: look up via landlord_complaints if this isn't a tenant complaint
+  if (!complaint) {
+    const { data: lc } = await supabase
+      .from("landlord_complaints")
+      .select("id, complaint_code, case_number, respondents, placeholder_respondent_phone")
+      .eq("id", caseId)
+      .maybeSingle();
+    respondents = Array.isArray((lc as any)?.respondents) ? (lc as any).respondents : [];
+    fallbackPhone = (lc as any)?.placeholder_respondent_phone || null;
+    ref = (lc as any)?.complaint_code || (lc as any)?.case_number || ref;
+  }
+
+  const phones: string[] = respondents.map((r: any) => r?.phone).filter(Boolean);
+  const targets = phones.length ? phones : (fallbackPhone ? [fallbackPhone] : []);
+  if (!targets.length) return;
+
+  const whenIso = hearing?.scheduled_at || (formData as any)?.hearing_date_time;
+  const when = whenIso
+    ? new Date(whenIso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
+    : "TBA";
+  const venue = hearing?.venue || (formData as any)?.hearing_venue || (formData as any)?.issued_office || "Rent Control";
+  const message = `Rent Control: You have been summoned for Case ${ref}. Hearing: ${when} at ${venue}. Visit Rent Control to confirm or respond.`;
+
+  const sent: string[] = [];
+  for (const to of targets) {
+    try {
+      await supabase.functions.invoke("send-sms", { body: { to, message } });
+      sent.push(to);
+    } catch (e) {
+      console.warn("Form 33 SMS send-sms invoke failed", to, e);
+    }
+  }
+
+  // Best-effort audit
+  try {
+    const { data: auth } = await supabase.auth.getUser();
+    await supabase.from("admin_audit_log").insert({
+      actor_user_id: auth.user?.id || null,
+      action: "form33_sms_sent",
+      entity_type: "complaint",
+      entity_id: caseId,
+      metadata: { reference: ref, recipients: sent, when: whenIso || null, venue } as any,
+    } as any);
+  } catch { /* audit failures are non-fatal */ }
 }
 
 /* ---- Backwards-compatible helpers used by older call sites ---- */
@@ -260,25 +336,7 @@ export async function generateForm33Draft(
   const office = await officeName(complaint.office_id);
   const data = prefillForm33({ ...complaint, case_number: caseNumber || complaint.case_number }, office, hearing);
   const result = await generateStatutoryForm(caseId, "form_33", data, { metadata: { hearing } });
-
-  // Fire-and-forget SMS to respondent (summons notice)
-  try {
-    const respondents: any[] = Array.isArray(complaint.respondents) ? complaint.respondents : [];
-    const phones = respondents.map(r => r?.phone).filter(Boolean);
-    const fallback = complaint.placeholder_respondent_phone;
-    const targets = phones.length ? phones : (fallback ? [fallback] : []);
-    if (targets.length) {
-      const ref = complaint.complaint_code || caseNumber || caseId.slice(0, 8);
-      const when = hearing.scheduled_at ? new Date(hearing.scheduled_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "TBA";
-      const venue = hearing.venue || office;
-      const message = `Rent Control: You have been summoned for Case ${ref}. Hearing: ${when} at ${venue}. Reply or visit Rent Control to confirm.`;
-      for (const to of targets) {
-        supabase.functions.invoke("send-sms", { body: { to, message } }).catch(() => {});
-      }
-    }
-  } catch (e) {
-    console.warn("Form 33 SMS dispatch failed", e);
-  }
-
+  // SMS to respondent is dispatched centrally inside generateStatutoryForm
+  // for every form_33 generation path (no duplicate send here).
   return { case_number: caseNumber, documents: [result] };
 }

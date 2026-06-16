@@ -121,6 +121,7 @@ function expandSecondarySplit(
         office_id: officeId,
         release_mode: "auto",
         complaint_basket_item_id: item.complaint_basket_item_id ?? null,
+        is_service_fee: false,
       }];
     }
     // Admin legacy path
@@ -134,6 +135,7 @@ function expandSecondarySplit(
       office_id: isDeferredOffice ? null : officeId,
       release_mode: officeReleaseMode,
       complaint_basket_item_id: item.complaint_basket_item_id ?? null,
+      is_service_fee: false,
     }];
   }
 
@@ -152,6 +154,7 @@ function expandSecondarySplit(
       office_id: (parentRecipient === "admin" && isDeferredOffice) ? null : officeId,
       release_mode: officeReleaseMode,
       complaint_basket_item_id: item.complaint_basket_item_id ?? null,
+      is_service_fee: false,
     });
   }
 
@@ -168,6 +171,7 @@ function expandSecondarySplit(
       office_id: null,
       release_mode: "auto",
       complaint_basket_item_id: item.complaint_basket_item_id ?? null,
+      is_service_fee: false,
     });
   }
 
@@ -440,12 +444,46 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       payout_readiness: (r.recipient === "admin" && !r.office_id) ? "unassigned" : "pending",
     }));
 
-    const { data: inserted } = await supabaseAdmin
+    const { data: inserted, error: splitsInsertErr } = await supabaseAdmin
       .from("escrow_splits")
       .insert(splitRowsWithStatus)
       .select("id, recipient, amount, disbursement_status, payout_readiness");
 
-    splits = inserted || [];
+    if (splitsInsertErr) {
+      // Silent-failure guard: ledger MUST post. Log critically and fall back to per-row inserts
+      // so a single bad row never zeros the entire ledger entry (the bug that hid registration
+      // revenue in Escrow & Revenue / Internal Ledger / Receipts).
+      await logError({
+        escrow_transaction_id: escrowId,
+        reference,
+        error_stage: "escrow_splits_insert",
+        error_message: `bulk insert failed: ${splitsInsertErr.message} | attempted ${splitRowsWithStatus.length} rows`,
+        severity: "critical",
+      });
+      const fallback: any[] = [];
+      for (const row of splitRowsWithStatus) {
+        const { data: oneRow, error: oneErr } = await supabaseAdmin
+          .from("escrow_splits")
+          .insert(row)
+          .select("id, recipient, amount, disbursement_status, payout_readiness")
+          .single();
+        if (oneErr) {
+          await logError({
+            escrow_transaction_id: escrowId,
+            reference,
+            error_stage: "escrow_splits_insert_row",
+            error_message: `${oneErr.message} | recipient=${row.recipient} amount=${row.amount}`,
+            severity: "critical",
+          });
+        } else if (oneRow) {
+          fallback.push(oneRow);
+        }
+      }
+      splits = fallback;
+    } else {
+      splits = inserted || [];
+    }
+
 
     // Auto-release office fund request if needed — only for the office share
     if (autoRelease && officeId) {

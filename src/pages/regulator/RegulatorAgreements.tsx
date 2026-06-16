@@ -208,9 +208,27 @@ const RegulatorAgreements = () => {
   const renderActionButtons = (a: any, widthClass: string) => {
     const compactButtonClass = "h-7 px-1.5 text-[9px] whitespace-nowrap shrink-0";
     const isExisting = a.tenancy_type === "existing_migration";
-    const showDraft = isExisting && a.agreement_pdf_url && !a.final_agreement_pdf_url;
-    const showFinal = !!a.final_agreement_pdf_url;
     const showUploaded = isExisting && a.existing_agreement_url;
+
+    const handleVariant = async (variant: "draft" | "final") => {
+      try {
+        const { downloadTenancyAgreement, FinalAgreementNotReadyError } = await import("@/lib/getActiveAgreementTemplate");
+        try {
+          await downloadTenancyAgreement(a.id, variant);
+        } catch (e: any) {
+          if (e instanceof FinalAgreementNotReadyError) {
+            toast.info(e.message);
+            return;
+          }
+          // fallback to stored snapshot if any
+          const fallback = variant === "final" ? a.final_agreement_pdf_url : a.agreement_pdf_url;
+          if (fallback) await openStored(fallback);
+          else toast.error(e.message || `Could not generate ${variant} agreement`);
+        }
+      } catch (e: any) {
+        toast.error(e.message || `Could not load agreement template`);
+      }
+    };
 
     return (
       <div className={`${widthClass} shrink-0 overflow-x-auto pb-1`}>
@@ -218,12 +236,8 @@ const RegulatorAgreements = () => {
           <Button size="sm" variant="outline" className={compactButtonClass} onClick={() => downloadPdf(a)}>
             {isExisting ? "Details" : "PDF"}
           </Button>
-          {showDraft && (
-            <Button size="sm" variant="outline" className={compactButtonClass} onClick={() => openStored(a.agreement_pdf_url)}>Draft</Button>
-          )}
-          {showFinal && (
-            <Button size="sm" variant="default" className={compactButtonClass} onClick={() => openStored(a.final_agreement_pdf_url)}>Final</Button>
-          )}
+          <Button size="sm" variant="outline" className={compactButtonClass} onClick={() => handleVariant("draft")}>Draft</Button>
+          <Button size="sm" variant="default" className={compactButtonClass} onClick={() => handleVariant("final")}>Final</Button>
           {showUploaded && (
             <Button size="sm" variant="secondary" className={compactButtonClass} onClick={() => openStored(a.existing_agreement_url)}>Uploaded</Button>
           )}
