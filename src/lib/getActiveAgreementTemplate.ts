@@ -86,7 +86,7 @@ export async function renderTenancyAgreement(
     const row = (sigs || []).find((s: any) => s.signer_role === role);
     if (!row) return undefined;
     return {
-      name: role === "landlord" ? (t as any).landlord?.full_name || "Landlord" : (t as any).tenant?.full_name || "Tenant",
+      name: role === "landlord" ? (landlordProfile?.full_name || "Landlord") : (tenantProfile?.full_name || "Tenant"),
       signedAt: (row as any).signed_at,
       method: (row as any).signature_method || "digital",
     };
@@ -103,8 +103,8 @@ export async function renderTenancyAgreement(
   // 4. Compose render payload
   const data: AgreementPdfData = {
     registrationCode: (t as any).registration_code,
-    landlordName: (t as any).landlord?.full_name || "Landlord",
-    tenantName: (t as any).tenant?.full_name || (t as any).placeholder_tenant_name || "Tenant",
+    landlordName: landlordProfile?.full_name || "Landlord",
+    tenantName: tenantProfile?.full_name || (t as any).placeholder_tenant_name || "Tenant",
     tenantId: (t as any).tenant_id_code || "",
     propertyName: (prop as any)?.property_name || "Property",
     propertyAddress: [(prop as any)?.street_address, (prop as any)?.area, (prop as any)?.region]
@@ -127,8 +127,8 @@ export async function renderTenancyAgreement(
     isExistingTenancy: (t as any).tenancy_type === "existing_migration",
     gpsAddress: (prop as any)?.street_address || undefined,
     ghanaPostGps: (prop as any)?.ghana_post_gps || undefined,
-    tenantPhone: (t as any).tenant?.phone || (t as any).placeholder_tenant_phone || undefined,
-    landlordPhone: (t as any).landlord?.phone || undefined,
+    tenantPhone: tenantProfile?.phone || (t as any).placeholder_tenant_phone || undefined,
+    landlordPhone: landlordProfile?.phone || undefined,
     bedroomCount: (t as any).unit?.bedrooms || undefined,
     bathroomCount: (t as any).unit?.bathrooms || undefined,
     amenities: (prop as any)?.amenities || undefined,
