@@ -150,6 +150,7 @@ const OfficeFundRequests = lazy(() => import("./pages/regulator/OfficeFundReques
 const OfficePayoutSettings = lazy(() => import("./pages/regulator/OfficePayoutSettings"));
 const PaymentErrors = lazy(() => import("./pages/regulator/PaymentErrors"));
 const SuperAdminDashboard = lazy(() => import("./pages/regulator/SuperAdminDashboard"));
+const SuperAdminBackups = lazy(() => import("./pages/super-admin/Backups"));
 const ResolutionCentre = lazy(() => import("./pages/regulator/ResolutionCentre"));
 const PaymentReconciliationCentre = lazy(() => import("./pages/regulator/PaymentReconciliationCentre"));
 const StudentRevenue = lazy(() => import("./pages/regulator/StudentRevenue"));
@@ -347,6 +348,7 @@ const App = () => (
                 <Route path="engine-room" element={<ErrorBoundary section="Engine Room"><EngineRoom /></ErrorBoundary>} />
                 <Route path="rentcare" element={<ErrorBoundary section="RentCare Management"><RentCareManagement /></ErrorBoundary>} />
                 <Route path="super-admin" element={<ErrorBoundary section="Super Admin Dashboard"><SuperAdminDashboard /></ErrorBoundary>} />
+                <Route path="backups" element={<ErrorBoundary section="System Backups"><SuperAdminBackups /></ErrorBoundary>} />
                 <Route path="resolution-centre" element={<ErrorBoundary section="Resolution Centre"><ResolutionCentre /></ErrorBoundary>} />
                 <Route path="access-control" element={<ErrorBoundary section="Access Control"><AccessControlConsole /></ErrorBoundary>} />
                 <Route path="staff-feature-mutes" element={<ErrorBoundary section="Staff Feature Mutes"><StaffFeatureMutes /></ErrorBoundary>} />
