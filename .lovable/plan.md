@@ -1,137 +1,74 @@
+# Super Admin → Google Drive Backup
 
-# Developer Portal — Approvals, Pending UX, and Proper Documentation
+A new Super Admin–only module that connects the platform to a Google Drive account and lets the admin run **one-click full backups** of every business-critical table. Backups land as a single timestamped folder in Drive containing one CSV per table plus a JSON manifest.
 
-Builds on the existing developer portal. Keeps the agreed model: **sandbox auto-issued, live key requires admin approval**. Adds clear pending-state messaging, hardens the admin-only approval surface, and ships a real public documentation site (not just an endpoint dump).
+## What the Super Admin gets
 
----
+A new page under Super Admin → **System → Backups** with:
 
-## 1. Live-access approval flow — clearer messaging
+1. **Connection card** — "Connect Google Drive" button. Once connected, shows the connected Google account email, the target backup folder name, and a Disconnect option.
+2. **One-Click Backup button** — runs a full export of all selected tables and uploads to Drive. Progress bar shows table-by-table status.
+3. **Backup history table** — every run logged: who triggered it, when, table counts, total rows, Drive folder link, status (success/partial/failed).
+4. **Scheduled backups (optional toggle)** — daily / weekly auto-backup at a chosen time (off by default; can ship later).
+5. **Restore guidance panel** — read-only notes explaining how to restore from a backup folder (manual support process, not automated, to avoid catastrophic overwrites).
 
-### What the developer sees
-- After submitting `/developers/request-access` they're redirected to a new status page **`/developers/dashboard/request-status`** that shows:
-  - A big "Your request is under review" card with submitted-at timestamp, requested scopes, contact email.
-  - Status pill: `Pending review` / `Changes requested` / `Approved` / `Denied`.
-  - Reviewer notes (when present).
-  - "What happens next" checklist: 1) Admin reviews (1–3 business days), 2) You receive an email, 3) Your live key appears in the Keys tab.
-  - Email + in-app notification when status changes (uses existing `notifications` table + `send-transactional-email`).
-- The **Keys tab** gets a yellow banner above the "Request live access" CTA when a pending request exists: *"Live access request submitted on … — awaiting admin review."*
-- The **Overview tab** surfaces the same status card.
+## What gets backed up
 
-### Admin side
-- Only users with `regulator` role (already enforced via RLS + `is_main_admin()`) can see and act on `api_access_requests`.
-- The existing `src/pages/regulator/ApiAccessRequests.tsx` gets:
-  - A required **review notes** field when denying / requesting changes (currently optional).
-  - On **Approve**: a confirm dialog explaining "this only records the decision — you still need to issue the live key from Agency API → Keys".
-  - A new **"Issue live key now"** shortcut button on approved rows that deep-links to `/regulator/agency-api?issueForOrg=<org_id>&scopes=…` so the regulator doesn't have to retype org/scopes.
-- `AgencyApiKeys.tsx` "Issue key" dialog reads those query params and pre-fills.
-- Every decision writes to `admin_audit_log` (actor, action, target org, target request, notes).
+Every backup folder will contain CSVs for:
 
-### Pending-account UX (sandbox case)
-Sandbox is still auto-issued on first login (no admin gate) — that's the agreed model. But signup confirmation now sets clear expectations:
-- Signup success screen: *"Account created. Your sandbox key is ready. To call production data, request live access — an admin will review within 1–3 business days."*
-- Verification email reuses the same copy.
+- **Identity**: `profiles`, `user_roles`, `admin_staff`, `landlords`, `tenants`, `pending_tenants`, `kyc_verifications`
+- **Property & tenancy**: `properties`, `units`, `property_images`, `tenancies`, `tenancy_signatures`, `rent_payments`, `rent_increase_requests`, `rent_assessments`
+- **Rent cards**: `rent_cards`, `rent_card_serial_stock`, `serial_assignments`, `rent_card_sales_channels`, `rent_card_channel_splits`
+- **Complaints & cases**: `complaints`, `cases`, `complaint_decisions`, `complaint_hearings`, `complaint_documents`, `complaint_status_history`
+- **Finance**: `escrow_transactions`, `escrow_splits`, `payment_receipts`, `payment_intents`, `payout_transfers`, `api_invoices`
+- **Regulator**: `offices`, `office_allocations`, `region_codes`, `admin_audit_log`
+- **Developer API**: `developer_organizations`, `developer_org_members`, `api_keys`, `api_access_requests`
 
----
+Plus `manifest.json` with: timestamp, triggered_by, app version, table list, row counts per table, schema hash.
 
-## 2. Master admin controls (admin-only)
+## How the connection works
 
-In `/regulator/agency-api`, add an **Access Control** section visible only to `is_main_admin()`:
-- Toggle: **"Pause new developer signups"** — when on, `/developers/signup` shows a "Signups temporarily closed" page and the public landing CTA is disabled.
-- Toggle: **"Auto-approve sandbox keys"** (default ON) — when off, even sandbox keys require admin approval (future-proof for tightening).
-- Toggle: **"Require DSA re-acceptance"** — flips a flag on `developer_organizations` so all orgs must re-accept on next login.
+Use the existing **Google Drive App Connector** (workspace-scoped, OAuth via Lovable's connector gateway). Because Super Admin is a single shared "company" identity (not per-end-user), this is the correct model — the connector authenticates the company's Google account once and stores OAuth tokens for the platform.
 
-Stored in `platform_config` (existing table). No new schema needed.
+Connection guard: connector linking and the backup page itself are blocked unless `is_main_admin()` returns true. No other role sees this module.
 
----
+## Technical details
 
-## 3. Public documentation site — proper, step-by-step
+### Backend
 
-Replaces the bare `/developers/api` page with a real docs site at **`/developers/docs/*`** (legacy URL keeps working via redirect).
+**Edge function `backup-to-drive`** (Super Admin–gated, `verify_jwt = true`, role-check inside):
+1. Validates caller is `is_main_admin()` via JWT.
+2. Streams each whitelisted table with the service role client, paginated 1000 rows at a time.
+3. Converts each table to CSV in-memory (chunked) — never loads full DB into RAM.
+4. Creates a Drive folder `RentControlGhana-Backup-YYYY-MM-DD-HHMM/` via Drive gateway `POST /upload/drive/v3/files?uploadType=multipart`.
+5. Uploads each CSV with `parents: [folderId]`.
+6. Uploads `manifest.json` last (acts as completion marker).
+7. Writes a row to `system_backup_log`.
 
-### Structure (left sidebar, mkdocs-style)
+Gateway base: `https://connector-gateway.lovable.dev/google_drive/drive/v3` with `Authorization: Bearer ${LOVABLE_API_KEY}` and `X-Connection-Api-Key: ${GOOGLE_DRIVE_API_KEY}`.
 
-```text
-Getting started
-  Introduction                /developers/docs
-  Quickstart (5 minutes)      /developers/docs/quickstart
-  Authentication              /developers/docs/auth
-  Environments (sandbox/live) /developers/docs/environments
-  Rate limits & quotas        /developers/docs/rate-limits
-  Errors & status codes       /developers/docs/errors
+**New table `system_backup_log`** (RLS: Super Admin only):
+- `triggered_by` (uuid), `started_at`, `finished_at`, `status` (`running` / `success` / `partial` / `failed`)
+- `drive_folder_id`, `drive_folder_url`, `drive_folder_name`
+- `tables_included` (jsonb), `row_counts` (jsonb), `total_rows`, `error_message`
 
-Tutorials
-  Verify a landlord           /developers/docs/tutorials/verify-landlord
-  Check a tenancy             /developers/docs/tutorials/check-tenancy
-  Look up a property          /developers/docs/tutorials/lookup-property
-  Receive webhooks            /developers/docs/tutorials/webhooks
-  Handle pagination           /developers/docs/tutorials/pagination
-  Retries & idempotency       /developers/docs/tutorials/retries
+**Optional scheduled backups**: pg_cron job invoking the edge function with a service-role bearer; gated behind a `platform_config.auto_backup_enabled` flag (off by default).
 
-Reference
-  Landlords endpoints         /developers/docs/reference/landlords
-  Tenants endpoints           /developers/docs/reference/tenants
-  Properties endpoints        /developers/docs/reference/properties
-  Complaints endpoints        /developers/docs/reference/complaints
-  Webhook events              /developers/docs/reference/webhooks
+### Frontend
 
-Going live
-  Request live access         /developers/docs/go-live
-  Data Sharing Agreement      /developers/docs/dsa
-  Pricing & billing           /developers/docs/pricing
-  Support & SLA               /developers/docs/support
-```
+- New route `/super-admin/backups` registered in `App.tsx`.
+- New page `src/pages/super-admin/Backups.tsx`.
+- Sidebar entry in Super Admin layout under "System".
+- Uses `supabase.functions.invoke('backup-to-drive')`; shows toast + streams progress via polling `system_backup_log` row every 2s.
 
-### Every page includes
-- A plain-English explainer ("What this does, who uses it, when to use it").
-- A copy-button **curl** snippet AND a **JavaScript (fetch)** snippet, both with realistic Ghana sample data (e.g. `0244111222` landlord lookup).
-- A live "Open in sandbox console" button that pre-fills the dashboard Sandbox tab via querystring (`?endpoint=landlords/list&params=…`).
-- Response example with field-by-field table.
-- "Common mistakes" callout.
+### What's intentionally out of scope (v1)
 
-### Quickstart specifically (the "dumbed-down" one the user asked for)
-Five numbered steps, each with a screenshot placeholder + copy-paste block:
-1. **Create your developer account** — `/developers/signup`.
-2. **Copy your sandbox key** — shown once after first login; format `rcg_test_…`.
-3. **Make your first call** — single curl command hitting `GET /landlords/lookup?phone=0244111222`.
-4. **Read the response** — annotated JSON.
-5. **Request live access when ready** — link to `/developers/request-access`.
+- **Automated restore** — too risky to expose as a button; document the manual restore path instead.
+- **Per-table on-demand export** — keep v1 focused on full one-click backup; can add later.
+- **Storage tables / file blobs** (KYC docs, voice notes) — v1 backs up DB rows only. File blob backup can be a phase 2 (Drive has size implications).
 
-### Implementation
-- New folder `src/pages/developers/docs/` with one file per page above (small MDX-style React components — no MDX runtime, just JSX with shared `<DocLayout>`, `<CodeBlock>`, `<EndpointTable>`, `<Callout>` primitives).
-- Shared `src/components/developers/docs/` for those primitives + a sticky sidebar nav and search-as-you-type filter.
-- The existing `ApiDocsContent` component becomes the body of the four `reference/*` pages (chunked by domain instead of one giant page).
-- Top navigation on every docs page: Quickstart · Tutorials · Reference · Pricing · Dashboard.
-- SEO: `<Helmet>` with per-page title/description, canonical URLs, JSON-LD `TechArticle`, sitemap entries added to `public/sitemap.xml`.
-- Footer link "For developers → Documentation" added to homepage.
+## Open questions before build
 
----
-
-## 4. Data / backend changes
-
-Only one tiny migration — most plumbing already exists:
-
-- `api_access_requests`: add `notified_at timestamptz` (so we don't send duplicate decision emails).
-- `developer_organizations`: add `signup_paused_acknowledged_at` (unused for v1; reserved for the admin pause toggle).
-- New edge function action in `developer-api-self-service`: `cancel_access_request` so a developer can withdraw a pending request.
-- New scheduled trigger in `agency-api-admin`: when a request flips to `approved` / `denied` / `changes_requested`, queue an email via `send-transactional-email` and a row in `notifications`.
-
-No changes to RLS beyond the existing policies — `regulator` role already covers admin approval.
-
----
-
-## 5. Acceptance criteria
-
-- A signed-up developer who submits a live-access request is redirected to a status page that clearly says "under review" and updates in real time when admin acts.
-- Admin (regulator role) can approve / deny / request changes; non-admins get a 403 from RLS and never see the queue.
-- Approving a request emails the developer and surfaces a one-click "Issue live key" shortcut for the admin.
-- `/developers/docs/quickstart` walks a non-technical reader from signup to first successful API call in under 5 minutes using copy-paste snippets.
-- Reference pages for landlords / tenants / properties / complaints each load standalone and link to the sandbox console.
-- Homepage footer links to the docs; sitemap and meta tags are populated.
-- Admin "Pause new developer signups" toggle blocks `/developers/signup` immediately.
-
-## 6. Out of scope (still)
-
-- Paid plan checkout (master billing switch stays OFF — Free during beta).
-- Multi-member developer orgs.
-- OAuth client-credentials flow.
-- Auto-issuing live keys on approval (admin still presses "Issue key" — by design, for auditability).
+1. Should v1 include the **scheduled daily/weekly auto-backup** toggle, or ship manual one-click only first?
+2. Should backups include **file storage blobs** (KYC documents, complaint documents, voice notes) — or DB rows only in v1?
+3. Backup retention: keep all backup folders forever in Drive, or auto-delete folders older than e.g. 30/90 days?
