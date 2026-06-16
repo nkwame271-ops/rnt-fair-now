@@ -211,16 +211,45 @@ const Agreements = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {t.agreement_pdf_url && (
-                      <Button size="sm" variant="outline" className="text-xs" onClick={() => openSignedStorageUrl(t.agreement_pdf_url!)}>
-                        <FileCheck className="h-3 w-3 mr-1" /> Draft Agreement
-                      </Button>
-                    )}
-                    {t.final_agreement_pdf_url && (
-                      <Button size="sm" variant="default" className="text-xs" onClick={() => openSignedStorageUrl(t.final_agreement_pdf_url!)}>
-                        <FileCheck className="h-3 w-3 mr-1" /> Final Agreement
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs"
+                      onClick={async () => {
+                        try {
+                          await downloadTenancyAgreement(t.id, "draft");
+                        } catch (e: any) {
+                          // Fallback to stored snapshot if regeneration fails
+                          if (t.agreement_pdf_url) {
+                            await openSignedStorageUrl(t.agreement_pdf_url);
+                          } else {
+                            toast.error(e.message || "Could not generate draft agreement");
+                          }
+                        }
+                      }}
+                    >
+                      <FileCheck className="h-3 w-3 mr-1" /> Draft Agreement
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="text-xs"
+                      onClick={async () => {
+                        try {
+                          await downloadTenancyAgreement(t.id, "final");
+                        } catch (e: any) {
+                          if (e instanceof FinalAgreementNotReadyError) {
+                            toast.info(e.message);
+                          } else if (t.final_agreement_pdf_url) {
+                            await openSignedStorageUrl(t.final_agreement_pdf_url);
+                          } else {
+                            toast.error(e.message || "Could not generate final agreement");
+                          }
+                        }
+                      }}
+                    >
+                      <FileCheck className="h-3 w-3 mr-1" /> Final Agreement
+                    </Button>
                     {t.tenancy_type === "existing_migration" && t.existing_agreement_url && (
                       <Button size="sm" variant="secondary" className="text-xs" onClick={() => openSignedStorageUrl(t.existing_agreement_url!)}>
                         <FileCheck className="h-3 w-3 mr-1" /> Uploaded
