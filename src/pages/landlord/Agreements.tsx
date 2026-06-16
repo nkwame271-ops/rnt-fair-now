@@ -13,6 +13,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { SkeletonCardList } from "@/components/ui/skeleton";
 import { openSignedStorageUrl } from "@/lib/openSignedUrl";
+import {
+  downloadTenancyAgreement,
+  FinalAgreementNotReadyError,
+} from "@/lib/getActiveAgreementTemplate";
 
 interface CustomFieldDef {
   label: string;
