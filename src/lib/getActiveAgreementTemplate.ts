@@ -56,12 +56,19 @@ export async function renderTenancyAgreement(
   // 2. Load tenancy + unit + property
   const { data: t, error: tErr } = await supabase
     .from("tenancies")
-    .select(
-      "*, unit:units(unit_name, unit_type, property_id, bedrooms, bathrooms), tenant:profiles!tenancies_tenant_user_id_fkey(full_name, phone), landlord:profiles!tenancies_landlord_user_id_fkey(full_name, phone)"
-    )
+    .select("*, unit:units(unit_name, unit_type, property_id, bedrooms, bathrooms)")
     .eq("id", tenancyId)
     .single();
   if (tErr || !t) throw new Error("Tenancy not found");
+
+  const userIds = [(t as any).tenant_user_id, (t as any).landlord_user_id].filter(Boolean);
+  const { data: parties } = userIds.length
+    ? await supabase.from("profiles").select("user_id, full_name, phone").in("user_id", userIds)
+    : { data: [] as any[] };
+  const partyByUid: Record<string, { full_name?: string; phone?: string }> = {};
+  for (const p of (parties || []) as any[]) partyByUid[p.user_id] = p;
+  const tenantProfile = (t as any).tenant_user_id ? partyByUid[(t as any).tenant_user_id] : undefined;
+  const landlordProfile = (t as any).landlord_user_id ? partyByUid[(t as any).landlord_user_id] : undefined;
 
   const { data: prop } = await supabase
     .from("properties")
