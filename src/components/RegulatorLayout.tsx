@@ -118,6 +118,7 @@ const allNavItems = [
   { to: "/regulator/access-control", label: "Access Control", icon: Shield, superAdminOnly: true },
   { to: "/regulator/staff-feature-mutes", label: "Staff Feature Mutes", icon: UserPlus, superAdminOnly: true },
   { to: "/regulator/super-admin", label: "Super Admin", icon: Crown, superAdminOnly: true },
+  { to: "/regulator/backups", label: "Google Drive Backups", icon: CloudUpload, superAdminOnly: true },
 ];
 
 const RegulatorLayout = () => {
