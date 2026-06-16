@@ -7490,6 +7490,66 @@ export type Database = {
         }
         Relationships: []
       }
+      system_backup_log: {
+        Row: {
+          created_at: string
+          current_table: string | null
+          drive_folder_id: string | null
+          drive_folder_name: string | null
+          drive_folder_url: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          progress_percent: number
+          row_counts: Json
+          started_at: string
+          status: string
+          tables_included: Json
+          total_rows: number
+          triggered_by: string | null
+          triggered_by_email: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_table?: string | null
+          drive_folder_id?: string | null
+          drive_folder_name?: string | null
+          drive_folder_url?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          progress_percent?: number
+          row_counts?: Json
+          started_at?: string
+          status?: string
+          tables_included?: Json
+          total_rows?: number
+          triggered_by?: string | null
+          triggered_by_email?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_table?: string | null
+          drive_folder_id?: string | null
+          drive_folder_name?: string | null
+          drive_folder_url?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          progress_percent?: number
+          row_counts?: Json
+          started_at?: string
+          status?: string
+          tables_included?: Json
+          total_rows?: number
+          triggered_by?: string | null
+          triggered_by_email?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       system_health_snapshots: {
         Row: {
           alert: boolean
