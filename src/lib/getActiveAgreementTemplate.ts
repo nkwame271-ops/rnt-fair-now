@@ -107,13 +107,21 @@ export async function renderTenancyAgreement(
   }
 
   // 4. Compose render payload
+  const unitAmenities = [
+    ...(((t as any).unit?.amenities as string[] | null) || []),
+    ...(((t as any).unit?.custom_amenities || "") as string)
+      .split(",")
+      .map((s: string) => s.trim())
+      .filter(Boolean),
+  ];
+
   const data: AgreementPdfData = {
     registrationCode: (t as any).registration_code,
     landlordName: landlordProfile?.full_name || "Landlord",
     tenantName: tenantProfile?.full_name || (t as any).placeholder_tenant_name || "Tenant",
     tenantId: (t as any).tenant_id_code || "",
     propertyName: (prop as any)?.property_name || "Property",
-    propertyAddress: [(prop as any)?.street_address, (prop as any)?.area, (prop as any)?.region]
+    propertyAddress: [(prop as any)?.address, (prop as any)?.area, (prop as any)?.region]
       .filter(Boolean)
       .join(", "),
     unitName: (t as any).unit?.unit_name || "",
@@ -131,13 +139,13 @@ export async function renderTenancyAgreement(
     serialCode: (t as any).serial_code || undefined,
     version: (t as any).version || 1,
     isExistingTenancy: (t as any).tenancy_type === "existing_migration",
-    gpsAddress: (prop as any)?.street_address || undefined,
+    gpsAddress: (prop as any)?.address || undefined,
     ghanaPostGps: (prop as any)?.ghana_post_gps || undefined,
     tenantPhone: tenantProfile?.phone || (t as any).placeholder_tenant_phone || undefined,
     landlordPhone: landlordProfile?.phone || undefined,
-    bedroomCount: (t as any).unit?.bedrooms || undefined,
-    bathroomCount: (t as any).unit?.bathrooms || undefined,
-    amenities: (prop as any)?.amenities || undefined,
+    bedroomCount: (prop as any)?.room_count || undefined,
+    bathroomCount: (prop as any)?.bathroom_count || undefined,
+    amenities: unitAmenities.length ? unitAmenities : undefined,
   };
 
   const doc = await generateAgreementPdf(data);
