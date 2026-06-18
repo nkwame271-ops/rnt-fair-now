@@ -157,20 +157,7 @@ const RegulatorAgreements = () => {
 
   const openStored = async (url: string) => {
     try {
-      const u = new URL(url);
-      const segs = u.pathname.split("/").filter(Boolean);
-      const objIdx = segs.indexOf("object");
-      let rest = objIdx >= 0 ? segs.slice(objIdx + 1) : [];
-      if (["public", "sign", "authenticated"].includes(rest[0])) rest = rest.slice(1);
-      const bucket = rest[0];
-      const path = decodeURIComponent(rest.slice(1).join("/"));
-      if (!bucket || !path) { window.open(url, "_blank"); return; }
-      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
-      if (error || !data?.signedUrl) {
-        toast.error("Unable to open file: " + (error?.message || "not found"));
-        return;
-      }
-      window.open(data.signedUrl, "_blank");
+      await openSignedStorageUrl(url);
     } catch (e: any) {
       toast.error("Unable to open file: " + (e?.message || "error"));
     }
