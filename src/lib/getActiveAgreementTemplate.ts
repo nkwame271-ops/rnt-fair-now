@@ -54,12 +54,16 @@ export async function renderTenancyAgreement(
   const customFields: CustomFieldDef[] = ((cfg as any)?.custom_fields || []) as CustomFieldDef[];
 
   // 2. Load tenancy + unit + property
+  //    NOTE: keep this column list aligned with the actual schema — adding columns
+  //    that don't exist on `units` causes PostgREST to fail the whole query and
+  //    surface as "Tenancy not found" downstream.
   const { data: t, error: tErr } = await supabase
     .from("tenancies")
-    .select("*, unit:units(unit_name, unit_type, property_id, bedrooms, bathrooms)")
+    .select("*, unit:units(unit_name, unit_type, property_id, amenities, custom_amenities)")
     .eq("id", tenancyId)
-    .single();
-  if (tErr || !t) throw new Error("Tenancy not found");
+    .maybeSingle();
+  if (tErr) throw new Error(`Could not load tenancy: ${tErr.message}`);
+  if (!t) throw new Error("Tenancy not found");
 
   const userIds = [(t as any).tenant_user_id, (t as any).landlord_user_id].filter(Boolean);
   const { data: parties } = userIds.length
@@ -70,11 +74,13 @@ export async function renderTenancyAgreement(
   const tenantProfile = (t as any).tenant_user_id ? partyByUid[(t as any).tenant_user_id] : undefined;
   const landlordProfile = (t as any).landlord_user_id ? partyByUid[(t as any).landlord_user_id] : undefined;
 
-  const { data: prop } = await supabase
-    .from("properties")
-    .select("property_name, region, area, street_address, ghana_post_gps, amenities")
-    .eq("id", (t as any).unit?.property_id)
-    .maybeSingle();
+  const { data: prop } = (t as any).unit?.property_id
+    ? await supabase
+        .from("properties")
+        .select("property_name, region, area, address, ghana_post_gps, room_count, bathroom_count")
+        .eq("id", (t as any).unit.property_id)
+        .maybeSingle()
+    : { data: null as any };
 
   // 3. Signatures — only allow "final" when both parties have signed
   const { data: sigs } = await supabase
