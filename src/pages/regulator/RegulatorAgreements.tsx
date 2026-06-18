@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import { SkeletonCardList } from "@/components/ui/skeleton";
+import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 
 const RegulatorAgreements = () => {
   const { profile } = useAdminProfile();
