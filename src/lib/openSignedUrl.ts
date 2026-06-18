@@ -7,7 +7,7 @@ const PUBLIC_BUCKETS = new Set(["property-images", "avatars"]);
 // and we need to guess which bucket it belongs to. Order matters: longest/most-specific prefixes first.
 const PRIVATE_BUCKET_PATH_HINTS: Array<{ bucket: string; prefixes: string[] }> = [
   { bucket: "form-outputs", prefixes: ["complaints/", "form-outputs/"] },
-  { bucket: "application-evidence", prefixes: ["signed-agreements/", "agreements/", "evidence/", "rent-increase/"] },
+  { bucket: "application-evidence", prefixes: ["signed-agreements/", "agreements/", "existing-agreements/", "evidence/", "rent-increase/"] },
 ];
 const DEFAULT_PRIVATE_BUCKET = "application-evidence";
 
