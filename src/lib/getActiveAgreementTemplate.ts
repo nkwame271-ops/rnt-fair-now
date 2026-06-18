@@ -54,12 +54,16 @@ export async function renderTenancyAgreement(
   const customFields: CustomFieldDef[] = ((cfg as any)?.custom_fields || []) as CustomFieldDef[];
 
   // 2. Load tenancy + unit + property
+  //    NOTE: keep this column list aligned with the actual schema — adding columns
+  //    that don't exist on `units` causes PostgREST to fail the whole query and
+  //    surface as "Tenancy not found" downstream.
   const { data: t, error: tErr } = await supabase
     .from("tenancies")
-    .select("*, unit:units(unit_name, unit_type, property_id, bedrooms, bathrooms)")
+    .select("*, unit:units(unit_name, unit_type, property_id, amenities, custom_amenities)")
     .eq("id", tenancyId)
-    .single();
-  if (tErr || !t) throw new Error("Tenancy not found");
+    .maybeSingle();
+  if (tErr) throw new Error(`Could not load tenancy: ${tErr.message}`);
+  if (!t) throw new Error("Tenancy not found");
 
   const userIds = [(t as any).tenant_user_id, (t as any).landlord_user_id].filter(Boolean);
   const { data: parties } = userIds.length
@@ -70,11 +74,13 @@ export async function renderTenancyAgreement(
   const tenantProfile = (t as any).tenant_user_id ? partyByUid[(t as any).tenant_user_id] : undefined;
   const landlordProfile = (t as any).landlord_user_id ? partyByUid[(t as any).landlord_user_id] : undefined;
 
-  const { data: prop } = await supabase
-    .from("properties")
-    .select("property_name, region, area, street_address, ghana_post_gps, amenities")
-    .eq("id", (t as any).unit?.property_id)
-    .maybeSingle();
+  const { data: prop } = (t as any).unit?.property_id
+    ? await supabase
+        .from("properties")
+        .select("property_name, region, area, address, ghana_post_gps, room_count, bathroom_count")
+        .eq("id", (t as any).unit.property_id)
+        .maybeSingle()
+    : { data: null as any };
 
   // 3. Signatures — only allow "final" when both parties have signed
   const { data: sigs } = await supabase
@@ -101,13 +107,21 @@ export async function renderTenancyAgreement(
   }
 
   // 4. Compose render payload
+  const unitAmenities = [
+    ...(((t as any).unit?.amenities as string[] | null) || []),
+    ...(((t as any).unit?.custom_amenities || "") as string)
+      .split(",")
+      .map((s: string) => s.trim())
+      .filter(Boolean),
+  ];
+
   const data: AgreementPdfData = {
     registrationCode: (t as any).registration_code,
     landlordName: landlordProfile?.full_name || "Landlord",
     tenantName: tenantProfile?.full_name || (t as any).placeholder_tenant_name || "Tenant",
     tenantId: (t as any).tenant_id_code || "",
     propertyName: (prop as any)?.property_name || "Property",
-    propertyAddress: [(prop as any)?.street_address, (prop as any)?.area, (prop as any)?.region]
+    propertyAddress: [(prop as any)?.address, (prop as any)?.area, (prop as any)?.region]
       .filter(Boolean)
       .join(", "),
     unitName: (t as any).unit?.unit_name || "",
@@ -125,13 +139,13 @@ export async function renderTenancyAgreement(
     serialCode: (t as any).serial_code || undefined,
     version: (t as any).version || 1,
     isExistingTenancy: (t as any).tenancy_type === "existing_migration",
-    gpsAddress: (prop as any)?.street_address || undefined,
+    gpsAddress: (prop as any)?.address || undefined,
     ghanaPostGps: (prop as any)?.ghana_post_gps || undefined,
     tenantPhone: tenantProfile?.phone || (t as any).placeholder_tenant_phone || undefined,
     landlordPhone: landlordProfile?.phone || undefined,
-    bedroomCount: (t as any).unit?.bedrooms || undefined,
-    bathroomCount: (t as any).unit?.bathrooms || undefined,
-    amenities: (prop as any)?.amenities || undefined,
+    bedroomCount: (prop as any)?.room_count || undefined,
+    bathroomCount: (prop as any)?.bathroom_count || undefined,
+    amenities: unitAmenities.length ? unitAmenities : undefined,
   };
 
   const doc = await generateAgreementPdf(data);
