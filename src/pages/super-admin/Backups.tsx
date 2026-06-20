@@ -36,6 +36,8 @@ export default function Backups() {
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [exportingStudents, setExportingStudents] = useState(false);
+  const [studentExport, setStudentExport] = useState<{ url: string; students: number; rows: number; files: number } | null>(null);
 
   const activeLog = useMemo(() => logs.find((l) => l.status === "running"), [logs]);
 
