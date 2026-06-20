@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CloudUpload, ExternalLink, ShieldCheck, Database, RefreshCw, AlertTriangle, Info } from "lucide-react";
+import { CloudUpload, ExternalLink, ShieldCheck, Database, RefreshCw, AlertTriangle, Info, GraduationCap, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 type BackupLog = {
@@ -36,6 +36,8 @@ export default function Backups() {
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [exportingStudents, setExportingStudents] = useState(false);
+  const [studentExport, setStudentExport] = useState<{ url: string; students: number; rows: number; files: number } | null>(null);
 
   const activeLog = useMemo(() => logs.find((l) => l.status === "running"), [logs]);
 
@@ -79,6 +81,29 @@ export default function Backups() {
       toast.error(e?.message ?? "Backup failed to start");
     } finally {
       setRunning(false);
+    }
+  };
+
+  const exportStudents = async () => {
+    setExportingStudents(true);
+    setStudentExport(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("export-student-data", { body: {} });
+      if (error) {
+        const msg = (error as any)?.context?.body ? await (error as any).context.text?.() : error.message;
+        toast.error(msg || "Student export failed");
+        return;
+      }
+      if (!data?.ok) {
+        toast.error(data?.error || "Student export failed");
+        return;
+      }
+      setStudentExport({ url: data.download_url, students: data.students, rows: data.rows, files: data.files });
+      toast.success(`Exported ${data.students} students · ${data.rows} rows · ${data.files} files`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Student export failed");
+    } finally {
+      setExportingStudents(false);
     }
   };
 
@@ -144,6 +169,55 @@ export default function Backups() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <GraduationCap className="h-5 w-5 text-amber-500" /> Migrate Student Data to Another App
+          </CardTitle>
+          <CardDescription>
+            One-click export of every record tied to student users — profiles, tenancies, hostel rooms,
+            rent payments, receipts, escrow, complaints, safety reports, messages, KYC and ratings —
+            packaged as CSV files with signed download links to every uploaded file (valid 7 days).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button
+            size="lg"
+            onClick={exportStudents}
+            disabled={exportingStudents}
+            className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+          >
+            <Download className="h-5 w-5 mr-2" />
+            {exportingStudents ? "Preparing student export…" : "Export All Student Data"}
+          </Button>
+
+          {studentExport && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Export ready</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <div className="text-sm">
+                  {studentExport.students} students · {studentExport.rows.toLocaleString()} database rows ·{" "}
+                  {studentExport.files.toLocaleString()} files indexed.
+                </div>
+                <a
+                  href={studentExport.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center text-primary hover:underline font-medium"
+                >
+                  Download ZIP <ExternalLink className="h-3 w-3 ml-1" />
+                </a>
+                <div className="text-xs text-muted-foreground">
+                  Link expires in 7 days. Re-run the export to refresh.
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
 
       <Alert>
         <AlertTriangle className="h-4 w-4" />
