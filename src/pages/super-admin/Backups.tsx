@@ -84,6 +84,29 @@ export default function Backups() {
     }
   };
 
+  const exportStudents = async () => {
+    setExportingStudents(true);
+    setStudentExport(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("export-student-data", { body: {} });
+      if (error) {
+        const msg = (error as any)?.context?.body ? await (error as any).context.text?.() : error.message;
+        toast.error(msg || "Student export failed");
+        return;
+      }
+      if (!data?.ok) {
+        toast.error(data?.error || "Student export failed");
+        return;
+      }
+      setStudentExport({ url: data.download_url, students: data.students, rows: data.rows, files: data.files });
+      toast.success(`Exported ${data.students} students · ${data.rows} rows · ${data.files} files`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Student export failed");
+    } finally {
+      setExportingStudents(false);
+    }
+  };
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-start justify-between gap-4">
