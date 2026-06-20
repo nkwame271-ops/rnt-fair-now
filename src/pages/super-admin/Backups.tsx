@@ -170,6 +170,55 @@ export default function Backups() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <GraduationCap className="h-5 w-5 text-amber-500" /> Migrate Student Data to Another App
+          </CardTitle>
+          <CardDescription>
+            One-click export of every record tied to student users — profiles, tenancies, hostel rooms,
+            rent payments, receipts, escrow, complaints, safety reports, messages, KYC and ratings —
+            packaged as CSV files with signed download links to every uploaded file (valid 7 days).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button
+            size="lg"
+            onClick={exportStudents}
+            disabled={exportingStudents}
+            className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+          >
+            <Download className="h-5 w-5 mr-2" />
+            {exportingStudents ? "Preparing student export…" : "Export All Student Data"}
+          </Button>
+
+          {studentExport && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Export ready</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <div className="text-sm">
+                  {studentExport.students} students · {studentExport.rows.toLocaleString()} database rows ·{" "}
+                  {studentExport.files.toLocaleString()} files indexed.
+                </div>
+                <a
+                  href={studentExport.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center text-primary hover:underline font-medium"
+                >
+                  Download ZIP <ExternalLink className="h-3 w-3 ml-1" />
+                </a>
+                <div className="text-xs text-muted-foreground">
+                  Link expires in 7 days. Re-run the export to refresh.
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertTitle>Restore is a manual process</AlertTitle>
