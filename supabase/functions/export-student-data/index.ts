@@ -98,20 +98,26 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "No student users found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // 2. Pull everything tied to them
+    const uniq = (arr: any[]) => Array.from(new Set(arr.filter(Boolean)));
+
+    // 2. Pull everything DIRECTLY tied to the students
     const tenants = await chunkedIn(svc, "tenants", "user_id", studentIds);
     const tenancies = await chunkedIn(svc, "tenancies", "tenant_user_id", studentIds);
-    const tenancyIds = tenancies.map((t: any) => t.id);
-    const complaints = await chunkedIn(svc, "complaints", "complainant_user_id", studentIds);
-    const escrow_tx = await chunkedIn(svc, "escrow_transactions", "user_id", studentIds);
+    const tenancyIds = uniq(tenancies.map((t: any) => t.id));
+    const complaintsAsComplainant = await chunkedIn(svc, "complaints", "complainant_user_id", studentIds);
+    const complaintsAsRespondent  = await chunkedIn(svc, "complaints", "respondent_user_id", studentIds);
+    const complaintsMap = new Map<string, any>();
+    [...complaintsAsComplainant, ...complaintsAsRespondent].forEach((c) => complaintsMap.set(c.id, c));
+    const complaints = Array.from(complaintsMap.values());
+    const escrow_tx_direct = await chunkedIn(svc, "escrow_transactions", "user_id", studentIds);
     const support_conversations = await chunkedIn(svc, "support_conversations", "user_id", studentIds);
 
     const [
       kyc, ratings_given, ratings_received, residence_history,
       tenant_prefs, viewing_requests, rental_apps, notifications,
       rentcare_apps, safety_reports,
-      rent_payments, payment_intents, payment_receipts, payment_fulfillments,
-      signatures, escrowSplits, supportMessages,
+      rent_payments, payment_intents_direct, payment_receipts_direct, payment_fulfillments_direct,
+      signatures, supportMessages, case_payments_direct, termination_apps,
     ] = await Promise.all([
       chunkedIn(svc, "kyc_verifications", "user_id", studentIds),
       chunkedIn(svc, "ratings", "rater_user_id", studentIds),
@@ -128,14 +134,76 @@ Deno.serve(async (req) => {
       chunkedIn(svc, "payment_receipts", "user_id", studentIds),
       chunkedIn(svc, "payment_fulfillments", "user_id", studentIds),
       chunkedIn(svc, "tenancy_signatures", "tenancy_id", tenancyIds),
-      chunkedIn(svc, "escrow_splits", "escrow_transaction_id", escrow_tx.map((e: any) => e.id)),
-      chunkedIn(svc, "support_messages", "conversation_id", support_conversations.map((c: any) => c.id)),
+      chunkedIn(svc, "support_messages", "conversation_id", uniq(support_conversations.map((c: any) => c.id))),
+      chunkedIn(svc, "case_payments", "student_id", studentIds),
+      chunkedIn(svc, "termination_applications", "tenant_user_id", studentIds),
     ]);
+
+    // 3. Pull PARENT records the student data references
+    const unitIds      = uniq(tenancies.map((t: any) => t.unit_id));
+    const landlordUids = uniq(tenancies.map((t: any) => t.landlord_user_id));
+    const caseIds      = uniq(complaints.map((c: any) => c.id));
+
+    const units = await chunkedIn(svc, "units", "id", unitIds);
+    const propertyIdsFromUnits = uniq(units.map((u: any) => u.property_id));
+    const propertyIdsFromComplaints = uniq([
+      ...complaints.map((c: any) => c.linked_property_id),
+      ...complaints.map((c: any) => c.complaint_property_id),
+    ]);
+    const propertyIds = uniq([...propertyIdsFromUnits, ...propertyIdsFromComplaints]);
+
+    const [
+      properties, landlords, landlordProfiles, complaint_properties,
+      complaint_documents, complaint_decisions, complaint_hearings,
+      complaint_assignments, complaint_status_history,
+      cases, case_payments_via_cases,
+      payment_intents_via_case, payment_receipts_via_tenancy, payment_fulfillments_via_intent,
+      escrow_via_case, rent_cards, signatures_by_signer,
+    ] = await Promise.all([
+      chunkedIn(svc, "properties", "id", propertyIds),
+      chunkedIn(svc, "landlords", "user_id", landlordUids),
+      chunkedIn(svc, "profiles", "user_id", landlordUids),
+      chunkedIn(svc, "complaint_properties", "complaint_id", caseIds),
+      chunkedIn(svc, "complaint_documents", "complaint_id", caseIds),
+      chunkedIn(svc, "complaint_decisions", "complaint_id", caseIds),
+      chunkedIn(svc, "complaint_hearings", "complaint_id", caseIds),
+      chunkedIn(svc, "complaint_assignments", "complaint_id", caseIds),
+      chunkedIn(svc, "complaint_status_history", "complaint_id", caseIds),
+      chunkedIn(svc, "cases", "complaint_id", caseIds),
+      chunkedIn(svc, "case_payments", "case_id", caseIds),
+      chunkedIn(svc, "payment_intents", "case_id", caseIds),
+      chunkedIn(svc, "payment_receipts", "tenancy_id", tenancyIds),
+      chunkedIn(svc, "payment_fulfillments", "tenancy_id", tenancyIds),
+      chunkedIn(svc, "escrow_transactions", "case_id", caseIds),
+      chunkedIn(svc, "rent_cards", "tenancy_id", tenancyIds),
+      chunkedIn(svc, "tenancy_signatures", "signer_user_id", studentIds),
+    ]);
+
+    // Merge duplicates by id
+    const dedupe = (a: any[], b: any[] = [], c: any[] = []) => {
+      const m = new Map<string, any>();
+      [...a, ...b, ...c].forEach((r) => { if (r?.id) m.set(r.id, r); });
+      return Array.from(m.values());
+    };
+    const payment_intents   = dedupe(payment_intents_direct, payment_intents_via_case);
+    const payment_receipts  = dedupe(payment_receipts_direct, payment_receipts_via_tenancy);
+    const payment_fulfillments = dedupe(payment_fulfillments_direct, payment_fulfillments_via_intent);
+    const escrow_tx         = dedupe(escrow_tx_direct, escrow_via_case);
+    const case_payments     = dedupe(case_payments_direct, case_payments_via_cases);
+    const tenancy_signatures = dedupe(signatures, signatures_by_signer);
+
+    // Escrow splits after we have the full escrow set
+    const escrowSplits = await chunkedIn(svc, "escrow_splits", "escrow_transaction_id", uniq(escrow_tx.map((e: any) => e.id)));
 
     const tables: Record<string, any[]> = {
       "profiles": students!,
+      "landlord_profiles": landlordProfiles,
       "tenants": tenants,
+      "landlords": landlords,
+      "properties": properties,
+      "units": units,
       "tenancies": tenancies,
+      "rent_cards": rent_cards,
       "kyc_verifications": kyc,
       "ratings_given": ratings_given,
       "ratings_received": ratings_received,
@@ -143,9 +211,17 @@ Deno.serve(async (req) => {
       "tenant_preferences": tenant_prefs,
       "viewing_requests": viewing_requests,
       "rental_applications": rental_apps,
+      "termination_applications": termination_apps,
       "notifications": notifications,
       "rentcare_applications": rentcare_apps,
       "complaints": complaints,
+      "cases": cases,
+      "complaint_properties": complaint_properties,
+      "complaint_documents": complaint_documents,
+      "complaint_decisions": complaint_decisions,
+      "complaint_hearings": complaint_hearings,
+      "complaint_assignments": complaint_assignments,
+      "complaint_status_history": complaint_status_history,
       "safety_reports": safety_reports,
       "support_conversations": support_conversations,
       "support_messages": supportMessages,
@@ -153,9 +229,10 @@ Deno.serve(async (req) => {
       "payment_intents": payment_intents,
       "payment_receipts": payment_receipts,
       "payment_fulfillments": payment_fulfillments,
+      "case_payments": case_payments,
       "escrow_transactions": escrow_tx,
       "escrow_splits": escrowSplits,
-      "tenancy_signatures": signatures,
+      "tenancy_signatures": tenancy_signatures,
     };
 
     const zip = new JSZip();
