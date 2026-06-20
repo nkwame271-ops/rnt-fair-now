@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CloudUpload, ExternalLink, ShieldCheck, Database, RefreshCw, AlertTriangle, Info } from "lucide-react";
+import { CloudUpload, ExternalLink, ShieldCheck, Database, RefreshCw, AlertTriangle, Info, GraduationCap, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 type BackupLog = {
