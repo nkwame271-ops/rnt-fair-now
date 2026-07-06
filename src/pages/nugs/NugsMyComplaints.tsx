@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const statusColors: Record<string, string> = {
   awaiting_payment: "bg-info/10 text-info",
@@ -75,8 +76,7 @@ const NugsMyComplaints = () => {
       });
       if (error) throw new Error(error.message);
       if ((data as any)?.authorization_url) {
-        if ((data as any)?.reference) sessionStorage.setItem("pendingPaymentReference", (data as any).reference);
-        window.location.href = (data as any).authorization_url;
+        startBrandedCheckout(data as any);
       } else {
         throw new Error("No checkout URL received");
       }
