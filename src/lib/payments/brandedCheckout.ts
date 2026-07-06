@@ -2,6 +2,8 @@
 // hosted payment page, we open our own branded modal that internally uses
 // the payment processor's inline SDK. All copy avoids naming the processor.
 
+import { toast } from "sonner";
+
 export interface BrandedCheckoutPayload {
   reference: string;
   access_code?: string;
@@ -14,11 +16,26 @@ export interface BrandedCheckoutPayload {
   invoiceId?: string;
   customerName?: string;
   callbackPath?: string;
+  confirmationPath?: string;
 }
 
 const EVENT = "rcg:branded-checkout:open";
 
+export function hasBrandedCheckoutDetails(payload: Partial<BrandedCheckoutPayload> | null | undefined) {
+  return Boolean(
+    payload?.reference &&
+    payload?.publicKey &&
+    payload?.email &&
+    Number(payload?.amount) > 0,
+  );
+}
+
 export function startBrandedCheckout(payload: BrandedCheckoutPayload) {
+  if (!hasBrandedCheckoutDetails(payload)) {
+    toast.error("Secure checkout details are incomplete. Please try again.");
+    return false;
+  }
+
   // Persist reference for post-payment verification fallback.
   try {
     if (payload.reference) {
@@ -26,6 +43,7 @@ export function startBrandedCheckout(payload: BrandedCheckoutPayload) {
     }
   } catch { /* ignore */ }
   window.dispatchEvent(new CustomEvent(EVENT, { detail: payload }));
+  return true;
 }
 
 export function onBrandedCheckoutOpen(
@@ -49,7 +67,7 @@ declare global {
         ref: string;
         callback: (r: { reference: string }) => void;
         onClose: () => void;
-        metadata?: any;
+        metadata?: Record<string, unknown>;
       }) => { openIframe: () => void };
     };
   }

@@ -141,10 +141,14 @@ const LandlordApplications = () => {
         if (error) throw error;
         if (data?.status === "skipped") {
           // Fee is 0 or disabled, proceed directly
-        } else if (data?.authorization_url) {
-          if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-          startBrandedCheckout(data as any);
+        } else if (data?.reference) {
+          sessionStorage.setItem("pendingPaymentReference", data.reference);
+          if (!startBrandedCheckout(data as any)) {
+            throw new Error("No secure checkout details received");
+          }
           return;
+        } else {
+          throw new Error("No secure checkout details received");
         }
       } catch (err: any) {
         toast.error(err.message || "Payment initiation failed");

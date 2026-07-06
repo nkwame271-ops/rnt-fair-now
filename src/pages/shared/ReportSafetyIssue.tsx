@@ -107,14 +107,16 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
       if (typeof payRaw === "string") {
         try { payData = JSON.parse(payRaw); } catch {}
       }
-      if (payErr || payData?.error || !payData?.authorization_url) {
+      if (payErr || payData?.error || !payData?.reference) {
         try { await (supabase.from("pending_safety_report_drafts") as any).delete().eq("id", draft.id); } catch {}
         const reason = payData?.error || payErr?.message || "Could not start payment. Please try again.";
         throw new Error(reason);
       }
       if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
-      toast.success("Redirecting to payment…");
-      startBrandedCheckout(payData as any);
+      if (!startBrandedCheckout(payData as any)) {
+        throw new Error("No secure checkout details received");
+      }
+      toast.success("Opening secure checkout…");
     } catch (err: any) {
       console.error("safety submit error", err);
       const msg = err?.message || err?.error || "Could not start payment";

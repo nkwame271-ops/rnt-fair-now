@@ -30,7 +30,7 @@ interface Props {
   /** When "nugs", fee rules are restricted to fixed-fee types and basket items are tagged as NUGS revenue. */
   feeScope?: "nugs" | "rent_control";
   /** "send_request" (default) notifies the complainant via their portal.
-   *  "officer_checkout" saves the basket and opens Paystack checkout directly for the officer. */
+   *  "officer_checkout" saves the basket and opens secure checkout directly for the officer. */
   mode?: "send_request" | "officer_checkout";
   /** Pre-fill payer details when mode === "officer_checkout". */
   defaultPayerName?: string;
@@ -362,7 +362,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         if (!payerName.trim()) { toast.error("Payer name is required"); setSubmitting(false); return; }
         if (!payerPhone.trim() || payerPhone.replace(/\D/g, "").length < 9) { toast.error("Payer mobile number is required"); setSubmitting(false); return; }
 
-        // Open Paystack checkout directly using the officer's session
+        // Open secure checkout directly using the officer's session
         const { data: checkout, error: ckErr } = await supabase.functions.invoke("paystack-checkout", {
           body: {
             type: "admin_complaint_filing",
@@ -374,13 +374,15 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
           },
         });
         if (ckErr) throw ckErr;
-        if (!checkout?.ok || !checkout?.authorization_url) {
-          throw new Error(checkout?.error || "Could not open checkout");
+        if (!checkout?.ok || !checkout?.reference) {
+          throw new Error(checkout?.error || "Could not open secure checkout");
+        }
+        if (!startBrandedCheckout(checkout as any)) {
+          throw new Error("No secure checkout details received");
         }
         toast.success("Opening secure checkout…");
         onRequested?.();
         onOpenChange(false);
-        startBrandedCheckout(checkout as any);
         return;
       }
 

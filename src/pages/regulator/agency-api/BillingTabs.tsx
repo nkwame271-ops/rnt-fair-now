@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CreditCard, DollarSign, Webhook, AlertCircle, Plus, Trash2, RotateCcw, ExternalLink } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 // ─────────────────────────────── Plans Tab ───────────────────────────────
 
@@ -226,8 +227,11 @@ export function BillingTab() {
       return data;
     },
     onSuccess: (data: any) => {
-      if (data.authorization_url) window.open(data.authorization_url, "_blank");
-      toast.success("Checkout opened in a new tab");
+      if (!startBrandedCheckout(data)) {
+        toast.error("No secure checkout details received");
+        return;
+      }
+      toast.success("Opening secure checkout…");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -358,7 +362,7 @@ function KeyBillingActions({ keyRow, plans, onCheckout, onAssign, onComp, onClea
             </Select>
             <div className="flex gap-2">
               <Button size="sm" disabled={!planId} onClick={() => onCheckout(planId)} className="flex-1">
-                <ExternalLink className="h-3 w-3 mr-1" /> Send Paystack checkout
+                <ExternalLink className="h-3 w-3 mr-1" /> Open secure checkout
               </Button>
               <Button size="sm" variant="outline" disabled={!planId} onClick={() => onAssign(planId)}>
                 Assign without payment

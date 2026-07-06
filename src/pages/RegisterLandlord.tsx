@@ -102,10 +102,10 @@ const RegisterLandlord = () => {
         navigate("/login?role=landlord");
         return;
       }
-      if (data?.authorization_url) {
-        startBrandedCheckout(data as any);
+      if (startBrandedCheckout(data as any)) {
+        return;
       } else {
-        throw new Error("No checkout URL received");
+        throw new Error("No secure checkout details received");
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to initiate payment");
@@ -446,7 +446,7 @@ const RegisterLandlord = () => {
               </Button>
             ) : (
               <Button onClick={handlePayRegistration} disabled={payingRegistration} className="w-full h-12 text-base font-semibold bg-success hover:bg-success/90">
-                {payingRegistration ? "Redirecting to payment..." : regFeeEnabled ? `Pay GH₵ ${regFee.toFixed(0)} Registration Fee` : "Proceed to Login"} <ArrowRight className="ml-2 h-4 w-4" />
+                {payingRegistration ? "Opening secure checkout..." : regFeeEnabled ? `Pay GH₵ ${regFee.toFixed(0)} Registration Fee` : "Proceed to Login"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>

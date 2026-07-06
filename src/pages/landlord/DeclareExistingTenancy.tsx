@@ -530,12 +530,11 @@ const DeclareExistingTenancy = () => {
         await handleSubmitBatch(true);
         return;
       }
-      if (data?.authorization_url) {
-        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        startBrandedCheckout(data as any);
+      if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
+      if (startBrandedCheckout(data as any)) {
         return;
       }
-      throw new Error("Failed to initialize payment");
+      throw new Error("No secure checkout details received");
     } catch (err: any) {
       toast.error(err.message || "Payment failed");
       sessionStorage.removeItem(SESSION_KEY);

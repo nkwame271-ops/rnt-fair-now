@@ -363,15 +363,17 @@ const FileComplaint = () => {
         });
         let payData: any = payRaw;
         if (typeof payRaw === "string") { try { payData = JSON.parse(payRaw); } catch {} }
-        if (payErr || payData?.error || !payData?.authorization_url) {
+        if (payErr || payData?.error || !payData?.reference) {
           // Roll back the draft so user can retry cleanly
           try { await (supabase.from("pending_complaint_drafts") as any).delete().eq("id", draftId); } catch {}
           const reason = payData?.error || payErr?.message || "Could not start payment. Please try again.";
           throw new Error(reason);
         }
         if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
-        toast.success("Redirecting to payment…");
-        startBrandedCheckout(payData as any);
+        if (!startBrandedCheckout(payData as any)) {
+          throw new Error("No secure checkout details received");
+        }
+        toast.success("Opening secure checkout…");
         return;
       }
 

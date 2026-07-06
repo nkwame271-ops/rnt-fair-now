@@ -162,14 +162,13 @@ const Payments = () => {
       });
       if (error) throw new Error(error.message || "Payment initiation failed");
       if (data?.error) throw new Error(data.error);
-      if (data?.authorization_url) {
-        // Store reference for verify-payment call on redirect
-        if (data.reference) {
-          sessionStorage.setItem("pendingPaymentReference", data.reference);
-        }
-        startBrandedCheckout(data as any);
+      if (data?.reference) {
+        sessionStorage.setItem("pendingPaymentReference", data.reference);
+      }
+      if (startBrandedCheckout(data as any)) {
+        return;
       } else {
-        throw new Error("No checkout URL received");
+        throw new Error("No secure checkout details received");
       }
     } catch (err: any) {
       sessionStorage.removeItem("pendingPaymentTenancyId");

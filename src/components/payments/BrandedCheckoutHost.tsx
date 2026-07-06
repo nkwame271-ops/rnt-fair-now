@@ -7,10 +7,16 @@ import { toast } from "sonner";
 import {
   onBrandedCheckoutOpen,
   loadPaystackInline,
+  hasBrandedCheckoutDetails,
   type BrandedCheckoutPayload,
 } from "@/lib/payments/brandedCheckout";
 
 const PLATFORM_NAME = "Rent Control Ghana";
+
+const withReference = (path: string, reference: string) => {
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}ref=${encodeURIComponent(reference)}`;
+};
 
 export default function BrandedCheckoutHost() {
   const navigate = useNavigate();
@@ -28,14 +34,12 @@ export default function BrandedCheckoutHost() {
     if (!payload) return;
     setProcessing(true);
     try {
+      if (!hasBrandedCheckoutDetails(payload)) {
+        throw new Error("Secure checkout details are incomplete. Please try again.");
+      }
       await loadPaystackInline();
       if (!window.PaystackPop || !payload.publicKey) {
-        // Fallback: hosted redirect only if inline unavailable.
-        if (payload.authorization_url) {
-          window.location.href = payload.authorization_url;
-          return;
-        }
-        throw new Error("Secure payment is temporarily unavailable");
+        throw new Error("Secure payment is temporarily unavailable. Please try again.");
       }
       const handler = window.PaystackPop.setup({
         key: payload.publicKey,
@@ -44,8 +48,10 @@ export default function BrandedCheckoutHost() {
         currency: payload.currency || "GHS",
         ref: payload.reference,
         callback: (r) => {
-          const path = `/payments/confirm?ref=${encodeURIComponent(r.reference)}` +
-            (payload.callbackPath ? `&next=${encodeURIComponent(payload.callbackPath)}` : "");
+          const path = payload.confirmationPath
+            ? withReference(payload.confirmationPath, r.reference)
+            : `/payments/confirm?ref=${encodeURIComponent(r.reference)}` +
+              (payload.callbackPath ? `&next=${encodeURIComponent(payload.callbackPath)}` : "");
           setPayload(null);
           navigate(path);
         },
@@ -55,9 +61,9 @@ export default function BrandedCheckoutHost() {
         },
       });
       handler.openIframe();
-    } catch (e: any) {
+    } catch (e: unknown) {
       setProcessing(false);
-      toast.error(e?.message || "Could not start secure payment");
+      toast.error(e instanceof Error ? e.message : "Could not start secure payment");
     }
   };
 

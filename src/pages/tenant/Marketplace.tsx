@@ -309,17 +309,17 @@ const Marketplace = () => {
       if (payErr) throw new Error(payErr.message);
       if (payData?.error) throw new Error(payData.error);
 
-      if (payData?.authorization_url) {
-        if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
-        startBrandedCheckout(payData as any);
-      } else if (payData?.skipped || (payData && !payData.error)) {
+      if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
+      if (startBrandedCheckout(payData as any)) {
+        return;
+      } else if (payData?.skipped) {
         // Fee waived — update viewing request to pending directly
         await supabase.from("viewing_requests").update({ status: "pending" }).eq("id", vr.id);
         toast.success("Viewing request sent to landlord!");
         setViewingRequestsByUnit(prev => ({ ...prev, [selectedUnit.id]: "pending" }));
         setSelectedUnit(null);
       } else {
-        throw new Error("No checkout URL received");
+        throw new Error("No secure checkout details received");
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to send request");
