@@ -358,7 +358,7 @@ function KeyBillingActions({ keyRow, plans, onCheckout, onAssign, onComp, onClea
             </Select>
             <div className="flex gap-2">
               <Button size="sm" disabled={!planId} onClick={() => onCheckout(planId)} className="flex-1">
-                <ExternalLink className="h-3 w-3 mr-1" /> Send Paystack checkout
+                <ExternalLink className="h-3 w-3 mr-1" /> Open secure checkout
               </Button>
               <Button size="sm" variant="outline" disabled={!planId} onClick={() => onAssign(planId)}>
                 Assign without payment
