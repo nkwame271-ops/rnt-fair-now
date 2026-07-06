@@ -593,7 +593,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground -mt-1">
-                The mobile money number is entered on the secure Paystack page after you continue.
+                The mobile money number is entered on the secure payment screen after you continue.
               </p>
               <div className="grid sm:grid-cols-2 gap-2">
                 <div className="space-y-1">
