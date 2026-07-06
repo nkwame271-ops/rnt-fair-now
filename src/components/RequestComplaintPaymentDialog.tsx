@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 import { toast } from "sonner";
 import { CreditCard, AlertTriangle, Plus, Trash2, ListPlus } from "lucide-react";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 import {
   computeBand, computeFixed, computePercentage,
   type BandRow, type ComplaintTypeRow, type FixedFeeRow, type PercentageRow,
