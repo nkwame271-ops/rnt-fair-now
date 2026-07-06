@@ -40,7 +40,7 @@ export function startBrandedCheckout(payload: BrandedCheckoutPayload) {
   const validationError = getBrandedCheckoutValidationError(payload);
   if (validationError) {
     console.warn("Branded checkout payload rejected:", validationError);
-    return false;
+    throw new Error(validationError);
   }
 
   // Persist reference for post-payment verification fallback.
