@@ -171,11 +171,11 @@ const MyCases = () => {
         throw new Error(msg);
       }
       if (data?.error) throw new Error(data.error);
-      if (data?.authorization_url) {
-        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        startBrandedCheckout(data as any);
+      if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
+      if (startBrandedCheckout(data as any)) {
+        return;
       } else {
-        throw new Error("No checkout URL received");
+        throw new Error("No secure checkout details received");
       }
     } catch (err: any) {
       toast.error(err.message || "Could not start payment");

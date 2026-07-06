@@ -75,10 +75,10 @@ const NugsMyComplaints = () => {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (error) throw new Error(error.message);
-      if ((data as any)?.authorization_url) {
-        startBrandedCheckout(data as any);
+      if (startBrandedCheckout(data as any)) {
+        return;
       } else {
-        throw new Error("No checkout URL received");
+        throw new Error("No secure checkout details received");
       }
     } catch (err: any) {
       toast.error(err.message || "Could not start payment");

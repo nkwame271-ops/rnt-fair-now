@@ -78,9 +78,11 @@ export default function RentCareDetail() {
         body: { type: "rentcare_application_fee", applicationId: id },
       });
       if (error || data?.error) throw new Error(error?.message || data?.error || "Payment init failed");
-      if (data?.authorization_url) {
-        if (data.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        startBrandedCheckout(data as any);
+      if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
+      if (startBrandedCheckout(data as any)) {
+        return;
+      } else {
+        throw new Error("No secure checkout details received");
       }
     } catch (e: any) {
       toast.error(e.message || "Payment failed");

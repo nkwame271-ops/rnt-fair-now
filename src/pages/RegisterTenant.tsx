@@ -117,10 +117,10 @@ const RegisterTenant = () => {
         navigate("/login?role=tenant");
         return;
       }
-      if (data?.authorization_url) {
-        startBrandedCheckout(data as any);
+      if (startBrandedCheckout(data as any)) {
+        return;
       } else {
-        throw new Error("No checkout URL received");
+        throw new Error("No secure checkout details received");
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to initiate payment");

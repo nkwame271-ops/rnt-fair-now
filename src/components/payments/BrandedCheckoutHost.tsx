@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   onBrandedCheckoutOpen,
   loadPaystackInline,
+  hasBrandedCheckoutDetails,
   type BrandedCheckoutPayload,
 } from "@/lib/payments/brandedCheckout";
 
@@ -28,14 +29,12 @@ export default function BrandedCheckoutHost() {
     if (!payload) return;
     setProcessing(true);
     try {
+      if (!hasBrandedCheckoutDetails(payload)) {
+        throw new Error("Secure checkout details are incomplete. Please try again.");
+      }
       await loadPaystackInline();
       if (!window.PaystackPop || !payload.publicKey) {
-        // Fallback: hosted redirect only if inline unavailable.
-        if (payload.authorization_url) {
-          window.location.href = payload.authorization_url;
-          return;
-        }
-        throw new Error("Secure payment is temporarily unavailable");
+        throw new Error("Secure payment is temporarily unavailable. Please try again.");
       }
       const handler = window.PaystackPop.setup({
         key: payload.publicKey,
