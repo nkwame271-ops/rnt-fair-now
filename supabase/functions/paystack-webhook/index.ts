@@ -238,6 +238,17 @@ Deno.serve(async (req) => {
     const reference = data.reference || "";
     const amountPaid = (data.amount || 0) / 100;
     const transactionId = String(data.id || "");
+    const channel = data.channel || null;
+
+    // Persist channel + raw webhook payload on the payment intent
+    await supabase
+      .from("payment_intents")
+      .update({
+        payment_channel: channel,
+        webhook_response: body,
+      })
+      .or(`platform_reference.eq.${reference},paystack_reference.eq.${reference}`);
+
 
     // ══════════════════════════════════════════════════════════
     // UNIFIED FINALIZATION — single shared pipeline
