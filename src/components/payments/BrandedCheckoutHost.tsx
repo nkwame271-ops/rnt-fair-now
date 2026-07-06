@@ -61,9 +61,9 @@ export default function BrandedCheckoutHost() {
         },
       });
       handler.openIframe();
-    } catch (e: any) {
+    } catch (e: unknown) {
       setProcessing(false);
-      toast.error(e?.message || "Could not start secure payment");
+      toast.error(e instanceof Error ? e.message : "Could not start secure payment");
     }
   };
 
