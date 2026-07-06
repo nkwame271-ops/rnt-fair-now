@@ -75,8 +75,7 @@ const NugsMyComplaints = () => {
       });
       if (error) throw new Error(error.message);
       if ((data as any)?.authorization_url) {
-        if ((data as any)?.reference) sessionStorage.setItem("pendingPaymentReference", (data as any).reference);
-        window.location.href = (data as any).authorization_url;
+        startBrandedCheckout(data as any);
       } else {
         throw new Error("No checkout URL received");
       }
