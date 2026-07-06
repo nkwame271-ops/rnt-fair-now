@@ -141,9 +141,11 @@ const LandlordApplications = () => {
         if (error) throw error;
         if (data?.status === "skipped") {
           // Fee is 0 or disabled, proceed directly
-        } else if (data?.authorization_url) {
-          if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-          startBrandedCheckout(data as any);
+        } else if (data?.reference) {
+          sessionStorage.setItem("pendingPaymentReference", data.reference);
+          if (!startBrandedCheckout(data as any)) {
+            throw new Error("No secure checkout details received");
+          }
           return;
         }
       } catch (err: any) {

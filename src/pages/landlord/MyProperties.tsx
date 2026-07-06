@@ -325,9 +325,9 @@ const MyProperties = () => {
           return;
         }
 
-        if (data?.authorization_url) {
-          if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-          startBrandedCheckout(data as any);
+        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
+        if (startBrandedCheckout(data as any)) {
+          return;
         } else {
           if (data && !data.error) {
             const { error: updateErr } = await supabase.from("properties").update({
@@ -340,7 +340,7 @@ const MyProperties = () => {
             setListingId(null);
             return;
           }
-          throw new Error("No checkout URL received");
+          throw new Error("No secure checkout details received");
         }
       } catch (err: any) {
         toast.error(err.message || "Failed to initiate listing payment");

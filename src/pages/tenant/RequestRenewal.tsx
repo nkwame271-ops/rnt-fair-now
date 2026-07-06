@@ -172,9 +172,11 @@ const RequestRenewal = () => {
 
       if (payErr) throw new Error(payErr.message);
       if (data?.error) throw new Error(data.error);
-      if (data?.authorization_url) {
-        if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        startBrandedCheckout(data as any);
+      if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
+      if (startBrandedCheckout(data as any)) {
+        return;
+      } else {
+        throw new Error("No secure checkout details received");
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to initiate renewal payment");
