@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Loader2, RefreshCw, LogOut, CheckCircle2, Clock, AlertTriangle, CreditCard } from "lucide-react";
 import PageTransition from "@/components/PageTransition";
 import { differenceInDays, format } from "date-fns";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 interface TenancyRenewal {
   id: string;
@@ -173,7 +174,7 @@ const RequestRenewal = () => {
       if (data?.error) throw new Error(data.error);
       if (data?.authorization_url) {
         if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to initiate renewal payment");

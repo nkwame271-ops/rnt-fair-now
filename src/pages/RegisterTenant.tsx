@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import InstitutionCombobox from "@/components/InstitutionCombobox";
 import { normalizeInstitutionName } from "@/data/ghanaInstitutions";
 import Seo from "@/components/Seo";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const steps = ["Account", "Contact", "Your ID"];
 
@@ -117,7 +118,7 @@ const RegisterTenant = () => {
         return;
       }
       if (data?.authorization_url) {
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       } else {
         throw new Error("No checkout URL received");
       }

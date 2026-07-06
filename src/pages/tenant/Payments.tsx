@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 interface Payment {
   id: string;
@@ -166,7 +167,7 @@ const Payments = () => {
         if (data.reference) {
           sessionStorage.setItem("pendingPaymentReference", data.reference);
         }
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       } else {
         throw new Error("No checkout URL received");
       }

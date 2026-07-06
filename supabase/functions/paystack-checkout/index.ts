@@ -1448,6 +1448,14 @@ Deno.serve(async (req) => {
       authorization_url: result.data.authorization_url,
       access_code: result.data.access_code,
       reference: result.data.reference,
+      publicKey: Deno.env.get("PAYSTACK_PUBLIC_KEY") || null,
+      amount: totalAmount,
+      currency: "GHS",
+      email: paystackEmail,
+      description,
+      invoiceId: caseNumber || reference,
+      callbackPath,
+      customerName: profile?.full_name || "Customer",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

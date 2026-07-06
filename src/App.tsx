@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LogoLoader from "@/components/LogoLoader";
+import BrandedCheckoutHost from "@/components/payments/BrandedCheckoutHost";
 
 // Layouts loaded eagerly (used on every authenticated page)
 import TenantLayout from "./components/TenantLayout";
@@ -30,6 +31,7 @@ const VerifyRentCard = lazy(() => import("./pages/shared/VerifyRentCard"));
 const VerifyReceipt = lazy(() => import("./pages/shared/VerifyReceipt"));
 const VerifyForm = lazy(() => import("./pages/shared/VerifyForm"));
 const ProfilePage = lazy(() => import("./pages/shared/ProfilePage"));
+const PaymentConfirm = lazy(() => import("./pages/shared/PaymentConfirm"));
 
 // Tenant pages
 const TenantDashboard = lazy(() => import("./pages/tenant/TenantDashboard"));
@@ -203,9 +205,11 @@ const App = () => (
         <Sonner />
         <Toaster />
         <BrowserRouter>
+          <BrandedCheckoutHost />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<RoleSelect />} />
+              <Route path="/payments/confirm" element={<PaymentConfirm />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register/tenant" element={<RegisterTenant />} />
               <Route path="/register/landlord" element={<RegisterLandlord />} />

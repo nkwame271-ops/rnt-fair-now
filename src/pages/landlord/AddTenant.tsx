@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { sendNotification } from "@/lib/notificationService";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 type Step = "select-units" | "tenant-details" | "review" | "done";
 
@@ -302,7 +303,7 @@ const AddTenant = () => {
       }
       if (data?.authorization_url) {
         if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       }
     } catch (err: any) {
       sessionStorage.removeItem("addTenantFormData");

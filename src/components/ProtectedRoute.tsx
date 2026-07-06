@@ -7,6 +7,7 @@ import { Loader2, CreditCard, Shield, CheckCircle2, IdCard } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { formatGHSDecimal, formatGHS } from "@/lib/formatters";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -208,7 +209,7 @@ const ProtectedRoute = ({ children, requiredRole, allowStudent }: ProtectedRoute
           return;
         }
         if (data?.authorization_url) {
-          window.location.href = data.authorization_url;
+          startBrandedCheckout(data as any);
         } else {
           throw new Error("No checkout URL received");
         }

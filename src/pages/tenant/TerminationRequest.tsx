@@ -14,6 +14,7 @@ import EmptyState from "@/components/EmptyState";
 import { format } from "date-fns";
 import { useSearchParams } from "react-router-dom";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const reasons = [
   { value: "landlord_harassment", label: "Landlord Harassment" },
@@ -98,7 +99,7 @@ const TenantTerminationRequest = () => {
       }
       if (data?.authorization_url) {
         if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       }
     } catch (err: any) {
       toast.error(err.message || "Payment failed");

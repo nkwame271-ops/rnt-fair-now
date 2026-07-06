@@ -45,6 +45,7 @@ interface EnrichedRentCard extends RentCard {
 
 const PRICE_PER_PAIR = 25;
 import { PUBLIC_URL as PUBLISHED_URL } from "@/lib/projectDomain";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const statusBadge = (status: string) => {
   switch (status) {
@@ -172,7 +173,7 @@ const ManageRentCards = () => {
       }
       if (data?.authorization_url) {
         if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       } else {
         throw new Error("No checkout URL received");
       }

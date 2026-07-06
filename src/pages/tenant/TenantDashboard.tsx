@@ -15,6 +15,7 @@ import TenancyCard, { TenancyCardData } from "@/components/TenancyCard";
 import { differenceInDays } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { FeatureCard, type FeatureCardVariant } from "@/components/FeatureCard";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 
 const TenantDashboard = () => {
@@ -100,7 +101,7 @@ const TenantDashboard = () => {
       if (data?.error) throw new Error(data.error);
       if (data?.authorization_url) {
         if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       } else {
         throw new Error("No checkout URL received");
       }

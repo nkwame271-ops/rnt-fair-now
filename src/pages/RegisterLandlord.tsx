@@ -16,6 +16,7 @@ import { formatPhone, isValidPhone } from "@/lib/formatters";
 import { Switch } from "@/components/ui/switch";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import Seo from "@/components/Seo";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const RegisterLandlord = () => {
   const navigate = useNavigate();
@@ -102,7 +103,7 @@ const RegisterLandlord = () => {
         return;
       }
       if (data?.authorization_url) {
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       } else {
         throw new Error("No checkout URL received");
       }

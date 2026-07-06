@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import PropertyManagementToggle from "@/components/PropertyManagementToggle";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 interface Unit {
   id: string;
@@ -326,7 +327,7 @@ const MyProperties = () => {
 
         if (data?.authorization_url) {
           if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-          window.location.href = data.authorization_url;
+          startBrandedCheckout(data as any);
         } else {
           if (data && !data.error) {
             const { error: updateErr } = await supabase.from("properties").update({
