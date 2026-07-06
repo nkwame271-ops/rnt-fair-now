@@ -1,60 +1,42 @@
-## What I found
+## Problem
 
-The current screenshot is not the same earlier “incomplete checkout details” problem.
+On mobile, when the secure payment window opens and shows Card / Mobile Money / Bank options, tapping the options does nothing. On desktop the same UI works with a mouse. This is a mobile-only interaction bug, not a payment/verification bug.
 
-Evidence from the backend logs for reference `treg_30b8024a-7895-4287-b99f-bede0d731e0d_1783342791049`:
+## Root cause
 
-- Checkout initialization succeeded.
-- The payment processor returned an authorization URL, access code, and reference.
-- The app returned a complete branded checkout payload with public key, email, amount, invoice, and reference.
-- The database still shows the matching escrow transaction as `pending`.
-- No matching verification log was recorded for that reference.
-- No webhook log was recorded.
+Our branded "Secure payment" dialog (`BrandedCheckoutHost`) uses the shadcn `Dialog`, which is a Radix modal. When the user taps "Pay securely", we call `new PaystackPop().resumeTransaction(...)` **while our Dialog is still open**. On mobile browsers this causes two problems:
 
-So the failure is after the payment modal: the confirmation page is timing out because the transaction is still `pending` and the verification path is not completing the escrow.
+1. Radix Dialog installs a full-screen overlay with `pointer-events` management and a focus trap on the dialog content. The payment provider's popup is rendered outside our Dialog's DOM subtree, so on touch devices the overlay / focus trap swallows taps that land on the provider's option buttons. On desktop, mouse clicks behave differently (Radix's outside-click logic still lets them through in some cases), which is why it works with a mouse but not a finger.
+2. Radix also locks body scroll and sets `aria-hidden` on siblings of the Dialog, which further breaks the payment popup's own touch handling on iOS Safari and Android Chrome.
 
-## Likely root cause
+There is nothing wrong with the payment provider's popup itself — the same popup works when it is not rendered underneath a Radix modal.
 
-The branded inline checkout currently uses only the reference in the browser callback. It does not pass the processor `access_code` into the inline SDK setup.
+## Fix (frontend only, no business logic changes)
 
-Because the backend already initialized a transaction and got an `access_code`, the frontend should open that exact initialized transaction. Without binding the inline SDK to the returned `access_code`, the user can reach the confirmation page with a reference that the backend has recorded, but verification can still report not paid / pending if the inline payment session is not the same initialized transaction or has not actually completed.
+Close our branded Dialog the moment we hand control to the payment popup, so the provider's popup is the only modal on screen.
 
-There is also a UX issue: the confirmation page currently shows a generic failure after retries, instead of checking the local transaction record and explaining whether the payment is pending, failed, abandoned, or unverifiable.
+### Changes in `src/components/payments/BrandedCheckoutHost.tsx`
 
-## Plan to fix
+1. In `pay()`, right before calling `resumeTransaction` / `setup`, snapshot the current payload into a local variable and call `setPayload(null)` so our Dialog unmounts and its overlay / focus trap / body-scroll lock are removed.
+2. Keep `processing` state on a small, separate lightweight indicator (or just rely on the payment popup being visible) — do not keep the Radix Dialog mounted while the payment popup is open.
+3. `finishPayment` already navigates away, so no further Dialog cleanup is needed on success.
+4. On `onCancel` from the payment popup, re-open our branded Dialog by calling `setPayload(snapshot)` again so the user can retry, and clear `processing`.
+5. On `onError`, do the same as cancel but also set `errorMsg` so the alert re-appears when the Dialog re-opens.
+6. For the legacy v1 fallback path (`setup(...).openIframe()`), apply the same pattern: close our Dialog before `openIframe()`, restore on `onClose` without success.
 
-1. **Bind branded checkout to the initialized transaction**
-   - Update the inline checkout setup to use the returned `access_code` when opening the payment window.
-   - Keep the existing reference, amount, email, and branded UI.
-   - Do not show public payment-page links or redirect to hosted payment pages.
+### Why this is safe
 
-2. **Improve verification diagnostics**
-   - Add safe logs in the verify function for:
-     - reference received
-     - local escrow status found
-     - processor verification status
-     - finalization result
-   - Do not log keys, tokens, or sensitive payloads.
+- No changes to reference generation, `access_code` handling, verification, or webhook logic.
+- No changes to `startBrandedCheckout`, `loadPaystackInline`, or the edge functions.
+- Only the presentation layer is touched, matching the reported symptom (mobile tap not registering on payment method selection).
 
-3. **Make the confirmation page reflect real status**
-   - If verification returns `success`, show payment received.
-   - If the processor says `abandoned`, `failed`, or `not_paid`, show a clear visible failure.
-   - If the local escrow remains `pending`, show “Payment still pending” with retry/back actions instead of immediately implying the user was charged.
+## Verification
 
-4. **Make verification more resilient**
-   - Keep retrying briefly for delayed processor/webhook updates.
-   - If verification says not paid, return the exact safe status to the frontend.
-   - Keep finalization idempotent so webhooks and manual confirmation cannot double-process the payment.
-
-5. **Deploy and verify against the exact failing reference path**
-   - Deploy the changed verification/check-out functions if backend code changes are needed.
-   - Re-test a checkout flow and confirm the escrow changes from `pending` to `completed`, or shows the precise processor status instead of the generic confirmation failure.
+1. Build passes.
+2. Manually trigger a payment on a mobile viewport in the preview: confirm the branded dialog closes when "Pay securely" is tapped, the provider popup opens, and Card / Mobile Money / Bank options are tappable.
+3. Cancel the popup: confirm our branded dialog re-appears so the user can retry.
+4. Complete a payment: confirm navigation to `/payments/confirm?ref=...` still happens.
 
 ## Files to change
 
-- `src/lib/payments/brandedCheckout.ts`
-- `src/components/payments/BrandedCheckoutHost.tsx`
-- `src/pages/shared/PaymentConfirm.tsx`
-- `supabase/functions/verify-payment/index.ts`
-
-No database schema change is planned.
+- `src/components/payments/BrandedCheckoutHost.tsx` (only)
