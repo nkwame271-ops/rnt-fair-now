@@ -1394,6 +1394,16 @@ Deno.serve(async (req) => {
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
     if (!PAYSTACK_SECRET_KEY) throw new Error("Payment gateway not configured");
 
+    const PAYSTACK_PUBLIC_KEY = Deno.env.get("PAYSTACK_PUBLIC_KEY")?.trim() || "";
+    const publicKeyLooksValid = /^pk_(test|live)_[A-Za-z0-9]+$/.test(PAYSTACK_PUBLIC_KEY);
+    console.log("Secure checkout public key status:", JSON.stringify({
+      present: PAYSTACK_PUBLIC_KEY.length > 0,
+      valid_format: publicKeyLooksValid,
+    }));
+    if (!publicKeyLooksValid) {
+      throw new Error("Secure payment is not configured correctly. Please contact support.");
+    }
+
     const origin = req.headers.get("origin") || PUBLIC_URL;
     const callbackUrl = `${origin}${callbackPath}`;
     const amountInPesewas = Math.round(totalAmount * 100);
@@ -1443,12 +1453,12 @@ Deno.serve(async (req) => {
       throw new Error(result.message || `Paystack error (HTTP ${response.status})`);
     }
 
-    return new Response(JSON.stringify({
+    const checkoutPayload = {
       ok: true,
       authorization_url: result.data.authorization_url,
       access_code: result.data.access_code,
       reference: result.data.reference,
-      publicKey: Deno.env.get("PAYSTACK_PUBLIC_KEY") || null,
+      publicKey: PAYSTACK_PUBLIC_KEY,
       amount: totalAmount,
       currency: "GHS",
       email: paystackEmail,
@@ -1456,7 +1466,17 @@ Deno.serve(async (req) => {
       invoiceId: caseNumber || reference,
       callbackPath,
       customerName: profile?.full_name || "Customer",
-    }), {
+    };
+
+    console.log("Secure checkout response ready:", JSON.stringify({
+      reference: checkoutPayload.reference,
+      amount: checkoutPayload.amount,
+      has_public_key: Boolean(checkoutPayload.publicKey),
+      has_email: Boolean(checkoutPayload.email),
+      invoice_id: checkoutPayload.invoiceId,
+    }));
+
+    return new Response(JSON.stringify(checkoutPayload), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {

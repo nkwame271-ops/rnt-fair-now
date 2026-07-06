@@ -2,8 +2,6 @@
 // hosted payment page, we open our own branded modal that internally uses
 // the payment processor's inline SDK. All copy avoids naming the processor.
 
-import { toast } from "sonner";
-
 export interface BrandedCheckoutPayload {
   reference: string;
   access_code?: string;
@@ -21,19 +19,28 @@ export interface BrandedCheckoutPayload {
 
 const EVENT = "rcg:branded-checkout:open";
 
+export function getBrandedCheckoutValidationError(
+  payload: Partial<BrandedCheckoutPayload> | null | undefined,
+) {
+  if (!payload) return "Secure checkout details were not received.";
+  if (!payload.reference) return "Secure checkout reference is missing.";
+  if (!payload.publicKey) return "Secure payment is not configured correctly.";
+  if (!payload.email) return "Payer email is missing from the secure checkout.";
+  if (!Number.isFinite(Number(payload.amount)) || Number(payload.amount) <= 0) {
+    return "Secure checkout amount is missing or invalid.";
+  }
+  return null;
+}
+
 export function hasBrandedCheckoutDetails(payload: Partial<BrandedCheckoutPayload> | null | undefined) {
-  return Boolean(
-    payload?.reference &&
-    payload?.publicKey &&
-    payload?.email &&
-    Number(payload?.amount) > 0,
-  );
+  return getBrandedCheckoutValidationError(payload) === null;
 }
 
 export function startBrandedCheckout(payload: BrandedCheckoutPayload) {
-  if (!hasBrandedCheckoutDetails(payload)) {
-    toast.error("Secure checkout details are incomplete. Please try again.");
-    return false;
+  const validationError = getBrandedCheckoutValidationError(payload);
+  if (validationError) {
+    console.warn("Branded checkout payload rejected:", validationError);
+    throw new Error(validationError);
   }
 
   // Persist reference for post-payment verification fallback.
