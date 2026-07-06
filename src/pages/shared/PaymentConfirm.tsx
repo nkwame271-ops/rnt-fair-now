@@ -23,6 +23,7 @@ export default function PaymentConfirm() {
     if (!reference) { setStatus("failed"); return; }
     let cancelled = false;
     const attempt = async (tries: number) => {
+      let lastStatus: string | null = null;
       for (let i = 0; i < tries; i++) {
         try {
           const { data } = await supabase.functions.invoke("verify-payment", {
@@ -35,23 +36,22 @@ export default function PaymentConfirm() {
             return;
           }
           const safeStatus = String((data as any)?.status || "").toLowerCase();
-          if (safeStatus) setPaymentStatus(safeStatus.replace(/_/g, " "));
+          if (safeStatus) {
+            lastStatus = safeStatus;
+            setPaymentStatus(safeStatus.replace(/_/g, " "));
+          }
           if (failedStatuses.has(safeStatus)) {
             setStatus("failed");
-            return;
-          }
-          if (pendingStatuses.has(safeStatus)) {
-            setStatus("pending");
             return;
           }
         } catch { /* retry */ }
         await new Promise((r) => setTimeout(r, 2000));
       }
-      if (!cancelled) setStatus(paymentStatus ? "pending" : "failed");
+      if (!cancelled) setStatus(lastStatus && pendingStatuses.has(lastStatus) ? "pending" : "failed");
     };
     attempt(6);
     return () => { cancelled = true; };
-  }, [reference, paymentStatus]);
+  }, [reference]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">

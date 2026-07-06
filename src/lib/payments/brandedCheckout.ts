@@ -65,21 +65,34 @@ export function onBrandedCheckoutOpen(
 
 declare global {
   interface Window {
-    PaystackPop?: {
-      setup: (opts: {
+    PaystackPop?: any;
+  }
+}
+
+export type PaystackInlineV1 = {
+  setup: (opts: {
         key: string;
         email: string;
         amount: number; // pesewas
         currency?: string;
         ref: string;
-        access_code?: string;
         callback: (r: { reference: string }) => void;
         onClose: () => void;
         metadata?: Record<string, unknown>;
-      }) => { openIframe: () => void };
-    };
-  }
-}
+  }) => { openIframe: () => void };
+};
+
+export type PaystackInlineV2Constructor = new () => {
+  resumeTransaction: (
+    accessCode: string,
+    opts?: {
+      onSuccess?: (r: { reference?: string; trxref?: string; status?: string }) => void;
+      onCancel?: () => void;
+      onError?: (error: { message?: string } | Error) => void;
+      onLoad?: () => void;
+    },
+  ) => void;
+};
 
 let inlinePromise: Promise<void> | null = null;
 export function loadPaystackInline(): Promise<void> {
@@ -88,7 +101,7 @@ export function loadPaystackInline(): Promise<void> {
   if (inlinePromise) return inlinePromise;
   inlinePromise = new Promise((resolve, reject) => {
     const s = document.createElement("script");
-    s.src = "https://js.paystack.co/v1/inline.js";
+    s.src = "https://js.paystack.co/v2/inline.js";
     s.async = true;
     s.onload = () => resolve();
     s.onerror = () => { inlinePromise = null; reject(new Error("Could not load secure payment module")); };
