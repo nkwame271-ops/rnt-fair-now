@@ -607,7 +607,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Payer email (optional)</Label>
-                <Input type="email" value={payerEmail} onChange={(e) => setPayerEmail(e.target.value)} placeholder="For Paystack receipt" />
+                <Input type="email" value={payerEmail} onChange={(e) => setPayerEmail(e.target.value)} placeholder="For payment receipt" />
               </div>
             </div>
           )}
