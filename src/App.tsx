@@ -31,7 +31,6 @@ const VerifyReceipt = lazy(() => import("./pages/shared/VerifyReceipt"));
 const VerifyForm = lazy(() => import("./pages/shared/VerifyForm"));
 const ProfilePage = lazy(() => import("./pages/shared/ProfilePage"));
 const PaymentConfirm = lazy(() => import("./pages/shared/PaymentConfirm"));
-import BrandedCheckoutHost from "@/components/payments/BrandedCheckoutHost";
 
 // Tenant pages
 const TenantDashboard = lazy(() => import("./pages/tenant/TenantDashboard"));
