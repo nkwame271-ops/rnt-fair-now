@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const statusColors: Record<string, string> = {
   awaiting_payment: "bg-info/10 text-info",
