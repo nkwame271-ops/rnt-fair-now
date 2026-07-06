@@ -84,6 +84,15 @@ Deno.serve(async (req) => {
     // Payment verified — run shared finalization pipeline
     const amountPaid = (paystackData.data.amount || 0) / 100;
     const transactionId = String(paystackData.data.id || "");
+    const channel = paystackData.data.channel || null;
+
+    // Persist channel on payment intent so we capture it even if webhook is delayed
+    try {
+      await supabaseAdmin
+        .from("payment_intents")
+        .update({ payment_channel: channel })
+        .or(`platform_reference.eq.${reference},paystack_reference.eq.${reference}`);
+    } catch (e) { console.error("payment_intents channel update failed:", e); }
 
     const result = await finalizePayment({ supabaseAdmin, reference, amountPaid, transactionId, logError });
 
