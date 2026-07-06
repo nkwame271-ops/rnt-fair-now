@@ -22,6 +22,7 @@ import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import listing1 from "@/assets/listing-1.jpg";
 import listing2 from "@/assets/listing-2.jpg";
 import listing3 from "@/assets/listing-3.jpg";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const fallbackImages = [listing1, listing2, listing3];
 
@@ -310,7 +311,7 @@ const Marketplace = () => {
 
       if (payData?.authorization_url) {
         if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
-        window.location.href = payData.authorization_url;
+        startBrandedCheckout(payData as any);
       } else if (payData?.skipped || (payData && !payData.error)) {
         // Fee waived — update viewing request to pending directly
         await supabase.from("viewing_requests").update({ status: "pending" }).eq("id", vr.id);

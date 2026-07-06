@@ -12,6 +12,7 @@ import { SAFETY_CATEGORIES } from "@/lib/safetyCategories";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { ShieldAlert, CreditCard, Loader2 } from "lucide-react";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 interface Props {
   role: "tenant" | "landlord" | "student";
@@ -113,7 +114,7 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
       }
       if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
       toast.success("Redirecting to payment…");
-      window.location.href = payData.authorization_url;
+      startBrandedCheckout(payData as any);
     } catch (err: any) {
       console.error("safety submit error", err);
       const msg = err?.message || err?.error || "Could not start payment";

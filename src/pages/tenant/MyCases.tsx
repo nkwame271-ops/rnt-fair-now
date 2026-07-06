@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import AppointmentSlotPicker from "@/components/AppointmentSlotPicker";
 import { openSignedStorageUrl } from "@/lib/openSignedUrl";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const statusIcon: Record<string, React.ReactNode> = {
   awaiting_payment: <Clock className="h-4 w-4 text-info" />,
@@ -172,7 +173,7 @@ const MyCases = () => {
       if (data?.error) throw new Error(data.error);
       if (data?.authorization_url) {
         if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       } else {
         throw new Error("No checkout URL received");
       }

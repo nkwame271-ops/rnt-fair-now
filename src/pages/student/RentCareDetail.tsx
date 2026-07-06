@@ -14,6 +14,7 @@ import { Loader2, ExternalLink, Upload, FileText, Send } from "lucide-react";
 import { toast } from "sonner";
 import { RENTCARE_LEGAL_NOTICE, RENTCARE_PROGRAMME_NAME, RENTCARE_STATUS_LABELS } from "@/lib/rentcare/legalNotice";
 import { logRentCareAudit } from "@/lib/rentcare/audit";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const DOC_TYPES = [
   { key: "ghana_card", label: "Ghana Card" },
@@ -79,7 +80,7 @@ export default function RentCareDetail() {
       if (error || data?.error) throw new Error(error?.message || data?.error || "Payment init failed");
       if (data?.authorization_url) {
         if (data.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       }
     } catch (e: any) {
       toast.error(e.message || "Payment failed");

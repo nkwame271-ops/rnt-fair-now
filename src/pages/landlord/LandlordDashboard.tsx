@@ -14,6 +14,7 @@ import AnimatedCounter from "@/components/AnimatedCounter";
 import { getTimeGreeting } from "@/lib/greeting";
 import { Badge } from "@/components/ui/badge";
 import { FeatureCard, type FeatureCardVariant } from "@/components/FeatureCard";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const LandlordDashboard = () => {
   const { user } = useAuth();
@@ -116,7 +117,7 @@ const LandlordDashboard = () => {
       if (data?.error) throw new Error(data.error);
       if (data?.authorization_url) {
         if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       } else {
         throw new Error("No checkout URL received");
       }

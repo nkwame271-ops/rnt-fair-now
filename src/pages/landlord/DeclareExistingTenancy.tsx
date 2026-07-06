@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 type Step = "select-units" | "tenant-details" | "review" | "done";
 
@@ -531,7 +532,7 @@ const DeclareExistingTenancy = () => {
       }
       if (data?.authorization_url) {
         if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
         return;
       }
       throw new Error("Failed to initialize payment");

@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useJsApiLoader } from "@react-google-maps/api";
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const steps = ["Office", "Complaint Type", "Property Details", "Location", "Description & Evidence", "Review & Submit"];
 
@@ -370,7 +371,7 @@ const FileComplaint = () => {
         }
         if (payData?.reference) sessionStorage.setItem("pendingPaymentReference", payData.reference);
         toast.success("Redirecting to payment…");
-        window.location.href = payData.authorization_url;
+        startBrandedCheckout(payData as any);
         return;
       }
 

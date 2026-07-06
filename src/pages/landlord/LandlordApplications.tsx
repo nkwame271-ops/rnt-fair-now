@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const applicationTypes = [
   { value: "rent_increase", label: "Rent Increase Request" },
@@ -142,7 +143,7 @@ const LandlordApplications = () => {
           // Fee is 0 or disabled, proceed directly
         } else if (data?.authorization_url) {
           if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-          window.location.href = data.authorization_url;
+          startBrandedCheckout(data as any);
           return;
         }
       } catch (err: any) {

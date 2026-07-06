@@ -18,6 +18,7 @@ import { useJsApiLoader } from "@react-google-maps/api";
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
 import { SignedImage } from "@/components/SignedMedia";
 import { openSignedStorageUrl } from "@/lib/openSignedUrl";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const complaintTypes = [
   "Tenant refusing to vacate",
@@ -229,7 +230,7 @@ const LandlordComplaints = () => {
       if (data?.error) throw new Error(data.error);
       if (data?.authorization_url) {
         if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-        window.location.href = data.authorization_url;
+        startBrandedCheckout(data as any);
       } else {
         throw new Error("No checkout URL received");
       }
