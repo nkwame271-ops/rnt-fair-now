@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LogoLoader from "@/components/LogoLoader";
+import BrandedCheckoutHost from "@/components/payments/BrandedCheckoutHost";
 
 // Layouts loaded eagerly (used on every authenticated page)
 import TenantLayout from "./components/TenantLayout";
