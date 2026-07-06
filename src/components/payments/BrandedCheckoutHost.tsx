@@ -23,17 +23,20 @@ export default function BrandedCheckoutHost() {
   const navigate = useNavigate();
   const [payload, setPayload] = useState<BrandedCheckoutPayload | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => onBrandedCheckoutOpen((p) => {
     setPayload(p);
     setProcessing(false);
+    setErrorMsg(null);
   }), []);
 
-  const close = () => { if (!processing) setPayload(null); };
+  const close = () => { if (!processing) { setPayload(null); setErrorMsg(null); } };
 
   const pay = async () => {
     if (!payload) return;
     setProcessing(true);
+    setErrorMsg(null);
     try {
       if (!hasBrandedCheckoutDetails(payload)) {
         throw new Error("Secure checkout details are incomplete. Please try again.");
