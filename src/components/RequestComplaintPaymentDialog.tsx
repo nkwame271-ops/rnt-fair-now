@@ -379,8 +379,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         toast.success("Opening secure checkout…");
         onRequested?.();
         onOpenChange(false);
-        // Redirect officer's browser to Paystack hosted page (handles mobile money number entry)
-        window.location.href = checkout.authorization_url;
+        startBrandedCheckout(checkout as any);
         return;
       }
 
