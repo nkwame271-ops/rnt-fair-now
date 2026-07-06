@@ -147,6 +147,8 @@ const LandlordApplications = () => {
             throw new Error("No secure checkout details received");
           }
           return;
+        } else {
+          throw new Error("No secure checkout details received");
         }
       } catch (err: any) {
         toast.error(err.message || "Payment initiation failed");

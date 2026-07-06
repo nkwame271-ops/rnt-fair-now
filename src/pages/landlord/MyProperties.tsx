@@ -329,17 +329,6 @@ const MyProperties = () => {
         if (startBrandedCheckout(data as any)) {
           return;
         } else {
-          if (data && !data.error) {
-            const { error: updateErr } = await supabase.from("properties").update({
-              listed_on_marketplace: true,
-              property_status: "live",
-            } as any).eq("id", property.id);
-            if (updateErr) throw new Error(updateErr.message);
-            setProperties(prev => prev.map(p => p.id === property.id ? { ...p, listed_on_marketplace: true, property_status: "live" } : p));
-            toast.success("Property listed on marketplace!");
-            setListingId(null);
-            return;
-          }
           throw new Error("No secure checkout details received");
         }
       } catch (err: any) {

@@ -30,7 +30,7 @@ interface Props {
   /** When "nugs", fee rules are restricted to fixed-fee types and basket items are tagged as NUGS revenue. */
   feeScope?: "nugs" | "rent_control";
   /** "send_request" (default) notifies the complainant via their portal.
-   *  "officer_checkout" saves the basket and opens Paystack checkout directly for the officer. */
+   *  "officer_checkout" saves the basket and opens secure checkout directly for the officer. */
   mode?: "send_request" | "officer_checkout";
   /** Pre-fill payer details when mode === "officer_checkout". */
   defaultPayerName?: string;
