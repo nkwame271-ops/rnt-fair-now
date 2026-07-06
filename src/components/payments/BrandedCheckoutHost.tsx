@@ -67,7 +67,9 @@ export default function BrandedCheckoutHost() {
       handler.openIframe();
     } catch (e: unknown) {
       setProcessing(false);
-      toast.error(e instanceof Error ? e.message : "Could not start secure payment");
+      const msg = e instanceof Error ? e.message : "Could not start secure payment";
+      setErrorMsg(msg);
+      toast.error(msg);
     }
   };
 
