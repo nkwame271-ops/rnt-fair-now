@@ -4371,6 +4371,7 @@ export type Database = {
           metadata: Json
           office_id: string | null
           officer_id: string | null
+          payment_channel: string | null
           payment_provider: string
           paystack_reference: string | null
           platform_reference: string
@@ -4381,6 +4382,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
           user_type: string | null
+          webhook_response: Json | null
         }
         Insert: {
           abandoned_at?: string | null
@@ -4399,6 +4401,7 @@ export type Database = {
           metadata?: Json
           office_id?: string | null
           officer_id?: string | null
+          payment_channel?: string | null
           payment_provider?: string
           paystack_reference?: string | null
           platform_reference: string
@@ -4409,6 +4412,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           user_type?: string | null
+          webhook_response?: Json | null
         }
         Update: {
           abandoned_at?: string | null
@@ -4427,6 +4431,7 @@ export type Database = {
           metadata?: Json
           office_id?: string | null
           officer_id?: string | null
+          payment_channel?: string | null
           payment_provider?: string
           paystack_reference?: string | null
           platform_reference?: string
@@ -4437,6 +4442,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           user_type?: string | null
+          webhook_response?: Json | null
         }
         Relationships: [
           {

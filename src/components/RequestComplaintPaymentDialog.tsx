@@ -593,7 +593,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground -mt-1">
-                The mobile money number is entered on the secure Paystack page after you continue.
+                The mobile money number is entered on the secure payment screen after you continue.
               </p>
               <div className="grid sm:grid-cols-2 gap-2">
                 <div className="space-y-1">
@@ -607,7 +607,7 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Payer email (optional)</Label>
-                <Input type="email" value={payerEmail} onChange={(e) => setPayerEmail(e.target.value)} placeholder="For Paystack receipt" />
+                <Input type="email" value={payerEmail} onChange={(e) => setPayerEmail(e.target.value)} placeholder="For payment receipt" />
               </div>
             </div>
           )}

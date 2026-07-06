@@ -121,7 +121,7 @@ export default function ReportMissingPayment() {
       <div>
         <h1 className="text-2xl font-bold">Report a Missing Payment</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Paid but the system hasn't credited you yet? Upload the Paystack SMS or email receipt below.
+          Paid but the system hasn't credited you yet? Upload the SMS or email payment receipt below.
         </p>
       </div>
 
@@ -129,7 +129,7 @@ export default function ReportMissingPayment() {
         <ShieldCheck className="h-4 w-4" />
         <AlertTitle>Bad networks can interrupt payments</AlertTitle>
         <AlertDescription className="text-xs">
-          Sometimes your bank or Paystack confirms a charge before our platform receives it. When that happens,
+          Sometimes your bank or payment partner confirms a charge before our platform receives it. When that happens,
           send us your receipt here. Our system will check it automatically, and an officer will review and credit
           your account — usually within a few hours. No payment is approved without an officer's decision.
         </AlertDescription>

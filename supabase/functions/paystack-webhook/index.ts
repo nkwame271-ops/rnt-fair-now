@@ -90,6 +90,19 @@ Deno.serve(async (req) => {
       const data = body.data;
       const reference = data.reference || "";
       const amountFailed = (data.amount || 0) / 100;
+      const channel = data.channel || null;
+
+      // Record failure + raw payload on the payment intent for audit
+      await supabase
+        .from("payment_intents")
+        .update({
+          status: "failed",
+          failure_reason: data.gateway_response || "Payment failed",
+          payment_channel: channel,
+          webhook_response: body,
+        })
+        .or(`platform_reference.eq.${reference},paystack_reference.eq.${reference}`);
+
 
       const { data: escrowTx } = await supabase
         .from("escrow_transactions")
@@ -225,6 +238,17 @@ Deno.serve(async (req) => {
     const reference = data.reference || "";
     const amountPaid = (data.amount || 0) / 100;
     const transactionId = String(data.id || "");
+    const channel = data.channel || null;
+
+    // Persist channel + raw webhook payload on the payment intent
+    await supabase
+      .from("payment_intents")
+      .update({
+        payment_channel: channel,
+        webhook_response: body,
+      })
+      .or(`platform_reference.eq.${reference},paystack_reference.eq.${reference}`);
+
 
     // ══════════════════════════════════════════════════════════
     // UNIFIED FINALIZATION — single shared pipeline
