@@ -205,9 +205,12 @@ const App = () => (
         <Sonner />
         <Toaster />
         <BrowserRouter>
+          <BrandedCheckoutHost />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<RoleSelect />} />
+              <Route path="/payments/confirm" element={<PaymentConfirm />} />
+              <Route path="/login" element={<Login />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register/tenant" element={<RegisterTenant />} />
               <Route path="/register/landlord" element={<RegisterLandlord />} />
