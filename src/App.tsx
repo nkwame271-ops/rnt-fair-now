@@ -211,7 +211,6 @@ const App = () => (
               <Route path="/" element={<RoleSelect />} />
               <Route path="/payments/confirm" element={<PaymentConfirm />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/login" element={<Login />} />
               <Route path="/register/tenant" element={<RegisterTenant />} />
               <Route path="/register/landlord" element={<RegisterLandlord />} />
               <Route path="/regulator/login" element={<RegulatorLogin />} />
