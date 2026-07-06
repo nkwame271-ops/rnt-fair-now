@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, ShieldCheck, Lock, Info } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Loader2, ShieldCheck, Lock, Info, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   onBrandedCheckoutOpen,
@@ -22,17 +23,20 @@ export default function BrandedCheckoutHost() {
   const navigate = useNavigate();
   const [payload, setPayload] = useState<BrandedCheckoutPayload | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => onBrandedCheckoutOpen((p) => {
     setPayload(p);
     setProcessing(false);
+    setErrorMsg(null);
   }), []);
 
-  const close = () => { if (!processing) setPayload(null); };
+  const close = () => { if (!processing) { setPayload(null); setErrorMsg(null); } };
 
   const pay = async () => {
     if (!payload) return;
     setProcessing(true);
+    setErrorMsg(null);
     try {
       if (!hasBrandedCheckoutDetails(payload)) {
         throw new Error("Secure checkout details are incomplete. Please try again.");
@@ -63,7 +67,9 @@ export default function BrandedCheckoutHost() {
       handler.openIframe();
     } catch (e: unknown) {
       setProcessing(false);
-      toast.error(e instanceof Error ? e.message : "Could not start secure payment");
+      const msg = e instanceof Error ? e.message : "Could not start secure payment";
+      setErrorMsg(msg);
+      toast.error(msg);
     }
   };
 
@@ -87,6 +93,16 @@ export default function BrandedCheckoutHost() {
 
         {payload && (
           <div className="space-y-4">
+            {errorMsg && (
+              <Alert variant="destructive" role="alert" aria-live="assertive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Secure payment could not start</AlertTitle>
+                <AlertDescription>
+                  {errorMsg} If the problem persists, please try a different
+                  payment method or contact support.
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="rounded-lg border bg-card p-4 space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Merchant</span>
