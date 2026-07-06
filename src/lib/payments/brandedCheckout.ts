@@ -72,6 +72,7 @@ declare global {
         amount: number; // pesewas
         currency?: string;
         ref: string;
+        access_code?: string;
         callback: (r: { reference: string }) => void;
         onClose: () => void;
         metadata?: Record<string, unknown>;

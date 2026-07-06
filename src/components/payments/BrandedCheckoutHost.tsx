@@ -51,6 +51,7 @@ export default function BrandedCheckoutHost() {
         amount: Math.round(payload.amount * 100),
         currency: payload.currency || "GHS",
         ref: payload.reference,
+        ...(payload.access_code ? { access_code: payload.access_code } : {}),
         callback: (r) => {
           const path = payload.confirmationPath
             ? withReference(payload.confirmationPath, r.reference)
