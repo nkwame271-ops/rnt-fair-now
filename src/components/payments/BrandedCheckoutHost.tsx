@@ -35,40 +35,56 @@ export default function BrandedCheckoutHost() {
 
   const pay = async () => {
     if (!payload) return;
+    const snapshot = payload;
     setProcessing(true);
     setErrorMsg(null);
     const finishPayment = (reference?: string) => {
-      const confirmedReference = reference || payload.reference;
-      const path = payload.confirmationPath
-        ? withReference(payload.confirmationPath, confirmedReference)
+      const confirmedReference = reference || snapshot.reference;
+      const path = snapshot.confirmationPath
+        ? withReference(snapshot.confirmationPath, confirmedReference)
         : `/payments/confirm?ref=${encodeURIComponent(confirmedReference)}` +
-          (payload.callbackPath ? `&next=${encodeURIComponent(payload.callbackPath)}` : "");
+          (snapshot.callbackPath ? `&next=${encodeURIComponent(snapshot.callbackPath)}` : "");
       setPayload(null);
+      setProcessing(false);
       navigate(path);
     };
+    const reopenForRetry = (msg?: string) => {
+      // Re-mount our branded dialog so the user can retry. Give the browser a
+      // tick so the payment popup fully tears down first (avoids double-modal
+      // pointer-events issues on mobile).
+      setTimeout(() => {
+        setProcessing(false);
+        if (msg) setErrorMsg(msg);
+        setPayload(snapshot);
+      }, 50);
+    };
     try {
-      if (!hasBrandedCheckoutDetails(payload)) {
+      if (!hasBrandedCheckoutDetails(snapshot)) {
         throw new Error("Secure checkout details are incomplete. Please try again.");
       }
       await loadPaystackInline();
       const PaystackPop = window.PaystackPop;
-      if (!PaystackPop || !payload.publicKey) {
+      if (!PaystackPop || !snapshot.publicKey) {
         throw new Error("Secure payment is temporarily unavailable. Please try again.");
       }
 
-      if (payload.access_code && typeof PaystackPop === "function") {
+      // CRITICAL: close our Radix Dialog before opening the provider popup.
+      // Leaving it mounted traps focus / swallows taps on mobile, so the
+      // payment-method options (Card / Mobile Money / Bank) become unclickable.
+      setPayload(null);
+
+      if (snapshot.access_code && typeof PaystackPop === "function") {
         const popup = new PaystackPop();
-        popup.resumeTransaction(payload.access_code, {
+        popup.resumeTransaction(snapshot.access_code, {
           onSuccess: (r: { reference?: string; trxref?: string }) => finishPayment(r.reference || r.trxref),
           onCancel: () => {
-            setProcessing(false);
             toast("Payment window closed. You can retry any time.");
+            reopenForRetry();
           },
           onError: (error: { message?: string } | Error) => {
-            setProcessing(false);
             const msg = error?.message || "Could not start secure payment";
-            setErrorMsg(msg);
             toast.error(msg);
+            reopenForRetry(msg);
           },
         });
         return;
@@ -88,24 +104,25 @@ export default function BrandedCheckoutHost() {
       if (!legacyInline.setup) {
         throw new Error("Secure payment module could not open this transaction.");
       }
+      let completed = false;
       const handler = legacyInline.setup({
-        key: payload.publicKey,
-        email: payload.email,
-        amount: Math.round(payload.amount * 100),
-        currency: payload.currency || "GHS",
-        ref: payload.reference,
-        callback: (r) => finishPayment(r.reference),
+        key: snapshot.publicKey,
+        email: snapshot.email,
+        amount: Math.round(snapshot.amount * 100),
+        currency: snapshot.currency || "GHS",
+        ref: snapshot.reference,
+        callback: (r) => { completed = true; finishPayment(r.reference); },
         onClose: () => {
-          setProcessing(false);
+          if (completed) return;
           toast("Payment window closed. You can retry any time.");
+          reopenForRetry();
         },
       });
       handler.openIframe();
     } catch (e: unknown) {
-      setProcessing(false);
       const msg = e instanceof Error ? e.message : "Could not start secure payment";
-      setErrorMsg(msg);
       toast.error(msg);
+      reopenForRetry(msg);
     }
   };
 
