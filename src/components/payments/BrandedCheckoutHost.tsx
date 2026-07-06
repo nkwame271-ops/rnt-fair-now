@@ -93,6 +93,16 @@ export default function BrandedCheckoutHost() {
 
         {payload && (
           <div className="space-y-4">
+            {errorMsg && (
+              <Alert variant="destructive" role="alert" aria-live="assertive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Secure payment could not start</AlertTitle>
+                <AlertDescription>
+                  {errorMsg} If the problem persists, please try a different
+                  payment method or contact support.
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="rounded-lg border bg-card p-4 space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Merchant</span>
