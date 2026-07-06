@@ -121,7 +121,7 @@ export default function ReportMissingPayment() {
       <div>
         <h1 className="text-2xl font-bold">Report a Missing Payment</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Paid but the system hasn't credited you yet? Upload the Paystack SMS or email receipt below.
+          Paid but the system hasn't credited you yet? Upload the SMS or email payment receipt below.
         </p>
       </div>
 
