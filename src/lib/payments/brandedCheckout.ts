@@ -16,6 +16,7 @@ export interface BrandedCheckoutPayload {
   invoiceId?: string;
   customerName?: string;
   callbackPath?: string;
+  confirmationPath?: string;
 }
 
 const EVENT = "rcg:branded-checkout:open";

@@ -13,6 +13,11 @@ import {
 
 const PLATFORM_NAME = "Rent Control Ghana";
 
+const withReference = (path: string, reference: string) => {
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}ref=${encodeURIComponent(reference)}`;
+};
+
 export default function BrandedCheckoutHost() {
   const navigate = useNavigate();
   const [payload, setPayload] = useState<BrandedCheckoutPayload | null>(null);
@@ -43,8 +48,10 @@ export default function BrandedCheckoutHost() {
         currency: payload.currency || "GHS",
         ref: payload.reference,
         callback: (r) => {
-          const path = `/payments/confirm?ref=${encodeURIComponent(r.reference)}` +
-            (payload.callbackPath ? `&next=${encodeURIComponent(payload.callbackPath)}` : "");
+          const path = payload.confirmationPath
+            ? withReference(payload.confirmationPath, r.reference)
+            : `/payments/confirm?ref=${encodeURIComponent(r.reference)}` +
+              (payload.callbackPath ? `&next=${encodeURIComponent(payload.callbackPath)}` : "");
           setPayload(null);
           navigate(path);
         },

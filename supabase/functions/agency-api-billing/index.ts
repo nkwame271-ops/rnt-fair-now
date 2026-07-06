@@ -113,7 +113,20 @@ serve(async (req) => {
         line_items: [{ description: `${plan.name} plan – monthly subscription`, amount_ghs: plan.price_ghs }],
       });
 
-      return json({ authorization_url: init.data.authorization_url, reference: init.data.reference });
+      return json({
+        ok: true,
+        authorization_url: init.data.authorization_url,
+        access_code: init.data.access_code,
+        reference: init.data.reference,
+        publicKey: Deno.env.get("PAYSTACK_PUBLIC_KEY") || null,
+        amount: Number(plan.price_ghs),
+        currency: "GHS",
+        email: email || key.agency_contact_email,
+        description: `${plan.name} plan – monthly subscription`,
+        invoiceId: init.data.reference,
+        customerName: key.agency_name || "Agency account",
+        confirmationPath: "/regulator/agency-api?billing=success",
+      });
     }
 
     if (action === "cancel-subscription") {
