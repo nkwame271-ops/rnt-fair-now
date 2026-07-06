@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, XCircle, ShieldCheck } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ShieldCheck, Clock3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-type Status = "verifying" | "success" | "failed";
+type Status = "verifying" | "success" | "pending" | "failed";
+
+const pendingStatuses = new Set(["pending", "processing", "queued", "in_progress"]);
+const failedStatuses = new Set(["failed", "abandoned", "reversed", "not_paid", "cancelled", "canceled"]);
 
 export default function PaymentConfirm() {
   const [params] = useSearchParams();
@@ -14,11 +17,13 @@ export default function PaymentConfirm() {
   const next = params.get("next") || "";
   const [status, setStatus] = useState<Status>("verifying");
   const [details, setDetails] = useState<any>(null);
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!reference) { setStatus("failed"); return; }
     let cancelled = false;
     const attempt = async (tries: number) => {
+      let lastStatus: string | null = null;
       for (let i = 0; i < tries; i++) {
         try {
           const { data } = await supabase.functions.invoke("verify-payment", {
@@ -30,10 +35,19 @@ export default function PaymentConfirm() {
             setStatus("success");
             return;
           }
+          const safeStatus = String((data as any)?.status || "").toLowerCase();
+          if (safeStatus) {
+            lastStatus = safeStatus;
+            setPaymentStatus(safeStatus.replace(/_/g, " "));
+          }
+          if (failedStatuses.has(safeStatus)) {
+            setStatus("failed");
+            return;
+          }
         } catch { /* retry */ }
         await new Promise((r) => setTimeout(r, 2000));
       }
-      if (!cancelled) setStatus("failed");
+      if (!cancelled) setStatus(lastStatus && pendingStatuses.has(lastStatus) ? "pending" : "failed");
     };
     attempt(6);
     return () => { cancelled = true; };
@@ -72,6 +86,27 @@ export default function PaymentConfirm() {
               <p className="text-center text-[11px] text-muted-foreground">
                 Secure payment powered by our licensed payment partner.
               </p>
+            </div>
+          )}
+          {status === "pending" && (
+            <div className="space-y-4">
+              <div className="flex flex-col items-center gap-2 py-4">
+                <Clock3 className="h-12 w-12 text-primary" />
+                <p className="text-lg font-semibold">Payment still pending</p>
+                <p className="text-sm text-muted-foreground text-center">
+                  We found your payment attempt, but it has not been confirmed yet{paymentStatus ? ` (${paymentStatus})` : ""}.
+                  You can wait a moment and retry confirmation.
+                </p>
+                <p className="font-mono text-xs break-all text-center">{reference}</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button className="w-full" onClick={() => window.location.reload()}>
+                  Retry confirmation
+                </Button>
+                <Button className="w-full" variant="outline" onClick={() => navigate(next || "/")}>
+                  Back
+                </Button>
+              </div>
             </div>
           )}
           {status === "failed" && (

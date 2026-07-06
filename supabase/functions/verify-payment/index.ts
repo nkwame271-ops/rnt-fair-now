@@ -33,6 +33,7 @@ Deno.serve(async (req) => {
       reference = url.searchParams.get("reference") || "";
     }
     if (!reference) throw new Error("reference is required");
+    console.log("verify-payment request received:", JSON.stringify({ reference }));
 
     // Optional auth check
     let userId: string | null = null;
@@ -55,6 +56,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!escrow) throw new Error("Transaction not found");
+    console.log("verify-payment local transaction:", JSON.stringify({ reference, escrow_status: escrow.status }));
     if (userId && escrow.user_id !== userId) throw new Error("Unauthorized");
 
     // Already completed — run finalize anyway to fill any missing splits/receipts/payouts
@@ -74,9 +76,11 @@ Deno.serve(async (req) => {
       headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
     });
     const paystackData = await paystackRes.json();
+    const processorStatus = paystackData.data?.status || "not_paid";
+    console.log("verify-payment processor status:", JSON.stringify({ reference, http_status: paystackRes.status, processor_status: processorStatus, processor_ok: Boolean(paystackData.status) }));
 
     if (!paystackData.status || paystackData.data?.status !== "success") {
-      return new Response(JSON.stringify({ verified: false, status: paystackData.data?.status || "not_paid" }), {
+      return new Response(JSON.stringify({ verified: false, status: processorStatus, localStatus: escrow.status }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -95,6 +99,7 @@ Deno.serve(async (req) => {
     } catch (e) { console.error("payment_intents channel update failed:", e); }
 
     const result = await finalizePayment({ supabaseAdmin, reference, amountPaid, transactionId, logError });
+    console.log("verify-payment finalized:", JSON.stringify({ reference, result_status: result.status, verified: result.verified }));
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,49 +1,60 @@
-**Problem found**
+## What I found
 
-The checkout is not failing at Paystack initialization. Recent backend logs show Paystack successfully created checkout sessions and returned `authorization_url`, `access_code`, and `reference`.
+The current screenshot is not the same earlier “incomplete checkout details” problem.
 
-The failure is happening after that, inside the app, because `startBrandedCheckout()` rejects the returned payload when any of these are missing:
+Evidence from the backend logs for reference `treg_30b8024a-7895-4287-b99f-bede0d731e0d_1783342791049`:
 
-```text
-reference + publicKey + email + amount
-```
+- Checkout initialization succeeded.
+- The payment processor returned an authorization URL, access code, and reference.
+- The app returned a complete branded checkout payload with public key, email, amount, invoice, and reference.
+- The database still shows the matching escrow transaction as `pending`.
+- No matching verification log was recorded for that reference.
+- No webhook log was recorded.
 
-In this flow the most likely missing field is `publicKey`. The backend currently returns:
+So the failure is after the payment modal: the confirmation page is timing out because the transaction is still `pending` and the verification path is not completing the escrow.
 
-```text
-publicKey: Deno.env.get("PAYSTACK_PUBLIC_KEY") || null
-```
+## Likely root cause
 
-So if the public key is empty, unavailable to the deployed function runtime, or not validated before responding, the frontend receives a successful backend checkout response but refuses to open the branded modal. That directly matches the screenshot errors:
+The branded inline checkout currently uses only the reference in the browser callback. It does not pass the processor `access_code` into the inline SDK setup.
 
-```text
-Secure checkout details are incomplete. Please try again.
-No secure checkout details received
-```
+Because the backend already initialized a transaction and got an `access_code`, the frontend should open that exact initialized transaction. Without binding the inline SDK to the returned `access_code`, the user can reach the confirmation page with a reference that the backend has recorded, but verification can still report not paid / pending if the inline payment session is not the same initialized transaction or has not actually completed.
 
-There is also a second issue: the frontend masks which field is missing, so we had to infer from code and logs instead of the UI telling us the real problem.
+There is also a UX issue: the confirmation page currently shows a generic failure after retries, instead of checking the local transaction record and explaining whether the payment is pending, failed, abandoned, or unverifiable.
 
-**Fix plan**
+## Plan to fix
 
-1. **Make the backend fail clearly when inline checkout cannot work**
-   - In `paystack-checkout`, validate `PAYSTACK_PUBLIC_KEY` before returning checkout data.
-   - If it is missing or malformed, return a clear branded error like: `Secure payment is not configured correctly. Please contact support.`
-   - Do not return a partial payload that the frontend later rejects.
+1. **Bind branded checkout to the initialized transaction**
+   - Update the inline checkout setup to use the returned `access_code` when opening the payment window.
+   - Keep the existing reference, amount, email, and branded UI.
+   - Do not show public payment-page links or redirect to hosted payment pages.
 
-2. **Return an explicit branded checkout payload**
-   - Build a `checkout` object with all required fields: `reference`, `publicKey`, `amount`, `currency`, `email`, `description`, `invoiceId`, `callbackPath`, `customerName`.
-   - Keep `authorization_url` for internal traceability if needed, but do not depend on it or expose it in UI.
+2. **Improve verification diagnostics**
+   - Add safe logs in the verify function for:
+     - reference received
+     - local escrow status found
+     - processor verification status
+     - finalization result
+   - Do not log keys, tokens, or sensitive payloads.
 
-3. **Improve frontend validation without leaking processor details**
-   - Update `hasBrandedCheckoutDetails()` to report which required field is missing for debugging.
-   - Update callers so the user sees one clear error instead of two stacked toasts.
-   - Keep wording neutral: “Secure payment could not start.”
+3. **Make the confirmation page reflect real status**
+   - If verification returns `success`, show payment received.
+   - If the processor says `abandoned`, `failed`, or `not_paid`, show a clear visible failure.
+   - If the local escrow remains `pending`, show “Payment still pending” with retry/back actions instead of immediately implying the user was charged.
 
-4. **Add edge-function diagnostics that do not expose secrets**
-   - Log whether the public key is present and whether it looks like a public key, but never log the key value.
-   - This will make future payment failures obvious from backend logs.
+4. **Make verification more resilient**
+   - Keep retrying briefly for delayed processor/webhook updates.
+   - If verification says not paid, return the exact safe status to the frontend.
+   - Keep finalization idempotent so webhooks and manual confirmation cannot double-process the payment.
 
-5. **Deploy and verify the actual signal**
-   - Deploy the checkout function.
-   - Check recent backend logs after a payment click.
-   - Confirm the app either opens the branded modal or shows the new precise visible error, instead of the current incomplete-details loop.
+5. **Deploy and verify against the exact failing reference path**
+   - Deploy the changed verification/check-out functions if backend code changes are needed.
+   - Re-test a checkout flow and confirm the escrow changes from `pending` to `completed`, or shows the precise processor status instead of the generic confirmation failure.
+
+## Files to change
+
+- `src/lib/payments/brandedCheckout.ts`
+- `src/components/payments/BrandedCheckoutHost.tsx`
+- `src/pages/shared/PaymentConfirm.tsx`
+- `supabase/functions/verify-payment/index.ts`
+
+No database schema change is planned.

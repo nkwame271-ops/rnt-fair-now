@@ -37,28 +37,64 @@ export default function BrandedCheckoutHost() {
     if (!payload) return;
     setProcessing(true);
     setErrorMsg(null);
+    const finishPayment = (reference?: string) => {
+      const confirmedReference = reference || payload.reference;
+      const path = payload.confirmationPath
+        ? withReference(payload.confirmationPath, confirmedReference)
+        : `/payments/confirm?ref=${encodeURIComponent(confirmedReference)}` +
+          (payload.callbackPath ? `&next=${encodeURIComponent(payload.callbackPath)}` : "");
+      setPayload(null);
+      navigate(path);
+    };
     try {
       if (!hasBrandedCheckoutDetails(payload)) {
         throw new Error("Secure checkout details are incomplete. Please try again.");
       }
       await loadPaystackInline();
-      if (!window.PaystackPop || !payload.publicKey) {
+      const PaystackPop = window.PaystackPop;
+      if (!PaystackPop || !payload.publicKey) {
         throw new Error("Secure payment is temporarily unavailable. Please try again.");
       }
-      const handler = window.PaystackPop.setup({
+
+      if (payload.access_code && typeof PaystackPop === "function") {
+        const popup = new PaystackPop();
+        popup.resumeTransaction(payload.access_code, {
+          onSuccess: (r: { reference?: string; trxref?: string }) => finishPayment(r.reference || r.trxref),
+          onCancel: () => {
+            setProcessing(false);
+            toast("Payment window closed. You can retry any time.");
+          },
+          onError: (error: { message?: string } | Error) => {
+            setProcessing(false);
+            const msg = error?.message || "Could not start secure payment";
+            setErrorMsg(msg);
+            toast.error(msg);
+          },
+        });
+        return;
+      }
+
+      const legacyInline = PaystackPop as {
+        setup?: (opts: {
+          key: string;
+          email: string;
+          amount: number;
+          currency?: string;
+          ref: string;
+          callback: (r: { reference: string }) => void;
+          onClose: () => void;
+        }) => { openIframe: () => void };
+      };
+      if (!legacyInline.setup) {
+        throw new Error("Secure payment module could not open this transaction.");
+      }
+      const handler = legacyInline.setup({
         key: payload.publicKey,
         email: payload.email,
         amount: Math.round(payload.amount * 100),
         currency: payload.currency || "GHS",
         ref: payload.reference,
-        callback: (r) => {
-          const path = payload.confirmationPath
-            ? withReference(payload.confirmationPath, r.reference)
-            : `/payments/confirm?ref=${encodeURIComponent(r.reference)}` +
-              (payload.callbackPath ? `&next=${encodeURIComponent(payload.callbackPath)}` : "");
-          setPayload(null);
-          navigate(path);
-        },
+        callback: (r) => finishPayment(r.reference),
         onClose: () => {
           setProcessing(false);
           toast("Payment window closed. You can retry any time.");
