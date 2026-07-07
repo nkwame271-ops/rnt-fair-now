@@ -7,6 +7,7 @@ export type SafetyCategory =
   | "suspicious_activity"
   | "property_invasion"
   | "health_security"
+  | "drug_abuse"
   | "other";
 
 export type EmergencyType = "general" | "police" | "fire" | "health" | "medical" | "security" | "other";
@@ -20,6 +21,7 @@ export const SAFETY_CATEGORIES: { value: SafetyCategory; label: string }[] = [
   { value: "suspicious_activity", label: "Suspicious activity" },
   { value: "property_invasion", label: "Property invasion" },
   { value: "health_security", label: "Emergency health or security concern" },
+  { value: "drug_abuse", label: "Drug abuse / trafficking" },
   { value: "other", label: "Other safety issue" },
 ];
 
