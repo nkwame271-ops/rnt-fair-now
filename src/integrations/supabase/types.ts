@@ -5515,6 +5515,188 @@ export type Database = {
         }
         Relationships: []
       }
+      property_assessment_applications: {
+        Row: {
+          assigned_inspector: string | null
+          created_at: string
+          fee_amount: number
+          fee_status: string
+          id: string
+          landlord_user_id: string | null
+          notes: string | null
+          payment_reference: string | null
+          property_id: string
+          reason: string | null
+          requested_by: string
+          requester_role: string
+          scheduled_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_inspector?: string | null
+          created_at?: string
+          fee_amount?: number
+          fee_status?: string
+          id?: string
+          landlord_user_id?: string | null
+          notes?: string | null
+          payment_reference?: string | null
+          property_id: string
+          reason?: string | null
+          requested_by: string
+          requester_role: string
+          scheduled_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_inspector?: string | null
+          created_at?: string
+          fee_amount?: number
+          fee_status?: string
+          id?: string
+          landlord_user_id?: string | null
+          notes?: string | null
+          payment_reference?: string | null
+          property_id?: string
+          reason?: string | null
+          requested_by?: string
+          requester_role?: string
+          scheduled_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_assessment_applications_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_assessment_certificates: {
+        Row: {
+          application_id: string
+          certificate_number: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          inspection_id: string | null
+          issued_at: string
+          landlord_user_id: string | null
+          property_id: string
+          qr_token: string
+          renewal_reminder_sent: boolean
+          revoked_reason: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          certificate_number: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          inspection_id?: string | null
+          issued_at?: string
+          landlord_user_id?: string | null
+          property_id: string
+          qr_token?: string
+          renewal_reminder_sent?: boolean
+          revoked_reason?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          certificate_number?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          inspection_id?: string | null
+          issued_at?: string
+          landlord_user_id?: string | null
+          property_id?: string
+          qr_token?: string
+          renewal_reminder_sent?: boolean
+          revoked_reason?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_assessment_certificates_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "property_assessment_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_assessment_certificates_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "property_assessment_inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_assessment_certificates_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_assessment_inspections: {
+        Row: {
+          application_id: string
+          created_at: string
+          findings: string | null
+          id: string
+          inspected_at: string
+          inspector_user_id: string
+          outcome: string
+          photo_urls: string[] | null
+          recommendation: string | null
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          findings?: string | null
+          id?: string
+          inspected_at?: string
+          inspector_user_id: string
+          outcome: string
+          photo_urls?: string[] | null
+          recommendation?: string | null
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          findings?: string | null
+          id?: string
+          inspected_at?: string
+          inspector_user_id?: string
+          outcome?: string
+          photo_urls?: string[] | null
+          recommendation?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_assessment_inspections_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "property_assessment_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_assessments: {
         Row: {
           amenities: Json | null
@@ -9018,6 +9200,7 @@ export type Database = {
         Args: { p_tenancy_id: string }
         Returns: undefined
       }
+      generate_assessment_certificate_number: { Args: never; Returns: string }
       generate_case_number: { Args: never; Returns: string }
       generate_complaint_ticket: { Args: never; Returns: string }
       generate_issue_ticket: { Args: never; Returns: string }
