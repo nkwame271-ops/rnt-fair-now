@@ -36,7 +36,7 @@ const AgentAssignedProperties = () => {
 
   return (
     <div className="space-y-6">
-      <Seo title="Assigned Hostels & Landlords | Agent" description="Landlords and hostels you manage." />
+      <Seo title="Assigned Hostels & Landlords | Agent" description="Landlords and hostels you manage." canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/"} />
       <div>
         <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2"><Building2 className="h-6 w-6" /> Assigned Hostels / Landlords</h1>
         <p className="text-muted-foreground mt-1">Open a landlord to manage their tenants, rent, inspections, and reminders.</p>

@@ -26,7 +26,7 @@ const AgentActivity = () => {
 
   return (
     <div className="space-y-6">
-      <Seo title="My Activity | Agent" description="Every action you take on assigned accounts is logged here for transparency." />
+      <Seo title="My Activity | Agent" description="Every action you take on assigned accounts is logged here for transparency." canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/"} />
       <div>
         <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2"><ScrollText className="h-6 w-6" /> My Activity Log</h1>
         <p className="text-muted-foreground mt-1">Every action you take on behalf of a landlord or tenant appears here, with timestamp and target.</p>

@@ -33,7 +33,7 @@ const AgentAssignedTenants = () => {
 
   return (
     <div className="space-y-6">
-      <Seo title="Assigned Tenants | Agent" description="Tenants you manage on their behalf." />
+      <Seo title="Assigned Tenants | Agent" description="Tenants you manage on their behalf." canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/"} />
       <div>
         <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2"><Users className="h-6 w-6" /> Assigned Students / Tenants</h1>
         <p className="text-muted-foreground mt-1">Tenancy information, payments, complaints, and documents for tenants you support.</p>

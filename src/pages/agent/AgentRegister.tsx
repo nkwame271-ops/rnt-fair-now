@@ -166,7 +166,7 @@ const AgentRegister = () => {
   if (existing && !submitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-6">
-        <Seo title="Agent Application Status | Rent Control" description="Your Premium Service Agent application status." />
+        <Seo title="Agent Application Status | Rent Control" description="Your Premium Service Agent application status." canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/"} />
         <div className="max-w-md w-full bg-card border border-border rounded-2xl p-8 text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
             <ShieldCheck className="h-8 w-8 text-primary" />

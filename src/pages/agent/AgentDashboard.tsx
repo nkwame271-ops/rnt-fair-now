@@ -39,7 +39,7 @@ const AgentDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <Seo title="Agent Portal | Rent Control" description="Manage hostels and tenants assigned to you under Premium Service." />
+      <Seo title="Agent Portal | Rent Control" description="Manage hostels and tenants assigned to you under Premium Service." canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/"} />
       <div>
         <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Welcome, {firstName}</h1>
         <p className="text-muted-foreground mt-2">Manage the hostels and tenants assigned to you under Premium Service.</p>

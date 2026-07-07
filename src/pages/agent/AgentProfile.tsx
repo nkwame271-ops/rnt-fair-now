@@ -16,7 +16,7 @@ const AgentProfile = () => {
 
   return (
     <div className="space-y-6">
-      <Seo title="Agent Profile" description="Your Premium Service Agent profile." />
+      <Seo title="Agent Profile" description="Your Premium Service Agent profile." canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/"} />
       <div>
         <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2"><UserCircle className="h-6 w-6" /> My Profile</h1>
       </div>

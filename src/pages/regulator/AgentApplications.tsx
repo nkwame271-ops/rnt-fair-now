@@ -48,7 +48,7 @@ const AgentApplications = () => {
 
   return (
     <div className="space-y-8 p-4 md:p-6">
-      <Seo title="Agent Applications | Regulator" description="Review Premium Service Agent applications." />
+      <Seo title="Agent Applications | Regulator" description="Review Premium Service Agent applications." canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/"} />
       <div>
         <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2">
           <ShieldCheck className="h-6 w-6 text-primary" /> Agent Applications
