@@ -34,6 +34,7 @@ import SafetyPanicButton from "@/components/SafetyPanicButton";
 import NotificationBell from "@/components/NotificationBell";
 import CommandSearch from "@/components/CommandSearch";
 import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
+import HeaderAvatar from "@/components/HeaderAvatar";
 
 const navItems = [
   { to: "/landlord/dashboard", label: "Dashboard", icon: LayoutDashboard },
