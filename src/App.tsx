@@ -35,6 +35,9 @@ const PaymentConfirm = lazy(() => import("./pages/shared/PaymentConfirm"));
 const WalletPage = lazy(() => import("./pages/shared/Wallet"));
 const WalletTopupConfirm = lazy(() => import("./pages/shared/WalletTopupConfirm"));
 const PayLink = lazy(() => import("./pages/shared/PayLink"));
+const PropertyAssessmentsPage = lazy(() => import("./pages/shared/PropertyAssessmentsPage"));
+const VerifyAssessment = lazy(() => import("./pages/shared/VerifyAssessment"));
+const RegulatorAssessments = lazy(() => import("./pages/regulator/RegulatorAssessments"));
 
 // Tenant pages
 const TenantDashboard = lazy(() => import("./pages/tenant/TenantDashboard"));
