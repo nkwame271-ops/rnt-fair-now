@@ -84,10 +84,10 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from("escrow_transactions").insert({
         reference,
         user_id: recipientId,
-        amount: Number(amount),
+        total_amount: Number(amount),
         currency: "GHS",
         status: "pending",
-        transaction_type: "wallet_topup",
+        payment_type: "wallet_topup",
         metadata: {
           payment_link_id: payment_link_id || null,
           payer_email: email,
