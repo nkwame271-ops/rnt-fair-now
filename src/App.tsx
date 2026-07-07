@@ -417,6 +417,20 @@ const App = () => (
                 <Route path="rentcare/:id" element={<ErrorBoundary section="RentCare Detail"><StudentRentCareDetail /></ErrorBoundary>} />
               </Route>
 
+              {/* Public Agent registration */}
+              <Route path="/agent/register" element={<AgentRegister />} />
+
+              {/* Premium Service Agent Portal */}
+              <Route path="/agent" element={<AgentRoute><AgentLayout /></AgentRoute>}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<AgentDashboard />} />
+                <Route path="properties" element={<AgentAssignedProperties />} />
+                <Route path="tenants" element={<AgentAssignedTenants />} />
+                <Route path="tasks" element={<AgentPendingTasks />} />
+                <Route path="activity" element={<AgentActivity />} />
+                <Route path="profile" element={<ProfilePage />} />
+              </Route>
+
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
