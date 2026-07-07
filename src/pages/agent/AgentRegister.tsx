@@ -210,6 +210,7 @@ const AgentRegister = () => {
       <Seo
         title="Become a Premium Service Agent | Rent Control"
         description="Apply to manage hostels and tenants under Rent Control's Premium Service programme. Verified agents get their own portal to work on behalf of assigned landlords and tenants."
+        canonicalPath="/agent/register"
       />
       <div className="max-w-2xl mx-auto px-4 py-8">
         <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
