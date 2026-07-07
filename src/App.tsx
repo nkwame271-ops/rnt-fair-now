@@ -334,7 +334,9 @@ const App = () => (
                 <Route path="feedback" element={<LandlordFeedback />} />
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
                 <Route path="management-support" element={<LandlordManagementSupport />} />
+                <Route path="wallet" element={<WalletPage />} />
               </Route>
+
 
               {/* Regulator Routes */}
               <Route path="/regulator" element={<ProtectedRoute requiredRole="regulator"><RegulatorLayout /></ProtectedRoute>}>
