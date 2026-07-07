@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
 
     const { data: escrow } = await supabaseAdmin
       .from("escrow_transactions")
-      .select("id, status, user_id, amount, metadata, transaction_type")
+      .select("id, status, user_id, total_amount, metadata, payment_type")
       .eq("reference", reference)
       .maybeSingle();
 
