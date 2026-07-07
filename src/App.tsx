@@ -183,6 +183,18 @@ const StudentRentCareDetail = lazy(() => import("./pages/student/RentCareDetail"
 const RentCareManagement = lazy(() => import("./pages/regulator/RentCareManagement"));
 const AccessControlConsole = lazy(() => import("./pages/regulator/AccessControlConsole"));
 const StaffFeatureMutes = lazy(() => import("./pages/regulator/StaffFeatureMutes"));
+const AgentApplications = lazy(() => import("./pages/regulator/AgentApplications"));
+
+// Agent portal
+const AgentLayout = lazy(() => import("./components/AgentLayout"));
+const AgentRoute = lazy(() => import("./components/AgentRoute"));
+const AgentRegister = lazy(() => import("./pages/agent/AgentRegister"));
+const AgentDashboard = lazy(() => import("./pages/agent/AgentDashboard"));
+const AgentAssignedProperties = lazy(() => import("./pages/agent/AgentAssignedProperties"));
+const AgentAssignedTenants = lazy(() => import("./pages/agent/AgentAssignedTenants"));
+const AgentPendingTasks = lazy(() => import("./pages/agent/AgentPendingTasks"));
+const AgentActivity = lazy(() => import("./pages/agent/AgentActivity"));
+const AgentProfile = lazy(() => import("./pages/agent/AgentProfile"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
