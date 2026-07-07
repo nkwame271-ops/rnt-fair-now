@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   ShieldCheck,
+  Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +22,7 @@ const nav = [
   { to: "/agent/tenants", label: "Assigned Students / Tenants", icon: Users },
   { to: "/agent/tasks", label: "Pending Tasks", icon: ClipboardCheck },
   { to: "/agent/activity", label: "My Activity Log", icon: ScrollText },
+  { to: "/agent/wallet", label: "NAFLIS Wallet", icon: Wallet },
   { to: "/agent/profile", label: "My Profile", icon: UserCircle },
 ];
 
