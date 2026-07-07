@@ -439,6 +439,7 @@ const App = () => (
                 <Route path="tasks" element={<AgentPendingTasks />} />
                 <Route path="activity" element={<AgentActivity />} />
                 <Route path="profile" element={<ProfilePage />} />
+                <Route path="wallet" element={<WalletPage />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
