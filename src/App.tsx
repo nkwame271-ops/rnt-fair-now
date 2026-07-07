@@ -35,6 +35,9 @@ const PaymentConfirm = lazy(() => import("./pages/shared/PaymentConfirm"));
 const WalletPage = lazy(() => import("./pages/shared/Wallet"));
 const WalletTopupConfirm = lazy(() => import("./pages/shared/WalletTopupConfirm"));
 const PayLink = lazy(() => import("./pages/shared/PayLink"));
+const PropertyAssessmentsPage = lazy(() => import("./pages/shared/PropertyAssessmentsPage"));
+const VerifyAssessment = lazy(() => import("./pages/shared/VerifyAssessment"));
+const RegulatorAssessments = lazy(() => import("./pages/regulator/RegulatorAssessments"));
 
 // Tenant pages
 const TenantDashboard = lazy(() => import("./pages/tenant/TenantDashboard"));
@@ -240,6 +243,7 @@ const App = () => (
               <Route path="/verify/rent-card/:token" element={<VerifyRentCard />} />
               <Route path="/verify/receipt/:receiptNumber" element={<VerifyReceipt />} />
               <Route path="/verify/form/:code" element={<VerifyForm />} />
+              <Route path="/verify/assessment/:token" element={<VerifyAssessment />} />
               <Route path="/developers/api" element={<PublicApiDocs />} />
               <Route path="/developers/api/pricing" element={<PublicApiPricing />} />
               <Route path="/developers" element={<DevelopersLanding />} />
@@ -304,6 +308,7 @@ const App = () => (
                 <Route path="report-missing-payment" element={<ReportMissingPayment />} />
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="rent-cards" element={<TenantRentCards />} />
+                <Route path="assessments" element={<PropertyAssessmentsPage variant="tenant" />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
@@ -339,6 +344,7 @@ const App = () => (
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
                 <Route path="management-support" element={<LandlordManagementSupport />} />
                 <Route path="wallet" element={<WalletPage />} />
+                <Route path="assessments" element={<PropertyAssessmentsPage variant="landlord" />} />
               </Route>
 
 
@@ -398,6 +404,7 @@ const App = () => (
                 <Route path="safety/contacts" element={<SafetyContacts />} />
                 <Route path="safety/:id" element={<SafetyReportDetail />} />
                 <Route path="agents" element={<ErrorBoundary section="Agent Applications"><AgentApplications /></ErrorBoundary>} />
+                <Route path="assessments" element={<ErrorBoundary section="Property Assessments"><RegulatorAssessments /></ErrorBoundary>} />
               </Route>
 
               {/* NUGS Admin Routes — hidden monitoring portal */}

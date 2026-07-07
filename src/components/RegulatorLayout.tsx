@@ -95,6 +95,7 @@ const allNavItems = [
   { to: "/regulator/rent-reviews", label: "Rent Reviews", icon: TrendingUp },
   { to: "/regulator/terminations", label: "Terminations", icon: Gavel },
   { to: "/regulator/rent-cards", label: "Rent Cards", icon: IdCard },
+  { to: "/regulator/assessments", label: "Property Assessments", icon: IdCard },
   { to: "/regulator/escrow", label: "Escrow & Revenue", icon: BarChart3 },
   { to: "/regulator/receipts", label: "Receipts", icon: FileText },
   { to: "/regulator/processor-reconciliation", label: "Processor Reconciliation", icon: Wallet },
