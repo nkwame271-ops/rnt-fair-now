@@ -32,6 +32,9 @@ const VerifyReceipt = lazy(() => import("./pages/shared/VerifyReceipt"));
 const VerifyForm = lazy(() => import("./pages/shared/VerifyForm"));
 const ProfilePage = lazy(() => import("./pages/shared/ProfilePage"));
 const PaymentConfirm = lazy(() => import("./pages/shared/PaymentConfirm"));
+const WalletPage = lazy(() => import("./pages/shared/Wallet"));
+const WalletTopupConfirm = lazy(() => import("./pages/shared/WalletTopupConfirm"));
+const PayLink = lazy(() => import("./pages/shared/PayLink"));
 
 // Tenant pages
 const TenantDashboard = lazy(() => import("./pages/tenant/TenantDashboard"));
@@ -222,6 +225,8 @@ const App = () => (
             <Routes>
               <Route path="/" element={<RoleSelect />} />
               <Route path="/payments/confirm" element={<PaymentConfirm />} />
+              <Route path="/wallet/confirm" element={<WalletTopupConfirm />} />
+              <Route path="/pay/:slug" element={<PayLink />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register/tenant" element={<RegisterTenant />} />
               <Route path="/register/landlord" element={<RegisterLandlord />} />
@@ -295,8 +300,10 @@ const App = () => (
                 <Route path="report-safety" element={<TenantReportSafety />} />
                 <Route path="my-safety-reports" element={<MySafetyReports />} />
                 <Route path="report-missing-payment" element={<ReportMissingPayment />} />
+                <Route path="wallet" element={<WalletPage />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
+
 
               {/* Landlord Routes */}
               <Route path="/landlord" element={<ProtectedRoute requiredRole="landlord"><LandlordLayout /></ProtectedRoute>}>

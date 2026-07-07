@@ -8383,6 +8383,300 @@ export type Database = {
           },
         ]
       }
+      wallet_entries: {
+        Row: {
+          amount: number
+          bucket: string
+          created_at: string
+          description: string | null
+          direction: string
+          entry_type: string
+          id: string
+          metadata: Json
+          reference: string | null
+          related_id: string | null
+          related_table: string | null
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          bucket?: string
+          created_at?: string
+          description?: string | null
+          direction: string
+          entry_type: string
+          id?: string
+          metadata?: Json
+          reference?: string | null
+          related_id?: string | null
+          related_table?: string | null
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          bucket?: string
+          created_at?: string
+          description?: string | null
+          direction?: string
+          entry_type?: string
+          id?: string
+          metadata?: Json
+          reference?: string | null
+          related_id?: string | null
+          related_table?: string | null
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_entries_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallet_holds: {
+        Row: {
+          amount: number
+          created_at: string
+          expires_at: string | null
+          hold_type: string
+          id: string
+          reason: string | null
+          reference: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          expires_at?: string | null
+          hold_type: string
+          id?: string
+          reason?: string | null
+          reference?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          expires_at?: string | null
+          hold_type?: string
+          id?: string
+          reason?: string | null
+          reference?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_holds_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallet_payment_links: {
+        Row: {
+          active: boolean
+          amount: number | null
+          created_at: string
+          currency: string
+          description: string | null
+          expires_at: string | null
+          fixed_amount: boolean
+          id: string
+          payment_count: number
+          slug: string
+          title: string
+          total_collected: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          amount?: number | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          expires_at?: string | null
+          fixed_amount?: boolean
+          id?: string
+          payment_count?: number
+          slug: string
+          title: string
+          total_collected?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          amount?: number | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          expires_at?: string | null
+          fixed_amount?: boolean
+          id?: string
+          payment_count?: number
+          slug?: string
+          title?: string
+          total_collected?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallet_payout_accounts: {
+        Row: {
+          account_name: string
+          account_number: string
+          account_type: string
+          active: boolean
+          created_at: string
+          id: string
+          is_default: boolean
+          is_verified: boolean
+          paystack_recipient_code: string | null
+          provider_code: string
+          provider_name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          account_type: string
+          active?: boolean
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          is_verified?: boolean
+          paystack_recipient_code?: string | null
+          provider_code: string
+          provider_name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          account_type?: string
+          active?: boolean
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          is_verified?: boolean
+          paystack_recipient_code?: string | null
+          provider_code?: string
+          provider_name?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallet_settings: {
+        Row: {
+          auto_withdraw_enabled: boolean
+          auto_withdraw_threshold: number | null
+          created_at: string
+          default_payout_account_id: string | null
+          id: string
+          monthly_fee_opted_in: boolean
+          notifications_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_withdraw_enabled?: boolean
+          auto_withdraw_threshold?: number | null
+          created_at?: string
+          default_payout_account_id?: string | null
+          id?: string
+          monthly_fee_opted_in?: boolean
+          notifications_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_withdraw_enabled?: boolean
+          auto_withdraw_threshold?: number | null
+          created_at?: string
+          default_payout_account_id?: string | null
+          id?: string
+          monthly_fee_opted_in?: boolean
+          notifications_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_settings_default_payout_account_id_fkey"
+            columns: ["default_payout_account_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_payout_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallets: {
+        Row: {
+          available_balance: number
+          created_at: string
+          currency: string
+          escrow_balance: number
+          id: string
+          pending_balance: number
+          reserved_balance: number
+          status: string
+          total_received: number
+          total_withdrawn: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          available_balance?: number
+          created_at?: string
+          currency?: string
+          escrow_balance?: number
+          id?: string
+          pending_balance?: number
+          reserved_balance?: number
+          status?: string
+          total_received?: number
+          total_withdrawn?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          available_balance?: number
+          created_at?: string
+          currency?: string
+          escrow_balance?: number
+          id?: string
+          pending_balance?: number
+          reserved_balance?: number
+          status?: string
+          total_received?: number
+          total_withdrawn?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       watchlist: {
         Row: {
           created_at: string
@@ -8883,6 +9177,21 @@ export type Database = {
       user_in_developer_org: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
+      }
+      wallet_post_entry: {
+        Args: {
+          _amount: number
+          _bucket?: string
+          _description?: string
+          _direction: string
+          _entry_type: string
+          _metadata?: Json
+          _reference?: string
+          _related_id?: string
+          _related_table?: string
+          _user_id: string
+        }
+        Returns: string
       }
     }
     Enums: {
