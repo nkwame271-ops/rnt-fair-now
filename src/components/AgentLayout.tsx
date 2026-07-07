@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   ShieldCheck,
+  Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
