@@ -52,6 +52,7 @@ const navItems = [
   { to: "/landlord/renewal-requests", label: "Renewal Requests", icon: RefreshCw, featureKey: "renewal_requests" },
   { to: "/landlord/termination", label: "Ejection Application", icon: Gavel, featureKey: "landlord_ejection" },
   { to: "/landlord/messages", label: "Messages", icon: MessageCircle, featureKey: "landlord_messages" },
+  { to: "/landlord/rent-collection", label: "Rent Collection", icon: Wallet },
   { to: "/landlord/rent-cards", label: "Manage Rent Cards", icon: Wallet, featureKey: "rent_cards" },
   { to: "/landlord/rent-card-view", label: "Rent Card Copies", icon: CreditCard },
   { to: "/landlord/assessments", label: "Property Assessments", icon: CreditCard },

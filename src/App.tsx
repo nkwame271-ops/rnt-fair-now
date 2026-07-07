@@ -82,6 +82,7 @@ const LandlordPaymentSettings = lazy(() => import("./pages/landlord/PaymentSetti
 const LandlordReceipts = lazy(() => import("./pages/landlord/Receipts"));
 const InviteTenant = lazy(() => import("./pages/landlord/InviteTenant"));
 const MyTenants = lazy(() => import("./pages/landlord/MyTenants"));
+const LandlordRentCollection = lazy(() => import("./pages/landlord/RentCollection"));
 
 // Regulator pages
 const RegulatorDashboard = lazy(() => import("./pages/regulator/RegulatorDashboard"));
@@ -345,6 +346,7 @@ const App = () => (
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
                 <Route path="management-support" element={<LandlordManagementSupport />} />
                 <Route path="wallet" element={<WalletPage />} />
+                <Route path="rent-collection" element={<LandlordRentCollection />} />
                 <Route path="assessments" element={<PropertyAssessmentsPage variant="landlord" />} />
               </Route>
 
