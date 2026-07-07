@@ -139,6 +139,209 @@ export type Database = {
           },
         ]
       }
+      agent_action_log: {
+        Row: {
+          action: string
+          agent_user_id: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          payload: Json
+          target_record_id: string | null
+          target_table: string | null
+          target_user_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          agent_user_id: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          payload?: Json
+          target_record_id?: string | null
+          target_table?: string | null
+          target_user_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          agent_user_id?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          payload?: Json
+          target_record_id?: string | null
+          target_table?: string | null
+          target_user_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      agent_applications: {
+        Row: {
+          applicant_user_id: string | null
+          approved_user_id: string | null
+          created_at: string
+          date_of_birth: string | null
+          email: string
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          full_name: string
+          id: string
+          id_number: string
+          id_type: string
+          operating_area: string | null
+          phone: string
+          professional_photo_url: string | null
+          region: string
+          residential_address: string | null
+          reviewed_at: string | null
+          reviewer_notes: string | null
+          reviewer_user_id: string | null
+          status: string
+          supporting_documents: Json
+          updated_at: string
+        }
+        Insert: {
+          applicant_user_id?: string | null
+          approved_user_id?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email: string
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          full_name: string
+          id?: string
+          id_number: string
+          id_type: string
+          operating_area?: string | null
+          phone: string
+          professional_photo_url?: string | null
+          region: string
+          residential_address?: string | null
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          status?: string
+          supporting_documents?: Json
+          updated_at?: string
+        }
+        Update: {
+          applicant_user_id?: string | null
+          approved_user_id?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          full_name?: string
+          id?: string
+          id_number?: string
+          id_type?: string
+          operating_area?: string | null
+          phone?: string
+          professional_photo_url?: string | null
+          region?: string
+          residential_address?: string | null
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          reviewer_user_id?: string | null
+          status?: string
+          supporting_documents?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      agent_assignments: {
+        Row: {
+          active: boolean
+          agent_user_id: string
+          assigned_by: string | null
+          created_at: string
+          id: string
+          owner_role: string
+          owner_user_id: string
+          scope_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          agent_user_id: string
+          assigned_by?: string | null
+          created_at?: string
+          id?: string
+          owner_role: string
+          owner_user_id: string
+          scope_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          agent_user_id?: string
+          assigned_by?: string | null
+          created_at?: string
+          id?: string
+          owner_role?: string
+          owner_user_id?: string
+          scope_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      agent_staff: {
+        Row: {
+          application_id: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          operating_area: string | null
+          phone: string | null
+          professional_photo_url: string | null
+          region: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          application_id?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          operating_area?: string | null
+          phone?: string | null
+          professional_photo_url?: string | null
+          region?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          application_id?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          operating_area?: string | null
+          phone?: string | null
+          professional_photo_url?: string | null
+          region?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_staff_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "agent_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agreement_template_config: {
         Row: {
           custom_fields: Json | null
@@ -8439,6 +8642,10 @@ export type Database = {
       }
     }
     Functions: {
+      agent_can_act_on: {
+        Args: { _agent: string; _owner: string }
+        Returns: boolean
+      }
       api_enqueue_webhook_event: {
         Args: { p_event_type: string; p_payload: Json }
         Returns: number
@@ -8561,6 +8768,7 @@ export type Database = {
         }
         Returns: Json
       }
+      is_agent: { Args: { _user_id: string }; Returns: boolean }
       is_main_admin: { Args: { _user_id: string }; Returns: boolean }
       is_nugs_user: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
@@ -8678,7 +8886,13 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "tenant" | "landlord" | "regulator" | "nugs_admin" | "developer"
+      app_role:
+        | "tenant"
+        | "landlord"
+        | "regulator"
+        | "nugs_admin"
+        | "developer"
+        | "agent"
       issue_service:
         | "rent_card"
         | "complaint"
@@ -8887,7 +9101,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["tenant", "landlord", "regulator", "nugs_admin", "developer"],
+      app_role: [
+        "tenant",
+        "landlord",
+        "regulator",
+        "nugs_admin",
+        "developer",
+        "agent",
+      ],
       issue_service: [
         "rent_card",
         "complaint",
