@@ -53,6 +53,7 @@ const navItems = [
   { to: "/landlord/messages", label: "Messages", icon: MessageCircle, featureKey: "landlord_messages" },
   { to: "/landlord/rent-cards", label: "Manage Rent Cards", icon: Wallet, featureKey: "rent_cards" },
   { to: "/landlord/payment-settings", label: "Payment Settings", icon: CreditCard, featureKey: "payment_settings" },
+  { to: "/landlord/wallet", label: "NAFLIS Wallet", icon: Wallet },
   { to: "/landlord/receipts", label: "Receipts", icon: FileText, featureKey: "landlord_receipts" },
   { to: "/landlord/invite-tenant", label: "Invite Tenant", icon: UserPlus },
   { to: "/landlord/report-safety", label: "Report Safety Issue", icon: Siren },
