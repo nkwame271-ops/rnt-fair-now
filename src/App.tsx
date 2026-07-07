@@ -51,6 +51,8 @@ const RequestRenewal = lazy(() => import("./pages/tenant/RequestRenewal"));
 const TenantTerminationRequest = lazy(() => import("./pages/tenant/TerminationRequest"));
 const ReportSidePayment = lazy(() => import("./pages/tenant/ReportSidePayment"));
 const TenantReceipts = lazy(() => import("./pages/tenant/Receipts"));
+const TenantRentCards = lazy(() => import("./pages/tenant/TenantRentCards"));
+const LandlordRentCardView = lazy(() => import("./pages/landlord/LandlordRentCardView"));
 const InviteLandlord = lazy(() => import("./pages/tenant/InviteLandlord"));
 
 // Landlord pages
@@ -301,6 +303,7 @@ const App = () => (
                 <Route path="my-safety-reports" element={<MySafetyReports />} />
                 <Route path="report-missing-payment" element={<ReportMissingPayment />} />
                 <Route path="wallet" element={<WalletPage />} />
+                <Route path="rent-cards" element={<TenantRentCards />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
@@ -324,6 +327,7 @@ const App = () => (
                 <Route path="renewal-requests" element={<RenewalRequests />} />
                 <Route path="termination" element={<LandlordTerminationRequest />} />
                 <Route path="rent-cards" element={<ManageRentCards />} />
+                <Route path="rent-card-view" element={<LandlordRentCardView />} />
                 <Route path="payment-settings" element={<LandlordPaymentSettings />} />
                 <Route path="receipts" element={<LandlordReceipts />} />
                 <Route path="invite-tenant" element={<InviteTenant />} />
