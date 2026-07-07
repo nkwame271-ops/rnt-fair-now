@@ -384,6 +384,7 @@ const App = () => (
                 <Route path="safety" element={<SafetyEmergencyReports />} />
                 <Route path="safety/contacts" element={<SafetyContacts />} />
                 <Route path="safety/:id" element={<SafetyReportDetail />} />
+                <Route path="agents" element={<ErrorBoundary section="Agent Applications"><AgentApplications /></ErrorBoundary>} />
               </Route>
 
               {/* NUGS Admin Routes — hidden monitoring portal */}
