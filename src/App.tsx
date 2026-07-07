@@ -183,6 +183,18 @@ const StudentRentCareDetail = lazy(() => import("./pages/student/RentCareDetail"
 const RentCareManagement = lazy(() => import("./pages/regulator/RentCareManagement"));
 const AccessControlConsole = lazy(() => import("./pages/regulator/AccessControlConsole"));
 const StaffFeatureMutes = lazy(() => import("./pages/regulator/StaffFeatureMutes"));
+const AgentApplications = lazy(() => import("./pages/regulator/AgentApplications"));
+
+// Agent portal
+const AgentLayout = lazy(() => import("./components/AgentLayout"));
+const AgentRoute = lazy(() => import("./components/AgentRoute"));
+const AgentRegister = lazy(() => import("./pages/agent/AgentRegister"));
+const AgentDashboard = lazy(() => import("./pages/agent/AgentDashboard"));
+const AgentAssignedProperties = lazy(() => import("./pages/agent/AgentAssignedProperties"));
+const AgentAssignedTenants = lazy(() => import("./pages/agent/AgentAssignedTenants"));
+const AgentPendingTasks = lazy(() => import("./pages/agent/AgentPendingTasks"));
+const AgentActivity = lazy(() => import("./pages/agent/AgentActivity"));
+const AgentProfile = lazy(() => import("./pages/agent/AgentProfile"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -372,6 +384,7 @@ const App = () => (
                 <Route path="safety" element={<SafetyEmergencyReports />} />
                 <Route path="safety/contacts" element={<SafetyContacts />} />
                 <Route path="safety/:id" element={<SafetyReportDetail />} />
+                <Route path="agents" element={<ErrorBoundary section="Agent Applications"><AgentApplications /></ErrorBoundary>} />
               </Route>
 
               {/* NUGS Admin Routes — hidden monitoring portal */}
@@ -403,6 +416,20 @@ const App = () => (
                 <Route path="rentcare" element={<ErrorBoundary section="RentCare"><StudentRentCare /></ErrorBoundary>} />
                 <Route path="rentcare/new" element={<ErrorBoundary section="RentCare Apply"><StudentRentCareApply /></ErrorBoundary>} />
                 <Route path="rentcare/:id" element={<ErrorBoundary section="RentCare Detail"><StudentRentCareDetail /></ErrorBoundary>} />
+              </Route>
+
+              {/* Public Agent registration */}
+              <Route path="/agent/register" element={<AgentRegister />} />
+
+              {/* Premium Service Agent Portal */}
+              <Route path="/agent" element={<AgentRoute><AgentLayout /></AgentRoute>}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<AgentDashboard />} />
+                <Route path="properties" element={<AgentAssignedProperties />} />
+                <Route path="tenants" element={<AgentAssignedTenants />} />
+                <Route path="tasks" element={<AgentPendingTasks />} />
+                <Route path="activity" element={<AgentActivity />} />
+                <Route path="profile" element={<ProfilePage />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

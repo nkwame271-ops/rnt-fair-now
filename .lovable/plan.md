@@ -1,42 +1,87 @@
-## Problem
+# Master Plan: Student Hostel App Feature Parity
 
-On mobile, when the secure payment window opens and shows Card / Mobile Money / Bank options, tapping the options does nothing. On desktop the same UI works with a mouse. This is a mobile-only interaction bug, not a payment/verification bug.
+Ship this in phased migrations. Each phase is independently deployable. Total scope is large — expect 6–10 build turns.
 
-## Root cause
+## Phase 1 — Agent Program (Foundation)
 
-Our branded "Secure payment" dialog (`BrandedCheckoutHost`) uses the shadcn `Dialog`, which is a Radix modal. When the user taps "Pay securely", we call `new PaystackPop().resumeTransaction(...)` **while our Dialog is still open**. On mobile browsers this causes two problems:
+**Public entry**
+- Add "Become an agent" link to the public site nav (footer + header) alongside "Regulator", "Get the app", etc.
+- New public page `/agent/register` with a shield-icon hero and the same form shown in your reference: professional photo upload, full name, phone, email, DOB, ID type, ID number, region, operating area, residential address, emergency contact, supporting docs. Uses the light theme + Plus Jakarta Sans already in the app.
 
-1. Radix Dialog installs a full-screen overlay with `pointer-events` management and a focus trap on the dialog content. The payment provider's popup is rendered outside our Dialog's DOM subtree, so on touch devices the overlay / focus trap swallows taps that land on the provider's option buttons. On desktop, mouse clicks behave differently (Radix's outside-click logic still lets them through in some cases), which is why it works with a mouse but not a finger.
-2. Radix also locks body scroll and sets `aria-hidden` on siblings of the Dialog, which further breaks the payment popup's own touch handling on iOS Safari and Android Chrome.
+**Auth model** — Separate agent account (per your choice).
+- New `agent_staff` table (mirrors `nugs_staff`), tied to `auth.users` but distinct from tenant/landlord role. A single email cannot also be tenant/landlord.
+- New `agent_applications` table for pending/approved/rejected registrations with reviewer, notes, and documents (Supabase storage bucket `agent-documents`).
+- On approval: create auth user + `agent_staff` row + assign `agent` app_role in `user_roles`.
 
-There is nothing wrong with the payment provider's popup itself — the same popup works when it is not rendered underneath a Radix modal.
+**Agent Portal** at `/agent/*`
+- `AgentLayout` matching the "Premium Service Agent Portal" screenshot: hamburger, shield-with-check logo, dark-mode toggle.
+- Dashboard: Welcome card + 3 stat cards (Assigned Hostels/Landlords, Assigned Students/Tenants, Pending Tasks) + Getting Started card.
+- Sub-pages: Assigned Properties, Assigned Tenants, Pending Tasks, Activity log, Profile.
 
-## Fix (frontend only, no business logic changes)
+**Delegated actions (not impersonation)** — per your choice.
+- Agents call scoped RPCs (`agent_list_assigned_properties`, `agent_create_inspection`, `agent_send_reminder`, `agent_upload_report`, `agent_message_party`, `agent_complete_task`, etc.) that check the agent–owner assignment before every write.
+- Every write inserts a row into `agent_action_log` (agent_id, target_user_id, target_table, target_id, action, payload, timestamp) — visible to the account owner and Super Admin.
 
-Close our branded Dialog the moment we hand control to the payment popup, so the provider's popup is the only modal on screen.
+**Admin review**
+- Super/main admin screen `/regulator/agents` with list of pending applications, approve/reject with notes, view identity docs, and manage assignments (link agent ↔ landlord/tenant).
 
-### Changes in `src/components/payments/BrandedCheckoutHost.tsx`
+## Phase 2 — NAFLIS Wallet (Ledger + rails)
 
-1. In `pay()`, right before calling `resumeTransaction` / `setup`, snapshot the current payload into a local variable and call `setPayload(null)` so our Dialog unmounts and its overlay / focus trap / body-scroll lock are removed.
-2. Keep `processing` state on a small, separate lightweight indicator (or just rely on the payment popup being visible) — do not keep the Radix Dialog mounted while the payment popup is open.
-3. `finishPayment` already navigates away, so no further Dialog cleanup is needed on success.
-4. On `onCancel` from the payment popup, re-open our branded Dialog by calling `setPayload(snapshot)` again so the user can retry, and clear `processing`.
-5. On `onError`, do the same as cancel but also set `errorMsg` so the alert re-appears when the Dialog re-opens.
-6. For the legacy v1 fallback path (`setup(...).openIframe()`), apply the same pattern: close our Dialog before `openIframe()`, restore on `onClose` without success.
+**Ledger** (single source of truth)
+- Tables: `wallets` (one per user, holds cached balances), `wallet_entries` (double-entry: debits/credits, no updates ever), `wallet_holds` (escrow/reserved/disputed), `wallet_payout_accounts` (mobile-money + bank), `wallet_settings` per user.
+- Derived buckets displayed in UI: Available, Rent Escrow, Pending, Reserved/Disputed, Total Received, Total Withdrawn.
+- Automatic receipt generation on every completed entry (reuses `payment_receipts`).
+- Monthly wallet fee deducted by scheduled job into platform escrow.
 
-### Why this is safe
+**Rails** (new — you asked for MoMo/bank in addition to ledger)
+- Add-money: extend the existing Paystack checkout to top up a wallet balance instead of an invoice.
+- Withdraw: new `wallet-withdraw` edge function that calls Paystack Transfers API (mobile-money + bank) with recipient-code caching.
+- QR payments + payment links: `/pay/{link_id}` public route that opens the same branded checkout, credits the recipient's wallet.
+- Linked accounts: verification via Paystack `/bank/resolve` and MoMo lookup before saving.
 
-- No changes to reference generation, `access_code` handling, verification, or webhook logic.
-- No changes to `startBrandedCheckout`, `loadPaystackInline`, or the edge functions.
-- Only the presentation layer is touched, matching the reported symptom (mobile tap not registering on payment method selection).
+**Surfaces**: `/tenant/wallet`, `/landlord/wallet`, `/agent/wallet` (agent's own; assigned users' wallets remain view-only through delegation).
 
-## Verification
+## Phase 3 — Digital Rent Cards for Tenant + Landlord
 
-1. Build passes.
-2. Manually trigger a payment on a mobile viewport in the preview: confirm the branded dialog closes when "Pay securely" is tapped, the provider popup opens, and Card / Mobile Money / Bank options are tappable.
-3. Cancel the popup: confirm our branded dialog re-appears so the user can retry.
-4. Complete a payment: confirm navigation to `/payments/confirm?ref=...` still happens.
+- Reuse the existing NUGS `rent_cards` + QR system. Add `/tenant/rent-cards` and `/landlord/rent-cards` (Landlord Copy variant) rendered with the same red-header design.
+- Live payment record table beneath the card is fed directly by `payment_receipts` + `rent_payments`, so tenant and landlord see identical rows.
+- QR verification stays public at existing `/verify/rent-card/:token`.
 
-## Files to change
+## Phase 4 — Property Assessments
 
-- `src/components/payments/BrandedCheckoutHost.tsx` (only)
+- New tables: `property_assessment_applications`, `property_assessment_inspections`, `property_assessment_certificates` (QR-verified, renewable).
+- Landlord flow: apply → pay fee (through wallet or Paystack) → inspection scheduled → officer marks pass/fail → certificate + downloadable card issued → renewal reminder job.
+- Tenant flow: request assessment for a property (feeds landlord's queue).
+
+## Phase 5 — Drug Abuse & Safety Reporting
+
+- Add `drug_abuse` category to existing `safety_reports.category` enum.
+- New unified `/report/safety` form supporting: current GPS (existing hook), map pin, written directions, nearest landmark, "unknown location" toggle, person involved, description, date/time, photo/video upload (buckets exist), anonymous flag.
+
+## Phase 6 — Profile Photo Rollout
+
+- Profile photo already lives in `profiles.avatar_url`. Wire it into the header of Tenant, Landlord, and Agent dashboards using the same avatar upload widget used in Agent Registration.
+
+## Phase 7 — Platform Escrow Dashboard (Super Admin only)
+
+- New page `/super-admin/platform-escrow` showing: Premium Service fees (from agent contracts), Wallet fees, Rent-management deductions, Maintenance deductions, Agent payouts, Other platform charges — sourced from `escrow_splits` filtered to platform recipient.
+- RLS ensures only `is_super_admin()` can read; hidden from every other role and from the existing office reconciliation reports.
+
+## Phase 8 — Rent Collection for Landlords
+
+- Consolidate existing `rent_payments`, `payment_receipts`, `escrow_splits`, wallet credits into a single `/landlord/rent-collection` workspace: rent records, payment status, receipts, escrow balances, wallet credits, linked tenants/properties, outstanding balances, payment history — following the hostel-owner module layout.
+
+## Design system (applies to all phases)
+
+Keep the existing light theme + primary `hsl(152, 55%, 28%)`. Reuse existing components: rounded cards, gradient page backgrounds (peach/rose/mint wash visible in your screenshots is already in the app), status badges (Active/Pending/Valid/Expired), soft borders, FAB (already exists), CommandSearch, LogoLoader.
+
+## Technical notes
+
+- Delegated-actions pattern uses SECURITY DEFINER RPCs that verify `EXISTS (SELECT 1 FROM agent_assignments WHERE agent_id = auth.uid() AND owner_user_id = <target>)` before any write. No JWT swap, no impersonation session.
+- All new public-schema tables ship with `GRANT` statements and RLS in the same migration.
+- Wallet money-in continues to go through the existing `paystack-checkout` + `verify-payment` + `finalize-payment` pipeline (which we've been hardening). Money-out (Withdraw, agent payouts) is a new `wallet-withdraw` edge function calling Paystack Transfers.
+- Rent card / receipt tables are reused, not duplicated, so tenant + landlord + NUGS all see the same records.
+
+## Sequencing
+
+I'll implement Phase 1 first and stop for your review before starting Phase 2. Phases 2 and 8 are the biggest; Phases 3, 5, 6 are quick. Phase 4 and 7 are medium.
