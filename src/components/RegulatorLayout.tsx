@@ -103,6 +103,7 @@ const allNavItems = [
   { to: "/regulator/engine-room", label: "Engine Room", icon: Settings },
   { to: "/regulator/rentcare", label: "RentCare Assistance", icon: GraduationCap },
   { to: "/regulator/invite-staff", label: "Invite Staff", icon: UserPlus },
+  { to: "/regulator/agents", label: "Agent Applications", icon: Shield },
   { to: "/regulator/feedback", label: "Beta Feedback", icon: MessageSquare },
   { to: "/regulator/support-chats", label: "Support Chats", icon: MessageSquare },
   { to: "/regulator/sms-broadcast", label: "SMS Broadcast", icon: Send },
