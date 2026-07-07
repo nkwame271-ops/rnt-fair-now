@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import HeaderAvatar from "@/components/HeaderAvatar";
 
 const nav = [
   { to: "/agent/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -84,7 +85,8 @@ const AgentLayout = () => {
             <Menu className="h-5 w-5" />
           </button>
           <ShieldCheck className="h-4 w-4 text-primary" />
-          <span className="font-bold text-sm truncate">Premium Service Agent Portal</span>
+          <span className="font-bold text-sm truncate flex-1">Premium Service Agent Portal</span>
+          <HeaderAvatar profilePath="/agent/profile" />
         </header>
         <main data-app-main className="flex-1 px-3 sm:px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8 overflow-y-auto overflow-x-hidden bg-transparent">
           <div className="mx-auto w-full max-w-[1400px]">
