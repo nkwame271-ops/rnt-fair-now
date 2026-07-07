@@ -34,6 +34,7 @@ import SafetyPanicButton from "@/components/SafetyPanicButton";
 import NotificationBell from "@/components/NotificationBell";
 import CommandSearch from "@/components/CommandSearch";
 import { useAllFeatureFlags } from "@/hooks/useFeatureFlag";
+import HeaderAvatar from "@/components/HeaderAvatar";
 
 const navItems = [
   { to: "/landlord/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -142,6 +143,7 @@ const LandlordLayout = () => {
           <div className="shrink-0">
             <NotificationBell />
           </div>
+          <HeaderAvatar profilePath="/landlord/profile" />
         </header>
          <main data-app-main className="flex-1 px-3 sm:px-5 py-4 md:px-7 md:py-6 lg:px-10 lg:py-8 overflow-y-auto overflow-x-hidden pb-16 bg-transparent">
           <div className="mx-auto w-full max-w-[1400px]">
