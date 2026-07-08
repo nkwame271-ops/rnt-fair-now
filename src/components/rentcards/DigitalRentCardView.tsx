@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Shield, AlertTriangle, CreditCard, QrCode } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Shield, AlertTriangle, CreditCard, QrCode, Download } from "lucide-react";
 import { format } from "date-fns";
 import LogoLoader from "@/components/LogoLoader";
 import coatOfArms from "@/assets/ghana-coat-of-arms.png";
 import { QRCodeSVG } from "qrcode.react";
 import Seo from "@/components/Seo";
+import { generateRentCardPdf } from "@/lib/generateRentCardPdf";
 
 type Variant = "tenant" | "landlord";
 
@@ -201,6 +203,34 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
                       </>
                     )}
                   </Badge>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const pdf = generateRentCardPdf({
+                        serial_number: c.serial_number,
+                        status: c.status,
+                        card_role: c.card_role,
+                        variant,
+                        property_address: c.property_address,
+                        unit_name: c.unit_name,
+                        landlord_name: c.landlord_name,
+                        tenant_name: c.tenant_name,
+                        current_rent: c.current_rent,
+                        advance_paid: c.advance_paid,
+                        start_date: c.start_date,
+                        expiry_date: c.expiry_date,
+                        qr_token: c.qr_token,
+                        payments: recs,
+                      });
+                      pdf.save(`rent-card-${c.serial_number || c.id}.pdf`);
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" /> Download PDF
+                  </Button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-5 items-start">
