@@ -5260,6 +5260,65 @@ export type Database = {
         }
         Relationships: []
       }
+      premium_subscriptions: {
+        Row: {
+          assigned_agent_user_id: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          management_enabled: boolean
+          notes: string | null
+          payment_reference: string | null
+          property_id: string
+          starts_at: string
+          status: string
+          subscriber_role: string
+          subscriber_user_id: string
+          updated_at: string
+          yearly_fee: number
+        }
+        Insert: {
+          assigned_agent_user_id?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          management_enabled?: boolean
+          notes?: string | null
+          payment_reference?: string | null
+          property_id: string
+          starts_at?: string
+          status?: string
+          subscriber_role: string
+          subscriber_user_id: string
+          updated_at?: string
+          yearly_fee?: number
+        }
+        Update: {
+          assigned_agent_user_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          management_enabled?: boolean
+          notes?: string | null
+          payment_reference?: string | null
+          property_id?: string
+          starts_at?: string
+          status?: string
+          subscriber_role?: string
+          subscriber_user_id?: string
+          updated_at?: string
+          yearly_fee?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "premium_subscriptions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
