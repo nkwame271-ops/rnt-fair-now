@@ -205,6 +205,34 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
                   </Badge>
                 </div>
 
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const pdf = generateRentCardPdf({
+                        serial_number: c.serial_number,
+                        status: c.status,
+                        card_role: c.card_role,
+                        variant,
+                        property_address: c.property_address,
+                        unit_name: c.unit_name,
+                        landlord_name: c.landlord_name,
+                        tenant_name: c.tenant_name,
+                        current_rent: c.current_rent,
+                        advance_paid: c.advance_paid,
+                        start_date: c.start_date,
+                        expiry_date: c.expiry_date,
+                        qr_token: c.qr_token,
+                        payments: recs,
+                      });
+                      pdf.save(`rent-card-${c.serial_number || c.id}.pdf`);
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" /> Download PDF
+                  </Button>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-5 items-start">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     {c.landlord_name && (
