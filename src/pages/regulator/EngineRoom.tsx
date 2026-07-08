@@ -145,6 +145,7 @@ const EngineRoom = () => {
   // Adding features to staff
   const [addingFeature, setAddingFeature] = useState<string | null>(null);
   const [newFeatureKey, setNewFeatureKey] = useState("");
+  const [advancedFlag, setAdvancedFlag] = useState<any | null>(null);
 
   // Fetch all admins for main admin view
   useEffect(() => {
