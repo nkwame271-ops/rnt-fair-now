@@ -98,7 +98,7 @@ const LandlordManagementSupport = () => {
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-amber-600" /> Management Support
+          <Sparkles className="h-5 w-5 text-amber-600" /> Premium Service
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Hand off day-to-day tenant interactions to platform staff. You still own each property and receive rent payments through the standard settlement workflow.
