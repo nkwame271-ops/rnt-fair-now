@@ -312,6 +312,7 @@ const App = () => (
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="rent-cards" element={<TenantRentCards />} />
                 <Route path="assessments" element={<PropertyAssessmentsPage variant="tenant" />} />
+                <Route path="premium" element={<PremiumServicePage variant="tenant" />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
