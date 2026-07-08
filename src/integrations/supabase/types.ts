@@ -7414,6 +7414,8 @@ export type Database = {
           false_alert_count_at_time: number | null
           hostel_or_hall: string | null
           id: string
+          incident_datetime: string | null
+          is_anonymous: boolean
           is_silent: boolean
           latitude: number | null
           linked_complaint_id: string | null
@@ -7423,7 +7425,10 @@ export type Database = {
           live_tracking_enabled: boolean | null
           location_accuracy: number | null
           location_address: string | null
+          location_unknown: boolean
           longitude: number | null
+          nearest_landmark: string | null
+          person_involved: string | null
           property_id: string | null
           report_kind: string
           response_time_seconds: number | null
@@ -7440,6 +7445,7 @@ export type Database = {
           user_note: string | null
           user_phone_snapshot: string | null
           user_role: string
+          written_directions: string | null
         }
         Insert: {
           acknowledged_at?: string | null
@@ -7461,6 +7467,8 @@ export type Database = {
           false_alert_count_at_time?: number | null
           hostel_or_hall?: string | null
           id?: string
+          incident_datetime?: string | null
+          is_anonymous?: boolean
           is_silent?: boolean
           latitude?: number | null
           linked_complaint_id?: string | null
@@ -7470,7 +7478,10 @@ export type Database = {
           live_tracking_enabled?: boolean | null
           location_accuracy?: number | null
           location_address?: string | null
+          location_unknown?: boolean
           longitude?: number | null
+          nearest_landmark?: string | null
+          person_involved?: string | null
           property_id?: string | null
           report_kind: string
           response_time_seconds?: number | null
@@ -7487,6 +7498,7 @@ export type Database = {
           user_note?: string | null
           user_phone_snapshot?: string | null
           user_role: string
+          written_directions?: string | null
         }
         Update: {
           acknowledged_at?: string | null
@@ -7508,6 +7520,8 @@ export type Database = {
           false_alert_count_at_time?: number | null
           hostel_or_hall?: string | null
           id?: string
+          incident_datetime?: string | null
+          is_anonymous?: boolean
           is_silent?: boolean
           latitude?: number | null
           linked_complaint_id?: string | null
@@ -7517,7 +7531,10 @@ export type Database = {
           live_tracking_enabled?: boolean | null
           location_accuracy?: number | null
           location_address?: string | null
+          location_unknown?: boolean
           longitude?: number | null
+          nearest_landmark?: string | null
+          person_involved?: string | null
           property_id?: string | null
           report_kind?: string
           response_time_seconds?: number | null
@@ -7534,6 +7551,7 @@ export type Database = {
           user_note?: string | null
           user_phone_snapshot?: string | null
           user_role?: string
+          written_directions?: string | null
         }
         Relationships: []
       }
