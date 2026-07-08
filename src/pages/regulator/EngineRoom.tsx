@@ -14,6 +14,7 @@ import LogoLoader from "@/components/LogoLoader";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import ComplaintTypesManager from "@/components/ComplaintTypesManager";
 import SalesChannelsManager from "@/pages/regulator/rent-cards/SalesChannelsManager";
+import FeatureAdvancedDialog from "@/components/FeatureAdvancedDialog";
 
 interface StaffMember {
   user_id: string;
