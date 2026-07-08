@@ -197,7 +197,7 @@ const LandlordManagementSupport = () => {
 
       <Card>
         <CardContent className="p-4 text-xs text-muted-foreground space-y-1">
-          <p><strong>What happens when Management Support is on?</strong></p>
+          <p><strong>What happens when Premium Service is on?</strong></p>
           <ul className="list-disc list-inside space-y-1">
             <li>Tenant inquiries, viewing requests, onboarding and compliance tasks route to assigned platform staff.</li>
             <li>Your contact details are hidden from prospective tenants on the marketplace.</li>
