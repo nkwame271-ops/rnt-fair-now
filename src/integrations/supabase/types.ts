@@ -2945,38 +2945,59 @@ export type Database = {
       }
       feature_flags: {
         Row: {
+          billing_frequency: string | null
           category: string
           description: string | null
+          expiry_days: number | null
           feature_key: string
           fee_amount: number | null
           fee_enabled: boolean
+          fee_type: string | null
+          grace_period_days: number | null
           id: string
           is_enabled: boolean
           label: string
+          payment_destination: string | null
+          renewal_days: number | null
+          revenue_split_json: Json | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          billing_frequency?: string | null
           category?: string
           description?: string | null
+          expiry_days?: number | null
           feature_key: string
           fee_amount?: number | null
           fee_enabled?: boolean
+          fee_type?: string | null
+          grace_period_days?: number | null
           id?: string
           is_enabled?: boolean
           label: string
+          payment_destination?: string | null
+          renewal_days?: number | null
+          revenue_split_json?: Json | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          billing_frequency?: string | null
           category?: string
           description?: string | null
+          expiry_days?: number | null
           feature_key?: string
           fee_amount?: number | null
           fee_enabled?: boolean
+          fee_type?: string | null
+          grace_period_days?: number | null
           id?: string
           is_enabled?: boolean
           label?: string
+          payment_destination?: string | null
+          renewal_days?: number | null
+          revenue_split_json?: Json | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -5378,6 +5399,7 @@ export type Database = {
           phone: string
           residence_permit_no: string | null
           student_id_url: string | null
+          transaction_pin_hash: string | null
           umb_account_created_on: string | null
           umb_account_name: string | null
           umb_account_number: string | null
@@ -5409,6 +5431,7 @@ export type Database = {
           phone: string
           residence_permit_no?: string | null
           student_id_url?: string | null
+          transaction_pin_hash?: string | null
           umb_account_created_on?: string | null
           umb_account_name?: string | null
           umb_account_number?: string | null
@@ -5440,6 +5463,7 @@ export type Database = {
           phone?: string
           residence_permit_no?: string | null
           student_id_url?: string | null
+          transaction_pin_hash?: string | null
           umb_account_created_on?: string | null
           umb_account_name?: string | null
           umb_account_number?: string | null

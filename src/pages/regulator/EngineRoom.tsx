@@ -14,6 +14,7 @@ import LogoLoader from "@/components/LogoLoader";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
 import ComplaintTypesManager from "@/components/ComplaintTypesManager";
 import SalesChannelsManager from "@/pages/regulator/rent-cards/SalesChannelsManager";
+import FeatureAdvancedDialog from "@/components/FeatureAdvancedDialog";
 
 interface StaffMember {
   user_id: string;
@@ -144,6 +145,7 @@ const EngineRoom = () => {
   // Adding features to staff
   const [addingFeature, setAddingFeature] = useState<string | null>(null);
   const [newFeatureKey, setNewFeatureKey] = useState("");
+  const [advancedFlag, setAdvancedFlag] = useState<any | null>(null);
 
   // Fetch all admins for main admin view
   useEffect(() => {
@@ -683,6 +685,9 @@ const EngineRoom = () => {
               {toggling === flag.feature_key + "_fee" && (
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               )}
+              <Button size="sm" variant="ghost" onClick={() => setAdvancedFlag(flag)} title="Advanced settings">
+                <Cog className="h-4 w-4" />
+              </Button>
               <Switch
                 checked={flag.fee_enabled}
                 onCheckedChange={() => handleFeeToggle(flag.feature_key, flag.fee_enabled)}
@@ -1569,6 +1574,25 @@ const EngineRoom = () => {
             </div>
           )}
         </div>
+      )}
+
+      {advancedFlag && (
+        <FeatureAdvancedDialog
+          open={!!advancedFlag}
+          onOpenChange={(v) => { if (!v) setAdvancedFlag(null); }}
+          featureKey={advancedFlag.feature_key}
+          featureLabel={advancedFlag.label}
+          initial={{
+            fee_type: advancedFlag.fee_type,
+            billing_frequency: advancedFlag.billing_frequency,
+            payment_destination: advancedFlag.payment_destination,
+            revenue_split_json: advancedFlag.revenue_split_json,
+            expiry_days: advancedFlag.expiry_days,
+            renewal_days: advancedFlag.renewal_days,
+            grace_period_days: advancedFlag.grace_period_days,
+          }}
+          onSaved={() => { invalidateFeatureFlags(); setAdvancedFlag(null); }}
+        />
       )}
     </div>
   );
