@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Shield, AlertTriangle, CreditCard, QrCode } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Shield, AlertTriangle, CreditCard, QrCode, Download } from "lucide-react";
 import { format } from "date-fns";
 import LogoLoader from "@/components/LogoLoader";
 import coatOfArms from "@/assets/ghana-coat-of-arms.png";
 import { QRCodeSVG } from "qrcode.react";
 import Seo from "@/components/Seo";
+import { generateRentCardPdf } from "@/lib/generateRentCardPdf";
 
 type Variant = "tenant" | "landlord";
 
