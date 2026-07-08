@@ -35,6 +35,7 @@ interface Props {
 
 const PropertyAssessmentsPage = ({ variant }: Props) => {
   const { user } = useAuth();
+  const { amount: feeAmount, enabled: feeEnabled } = useFeeConfig("property_assessment");
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState<any[]>([]);
   const [apps, setApps] = useState<any[]>([]);
