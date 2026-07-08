@@ -506,7 +506,7 @@ const RoleSelect = () => {
               <div>
                 <h4 className="font-semibold text-foreground text-sm mb-3">Get involved</h4>
                 <div className="space-y-2 text-muted-foreground text-xs">
-                  <button onClick={() => navigate("/agent/register")} className="block hover:text-foreground transition-colors font-medium">Become an Agent</button>
+                  <button onClick={() => navigate("/premium-service")} className="block hover:text-foreground transition-colors font-medium">Premium Service</button>
                   <button onClick={() => navigate("/developers")} className="block hover:text-foreground transition-colors">Developer Portal</button>
                   <button onClick={() => navigate("/developers/docs/quickstart")} className="block hover:text-foreground transition-colors">API Documentation</button>
                   <button onClick={() => navigate("/developers/signup")} className="block hover:text-foreground transition-colors">Request API Access</button>

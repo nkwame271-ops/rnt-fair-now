@@ -11,8 +11,10 @@ import { format } from "date-fns";
 import { ClipboardCheck, ShieldCheck, Loader2 } from "lucide-react";
 import Seo from "@/components/Seo";
 import { QRCodeSVG } from "qrcode.react";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
-const ASSESSMENT_FEE = 150;
+// Fee is read dynamically from Engine Room (feature_flags.property_assessment).
 
 const statusBadge = (s: string) => {
   const map: Record<string, string> = {
@@ -33,6 +35,7 @@ interface Props {
 
 const PropertyAssessmentsPage = ({ variant }: Props) => {
   const { user } = useAuth();
+  const { amount: feeAmount, enabled: feeEnabled } = useFeeConfig("property_assessment");
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState<any[]>([]);
   const [apps, setApps] = useState<any[]>([]);
@@ -70,21 +73,30 @@ const PropertyAssessmentsPage = ({ variant }: Props) => {
   const submit = async () => {
     if (!propertyId) { toast.error("Select a property"); return; }
     setSubmitting(true);
-    const prop = properties.find((p) => p.id === propertyId);
-    const { error } = await supabase.from("property_assessment_applications").insert({
-      property_id: propertyId,
-      requested_by: user!.id,
-      requester_role: variant,
-      landlord_user_id: variant === "landlord" ? user!.id : null,
-      reason,
-      fee_amount: ASSESSMENT_FEE,
-      status: "pending",
-    });
-    setSubmitting(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Assessment requested. Pay the fee to schedule an inspection.");
-    setReason(""); setPropertyId("");
-    load();
+    try {
+      const { data, error } = await supabase.functions.invoke("assessment-checkout", {
+        body: { property_id: propertyId, requester_role: variant, reason },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const payload = data as any;
+      if (payload?.no_payment) {
+        toast.success("Assessment request submitted.");
+        setReason(""); setPropertyId("");
+        load();
+        return;
+      }
+      startBrandedCheckout({
+        ...payload,
+        confirmationPath: "/assessments/confirm",
+        callbackPath: window.location.pathname,
+      });
+      setReason(""); setPropertyId("");
+    } catch (e: any) {
+      toast.error(e.message || "Could not start assessment checkout");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -120,7 +132,7 @@ const PropertyAssessmentsPage = ({ variant }: Props) => {
           </div>
           <div className="space-y-2">
             <Label>Assessment fee</Label>
-            <div className="h-10 rounded-md border border-input bg-muted/40 px-3 flex items-center text-sm">GHS {ASSESSMENT_FEE.toLocaleString()}</div>
+            <div className="h-10 rounded-md border border-input bg-muted/40 px-3 flex items-center text-sm">{feeEnabled && feeAmount > 0 ? `GHS ${feeAmount.toLocaleString()}` : "Free"}</div>
           </div>
         </div>
         <div className="space-y-2">

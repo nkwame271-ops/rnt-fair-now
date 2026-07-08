@@ -37,6 +37,8 @@ const WalletTopupConfirm = lazy(() => import("./pages/shared/WalletTopupConfirm"
 const PayLink = lazy(() => import("./pages/shared/PayLink"));
 const PropertyAssessmentsPage = lazy(() => import("./pages/shared/PropertyAssessmentsPage"));
 const PremiumServicePage = lazy(() => import("./pages/shared/PremiumServicePage"));
+const PremiumServiceLanding = lazy(() => import("./pages/PremiumServiceLanding"));
+const AssessmentConfirm = lazy(() => import("./pages/shared/AssessmentConfirm"));
 const VerifyAssessment = lazy(() => import("./pages/shared/VerifyAssessment"));
 const RegulatorAssessments = lazy(() => import("./pages/regulator/RegulatorAssessments"));
 
@@ -445,8 +447,10 @@ const App = () => (
                 <Route path="rentcare/:id" element={<ErrorBoundary section="RentCare Detail"><StudentRentCareDetail /></ErrorBoundary>} />
               </Route>
 
-              {/* Public Agent registration */}
+              {/* Public Agent registration + Premium Service landing */}
               <Route path="/agent/register" element={<AgentRegister />} />
+              <Route path="/premium-service" element={<PremiumServiceLanding />} />
+              <Route path="/assessments/confirm" element={<AssessmentConfirm />} />
 
               {/* Premium Service Agent Portal */}
               <Route path="/agent" element={<AgentRoute><AgentLayout /></AgentRoute>}>

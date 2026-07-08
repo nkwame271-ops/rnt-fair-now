@@ -42,15 +42,50 @@ export default function WalletPage() {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const [w, e, a, l] = await Promise.all([
+    const [w, e, a, l, ps] = await Promise.all([
       (supabase as any).from("wallets").select("*").eq("user_id", user.id).maybeSingle(),
       (supabase as any).from("wallet_entries").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
       (supabase as any).from("wallet_payout_accounts").select("*").eq("user_id", user.id).eq("active", true).order("created_at", { ascending: false }),
       (supabase as any).from("wallet_payment_links").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      (supabase as any).from("landlord_payment_settings").select("*").eq("landlord_user_id", user.id).maybeSingle(),
     ]);
     setWallet(w.data || null);
     setEntries(e.data || []);
-    setAccounts(a.data || []);
+    let acctRows = a.data || [];
+    // Fallback: derive a virtual payout account from landlord_payment_settings
+    // so the Withdraw dialog stops saying "Add a payout account first" when
+    // a landlord has already saved payout details on their Payment Settings page.
+    if (acctRows.length === 0 && ps?.data) {
+      const s: any = ps.data;
+      if (s.payment_method === "momo" && s.momo_number) {
+        acctRows = [{
+          id: `settings:momo:${user.id}`,
+          account_type: "mobile_money",
+          provider_code: s.momo_provider || "MTN",
+          provider_name: s.momo_provider || "Mobile Money",
+          account_number: s.momo_number,
+          account_name: (user as any)?.user_metadata?.full_name || (user.email || "Wallet holder"),
+          is_verified: true,
+          is_default: true,
+          active: true,
+          from_settings: true,
+        }];
+      } else if (s.payment_method === "bank" && s.account_number) {
+        acctRows = [{
+          id: `settings:bank:${user.id}`,
+          account_type: "bank",
+          provider_code: s.bank_name || "BANK",
+          provider_name: s.bank_name || "Bank",
+          account_number: s.account_number,
+          account_name: s.account_name || "Wallet holder",
+          is_verified: true,
+          is_default: true,
+          active: true,
+          from_settings: true,
+        }];
+      }
+    }
+    setAccounts(acctRows);
     setLinks(l.data || []);
     setLoading(false);
   }, [user]);
@@ -252,8 +287,26 @@ function WithdrawDialog({ open, onOpenChange, accounts, balance, onDone }: any) 
           <Button disabled={busy || !acctId || !Number(amount) || Number(amount) > balance} onClick={async () => {
             setBusy(true);
             try {
+              let effectiveAcctId = acctId;
+              const chosen = accounts.find((x: any) => x.id === acctId);
+              if (chosen?.from_settings) {
+                // Auto-provision a real wallet_payout_accounts row from Payment Settings.
+                const { data: prov, error: pErr } = await supabase.functions.invoke("wallet-add-payout-account", {
+                  body: {
+                    account_type: chosen.account_type,
+                    provider_code: chosen.provider_code,
+                    provider_name: chosen.provider_name,
+                    account_number: chosen.account_number,
+                    account_name: chosen.account_name,
+                  },
+                });
+                if (pErr) throw pErr;
+                if ((prov as any)?.error) throw new Error((prov as any).error);
+                effectiveAcctId = (prov as any)?.id;
+                if (!effectiveAcctId) throw new Error("Could not activate payout account. Please add one manually.");
+              }
               const { data, error } = await supabase.functions.invoke("wallet-withdraw", {
-                body: { amount: Number(amount), payout_account_id: acctId },
+                body: { amount: Number(amount), payout_account_id: effectiveAcctId },
               });
               if (error) throw error;
               if ((data as any)?.error) throw new Error((data as any).error);
