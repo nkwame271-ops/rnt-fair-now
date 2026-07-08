@@ -39,7 +39,7 @@ import HeaderAvatar from "@/components/HeaderAvatar";
 const navItems = [
   { to: "/landlord/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/landlord/my-properties", label: "My Properties", icon: Building2 },
-  { to: "/landlord/management-support", label: "Management Support", icon: Shield },
+  { to: "/landlord/management-support", label: "Premium Service", icon: Shield },
   { to: "/landlord/my-tenants", label: "My Tenants", icon: UserCircle },
   { to: "/landlord/register-property", label: "Register Property", icon: PlusCircle, featureKey: "register_property" },
   { to: "/landlord/add-tenant", label: "Add Tenant", icon: PlusCircle, featureKey: "add_tenant" },
