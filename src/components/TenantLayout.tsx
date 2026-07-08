@@ -43,6 +43,7 @@ const navItems = [
   { to: "/tenant/wallet", label: "NAFLIS Wallet", icon: CreditCard },
   { to: "/tenant/rent-cards", label: "My Rent Card", icon: CreditCard },
   { to: "/tenant/assessments", label: "Property Assessments", icon: Shield },
+  { to: "/tenant/premium", label: "Premium Service", icon: Shield },
   { to: "/tenant/receipts", label: "Receipts", icon: FileText, featureKey: "tenant_receipts" },
   { to: "/tenant/my-agreements", label: "Agreements", icon: FileText, featureKey: "tenant_agreements" },
   { to: "/tenant/legal-assistant", label: "Legal Assistant", icon: MessageSquare, featureKey: "legal_assistant" },
