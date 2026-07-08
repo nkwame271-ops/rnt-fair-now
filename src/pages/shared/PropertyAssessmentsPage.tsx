@@ -11,6 +11,8 @@ import { format } from "date-fns";
 import { ClipboardCheck, ShieldCheck, Loader2 } from "lucide-react";
 import Seo from "@/components/Seo";
 import { QRCodeSVG } from "qrcode.react";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
 const ASSESSMENT_FEE = 150;
 
