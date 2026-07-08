@@ -350,6 +350,7 @@ const App = () => (
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="rent-collection" element={<LandlordRentCollection />} />
                 <Route path="assessments" element={<PropertyAssessmentsPage variant="landlord" />} />
+                <Route path="premium" element={<PremiumServicePage variant="landlord" />} />
               </Route>
 
 
