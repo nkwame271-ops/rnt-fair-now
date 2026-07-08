@@ -685,6 +685,9 @@ const EngineRoom = () => {
               {toggling === flag.feature_key + "_fee" && (
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               )}
+              <Button size="sm" variant="ghost" onClick={() => setAdvancedFlag(flag)} title="Advanced settings">
+                <Cog className="h-4 w-4" />
+              </Button>
               <Switch
                 checked={flag.fee_enabled}
                 onCheckedChange={() => handleFeeToggle(flag.feature_key, flag.fee_enabled)}
