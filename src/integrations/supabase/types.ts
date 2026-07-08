@@ -5095,6 +5095,45 @@ export type Database = {
           },
         ]
       }
+      pending_assessment_drafts: {
+        Row: {
+          created_at: string
+          fee_amount: number
+          id: string
+          property_id: string
+          reason: string | null
+          reference: string | null
+          requester_role: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          fee_amount?: number
+          id?: string
+          property_id: string
+          reason?: string | null
+          reference?: string | null
+          requester_role: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          fee_amount?: number
+          id?: string
+          property_id?: string
+          reason?: string | null
+          reference?: string | null
+          requester_role?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pending_complaint_drafts: {
         Row: {
           amount: number
