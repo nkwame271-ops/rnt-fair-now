@@ -71,8 +71,11 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
   const submit = async () => {
     if (!user) return;
     if (!category) return toast.error("Please choose a category");
+    if (!description.trim()) return toast.error("Please describe what happened");
+    if (locationUnknown && !writtenDirections.trim() && !nearestLandmark.trim()) {
+      return toast.error("Provide directions or a landmark when location is unknown");
+    }
     setSubmitting(true);
-    try {
       const evidence_paths: string[] = [];
       if (files) {
         for (const file of Array.from(files)) {
