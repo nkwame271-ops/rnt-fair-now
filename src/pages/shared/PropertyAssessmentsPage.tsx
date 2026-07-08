@@ -132,7 +132,7 @@ const PropertyAssessmentsPage = ({ variant }: Props) => {
           </div>
           <div className="space-y-2">
             <Label>Assessment fee</Label>
-            <div className="h-10 rounded-md border border-input bg-muted/40 px-3 flex items-center text-sm">GHS {ASSESSMENT_FEE.toLocaleString()}</div>
+            <div className="h-10 rounded-md border border-input bg-muted/40 px-3 flex items-center text-sm">{feeEnabled && feeAmount > 0 ? `GHS ${feeAmount.toLocaleString()}` : "Free"}</div>
           </div>
         </div>
         <div className="space-y-2">
