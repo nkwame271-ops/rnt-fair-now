@@ -36,6 +36,7 @@ const WalletPage = lazy(() => import("./pages/shared/Wallet"));
 const WalletTopupConfirm = lazy(() => import("./pages/shared/WalletTopupConfirm"));
 const PayLink = lazy(() => import("./pages/shared/PayLink"));
 const PropertyAssessmentsPage = lazy(() => import("./pages/shared/PropertyAssessmentsPage"));
+const PremiumServicePage = lazy(() => import("./pages/shared/PremiumServicePage"));
 const VerifyAssessment = lazy(() => import("./pages/shared/VerifyAssessment"));
 const RegulatorAssessments = lazy(() => import("./pages/regulator/RegulatorAssessments"));
 
