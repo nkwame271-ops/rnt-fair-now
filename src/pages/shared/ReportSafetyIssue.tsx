@@ -95,10 +95,16 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
         hostel_or_hall: hostel || null,
         school: school || null,
         is_silent: silent,
+        is_anonymous: anonymous,
         user_role: role,
-        latitude: coords.lat ?? null,
-        longitude: coords.lng ?? null,
-        location_accuracy: coords.acc ?? null,
+        latitude: locationUnknown ? null : coords.lat ?? null,
+        longitude: locationUnknown ? null : coords.lng ?? null,
+        location_accuracy: locationUnknown ? null : coords.acc ?? null,
+        location_unknown: locationUnknown,
+        written_directions: writtenDirections || null,
+        nearest_landmark: nearestLandmark || null,
+        person_involved: personInvolved || null,
+        incident_datetime: incidentDateTime ? new Date(incidentDateTime).toISOString() : null,
       };
 
       // Create draft awaiting payment
