@@ -211,27 +211,62 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
           )}
 
           <div>
-            <Label>Evidence (optional)</Label>
-            <Input type="file" multiple onChange={(e) => setFiles(e.target.files)} />
+            <Label>Incident date & time</Label>
+            <Input type="datetime-local" value={incidentDateTime} onChange={(e) => setIncidentDateTime(e.target.value)} />
+          </div>
+
+          <div>
+            <Label>Person involved (optional)</Label>
+            <Input value={personInvolved} onChange={(e) => setPersonInvolved(e.target.value)} placeholder="Name, description or relationship" maxLength={200} />
+          </div>
+
+          <div>
+            <Label>Photos / videos (optional)</Label>
+            <Input type="file" multiple accept="image/*,video/*" onChange={(e) => setFiles(e.target.files)} />
           </div>
 
           <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
-            <div>
-              <p className="text-sm font-medium">Location</p>
-              <p className="text-xs text-muted-foreground">
-                {coords.lat
-                  ? `${coords.lat.toFixed(5)}, ${coords.lng?.toFixed(5)}`
-                  : "Not captured"}
-              </p>
+            <Label htmlFor="location_unknown">I don't know my exact location</Label>
+            <Switch id="location_unknown" checked={locationUnknown} onCheckedChange={setLocationUnknown} />
+          </div>
+
+          {!locationUnknown && (
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
+              <div>
+                <p className="text-sm font-medium">Current location / map pin</p>
+                <p className="text-xs text-muted-foreground">
+                  {coords.lat
+                    ? `${coords.lat.toFixed(5)}, ${coords.lng?.toFixed(5)}`
+                    : "Not captured"}
+                </p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={captureLocation}>
+                Use my location
+              </Button>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={captureLocation}>
-              Capture
-            </Button>
+          )}
+
+          <div>
+            <Label>Written directions {locationUnknown ? "*" : "(optional)"}</Label>
+            <Textarea value={writtenDirections} onChange={(e) => setWrittenDirections(e.target.value)} rows={2} placeholder="How to find the place" maxLength={500} />
+          </div>
+
+          <div>
+            <Label>Nearest landmark {locationUnknown ? "*" : "(optional)"}</Label>
+            <Input value={nearestLandmark} onChange={(e) => setNearestLandmark(e.target.value)} placeholder="e.g. beside Melcom, opposite fuel station" maxLength={200} />
           </div>
 
           <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
             <Label htmlFor="silent">Silent submission</Label>
             <Switch id="silent" checked={silent} onCheckedChange={setSilent} />
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
+            <div>
+              <Label htmlFor="anonymous">Report anonymously</Label>
+              <p className="text-xs text-muted-foreground">Hides your name from responders. Your account remains on file for abuse protection.</p>
+            </div>
+            <Switch id="anonymous" checked={anonymous} onCheckedChange={setAnonymous} />
           </div>
 
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
