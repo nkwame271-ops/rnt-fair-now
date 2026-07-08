@@ -287,8 +287,26 @@ function WithdrawDialog({ open, onOpenChange, accounts, balance, onDone }: any) 
           <Button disabled={busy || !acctId || !Number(amount) || Number(amount) > balance} onClick={async () => {
             setBusy(true);
             try {
+              let effectiveAcctId = acctId;
+              const chosen = accounts.find((x: any) => x.id === acctId);
+              if (chosen?.from_settings) {
+                // Auto-provision a real wallet_payout_accounts row from Payment Settings.
+                const { data: prov, error: pErr } = await supabase.functions.invoke("wallet-add-payout-account", {
+                  body: {
+                    account_type: chosen.account_type,
+                    provider_code: chosen.provider_code,
+                    provider_name: chosen.provider_name,
+                    account_number: chosen.account_number,
+                    account_name: chosen.account_name,
+                  },
+                });
+                if (pErr) throw pErr;
+                if ((prov as any)?.error) throw new Error((prov as any).error);
+                effectiveAcctId = (prov as any)?.id;
+                if (!effectiveAcctId) throw new Error("Could not activate payout account. Please add one manually.");
+              }
               const { data, error } = await supabase.functions.invoke("wallet-withdraw", {
-                body: { amount: Number(amount), payout_account_id: acctId },
+                body: { amount: Number(amount), payout_account_id: effectiveAcctId },
               });
               if (error) throw error;
               if ((data as any)?.error) throw new Error((data as any).error);
