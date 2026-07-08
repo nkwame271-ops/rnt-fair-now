@@ -73,21 +73,30 @@ const PropertyAssessmentsPage = ({ variant }: Props) => {
   const submit = async () => {
     if (!propertyId) { toast.error("Select a property"); return; }
     setSubmitting(true);
-    const prop = properties.find((p) => p.id === propertyId);
-    const { error } = await supabase.from("property_assessment_applications").insert({
-      property_id: propertyId,
-      requested_by: user!.id,
-      requester_role: variant,
-      landlord_user_id: variant === "landlord" ? user!.id : null,
-      reason,
-      fee_amount: ASSESSMENT_FEE,
-      status: "pending",
-    });
-    setSubmitting(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Assessment requested. Pay the fee to schedule an inspection.");
-    setReason(""); setPropertyId("");
-    load();
+    try {
+      const { data, error } = await supabase.functions.invoke("assessment-checkout", {
+        body: { property_id: propertyId, requester_role: variant, reason },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const payload = data as any;
+      if (payload?.no_payment) {
+        toast.success("Assessment request submitted.");
+        setReason(""); setPropertyId("");
+        load();
+        return;
+      }
+      startBrandedCheckout({
+        ...payload,
+        confirmationPath: "/assessments/confirm",
+        callbackPath: window.location.pathname,
+      });
+      setReason(""); setPropertyId("");
+    } catch (e: any) {
+      toast.error(e.message || "Could not start assessment checkout");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
