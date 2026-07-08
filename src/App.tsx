@@ -449,6 +449,7 @@ const App = () => (
               {/* Public Agent registration + Premium Service landing */}
               <Route path="/agent/register" element={<AgentRegister />} />
               <Route path="/premium-service" element={<PremiumServiceLanding />} />
+              <Route path="/assessments/confirm" element={<AssessmentConfirm />} />
 
               {/* Premium Service Agent Portal */}
               <Route path="/agent" element={<AgentRoute><AgentLayout /></AgentRoute>}>
