@@ -28,9 +28,19 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
   const [hostel, setHostel] = useState("");
   const [school, setSchool] = useState("");
   const [silent, setSilent] = useState(false);
+  const [anonymous, setAnonymous] = useState(false);
   const [files, setFiles] = useState<FileList | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [coords, setCoords] = useState<{ lat?: number; lng?: number; acc?: number }>({});
+  const [locationUnknown, setLocationUnknown] = useState(false);
+  const [writtenDirections, setWrittenDirections] = useState("");
+  const [nearestLandmark, setNearestLandmark] = useState("");
+  const [personInvolved, setPersonInvolved] = useState("");
+  const [incidentDateTime, setIncidentDateTime] = useState(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  });
   const [feeAmount, setFeeAmount] = useState<number | null>(null);
 
   const feeKey = role === "student" ? "student_safety_report_fee" : "safety_report_fee";
@@ -49,11 +59,14 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
   const captureLocation = () => {
     if (!navigator.geolocation) return toast.error("Geolocation not supported");
     navigator.geolocation.getCurrentPosition(
-      (p) =>
-        setCoords({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
+      (p) => {
+        setCoords({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy });
+        setLocationUnknown(false);
+      },
       () => toast.error("Could not get location")
     );
   };
+
 
   const submit = async () => {
     if (!user) return;
