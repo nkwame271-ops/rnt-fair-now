@@ -1575,6 +1575,25 @@ const EngineRoom = () => {
           )}
         </div>
       )}
+
+      {advancedFlag && (
+        <FeatureAdvancedDialog
+          open={!!advancedFlag}
+          onOpenChange={(v) => { if (!v) setAdvancedFlag(null); }}
+          featureKey={advancedFlag.feature_key}
+          featureLabel={advancedFlag.label}
+          initial={{
+            fee_type: advancedFlag.fee_type,
+            billing_frequency: advancedFlag.billing_frequency,
+            payment_destination: advancedFlag.payment_destination,
+            revenue_split_json: advancedFlag.revenue_split_json,
+            expiry_days: advancedFlag.expiry_days,
+            renewal_days: advancedFlag.renewal_days,
+            grace_period_days: advancedFlag.grace_period_days,
+          }}
+          onSaved={() => { invalidateFeatureFlags(); setAdvancedFlag(null); }}
+        />
+      )}
     </div>
   );
 };
