@@ -76,6 +76,7 @@ const ReportSafetyIssue = ({ role, backTo }: Props) => {
       return toast.error("Provide directions or a landmark when location is unknown");
     }
     setSubmitting(true);
+    try {
       const evidence_paths: string[] = [];
       if (files) {
         for (const file of Array.from(files)) {
