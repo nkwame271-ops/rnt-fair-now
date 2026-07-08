@@ -14,7 +14,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useFeeConfig } from "@/hooks/useFeatureFlag";
 import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
-const ASSESSMENT_FEE = 150;
+// Fee is read dynamically from Engine Room (feature_flags.property_assessment).
 
 const statusBadge = (s: string) => {
   const map: Record<string, string> = {
