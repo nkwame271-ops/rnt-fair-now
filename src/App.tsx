@@ -36,6 +36,7 @@ const WalletPage = lazy(() => import("./pages/shared/Wallet"));
 const WalletTopupConfirm = lazy(() => import("./pages/shared/WalletTopupConfirm"));
 const PayLink = lazy(() => import("./pages/shared/PayLink"));
 const PropertyAssessmentsPage = lazy(() => import("./pages/shared/PropertyAssessmentsPage"));
+const PremiumServicePage = lazy(() => import("./pages/shared/PremiumServicePage"));
 const VerifyAssessment = lazy(() => import("./pages/shared/VerifyAssessment"));
 const RegulatorAssessments = lazy(() => import("./pages/regulator/RegulatorAssessments"));
 
@@ -311,6 +312,7 @@ const App = () => (
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="rent-cards" element={<TenantRentCards />} />
                 <Route path="assessments" element={<PropertyAssessmentsPage variant="tenant" />} />
+                <Route path="premium" element={<PremiumServicePage variant="tenant" />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
@@ -348,6 +350,7 @@ const App = () => (
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="rent-collection" element={<LandlordRentCollection />} />
                 <Route path="assessments" element={<PropertyAssessmentsPage variant="landlord" />} />
+                <Route path="premium" element={<PremiumServicePage variant="landlord" />} />
               </Route>
 
 
