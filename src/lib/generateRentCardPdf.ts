@@ -29,6 +29,12 @@ const fmtDate = (s?: string | null) => {
   return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-GB");
 };
 
+const fmtMonth = (s?: string | null) => {
+  if (!s) return "—";
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+};
+
 export const generateRentCardPdf = (data: RentCardPdfData): jsPDF => {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = 210;
