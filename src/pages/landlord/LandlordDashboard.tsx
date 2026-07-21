@@ -38,7 +38,7 @@ const LandlordDashboard = () => {
       // Parallel fetch for independent queries
       const [profileRes, landlordRes, propsRes, tenanciesRes] = await Promise.all([
         supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
-        supabase.from("landlords").select("registration_fee_paid, compliance_score").eq("user_id", user.id).maybeSingle(),
+        supabase.from("landlords").select("registration_fee_paid, compliance_score, expiry_date").eq("user_id", user.id).maybeSingle(),
         supabase.from("properties").select("id").eq("landlord_user_id", user.id),
         supabase.from("tenancies").select("id, status").eq("landlord_user_id", user.id),
       ]);
