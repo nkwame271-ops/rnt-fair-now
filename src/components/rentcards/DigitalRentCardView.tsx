@@ -303,26 +303,22 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
                       <table className="w-full text-xs">
                         <thead className="text-muted-foreground">
                           <tr className="text-left">
-                            <th className="py-1 pr-2 font-medium">Date</th>
-                            <th className="py-1 pr-2 font-medium">Receipt</th>
-                            <th className="py-1 pr-2 font-medium">Type</th>
+                            <th className="py-1 pr-2 font-medium">Month</th>
                             <th className="py-1 pr-2 font-medium text-right">Amount</th>
+                            <th className="py-1 pr-2 font-medium">Receipt</th>
                           </tr>
                         </thead>
                         <tbody>
                           {recs.slice(0, 25).map((r: any) => (
                             <tr key={r.id} className="border-t border-border/60">
                               <td className="py-1.5 pr-2">
-                                {format(new Date(r.created_at), "dd/MM/yy")}
-                              </td>
-                              <td className="py-1.5 pr-2 font-mono">
-                                {r.receipt_number}
-                              </td>
-                              <td className="py-1.5 pr-2 capitalize">
-                                {String(r.payment_type || "").replace(/_/g, " ")}
+                                {format(new Date(r.created_at), "MMM yyyy")}
                               </td>
                               <td className="py-1.5 pr-2 text-right font-semibold">
                                 GHS {Number(r.total_amount || 0).toLocaleString()}
+                              </td>
+                              <td className="py-1.5 pr-2 font-mono">
+                                {r.receipt_number}
                               </td>
                             </tr>
                           ))}
