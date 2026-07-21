@@ -151,6 +151,11 @@ async function promoteDraft(admin: any, reference: string) {
     reason: draft.reason,
     fee_amount: draft.fee_amount,
     status: "paid",
+    latitude: draft.latitude,
+    longitude: draft.longitude,
+    ghana_post_gps: draft.ghana_post_gps,
+    address_line: draft.address_line,
+    landmark: draft.landmark,
   });
   await admin.from("pending_assessment_drafts").update({ status: "promoted" }).eq("reference", reference);
 }
