@@ -287,7 +287,7 @@ const AgentRegister = () => {
               <Select value={form.region} onValueChange={(v) => setForm({ ...form, region: v })}>
                 <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
                 <SelectContent>
-                  {Object.keys(GHANA_REGIONS_OFFICES).map((r) => (
+                  {GHANA_REGIONS.map((r) => (
                     <SelectItem key={r} value={r}>{r}</SelectItem>
                   ))}
                 </SelectContent>
