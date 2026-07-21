@@ -1370,6 +1370,80 @@ export type Database = {
           },
         ]
       }
+      cashbook_entries: {
+        Row: {
+          category: string | null
+          channel: string | null
+          created_at: string
+          description: string | null
+          entry_date: string
+          id: string
+          metadata: Json
+          method: string | null
+          money_in: number
+          money_out: number
+          office: string | null
+          payer: string | null
+          payment_ref: string | null
+          receipt_no: string | null
+          reconciliation_status: string
+          recorded_by: string | null
+          running_balance: number
+          source_receipt_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          channel?: string | null
+          created_at?: string
+          description?: string | null
+          entry_date?: string
+          id?: string
+          metadata?: Json
+          method?: string | null
+          money_in?: number
+          money_out?: number
+          office?: string | null
+          payer?: string | null
+          payment_ref?: string | null
+          receipt_no?: string | null
+          reconciliation_status?: string
+          recorded_by?: string | null
+          running_balance?: number
+          source_receipt_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          channel?: string | null
+          created_at?: string
+          description?: string | null
+          entry_date?: string
+          id?: string
+          metadata?: Json
+          method?: string | null
+          money_in?: number
+          money_out?: number
+          office?: string | null
+          payer?: string | null
+          payment_ref?: string | null
+          receipt_no?: string | null
+          reconciliation_status?: string
+          recorded_by?: string | null
+          running_balance?: number
+          source_receipt_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cashbook_entries_source_receipt_id_fkey"
+            columns: ["source_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "payment_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       complaint_assignments: {
         Row: {
           assigned_at: string
