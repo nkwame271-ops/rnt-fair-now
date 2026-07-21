@@ -190,12 +190,22 @@ export default function WalletPage() {
       </Tabs>
 
       <AddMoneyDialog open={addOpen} onOpenChange={setAddOpen} email={user?.email || ""} onDone={load} />
-      <WithdrawDialog open={wdOpen} onOpenChange={setWdOpen} accounts={accounts} balance={wallet?.available_balance || 0} onDone={load} />
-      <AddAccountDialog open={acctOpen} onOpenChange={setAcctOpen} onDone={load} />
+      <WithdrawDialog open={wdOpen} onOpenChange={setWdOpen} accounts={accounts} balance={wallet?.available_balance || 0} onDone={load} requireConfirm={runWithGate} />
+      <AddAccountDialog open={acctOpen} onOpenChange={setAcctOpen} onDone={load} requireConfirm={runWithGate} />
       <NewLinkDialog open={linkOpen} onOpenChange={setLinkOpen} onDone={load} />
+
+      <SensitiveActionGate
+        open={gateOpen}
+        onOpenChange={(v) => { setGateOpen(v); if (!v) pendingRef.current = null; }}
+        title="Confirm sensitive change"
+        description="Wallet payout and withdrawal actions require password + OTP for your security."
+        actionLabel="Confirm"
+        onVerified={async () => { const fn = pendingRef.current; pendingRef.current = null; if (fn) await fn(); }}
+      />
     </div>
   );
 }
+
 
 function BalanceCard({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
