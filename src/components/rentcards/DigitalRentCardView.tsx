@@ -65,11 +65,10 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
       // Enrich
       const propIds = [...new Set(use.map((c) => c.property_id).filter(Boolean))] as string[];
       const unitIds = [...new Set(use.map((c) => c.unit_id).filter(Boolean))] as string[];
+      // Fetch BOTH landlord and tenant profiles for every card, regardless of variant.
       const partnerIds = [
         ...new Set(
-          use
-            .map((c) => (variant === "tenant" ? c.landlord_user_id : c.tenant_user_id))
-            .filter(Boolean),
+          use.flatMap((c) => [c.landlord_user_id, c.tenant_user_id]).filter(Boolean),
         ),
       ] as string[];
 
@@ -92,12 +91,8 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
         ...c,
         property_address: c.property_id ? pm.get(c.property_id) : undefined,
         unit_name: c.unit_id ? um.get(c.unit_id) : undefined,
-        landlord_name:
-          variant === "tenant" ? nm.get(c.landlord_user_id) : undefined,
-        tenant_name:
-          variant === "landlord" && c.tenant_user_id
-            ? nm.get(c.tenant_user_id)
-            : undefined,
+        landlord_name: nm.get(c.landlord_user_id),
+        tenant_name: c.tenant_user_id ? nm.get(c.tenant_user_id) : undefined,
       }));
 
       // Payments per tenancy
