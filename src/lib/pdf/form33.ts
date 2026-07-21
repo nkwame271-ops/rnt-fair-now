@@ -117,7 +117,7 @@ export function renderForm33(d: Form33Data): jsPDF {
   drawWatermark(doc);
   drawHeader(doc, { subtitle: "Regulation 38(2) · Rent Regulation, 1964 (LI 369)" });
 
-  const bodySize = Math.max(9, Math.min(18, d.body_font_size || 10));
+  const bodySize = Math.max(9, Math.min(20, d.body_font_size || 14));
   const lineHeight = Math.round(bodySize * 1.4);
 
   let y = 86;
