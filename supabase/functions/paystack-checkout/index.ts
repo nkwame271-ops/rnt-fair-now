@@ -671,7 +671,7 @@ Deno.serve(async (req) => {
 
       const fee = await determineFee(supabaseAdmin, "landlord_registration_fee");
       if (!fee.enabled || fee.amount === 0) {
-        await supabaseAdmin.from("landlords").update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() }).eq("user_id", userId);
+        await supabaseAdmin.from("landlords").update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).eq("user_id", userId);
         return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       totalAmount = fee.amount;
