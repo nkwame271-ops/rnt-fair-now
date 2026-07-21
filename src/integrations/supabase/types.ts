@@ -5215,6 +5215,45 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_premium_drafts: {
+        Row: {
+          billing_frequency: string
+          created_at: string
+          fee_amount: number
+          id: string
+          property_id: string | null
+          reference: string
+          status: string
+          subscriber_role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_frequency?: string
+          created_at?: string
+          fee_amount?: number
+          id?: string
+          property_id?: string | null
+          reference: string
+          status?: string
+          subscriber_role: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_frequency?: string
+          created_at?: string
+          fee_amount?: number
+          id?: string
+          property_id?: string | null
+          reference?: string
+          status?: string
+          subscriber_role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pending_safety_report_drafts: {
         Row: {
           amount: number
@@ -5338,8 +5377,10 @@ export type Database = {
       premium_subscriptions: {
         Row: {
           assigned_agent_user_id: string | null
+          billing_frequency: string | null
           created_at: string
           expires_at: string
+          fee_amount: number | null
           id: string
           management_enabled: boolean
           notes: string | null
@@ -5354,8 +5395,10 @@ export type Database = {
         }
         Insert: {
           assigned_agent_user_id?: string | null
+          billing_frequency?: string | null
           created_at?: string
           expires_at: string
+          fee_amount?: number | null
           id?: string
           management_enabled?: boolean
           notes?: string | null
@@ -5370,8 +5413,10 @@ export type Database = {
         }
         Update: {
           assigned_agent_user_id?: string | null
+          billing_frequency?: string | null
           created_at?: string
           expires_at?: string
+          fee_amount?: number | null
           id?: string
           management_enabled?: boolean
           notes?: string | null

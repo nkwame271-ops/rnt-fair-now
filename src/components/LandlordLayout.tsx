@@ -39,7 +39,7 @@ import HeaderAvatar from "@/components/HeaderAvatar";
 const navItems = [
   { to: "/landlord/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/landlord/my-properties", label: "My Properties", icon: Building2 },
-  { to: "/landlord/management-support", label: "Premium Service", icon: Shield },
+  { to: "/landlord/premium", label: "Premium Service", icon: Shield },
   { to: "/landlord/my-tenants", label: "My Tenants", icon: UserCircle },
   { to: "/landlord/register-property", label: "Register Property", icon: PlusCircle, featureKey: "register_property" },
   { to: "/landlord/add-tenant", label: "Add Tenant", icon: PlusCircle, featureKey: "add_tenant" },
@@ -56,7 +56,7 @@ const navItems = [
   { to: "/landlord/rent-cards", label: "Manage Rent Cards", icon: Wallet, featureKey: "rent_cards" },
   { to: "/landlord/rent-card-view", label: "Rent Card Copies", icon: CreditCard },
   { to: "/landlord/assessments", label: "Property Assessments", icon: CreditCard },
-  { to: "/landlord/premium", label: "Premium Service", icon: Wallet },
+  
   { to: "/landlord/payment-settings", label: "Payment Settings", icon: CreditCard, featureKey: "payment_settings" },
   { to: "/landlord/wallet", label: "NAFLIS Wallet", icon: Wallet },
   { to: "/landlord/receipts", label: "Receipts", icon: FileText, featureKey: "landlord_receipts" },
