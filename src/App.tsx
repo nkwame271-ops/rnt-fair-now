@@ -39,6 +39,7 @@ const PropertyAssessmentsPage = lazy(() => import("./pages/shared/PropertyAssess
 const PremiumServicePage = lazy(() => import("./pages/shared/PremiumServicePage"));
 const PremiumServiceLanding = lazy(() => import("./pages/PremiumServiceLanding"));
 const AssessmentConfirm = lazy(() => import("./pages/shared/AssessmentConfirm"));
+const PremiumConfirm = lazy(() => import("./pages/shared/PremiumConfirm"));
 const VerifyAssessment = lazy(() => import("./pages/shared/VerifyAssessment"));
 const RegulatorAssessments = lazy(() => import("./pages/regulator/RegulatorAssessments"));
 
