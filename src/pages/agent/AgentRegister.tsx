@@ -284,9 +284,15 @@ const AgentRegister = () => {
               <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="0XX XXX XXXX" maxLength={20} />
             </div>
             <div className="space-y-1.5">
-              <Label>Email</Label>
-              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={255} />
+              <Label>Email *</Label>
+              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={255} disabled={!!user} />
             </div>
+            {!user && (
+              <div className="space-y-1.5">
+                <Label>Password *</Label>
+                <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} maxLength={72} placeholder="At least 6 characters" autoComplete="new-password" />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Date of Birth</Label>
               <Input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
