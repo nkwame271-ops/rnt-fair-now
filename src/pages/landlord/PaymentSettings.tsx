@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Wallet, Save } from "lucide-react";
+import { Loader2, Wallet, Save, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,11 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import SensitiveActionGate from "@/components/SensitiveActionGate";
+
 
 const PaymentSettings = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [gateOpen, setGateOpen] = useState(false);
   const [method, setMethod] = useState("momo");
   const [momoNumber, setMomoNumber] = useState("");
   const [momoProvider, setMomoProvider] = useState("MTN");
@@ -19,6 +22,7 @@ const PaymentSettings = () => {
   const [bankBranch, setBankBranch] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
+
 
   useEffect(() => {
     if (!user) return;
@@ -43,7 +47,7 @@ const PaymentSettings = () => {
     fetch();
   }, [user]);
 
-  const handleSave = async () => {
+  const performSave = async () => {
     if (!user) return;
     setSaving(true);
     const payload = {
@@ -66,6 +70,16 @@ const PaymentSettings = () => {
     else toast.success("Payment settings saved!");
     setSaving(false);
   };
+
+  const handleSave = () => {
+    if (!user) return;
+    // Basic validation before opening the gate
+    if (method === "momo" && !momoNumber.trim()) return toast.error("Enter your mobile money number");
+    if (method === "bank" && (!bankName.trim() || !accountNumber.trim() || !accountName.trim()))
+      return toast.error("Fill all bank fields");
+    setGateOpen(true);
+  };
+
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -134,13 +148,29 @@ const PaymentSettings = () => {
           </>
         )}
 
+
+        <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+          <ShieldCheck className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+          <span>Changes to payout details require password + OTP confirmation on your verified phone.</span>
+        </div>
+
         <Button onClick={handleSave} disabled={saving} className="w-full">
           <Save className="h-4 w-4 mr-2" />
           {saving ? "Saving..." : "Save Payment Settings"}
         </Button>
       </div>
+
+      <SensitiveActionGate
+        open={gateOpen}
+        onOpenChange={setGateOpen}
+        title="Confirm payout change"
+        description="Payout accounts control where your rent money is sent. Confirm your password and OTP to save."
+        actionLabel="Save changes"
+        onVerified={performSave}
+      />
     </div>
   );
 };
+
 
 export default PaymentSettings;

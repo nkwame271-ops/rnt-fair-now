@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,8 @@ import { Wallet, ArrowDownToLine, ArrowUpFromLine, Plus, Link2, RefreshCw, Check
 import { toast } from "sonner";
 import Seo from "@/components/Seo";
 import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
+import SensitiveActionGate from "@/components/SensitiveActionGate";
+
 
 type WalletRow = {
   id: string;
@@ -38,6 +40,12 @@ export default function WalletPage() {
   const [wdOpen, setWdOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [gateOpen, setGateOpen] = useState(false);
+  const pendingRef = useRef<null | (() => Promise<void> | void)>(null);
+  const runWithGate = useCallback((fn: () => Promise<void> | void) => {
+    pendingRef.current = fn;
+    setGateOpen(true);
+  }, []);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -188,12 +196,22 @@ export default function WalletPage() {
       </Tabs>
 
       <AddMoneyDialog open={addOpen} onOpenChange={setAddOpen} email={user?.email || ""} onDone={load} />
-      <WithdrawDialog open={wdOpen} onOpenChange={setWdOpen} accounts={accounts} balance={wallet?.available_balance || 0} onDone={load} />
-      <AddAccountDialog open={acctOpen} onOpenChange={setAcctOpen} onDone={load} />
+      <WithdrawDialog open={wdOpen} onOpenChange={setWdOpen} accounts={accounts} balance={wallet?.available_balance || 0} onDone={load} requireConfirm={runWithGate} />
+      <AddAccountDialog open={acctOpen} onOpenChange={setAcctOpen} onDone={load} requireConfirm={runWithGate} />
       <NewLinkDialog open={linkOpen} onOpenChange={setLinkOpen} onDone={load} />
+
+      <SensitiveActionGate
+        open={gateOpen}
+        onOpenChange={(v) => { setGateOpen(v); if (!v) pendingRef.current = null; }}
+        title="Confirm sensitive change"
+        description="Wallet payout and withdrawal actions require password + OTP for your security."
+        actionLabel="Confirm"
+        onVerified={async () => { const fn = pendingRef.current; pendingRef.current = null; if (fn) await fn(); }}
+      />
     </div>
   );
 }
+
 
 function BalanceCard({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
@@ -249,7 +267,7 @@ function AddMoneyDialog({ open, onOpenChange, email, onDone }: any) {
   );
 }
 
-function WithdrawDialog({ open, onOpenChange, accounts, balance, onDone }: any) {
+function WithdrawDialog({ open, onOpenChange, accounts, balance, onDone, requireConfirm }: any) {
   const [amount, setAmount] = useState("");
   const [acctId, setAcctId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -284,46 +302,49 @@ function WithdrawDialog({ open, onOpenChange, accounts, balance, onDone }: any) 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={busy || !acctId || !Number(amount) || Number(amount) > balance} onClick={async () => {
-            setBusy(true);
-            try {
-              let effectiveAcctId = acctId;
-              const chosen = accounts.find((x: any) => x.id === acctId);
-              if (chosen?.from_settings) {
-                // Auto-provision a real wallet_payout_accounts row from Payment Settings.
-                const { data: prov, error: pErr } = await supabase.functions.invoke("wallet-add-payout-account", {
-                  body: {
-                    account_type: chosen.account_type,
-                    provider_code: chosen.provider_code,
-                    provider_name: chosen.provider_name,
-                    account_number: chosen.account_number,
-                    account_name: chosen.account_name,
-                  },
+          <Button disabled={busy || !acctId || !Number(amount) || Number(amount) > balance} onClick={() => {
+            // Close this dialog first, then run the gate, then perform the withdrawal.
+            onOpenChange(false);
+            requireConfirm(async () => {
+              setBusy(true);
+              try {
+                let effectiveAcctId = acctId;
+                const chosen = accounts.find((x: any) => x.id === acctId);
+                if (chosen?.from_settings) {
+                  const { data: prov, error: pErr } = await supabase.functions.invoke("wallet-add-payout-account", {
+                    body: {
+                      account_type: chosen.account_type,
+                      provider_code: chosen.provider_code,
+                      provider_name: chosen.provider_name,
+                      account_number: chosen.account_number,
+                      account_name: chosen.account_name,
+                    },
+                  });
+                  if (pErr) throw pErr;
+                  if ((prov as any)?.error) throw new Error((prov as any).error);
+                  effectiveAcctId = (prov as any)?.id;
+                  if (!effectiveAcctId) throw new Error("Could not activate payout account. Please add one manually.");
+                }
+                const { data, error } = await supabase.functions.invoke("wallet-withdraw", {
+                  body: { amount: Number(amount), payout_account_id: effectiveAcctId },
                 });
-                if (pErr) throw pErr;
-                if ((prov as any)?.error) throw new Error((prov as any).error);
-                effectiveAcctId = (prov as any)?.id;
-                if (!effectiveAcctId) throw new Error("Could not activate payout account. Please add one manually.");
-              }
-              const { data, error } = await supabase.functions.invoke("wallet-withdraw", {
-                body: { amount: Number(amount), payout_account_id: effectiveAcctId },
-              });
-              if (error) throw error;
-              if ((data as any)?.error) throw new Error((data as any).error);
-              toast.success("Withdrawal initiated");
-              onOpenChange(false);
-              onDone();
-            } catch (e: any) {
-              toast.error(e.message || "Withdrawal failed");
-            } finally { setBusy(false); }
+                if (error) throw error;
+                if ((data as any)?.error) throw new Error((data as any).error);
+                toast.success("Withdrawal initiated");
+                onDone();
+              } catch (e: any) {
+                toast.error(e.message || "Withdrawal failed");
+              } finally { setBusy(false); }
+            });
           }}>Withdraw</Button>
+
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function AddAccountDialog({ open, onOpenChange, onDone }: any) {
+function AddAccountDialog({ open, onOpenChange, onDone, requireConfirm }: any) {
   const [type, setType] = useState<"mobile_money" | "bank">("mobile_money");
   const [banks, setBanks] = useState<any[]>([]);
   const [momo, setMomo] = useState<any[]>([]);
@@ -377,29 +398,32 @@ function AddAccountDialog({ open, onOpenChange, onDone }: any) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={busy || !providerCode || !accountNumber || (type === "mobile_money" && !accountName)} onClick={async () => {
-            setBusy(true);
-            try {
-              const provider = providers.find((p: any) => p.code === providerCode);
-              const { data, error } = await supabase.functions.invoke("wallet-add-payout-account", {
-                body: {
-                  account_type: type,
-                  provider_code: providerCode,
-                  provider_name: provider?.name,
-                  account_number: accountNumber,
-                  account_name: accountName || undefined,
-                },
-              });
-              if (error) throw error;
-              if ((data as any)?.error) throw new Error((data as any).error);
-              toast.success("Payout account added");
-              onOpenChange(false);
-              setAccountNumber(""); setAccountName(""); setProviderCode("");
-              onDone();
-            } catch (e: any) {
-              toast.error(e.message || "Could not add account");
-            } finally { setBusy(false); }
+          <Button disabled={busy || !providerCode || !accountNumber || (type === "mobile_money" && !accountName)} onClick={() => {
+            onOpenChange(false);
+            requireConfirm(async () => {
+              setBusy(true);
+              try {
+                const provider = providers.find((p: any) => p.code === providerCode);
+                const { data, error } = await supabase.functions.invoke("wallet-add-payout-account", {
+                  body: {
+                    account_type: type,
+                    provider_code: providerCode,
+                    provider_name: provider?.name,
+                    account_number: accountNumber,
+                    account_name: accountName || undefined,
+                  },
+                });
+                if (error) throw error;
+                if ((data as any)?.error) throw new Error((data as any).error);
+                toast.success("Payout account added");
+                setAccountNumber(""); setAccountName(""); setProviderCode("");
+                onDone();
+              } catch (e: any) {
+                toast.error(e.message || "Could not add account");
+              } finally { setBusy(false); }
+            });
           }}>Verify & Save</Button>
+
         </DialogFooter>
       </DialogContent>
     </Dialog>
