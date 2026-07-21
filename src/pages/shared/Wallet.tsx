@@ -344,7 +344,7 @@ function WithdrawDialog({ open, onOpenChange, accounts, balance, onDone, require
   );
 }
 
-function AddAccountDialog({ open, onOpenChange, onDone }: any) {
+function AddAccountDialog({ open, onOpenChange, onDone, requireConfirm }: any) {
   const [type, setType] = useState<"mobile_money" | "bank">("mobile_money");
   const [banks, setBanks] = useState<any[]>([]);
   const [momo, setMomo] = useState<any[]>([]);
