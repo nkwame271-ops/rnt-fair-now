@@ -398,29 +398,32 @@ function AddAccountDialog({ open, onOpenChange, onDone, requireConfirm }: any) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={busy || !providerCode || !accountNumber || (type === "mobile_money" && !accountName)} onClick={async () => {
-            setBusy(true);
-            try {
-              const provider = providers.find((p: any) => p.code === providerCode);
-              const { data, error } = await supabase.functions.invoke("wallet-add-payout-account", {
-                body: {
-                  account_type: type,
-                  provider_code: providerCode,
-                  provider_name: provider?.name,
-                  account_number: accountNumber,
-                  account_name: accountName || undefined,
-                },
-              });
-              if (error) throw error;
-              if ((data as any)?.error) throw new Error((data as any).error);
-              toast.success("Payout account added");
-              onOpenChange(false);
-              setAccountNumber(""); setAccountName(""); setProviderCode("");
-              onDone();
-            } catch (e: any) {
-              toast.error(e.message || "Could not add account");
-            } finally { setBusy(false); }
+          <Button disabled={busy || !providerCode || !accountNumber || (type === "mobile_money" && !accountName)} onClick={() => {
+            onOpenChange(false);
+            requireConfirm(async () => {
+              setBusy(true);
+              try {
+                const provider = providers.find((p: any) => p.code === providerCode);
+                const { data, error } = await supabase.functions.invoke("wallet-add-payout-account", {
+                  body: {
+                    account_type: type,
+                    provider_code: providerCode,
+                    provider_name: provider?.name,
+                    account_number: accountNumber,
+                    account_name: accountName || undefined,
+                  },
+                });
+                if (error) throw error;
+                if ((data as any)?.error) throw new Error((data as any).error);
+                toast.success("Payout account added");
+                setAccountNumber(""); setAccountName(""); setProviderCode("");
+                onDone();
+              } catch (e: any) {
+                toast.error(e.message || "Could not add account");
+              } finally { setBusy(false); }
+            });
           }}>Verify & Save</Button>
+
         </DialogFooter>
       </DialogContent>
     </Dialog>
