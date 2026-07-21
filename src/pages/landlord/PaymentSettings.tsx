@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Wallet, Save } from "lucide-react";
+import { Loader2, Wallet, Save, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import SensitiveActionGate from "@/components/SensitiveActionGate";
+
 
 const PaymentSettings = () => {
   const { user } = useAuth();
