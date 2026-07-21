@@ -117,35 +117,35 @@ export function renderForm33(d: Form33Data): jsPDF {
   drawWatermark(doc);
   drawHeader(doc, { subtitle: "Regulation 38(2) · Rent Regulation, 1964 (LI 369)" });
 
-  const bodySize = Math.max(9, Math.min(20, d.body_font_size || 14));
-  const lineHeight = Math.round(bodySize * 1.4);
+  const bodySize = Math.max(14, Math.min(22, d.body_font_size || 18));
+  const lineHeight = Math.round(bodySize * 1.5);
 
   let y = 86;
 
   // Top row: CA / Case number (left) — Parties line (right)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(18);
   doc.text(`${d.case_prefix || "CAR"}  ${d.case_number || "—"}`, MARGIN, y);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(13);
+  doc.setFontSize(16);
   doc.text(d.parties_line || "Complainant(s) VRS Respondent(s)", A4.W - MARGIN, y, { align: "right" });
-  y += 12;
+  y += 14;
   doc.setDrawColor(20, 80, 50);
   doc.line(MARGIN, y, A4.W - MARGIN, y);
-  y += 24;
+  y += 28;
 
-  // FORM 33 + heading
+  // FORM 33 + heading (larger + more prominent than other text)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
+  doc.setFontSize(26);
   doc.text("FORM 33", A4.W / 2, y, { align: "center" });
-  y += 22;
-  doc.setFontSize(13);
+  y += 28;
+  doc.setFontSize(16);
   const heading = doc.splitTextToSize(
     "SUMMONS TO PERSONS AGAINST WHOM COMPLAINTS HAVE BEEN MADE",
     A4.W - MARGIN * 2
   );
   doc.text(heading, A4.W / 2, y, { align: "center" });
-  y += heading.length * 16 + 20;
+  y += heading.length * 20 + 24;
 
   // Rent Officer for / To
   doc.setFont("helvetica", "normal");
