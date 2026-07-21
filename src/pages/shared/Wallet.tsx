@@ -13,6 +13,8 @@ import { Wallet, ArrowDownToLine, ArrowUpFromLine, Plus, Link2, RefreshCw, Check
 import { toast } from "sonner";
 import Seo from "@/components/Seo";
 import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
+import SensitiveActionGate from "@/components/SensitiveActionGate";
+
 
 type WalletRow = {
   id: string;
