@@ -172,6 +172,7 @@ const PaymentReconciliationCentre = lazy(() => import("./pages/regulator/Payment
 const StudentRevenue = lazy(() => import("./pages/regulator/StudentRevenue"));
 const EscalatedStudentComplaints = lazy(() => import("./pages/regulator/EscalatedStudentComplaints"));
 const RegulatorReceipts = lazy(() => import("./pages/regulator/RegulatorReceipts"));
+const RegulatorCashbook = lazy(() => import("./pages/regulator/RegulatorCashbook"));
 const ProcessorReconciliation = lazy(() => import("./pages/regulator/ProcessorReconciliation"));
 const SafetyEmergencyReports = lazy(() => import("./pages/regulator/SafetyEmergencyReports"));
 const SafetyReportDetail = lazy(() => import("./pages/regulator/SafetyReportDetail"));
