@@ -1455,7 +1455,15 @@ Deno.serve(async (req) => {
     console.log("Paystack response:", JSON.stringify(result));
 
     if (!response.ok || !result.status) {
-      throw new Error(result.message || `Paystack error (HTTP ${response.status})`);
+      const raw = (result?.message || "").toString();
+      const isGeneric =
+        result?.type === "api_error" ||
+        result?.code === "unknown" ||
+        /try again/i.test(raw);
+      const friendly = isGeneric
+        ? "Payments are temporarily unavailable. Our team has been notified — please try again in a few minutes."
+        : raw || `Paystack error (HTTP ${response.status})`;
+      throw new Error(friendly);
     }
 
     const checkoutPayload = {
