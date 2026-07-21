@@ -98,6 +98,7 @@ const allNavItems = [
   { to: "/regulator/assessments", label: "Property Assessments", icon: IdCard },
   { to: "/regulator/escrow", label: "Escrow & Revenue", icon: BarChart3 },
   { to: "/regulator/receipts", label: "Receipts", icon: FileText },
+  { to: "/regulator/cashbook", label: "Cashbook", icon: BarChart3 },
   { to: "/regulator/processor-reconciliation", label: "Processor Reconciliation", icon: Wallet },
   { to: "/regulator/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/regulator/kyc", label: "KYC Verification", icon: IdCard },
