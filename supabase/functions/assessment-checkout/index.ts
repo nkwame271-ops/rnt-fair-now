@@ -53,12 +53,17 @@ Deno.serve(async (req) => {
     // Create draft — will be promoted into property_assessment_applications on payment verify.
     const { error: dErr } = await supabaseAdmin.from("pending_assessment_drafts").insert({
       user_id: user.id,
-      property_id,
+      property_id: property_id || null,
       requester_role,
       reason: reason || null,
       fee_amount: feeAmount,
       reference,
       status: feeEnabled && feeAmount > 0 ? "pending_payment" : "no_fee",
+      latitude: latitude ?? null,
+      longitude: longitude ?? null,
+      ghana_post_gps: ghana_post_gps || null,
+      address_line: address_line || null,
+      landmark: landmark || null,
     });
     if (dErr) throw dErr;
 
