@@ -647,7 +647,7 @@ Deno.serve(async (req) => {
     } else if (type === "landlord_registration") {
       let { data: landlord } = await supabase
         .from("landlords")
-        .select("id, registration_fee_paid")
+        .select("id, registration_fee_paid, expiry_date")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -658,13 +658,18 @@ Deno.serve(async (req) => {
         const { data: created, error: createErr } = await supabaseAdmin
           .from("landlords")
           .insert({ user_id: userId, landlord_id: String(genId), registration_fee_paid: false })
-          .select("id, registration_fee_paid")
+          .select("id, registration_fee_paid, expiry_date")
           .single();
         if (createErr) throw new Error("Failed to create landlord record: " + createErr.message);
         landlord = created;
       }
 
-      if (landlord.registration_fee_paid) throw new Error("Registration fee already paid");
+      // Landlord registration is a MONTHLY subscription (30-day validity).
+      // Block only if currently paid AND expiry is still in the future.
+      const expiryMs = landlord.expiry_date ? Date.parse(landlord.expiry_date as any) : 0;
+      if (landlord.registration_fee_paid && expiryMs > Date.now()) {
+        throw new Error("Registration is already active. It will renew after " + new Date(expiryMs).toLocaleDateString());
+      }
 
       officeId = await resolveOffice(supabaseAdmin, { userId, region: profile?.delivery_region || undefined, area: profile?.delivery_area || undefined });
       caseType = "registration";
