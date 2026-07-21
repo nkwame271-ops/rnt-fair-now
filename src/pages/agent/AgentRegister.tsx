@@ -31,6 +31,7 @@ const schema = z.object({
   full_name: z.string().trim().min(3, "Full name is required").max(120),
   phone: z.string().trim().min(9, "Valid phone required").max(20),
   email: z.string().trim().email("Valid email required").max(255),
+  password: z.string().min(6, "Password must be at least 6 characters").max(72).optional().or(z.literal("")),
   date_of_birth: z.string().optional(),
   id_type: z.string().min(1, "Select an ID type"),
   id_number: z.string().trim().min(3, "ID number required").max(40),
