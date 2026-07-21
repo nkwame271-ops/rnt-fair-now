@@ -42,24 +42,24 @@ export interface Form7Data {
 
 const wrapNumbered = (doc: jsPDF, n: number, label: string, value: string, y: number, width: number): number => {
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(20);
   doc.text(`${n}.`, MARGIN, y);
-  doc.text(label, MARGIN + 20, y);
+  doc.text(label, MARGIN + 26, y);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(13);
+  doc.setFontSize(18);
   const v = value && value.trim() ? value : "—";
-  const lineH = 18;
-  const lines = doc.splitTextToSize(v, width - 20);
-  doc.text(lines, MARGIN + 20, y + 18);
+  const lineH = 24;
+  const lines = doc.splitTextToSize(v, width - 26);
+  doc.text(lines, MARGIN + 26, y + 24);
   const totalLines = lines.length;
   for (let i = 0; i < totalLines; i++) {
-    const ly = y + 18 + i * lineH + 3;
+    const ly = y + 24 + i * lineH + 4;
     doc.setDrawColor(200);
     doc.setLineDashPattern([1, 2], 0);
-    doc.line(MARGIN + 20, ly, MARGIN + width, ly);
+    doc.line(MARGIN + 26, ly, MARGIN + width, ly);
   }
   doc.setLineDashPattern([], 0);
-  return y + 18 + totalLines * lineH + 12;
+  return y + 24 + totalLines * lineH + 16;
 };
 
 export function renderForm7(d: Form7Data): jsPDF {
