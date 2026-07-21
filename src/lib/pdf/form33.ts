@@ -124,28 +124,28 @@ export function renderForm33(d: Form33Data): jsPDF {
 
   // Top row: CA / Case number (left) — Parties line (right)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(18);
   doc.text(`${d.case_prefix || "CAR"}  ${d.case_number || "—"}`, MARGIN, y);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(13);
+  doc.setFontSize(16);
   doc.text(d.parties_line || "Complainant(s) VRS Respondent(s)", A4.W - MARGIN, y, { align: "right" });
-  y += 12;
+  y += 14;
   doc.setDrawColor(20, 80, 50);
   doc.line(MARGIN, y, A4.W - MARGIN, y);
-  y += 24;
+  y += 28;
 
-  // FORM 33 + heading
+  // FORM 33 + heading (larger + more prominent than other text)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
+  doc.setFontSize(26);
   doc.text("FORM 33", A4.W / 2, y, { align: "center" });
-  y += 22;
-  doc.setFontSize(13);
+  y += 28;
+  doc.setFontSize(16);
   const heading = doc.splitTextToSize(
     "SUMMONS TO PERSONS AGAINST WHOM COMPLAINTS HAVE BEEN MADE",
     A4.W - MARGIN * 2
   );
   doc.text(heading, A4.W / 2, y, { align: "center" });
-  y += heading.length * 16 + 20;
+  y += heading.length * 20 + 24;
 
   // Rent Officer for / To
   doc.setFont("helvetica", "normal");
