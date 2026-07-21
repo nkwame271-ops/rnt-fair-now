@@ -20,21 +20,25 @@ Deno.serve(async (req) => {
     out.balance_error = e.message;
   }
 
-  // Test init with a real email
-  try {
-    const initRes = await fetch('https://api.paystack.co/transaction/initialize', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: 'test@paystack.com',
-        amount: 3000,
-        currency: 'GHS',
-      }),
-    });
-    out.init_http = initRes.status;
-    out.init_body = await initRes.json();
-  } catch (e: any) {
-    out.init_error = e.message;
+  const trials: Array<{ label: string; body: any }> = [
+    { label: 'gmail_ghs', body: { email: 'diagnose@gmail.com', amount: 10000, currency: 'GHS' } },
+    { label: 'gmail_no_currency', body: { email: 'diagnose@gmail.com', amount: 10000 } },
+    { label: 'gmail_ngn', body: { email: 'diagnose@gmail.com', amount: 10000, currency: 'NGN' } },
+    { label: 'gmail_usd', body: { email: 'diagnose@gmail.com', amount: 500, currency: 'USD' } },
+    { label: 'min_ghs', body: { email: 'diagnose@gmail.com', amount: 100, currency: 'GHS' } },
+  ];
+  out.trials = [];
+  for (const t of trials) {
+    try {
+      const r = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(t.body),
+      });
+      out.trials.push({ label: t.label, http: r.status, body: await r.json() });
+    } catch (e: any) {
+      out.trials.push({ label: t.label, error: e.message });
+    }
   }
 
   return new Response(JSON.stringify(out, null, 2), {
