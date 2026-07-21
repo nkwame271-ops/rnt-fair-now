@@ -1162,6 +1162,21 @@ export type Database = {
         }
         Relationships: []
       }
+      car_case_counters: {
+        Row: {
+          last_seq: number
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          year?: number
+        }
+        Relationships: []
+      }
       case_payment_reconciliation_log: {
         Row: {
           action: string
