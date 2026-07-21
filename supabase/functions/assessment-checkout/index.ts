@@ -13,9 +13,20 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const body = await req.json();
-    const { property_id, requester_role, reason } = body || {};
-    if (!property_id) return json({ error: "property_id is required" }, 400);
+    const {
+      property_id,
+      requester_role,
+      reason,
+      latitude,
+      longitude,
+      ghana_post_gps,
+      address_line,
+      landmark,
+    } = body || {};
     if (!requester_role) return json({ error: "requester_role is required" }, 400);
+    if (!property_id && !address_line) {
+      return json({ error: "Either a registered property or an address is required" }, 400);
+    }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "unauthorized" }, 401);
