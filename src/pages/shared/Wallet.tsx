@@ -40,6 +40,12 @@ export default function WalletPage() {
   const [wdOpen, setWdOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [gateOpen, setGateOpen] = useState(false);
+  const pendingRef = useRef<null | (() => Promise<void> | void)>(null);
+  const runWithGate = useCallback((fn: () => Promise<void> | void) => {
+    pendingRef.current = fn;
+    setGateOpen(true);
+  }, []);
 
   const load = useCallback(async () => {
     if (!user) return;
