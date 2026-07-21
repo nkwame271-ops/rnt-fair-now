@@ -135,14 +135,34 @@ const AgentRegister = () => {
       toast.error(parsed.error.issues[0].message);
       return;
     }
+    if (!user && !form.password) {
+      toast.error("Password is required to create your agent account");
+      return;
+    }
     setSubmitting(true);
     try {
+      // If not signed in, create an account first so approval can promote it later.
+      let applicantUserId = user?.id || null;
+      if (!user) {
+        const { data: signUp, error: suErr } = await supabase.auth.signUp({
+          email: parsed.data.email,
+          password: form.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/agent/register`,
+            data: { full_name: parsed.data.full_name, phone: parsed.data.phone },
+          },
+        });
+        if (suErr) throw suErr;
+        applicantUserId = signUp.user?.id || null;
+      }
+
+      const { password: _pw, ...cleanData } = parsed.data;
       const payload = {
-        ...parsed.data,
+        ...cleanData,
         date_of_birth: form.date_of_birth || null,
         professional_photo_url: photoUrl,
         supporting_documents: supportingDocs,
-        applicant_user_id: user?.id || null,
+        applicant_user_id: applicantUserId,
       };
       const { error } = await (supabase as any).from("agent_applications").insert(payload);
       if (error) throw error;
