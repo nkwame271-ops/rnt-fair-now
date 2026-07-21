@@ -1,92 +1,142 @@
-# Phase 5 — Premium Service, Wallet & Assessment Fixes, Engine Room
+# Rent Control Digital Platform — Consolidated Fix & Feature Plan
 
-Six focused fixes grouped by area. All follow existing patterns (agent workflow, wallet edge functions, feature_flags table, escrow checkout).
+Scope is large, so I've grouped work into ordered phases. Each phase is self-contained and can be shipped/verified independently. Say "Next" after each to proceed.
 
-## 1. Homepage: "Premium Service" nav link
-- In `src/pages/Index.tsx` (and header/nav components), replace the existing "Become an Agent" link/CTA with **Premium Service** pointing to `/premium-service`.
-- Create `src/pages/PremiumServiceLanding.tsx` (public):
-  - Hero + explanation of Premium Service (per-property subscription, assigned agents, full management support, yearly billing).
-  - "Apply as Premium Agent" CTA → routes to existing `/agent/register` flow (unchanged verification/approval/onboarding).
-  - "Subscribe as Landlord/Tenant" CTA → routes to existing `/premium-service` in-app page (or auth gate first).
-- Register route in `src/App.tsx`.
+---
 
-## 2. Wallet: withdrawal payout-account detection
-Bug: withdrawal always says "Add a payout account first" even when Payment Settings has one saved.
-- `src/pages/shared/Wallet.tsx` withdrawal path currently queries `wallet_payout_accounts`, but landlords save their account into `landlord_payment_settings` from `PaymentSettings.tsx`. Two data sources are out of sync.
-- Fix: on opening the withdrawal dialog, fetch **both** `wallet_payout_accounts` and `landlord_payment_settings`. If the landlord has payment settings but no matching `wallet_payout_accounts` row, auto-provision one by calling `wallet-add-payout-account` (mobile money = accept as-is, bank = Paystack resolve).
-- Validate: `is_verified = true` and only allow withdrawal from `wallets.available_balance` (already enforced in `wallet-withdraw`). Add a clear frontend check + toast.
+## Phase A — Critical Bug Fixes (ship first)
 
-## 3. Payout account changes require step-up auth
-Apply to add/edit/delete/set-default on payout accounts (both `wallet_payout_accounts` UI in Wallet and `PaymentSettings.tsx`).
-- New shared component `src/components/PayoutStepUpDialog.tsx`:
-  1. Password OR Transaction PIN input (verified via new edge function `verify-user-credential`).
-  2. OTP sent to user's registered phone via existing `send-otp` / `verify-otp`.
-  3. Final confirmation screen summarising the change.
-- Gate all mutations behind this dialog. On success, store a short-lived `stepup_token` in memory and pass it in the mutation request; edge function validates it before writing.
-- Transaction PIN: add optional `transaction_pin_hash` column to `profiles` (nullable) + settings screen to set/change PIN (also step-up gated once first set).
+**A1. Agent Application flow**
+- Add password field to `AgentRegister.tsx`; create auth user via signup so applicants can sign in.
+- Replace numeric region codes in dropdown with actual Ghana region names (load from `region_codes` table or static list).
+- Fix Approve action in `RegulatorAgents` — audit `approve-agent-application` edge function (likely missing role grant or throwing silently). Restore full flow.
 
-## 4. Wallet action edge-function errors (Add Money, Payment Links, Send Money)
-Diagnose then fix. Likely causes based on current signatures:
-- **Add Money** (`wallet-topup-initiate` — verify it exists; if request payload lacks `amount`, `user_id`, `description` it 400s). Fix client call in `Wallet.tsx` to send correct body and read `authorization` header.
-- **Payment Links** (`wallet-payment-link-create`): ensure body includes `title`, `amount`, `expires_at`, `max_uses`; server should derive `user_id` from JWT, not client.
-- **Send Money** (`wallet-transfer` / `wallet-send`): ensure recipient lookup uses phone→user_id RPC and posts `wallet_post_entry` twice (debit sender, credit recipient) atomically with matched `reference`.
-- Add zod validation + clear 400 messages so future breakage is obvious.
-- Verify each with `supabase--curl_edge_functions` after fix.
+**A2. NAFLIS Wallet**
+- "Add Money" → "Failed to send request to Edge Function": audit `wallet-topup-init` (function name mismatch, missing deploy, or CORS). Fix + redeploy.
+- `wallet-list-banks` returns empty: log the Paystack response; ensure MoMo constants always return; fall back to static bank list if Paystack call fails.
+- Withdraw: add two-option chooser — (a) use account already saved in Payment Settings (auto-load from `landlord_payment_settings`), (b) select existing/new payout account.
 
-## 5. Property Assessment → checkout-first flow
-Current: Submit Request creates the application, then (maybe) prompts payment.
-New:
-- In `src/pages/shared/PropertyAssessmentsPage.tsx`, on **Submit Request**:
-  1. Read fee from `feature_flags` where `feature_key='property_assessment'` (`fee_amount`, `fee_enabled`).
-  2. If fee > 0: create a `pending_assessment_draft` row (new table) with the form payload, then call `paystack-checkout` with `payment_type='property_assessment'` and `metadata.draft_id`.
-  3. Redirect to Paystack, return to `/assessments/confirm?reference=...`.
-  4. On successful `verify-payment`, edge function reads the draft and inserts into `property_assessment_applications`, moves into normal workflow, deletes the draft.
-- If fee = 0 (disabled), keep current direct-submit path.
+**A3. Digital Rent Cards (downloaded PDF)**
+- `generateRentCardPdf.ts`: join landlord (`profiles.full_name`), tenant (`profiles.full_name`), unit (`units.unit_number`) so PDF shows real names instead of "-".
+- Payment history table columns: Month (MMM/YYYY), Amount Paid (GHS), Receipt # (link/number). Data source: `payment_receipts` joined to `rent_payments`.
 
-## 6. Landlord Dashboard: Management Support → Premium Service
-- Rename sidebar item in `src/components/LandlordLayout.tsx` and page title in `src/pages/landlord/LandlordManagementSupport.tsx` from "Management Support" → "Premium Service".
-- Keep route the same (`/landlord/management-support`) but add alias `/landlord/premium-service`.
-- Page must display, per property with an assigned agent:
-  - Agent name, phone, photo (from `agent_assignments` + `agent_staff`).
-  - Property address and management status (`property_management_log.status`).
-  - Subscription expiry from `premium_subscriptions.expires_at`.
+---
 
-## 7. Admin Portal — Engine Room additions
-Extend `feature_flags` seed data + Engine Room UI to cover every new payment/subscription feature added recently:
-- `premium_service_landlord`, `premium_service_tenant`, `property_assessment`, `safety_report_priority`, `rent_card_download`, `wallet_topup`, `wallet_withdrawal`, `wallet_send`, `wallet_payment_link`, `viewing_request`, `complaint_filing`, `rent_increase_request`, `termination_request`, `renewal_request`.
+## Phase B — Property Assessment overhaul
 
-Each row supports (columns already exist or add via migration):
-- `is_enabled` (toggle)
-- `fee_amount` + `fee_type` ('fixed' | 'percentage')  ← add `fee_type` column
-- `billing_frequency` ('one_time' | 'monthly' | 'yearly')  ← add column
-- `revenue_split_json` (jsonb: `[{destination, percentage}]`)  ← add column
-- `payment_destination` ('platform' | 'office' | 'landlord' | 'split')  ← add column
-- `expiry_days`, `renewal_days`, `grace_period_days`  ← add columns
+- **Application form**: add location capture with Google Maps picker, "Use live location" button, and optional GhanaPost GPS field (reuse `PropertyLocationPicker` + `ghana_post_gps_cache`).
+- **Tenant scope**: allow tenants to apply for both occupied AND intended-to-rent properties (remove tenancy-required guard; add "Property I intend to rent" mode with address entry).
+- **Checkout-first**: `Submit Request` → `assessment-checkout` → branded modal → on success `assessment-verify` creates the `property_assessment_applications` row. Nothing persists before payment. Admin queue only shows paid apps.
+- **Engine Room**: register `assessment_application_fee` and `assessment_renewal_fee` feature flags with full advanced config (already partly done via FeatureAdvancedDialog).
 
-Update `src/pages/super-admin/EngineRoom.tsx` (or equivalent admin flags page) with a per-feature editor for these fields. Edge functions that charge fees must read from `feature_flags` at request time (no hardcoded amounts).
+---
 
-## Technical Details
+## Phase C — Premium Service (merge with Management Support)
 
-**New migration:**
-- `feature_flags`: add `fee_type`, `billing_frequency`, `revenue_split_json`, `payment_destination`, `expiry_days`, `renewal_days`, `grace_period_days`.
-- `profiles`: add `transaction_pin_hash text`.
-- New table `pending_assessment_drafts (id, user_id, property_id, form_data jsonb, reference text, created_at)` with RLS (owner only) + service_role.
-- Seed new `feature_flags` rows listed above.
+- Delete/redirect `LandlordManagementSupport` → new unified Premium Service page.
+- Workflow: Subscribe → branded checkout → verify → `premium_subscriptions` activated → auto-assign agent (round-robin from approved `agent_staff` in same region) → notify agent + landlord.
+- Rename "Yearly Fee" → "Fee"; billing cycle sourced from `feature_flags.billing_frequency` (default monthly).
+- Landlord dashboard card shows: agent avatar, name, ID, phone, email, service/subscription status, expiry date, managed property. Buttons: Call, SMS, Request Service, Revoke Access, Request Agent Change.
+- Service requests → new `agent_service_requests` (or reuse `management_task_assignments`) → appear on agent dashboard.
+- Enforce agent restrictions via RLS + UI guards: block edits to `landlord_payment_settings`, `wallet_payout_accounts`, password, transaction PIN, verified contacts.
 
-**New edge functions:**
-- `verify-user-credential` — checks password or PIN, issues short-lived stepup_token (HS256 JWT, 5 min TTL, stored server-side in a small `stepup_tokens` table or Redis-less: signed with `SESSION_SECRET`).
-- `verify-payment` extension: on `payment_type='property_assessment'`, promote draft to `property_assessment_applications`.
+---
 
-**Files touched (est.):**
-- New: `PremiumServiceLanding.tsx`, `PayoutStepUpDialog.tsx`, `verify-user-credential/index.ts`, migration file.
-- Edited: `Index.tsx`, header nav, `App.tsx`, `Wallet.tsx`, `PaymentSettings.tsx`, `PropertyAssessmentsPage.tsx`, `LandlordLayout.tsx`, `LandlordManagementSupport.tsx`, `EngineRoom.tsx`, `feature_flags` seed, wallet edge functions (`wallet-topup-initiate`, `wallet-payment-link-create`, `wallet-transfer`), `verify-payment`.
+## Phase D — Payment Settings Security (Landlord + Tenant)
 
-## Suggested order
-1. Engine Room schema + seed (unblocks fee reads).
-2. Wallet edge-function fixes + withdrawal payout detection.
-3. Property Assessment checkout-first.
-4. Homepage Premium Service link + landing.
-5. Landlord "Premium Service" rename + agent display.
-6. Payout step-up auth (last — most invasive UX).
+- Any mutation to `landlord_payment_settings`, `wallet_payout_accounts`, password, PIN, or verified phone requires:
+  1. Password OR Transaction PIN confirm (existing `AdminPasswordConfirm` pattern extended).
+  2. OTP to verified phone via `send-otp` + `verify-otp`.
+- Add reusable `<SensitiveActionGate>` wrapping the save handlers. Apply to Payment Settings pages for Landlord AND Tenant.
 
-Approve to proceed, or tell me which subset to tackle first.
+---
+
+## Phase E — Complaints: Forms 7 & 33, Case Numbers
+
+**E1. Auto Case Number `CAR NNN/YYYY`**
+- New `case_number_sequences` table: `(prefix text, year int, last_number int)` with unique `(prefix, year)`.
+- Postgres function `next_case_number(prefix)` — atomic increment, resets on new year.
+- Trigger on `complaints` insert to stamp `case_number` if null. Retained across Form 7/33/receipts/notifications.
+- Engine Room: add configurable prefix (default `CAR`) stored in `platform_config`.
+
+**E2. Forms 7 & 33 auto-fill**
+- Refactor `lib/pdf/form7.ts` and `form33.ts` to derive complainant/respondent names from `complaints` joined to `complaint_witnesses` + `profiles`.
+- Validation: refuse to generate/finalize if complainant name OR respondent name is blank; surface toast.
+- Only editable on Form 33: hearing date/time/venue/officer.
+- Increase font sizes: labels/headings ≥20pt, body ≥18pt, Form 33 title + summon body larger and prominent. Better spacing to fill A4.
+
+---
+
+## Phase F — Landlord Registration → Monthly Subscription
+
+- Migration: add `registration_expires_at`, `registration_status` (active/expired/pending) to `landlords`; drop 8-year logic.
+- On paid registration → set `expires_at = now() + 30 days`.
+- Daily cron (Supabase scheduled function) marks expired and blocks landlord routes until renewed.
+- Renewal flow: banner + "Renew Registration" branded checkout → extends 30 days.
+- Engine Room: `landlord_registration_fee` flag with billing_frequency=monthly.
+
+---
+
+## Phase G — Engine Room: full feature coverage
+
+- Register feature_flags rows for every new payment-enabled feature not yet listed:
+  - `premium_service_subscription`, `assessment_application_fee`, `assessment_renewal_fee`, `student_registration_fee`, `naflis_wallet_monthly_fee`, `landlord_registration_fee`, `rent_management_deduction` (5%), `maintenance_deduction` (5%), `agent_payments`.
+- Each row uses existing `FeatureAdvancedDialog` fields: fee_type, amount/percentage, billing_frequency, revenue_split_json, payment_destination, expiry_days, renewal_days, grace_period_days, effective_date, status, exemptions_json.
+- All checkout/deduction code reads live from `feature_flags` — no hardcoded amounts.
+
+---
+
+## Phase H — Platform Escrow (Super Admin) — segmented ledgers
+
+Extend `/regulator/platform-escrow`:
+- Separate buckets/tabs: Premium Service, NAFLIS Wallet, Rent Management (5%), Maintenance (5%), Agent Payments, Assessment Fees, Registration Fees, Other.
+- Each bucket: total, breakdown table, CSV export, date filter.
+- Reads from `escrow_splits` filtered by `revenue_category` (new column populated by fee engine).
+
+---
+
+## Phase I — Automated Cashbook (Escrow & Revenue + Receipts)
+
+**One payment = one ledger = one receipt = one cashbook row.**
+
+- New `cashbook_entries` table: date, receipt_no, payment_ref, description, category, payer, office, channel, method, money_in, money_out, running_balance, reconciliation_status, recorded_by.
+- Populated by a trigger on `payment_receipts` insert (idempotent via unique constraint on payment_ref).
+- New `CashbookReport` component under Regulator Escrow & Revenue + Receipts pages.
+- Filters: daily/weekly/monthly/custom, office, payment type/method, reconciliation.
+- Header/footer: opening balance, totals, closing balance, reconciled/unreconciled totals.
+- Exports: PDF (with watermark, page numbers, timestamp, ref no.), Excel (xlsxwriter), print CSS.
+- Reconciliation dedupe: cashbook trigger checks `payment_ref` uniqueness so re-runs don't double-post.
+
+---
+
+## Phase J — Landlord Safety Reports
+
+- Extend safety report form used by Landlord role with the same fields already added to Tenant/Shared form: map pin, written directions, nearest landmark, person involved, description, date/time, photo/video upload, anonymous toggle.
+- Reuse `ReportSafetyIssue` shared component — already implemented; verify Landlord entry passes correct `role` and category options.
+
+---
+
+## Suggested Ship Order
+
+1. **Phase A** (critical bugs unblocking users)
+2. **Phase G** (Engine Room flags — prerequisite for everything paid)
+3. **Phase B** (Assessments)
+4. **Phase C** (Premium Service merge)
+5. **Phase F** (Landlord monthly subscription)
+6. **Phase D** (Payment settings security)
+7. **Phase E** (Complaints + case number)
+8. **Phase H** (Platform Escrow segmentation)
+9. **Phase I** (Cashbook)
+10. **Phase J** (Landlord safety fields)
+
+---
+
+## Technical Notes
+
+- All new tables get `GRANT` + RLS + `updated_at` trigger per project standard.
+- Case numbers, cashbook posting, and subscription expiry use Postgres functions/triggers (not client code) for atomicity.
+- Agent restrictions enforced by RLS `has_role('agent')` checks blocking sensitive columns, plus client guards.
+- All new payments route through existing `BrandedCheckoutHost` — no hosted-page fallbacks.
+- Fee configuration always read live via `useFeatureFlag`/server helper — never hardcoded.
+
+Reply "start" to ship Phase A, or name specific phases to prioritize differently.
