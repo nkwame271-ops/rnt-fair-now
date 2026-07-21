@@ -348,7 +348,7 @@ const App = () => (
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="feedback" element={<LandlordFeedback />} />
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
-                <Route path="management-support" element={<LandlordManagementSupport />} />
+                <Route path="management-support" element={<Navigate to="/landlord/premium" replace />} />
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="rent-collection" element={<LandlordRentCollection />} />
                 <Route path="assessments" element={<PropertyAssessmentsPage variant="landlord" />} />
