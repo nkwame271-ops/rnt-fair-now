@@ -14,6 +14,7 @@ const PaymentSettings = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [gateOpen, setGateOpen] = useState(false);
   const [method, setMethod] = useState("momo");
   const [momoNumber, setMomoNumber] = useState("");
   const [momoProvider, setMomoProvider] = useState("MTN");
@@ -21,6 +22,7 @@ const PaymentSettings = () => {
   const [bankBranch, setBankBranch] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
+
 
   useEffect(() => {
     if (!user) return;
