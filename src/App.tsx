@@ -410,6 +410,7 @@ const App = () => (
                 <Route path="payment-errors" element={<PaymentErrors />} />
                 <Route path="property-management" element={<RegulatorPropertyManagement />} />
                 <Route path="receipts" element={<RegulatorReceipts />} />
+                <Route path="cashbook" element={<ErrorBoundary section="Cashbook"><RegulatorCashbook /></ErrorBoundary>} />
                 <Route path="processor-reconciliation" element={<ErrorBoundary section="Processor Reconciliation"><ProcessorReconciliation /></ErrorBoundary>} />
                 <Route path="safety" element={<SafetyEmergencyReports />} />
                 <Route path="safety/contacts" element={<SafetyContacts />} />
