@@ -29,6 +29,12 @@ const fmtDate = (s?: string | null) => {
   return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-GB");
 };
 
+const fmtMonth = (s?: string | null) => {
+  if (!s) return "—";
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+};
+
 export const generateRentCardPdf = (data: RentCardPdfData): jsPDF => {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = 210;
@@ -117,10 +123,9 @@ export const generateRentCardPdf = (data: RentCardPdfData): jsPDF => {
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(120, 120, 120);
-  doc.text("Date", 15, y);
-  doc.text("Receipt", 45, y);
-  doc.text("Type", 100, y);
-  doc.text("Amount (GHS)", pageW - 15, y, { align: "right" });
+  doc.text("Month", 15, y);
+  doc.text("Amount (GHS)", 90, y, { align: "right" });
+  doc.text("Receipt", 100, y);
   y += 4;
   doc.setDrawColor(230, 230, 230);
   doc.line(15, y, pageW - 15, y);
@@ -139,10 +144,9 @@ export const generateRentCardPdf = (data: RentCardPdfData): jsPDF => {
         doc.addPage();
         y = 20;
       }
-      doc.text(fmtDate(p.created_at), 15, y);
-      doc.text(String(p.receipt_number || "—").slice(0, 20), 45, y);
-      doc.text(String(p.payment_type || "—").replace(/_/g, " ").slice(0, 22), 100, y);
-      doc.text(Number(p.total_amount || 0).toLocaleString(), pageW - 15, y, { align: "right" });
+      doc.text(fmtMonth(p.created_at), 15, y);
+      doc.text(Number(p.total_amount || 0).toLocaleString(), 90, y, { align: "right" });
+      doc.text(String(p.receipt_number || "—").slice(0, 24), 100, y);
       y += 5;
     }
   }

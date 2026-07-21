@@ -65,11 +65,10 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
       // Enrich
       const propIds = [...new Set(use.map((c) => c.property_id).filter(Boolean))] as string[];
       const unitIds = [...new Set(use.map((c) => c.unit_id).filter(Boolean))] as string[];
+      // Fetch BOTH landlord and tenant profiles for every card, regardless of variant.
       const partnerIds = [
         ...new Set(
-          use
-            .map((c) => (variant === "tenant" ? c.landlord_user_id : c.tenant_user_id))
-            .filter(Boolean),
+          use.flatMap((c) => [c.landlord_user_id, c.tenant_user_id]).filter(Boolean),
         ),
       ] as string[];
 
@@ -92,12 +91,8 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
         ...c,
         property_address: c.property_id ? pm.get(c.property_id) : undefined,
         unit_name: c.unit_id ? um.get(c.unit_id) : undefined,
-        landlord_name:
-          variant === "tenant" ? nm.get(c.landlord_user_id) : undefined,
-        tenant_name:
-          variant === "landlord" && c.tenant_user_id
-            ? nm.get(c.tenant_user_id)
-            : undefined,
+        landlord_name: nm.get(c.landlord_user_id),
+        tenant_name: c.tenant_user_id ? nm.get(c.tenant_user_id) : undefined,
       }));
 
       // Payments per tenancy
@@ -235,18 +230,14 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-5 items-start">
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    {c.landlord_name && (
-                      <div>
-                        <p className="text-muted-foreground text-xs">Landlord</p>
-                        <p className="font-semibold">{c.landlord_name}</p>
-                      </div>
-                    )}
-                    {c.tenant_name && (
-                      <div>
-                        <p className="text-muted-foreground text-xs">Tenant</p>
-                        <p className="font-semibold">{c.tenant_name}</p>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-muted-foreground text-xs">Landlord</p>
+                      <p className="font-semibold">{c.landlord_name || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Tenant</p>
+                      <p className="font-semibold">{c.tenant_name || "—"}</p>
+                    </div>
                     {c.property_address && (
                       <div className="col-span-2">
                         <p className="text-muted-foreground text-xs">Property</p>
@@ -312,26 +303,22 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
                       <table className="w-full text-xs">
                         <thead className="text-muted-foreground">
                           <tr className="text-left">
-                            <th className="py-1 pr-2 font-medium">Date</th>
-                            <th className="py-1 pr-2 font-medium">Receipt</th>
-                            <th className="py-1 pr-2 font-medium">Type</th>
+                            <th className="py-1 pr-2 font-medium">Month</th>
                             <th className="py-1 pr-2 font-medium text-right">Amount</th>
+                            <th className="py-1 pr-2 font-medium">Receipt</th>
                           </tr>
                         </thead>
                         <tbody>
                           {recs.slice(0, 25).map((r: any) => (
                             <tr key={r.id} className="border-t border-border/60">
                               <td className="py-1.5 pr-2">
-                                {format(new Date(r.created_at), "dd/MM/yy")}
-                              </td>
-                              <td className="py-1.5 pr-2 font-mono">
-                                {r.receipt_number}
-                              </td>
-                              <td className="py-1.5 pr-2 capitalize">
-                                {String(r.payment_type || "").replace(/_/g, " ")}
+                                {format(new Date(r.created_at), "MMM yyyy")}
                               </td>
                               <td className="py-1.5 pr-2 text-right font-semibold">
                                 GHS {Number(r.total_amount || 0).toLocaleString()}
+                              </td>
+                              <td className="py-1.5 pr-2 font-mono">
+                                {r.receipt_number}
                               </td>
                             </tr>
                           ))}

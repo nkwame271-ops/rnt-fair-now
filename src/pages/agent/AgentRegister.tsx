@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Seo from "@/components/Seo";
-import { GHANA_REGIONS_OFFICES } from "@/hooks/useAdminProfile";
+import { GHANA_REGIONS } from "@/hooks/useAdminProfile";
 
 const ID_TYPES = [
   { value: "ghana_card", label: "Ghana Card" },
@@ -31,6 +31,7 @@ const schema = z.object({
   full_name: z.string().trim().min(3, "Full name is required").max(120),
   phone: z.string().trim().min(9, "Valid phone required").max(20),
   email: z.string().trim().email("Valid email required").max(255),
+  password: z.string().min(6, "Password must be at least 6 characters").max(72).optional().or(z.literal("")),
   date_of_birth: z.string().optional(),
   id_type: z.string().min(1, "Select an ID type"),
   id_number: z.string().trim().min(3, "ID number required").max(40),
@@ -55,6 +56,7 @@ const AgentRegister = () => {
     full_name: "",
     phone: "",
     email: user?.email || "",
+    password: "",
     date_of_birth: "",
     id_type: "",
     id_number: "",
@@ -133,14 +135,34 @@ const AgentRegister = () => {
       toast.error(parsed.error.issues[0].message);
       return;
     }
+    if (!user && !form.password) {
+      toast.error("Password is required to create your agent account");
+      return;
+    }
     setSubmitting(true);
     try {
+      // If not signed in, create an account first so approval can promote it later.
+      let applicantUserId = user?.id || null;
+      if (!user) {
+        const { data: signUp, error: suErr } = await supabase.auth.signUp({
+          email: parsed.data.email,
+          password: form.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/agent/register`,
+            data: { full_name: parsed.data.full_name, phone: parsed.data.phone },
+          },
+        });
+        if (suErr) throw suErr;
+        applicantUserId = signUp.user?.id || null;
+      }
+
+      const { password: _pw, ...cleanData } = parsed.data;
       const payload = {
-        ...parsed.data,
+        ...cleanData,
         date_of_birth: form.date_of_birth || null,
         professional_photo_url: photoUrl,
         supporting_documents: supportingDocs,
-        applicant_user_id: user?.id || null,
+        applicant_user_id: applicantUserId,
       };
       const { error } = await (supabase as any).from("agent_applications").insert(payload);
       if (error) throw error;
@@ -262,9 +284,15 @@ const AgentRegister = () => {
               <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="0XX XXX XXXX" maxLength={20} />
             </div>
             <div className="space-y-1.5">
-              <Label>Email</Label>
-              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={255} />
+              <Label>Email *</Label>
+              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={255} disabled={!!user} />
             </div>
+            {!user && (
+              <div className="space-y-1.5">
+                <Label>Password *</Label>
+                <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} maxLength={72} placeholder="At least 6 characters" autoComplete="new-password" />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Date of Birth</Label>
               <Input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
@@ -287,7 +315,7 @@ const AgentRegister = () => {
               <Select value={form.region} onValueChange={(v) => setForm({ ...form, region: v })}>
                 <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
                 <SelectContent>
-                  {Object.keys(GHANA_REGIONS_OFFICES).map((r) => (
+                  {GHANA_REGIONS.map((r) => (
                     <SelectItem key={r} value={r}>{r}</SelectItem>
                   ))}
                 </SelectContent>
@@ -334,8 +362,9 @@ const AgentRegister = () => {
           </div>
 
           {!user && (
-            <p className="text-xs text-warning bg-warning/10 border border-warning/30 rounded-lg p-3">
-              Tip: <button type="button" className="underline" onClick={() => navigate("/login?redirect=/agent/register")}>Sign in</button> before submitting so we can link the application to your account.
+            <p className="text-xs text-muted-foreground bg-muted/40 border border-border rounded-lg p-3">
+              We'll create your agent account with the email and password above. Already have an account?{" "}
+              <button type="button" className="underline" onClick={() => navigate("/login?redirect=/agent/register")}>Sign in first</button>.
             </p>
           )}
 
