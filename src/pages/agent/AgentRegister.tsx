@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Seo from "@/components/Seo";
-import { GHANA_REGIONS_OFFICES } from "@/hooks/useAdminProfile";
+import { GHANA_REGIONS } from "@/hooks/useAdminProfile";
 
 const ID_TYPES = [
   { value: "ghana_card", label: "Ghana Card" },
