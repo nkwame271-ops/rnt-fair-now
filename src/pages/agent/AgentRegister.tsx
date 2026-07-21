@@ -56,6 +56,7 @@ const AgentRegister = () => {
     full_name: "",
     phone: "",
     email: user?.email || "",
+    password: "",
     date_of_birth: "",
     id_type: "",
     id_number: "",
