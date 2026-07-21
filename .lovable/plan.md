@@ -1,43 +1,108 @@
-## Confirmed diagnosis (from edge function logs, not assumed)
+# Fix Plan — Rent Control Digital Platform
 
-Paystack is rejecting every `POST /transaction/initialize` call today with:
+Grouped by portal. Each item includes the diagnosis approach and the concrete fix.
 
-```
-{"status":false,"message":"Error, please try again.","meta":{"nextStep":"Try again later"},"type":"api_error","code":"unknown"}
-```
+---
 
-This happens across different users, references, and amounts (GHS 20, GHS 30). Our code runs to completion and forwards Paystack's own message to the UI — that is the "Error, please try again." toast the user sees. So the failure is on Paystack's side of the request, not in the checkout UI.
+## ADMIN PORTAL
 
-`api_error / unknown` from Paystack is emitted in three known situations, in decreasing order of likelihood here:
+### A. Engine Room
 
-1. **The secret key doesn't match the account state** (e.g. live key on an account still in test-only mode, or the account has been switched/deactivated). Every call fails the same way, which points at the key.
-2. **Paystack fraud filter is blocking the synthesized email.** All failing calls use `user-<uuid8>@rentcontrolghana.com`, which Paystack often refuses on live mode because the domain has no MX / the pattern looks synthetic.
-3. **GHS currency not enabled** on this Paystack business.
+**A1. Feature/payment coverage for all new features**
+- Audit `feature_flags` rows against the newly built features. Add missing flags for: Property Assessment fee, Premium Service fee, Wallet top-up fee, Wallet withdrawal fee, Rent Management deduction, Digital Rent Card issuance, Agent Program, Landlord Registration (monthly), Complaint filing fees.
+- Each flag row must have: `enabled`, `fee_type` (fixed/percentage), `fee_amount`, `billing_frequency`, `expiry_days`, `revenue_split_json`, `payment_destination`.
+- Register these features in the Engine Room UI so they show up in the flag list automatically (fix the registry array in the Engine Room page).
 
-I have not confirmed which of the three it is yet — that verification is step 1 of the plan.
+**A2. Advanced Settings reset bug**
+- Diagnosis: `FeatureAdvancedDialog` initializes local form state from props only on mount; after save it invalidates the query but re-opening reads stale defaults because the dialog isn't re-syncing when `feature` prop changes, OR the save payload isn't merging with existing `revenue_split_json`.
+- Fix: reset local state via `useEffect` on `feature.id`/`feature.updated_at`; ensure the save mutation reads the full row, merges the advanced fields, and writes back the full JSON. Confirm the read query returns the just-saved values (no `.select()` mismatch).
 
-## Plan
+### B. Cashbook — "No entries in range" for all ranges
 
-### 1. Verify which cause it actually is (no code changes yet, do this first in build mode)
-- Call Paystack directly from the edge runtime with the current `PAYSTACK_SECRET_KEY` against `GET https://api.paystack.co/balance` and log the response. This tells us immediately whether the key is valid and whether GHS is on the account.
-- If balance succeeds, retry `transaction/initialize` with a real email (`test@paystack.com`) at the same amount. If that succeeds, the culprit is the synthetic email domain. If it still fails, the culprit is the account (currency / activation).
+- Diagnosis: check whether `cashbook_entries` actually has rows (backfill may have failed silently, or the trigger fires on a status value the receipts table doesn't use, e.g. `completed` vs `paid`).
+- Fix:
+  - Query `cashbook_entries` count and the distinct `status` values on `payment_receipts`.
+  - Rewrite `post_receipt_to_cashbook()` trigger to fire on any receipt whose payment is reconciled (join to `escrow_transactions.escrow_status='completed'`) instead of a receipt-status enum.
+  - Re-run backfill from all completed escrow transactions.
+  - Verify the report component's date filter uses `entry_date` (not `created_at`) and that the RLS policy permits Regulator/Super Admin reads.
 
-### 2. Fix based on what step 1 reveals
+### C. Agent Portal
 
-- **If the key/account is the problem:** stop calling Paystack with a broken key. Return a clear "Payments temporarily unavailable — Rent Control is reconnecting the gateway" message to users instead of Paystack's generic string, and prompt the operator to rotate `PAYSTACK_SECRET_KEY` via the secret manager. No user-visible retry loop.
-- **If the synthetic email is the problem:** stop generating `user-<uuid>@rentcontrolghana.com`. Require a real email on the account:
-  - Prefer `profile.email`, then `auth.users.email`.
-  - If neither exists, block the checkout call and surface a clear message: "Add your email in Profile to complete payment," with a direct link to the profile editor. Do not fabricate an email.
-- **If GHS isn't enabled:** surface the same "Payments temporarily unavailable" message and flag it for the operator; no code workaround is possible.
+**C1. Site resets to homepage after agent registration / role clicks**
+- Diagnosis likely: `AgentRoute` (or `AgentRegister`) navigates to `/` on a transient auth state, or a top-level effect in `App.tsx`/`RoleSelect` redirects when it sees no matching role for the newly signed-up user. Also possible: `signUp` creates a session without a `profiles` row, and `ProtectedRoute` bounces to `/`.
+- Fix:
+  - After agent signup, insert a `profiles` row and an `agent_applications` row atomically; do not sign the user in until application is submitted, OR sign in and route to `/agent/register?status=pending`.
+  - `AgentRoute`: when `agent_staff` row is missing but an `agent_applications` row exists, route to a "Pending approval" page instead of bouncing.
+  - `RoleSelect`: remove the effect that force-redirects users with unknown role back to `/`.
 
-### 3. Improve the error surface so we stop chasing ghosts
-- In `ProtectedRoute.tsx` and the branded-checkout host, when `paystack-checkout` returns `{ ok:false, error }`, show the specific reason (missing email, gateway unavailable, etc.) instead of the generic Paystack string.
-- Keep the existing `console.log("Paystack response", ...)` so future failures remain diagnosable from logs.
+**C2. Assign approved agents to properties from Admin → Property Management**
+- Add an "Assign Agent" action on each property in the admin Property Management list.
+- Dialog lists active `agent_staff` filtered by the property's region; on select, inserts into `agent_assignments` and notifies the agent.
 
-### 4. Verify the fix
-- After key rotation and/or email fix, trigger the tenant registration flow end-to-end from the preview, confirm `paystack-checkout` returns `ok:true`, and confirm the branded checkout opens.
+### D. Complaints
 
-## Technical notes
-- Affected files: `supabase/functions/paystack-checkout/index.ts` (email fallback logic around lines 1416–1420, error return shape at 1487–1490), `src/components/ProtectedRoute.tsx` (toast at line 217), `src/components/payments/BrandedCheckoutHost.tsx` (error handling).
-- No schema or RLS changes.
-- No changes to Paystack v2 SDK loading — that part is working; the failure is before the popup ever opens.
+**D1. Form 7 / Form 33 auto-fill (hard rule)**
+- Extend `buildAutofillContext` to pull: complainant(s), respondent(s), additional parties (from `complaint_witnesses` / joined party tables), addresses, phones, premises, category, summary, assigned office, related Form 7 fields, and the case number.
+- Block finalize/generate when complainant OR respondent name is empty — surface a toast pointing back to the complaint record.
+- Remove editable name fields from the form editor; only hearing date/time/venue and officer remain editable on Form 33.
+- Editing the complaint record must re-render forms with fresh values (invalidate the form query when the complaint updates).
+
+**D2. Layout & fonts (A4)**
+- Update `form7.ts` and `form33.ts`: labels/headings ≥ 20pt, body 18pt, FORM 33 heading and summons body larger/bolder than surrounding text, increased paragraph spacing, balanced margins.
+
+**D3. Automatic case number**
+- Confirmed: `car_case_counters` + `issue_car_case_number()` exists. Wire it so that:
+  - Every new complaint (admin-assisted or user) calls the function and stores the number on the complaint row.
+  - Prefix `CAR` is read from `platform_config.car_case_prefix` (editable in Engine Room).
+  - Sequence resets at year rollover (already handled by counter's `year` column).
+  - Number is persisted and reused on Form 7, Form 33, receipts, notifications.
+
+---
+
+## LANDLORD PORTAL
+
+### A. Digital Rent Cards showing "-"
+- Diagnosis: `DigitalRentCardView` enrichment joins on wrong FK, or `rent_cards` rows lack `tenant_id`/`unit_id`. Verify with a `read_query` against a sample card.
+- Fix: rewrite the enrichment query to join `tenancies` → `tenants`/`profiles` and `properties`/`units`, and fall back to `tenancies` when `rent_cards` is missing the direct FK. Mirror the fix in `generateRentCardPdf.ts`.
+
+### B. Property Assessment — checkout 400
+- Pull the `assessment-checkout` edge function logs for the failing reference; inspect payload validation (Zod) and Paystack init call.
+- Likely causes: missing `fee_amount` from feature_flags, missing user email, or unhandled null `property_id`. Fix validation + fallback fee from `feature_flags` (`property_assessment_fee`).
+- Add `property_assessment_fee` (fixed) to Engine Room seed if missing.
+
+### C. Premium Service
+
+**C1. Subscribe/Pay 400**
+- Pull `premium-checkout` logs; fix the same class of bug (fee resolution from `feature_flags.premium_service_fee`, email fallback, property_id validation).
+
+**C2. Dashboard fields**
+- Extend the assigned-agent card to show: photo, agent id, phone, email, service status, subscription status, expiry date, property being managed.
+- Actions: Call, SMS (`tel:` / `sms:`), Request Service (creates a `management_task_assignments` row visible in the agent's dashboard), Revoke access (soft-cancel `premium_subscriptions` + close `agent_assignments`), Request agent change (queues a re-assignment request for admin).
+- Enforce agent permission boundaries via RLS: agents cannot update `landlord_payment_settings`, `wallet_payout_accounts`, `profiles.phone/email`, or auth password. Add explicit deny policies where the current policy permits UPDATE for staff.
+
+### D. NAFLIS Wallet — Add Money 400
+- Pull `wallet-topup` logs to see the exact upstream error (missing `wallet_id`, currency, or Paystack payload issue).
+- Fix input schema, ensure a `wallets` row is created lazily for first-time users, and return a friendly error.
+
+---
+
+## Verification pass
+- Reproduce each fix from the preview (agent signup → portal, cashbook date filter, complaint → form generation, assessment/premium/wallet checkout) and check edge-function logs are clean.
+
+---
+
+## Technical notes (internal)
+
+- Files to touch (initial set): `src/pages/regulator/EngineRoom*.tsx`, `src/components/FeatureAdvancedDialog.tsx`, `src/components/regulator/CashbookReport.tsx`, DB trigger `post_receipt_to_cashbook`, `src/pages/agent/AgentRegister.tsx`, `src/components/AgentRoute.tsx`, `src/pages/RoleSelect.tsx`, admin Property Management page (add Assign Agent), `src/lib/complaintForms.ts` / `formAutofill.ts`, `src/lib/pdf/form7.ts`, `src/lib/pdf/form33.ts`, complaint creation paths (call `issue_car_case_number`), `src/components/rentcards/DigitalRentCardView.tsx`, `src/lib/generateRentCardPdf.ts`, edge functions `assessment-checkout`, `premium-checkout`, `wallet-topup`, `src/pages/shared/PremiumServicePage.tsx`, RLS migrations for agent permission boundaries.
+- New DB objects: possible `platform_config` row `car_case_prefix`; RLS deny policies on sensitive landlord tables for agent role; missing `feature_flags` rows for assessment/premium/wallet fees.
+- No changes to auto-generated Supabase files.
+
+## Execution order
+1. Diagnose edge-function 400s (assessment/premium/wallet) via logs + fix.
+2. Fix Advanced Settings persistence + register missing feature flags.
+3. Fix Cashbook trigger + backfill.
+4. Fix agent signup redirect loop + add Admin "Assign Agent".
+5. Complaint auto-fill hard rule + font/layout bump + wire CAR numbering everywhere.
+6. Rent Card auto-fill (landlord/tenant/unit).
+7. Premium dashboard expansion + agent permission RLS.
+8. End-to-end verification.
