@@ -94,26 +94,12 @@ const PremiumServicePage = ({ variant }: Props) => {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      const ok = startBrandedCheckout({
+      startBrandedCheckout({
         ...(data as any),
-        onSuccess: async () => {
-          try {
-            const { data: v, error: vErr } = await supabase.functions.invoke("premium-verify", {
-              body: { reference: (data as any).reference },
-            });
-            if (vErr) throw vErr;
-            if ((v as any)?.error) throw new Error((v as any).error);
-            toast.success("Premium Service activated. Your agent has been assigned.");
-            setPropertyId("");
-            load();
-          } catch (err: any) {
-            toast.error(err.message || "Payment verification failed");
-          }
-        },
+        confirmationPath: "/premium/confirm",
+        callbackPath: window.location.pathname,
       } as any);
-      if (!ok) {
-        toast.error("Could not open checkout — please try again.");
-      }
+      setPropertyId("");
     } catch (e: any) {
       toast.error(e.message || "Could not start subscription");
     } finally {
