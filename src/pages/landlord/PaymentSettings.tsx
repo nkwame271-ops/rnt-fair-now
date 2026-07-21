@@ -47,7 +47,7 @@ const PaymentSettings = () => {
     fetch();
   }, [user]);
 
-  const handleSave = async () => {
+  const performSave = async () => {
     if (!user) return;
     setSaving(true);
     const payload = {
@@ -70,6 +70,16 @@ const PaymentSettings = () => {
     else toast.success("Payment settings saved!");
     setSaving(false);
   };
+
+  const handleSave = () => {
+    if (!user) return;
+    // Basic validation before opening the gate
+    if (method === "momo" && !momoNumber.trim()) return toast.error("Enter your mobile money number");
+    if (method === "bank" && (!bankName.trim() || !accountNumber.trim() || !accountName.trim()))
+      return toast.error("Fill all bank fields");
+    setGateOpen(true);
+  };
+
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
