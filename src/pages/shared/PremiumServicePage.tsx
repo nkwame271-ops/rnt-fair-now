@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -7,11 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Crown, Loader2, ShieldCheck, UserCog } from "lucide-react";
+import { Crown, Loader2, ShieldCheck, UserCog, Phone, Mail, MessageSquare } from "lucide-react";
 import Seo from "@/components/Seo";
 import { formatGHS } from "@/lib/formatters";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
 
-const YEARLY_FEE = 600; // default Premium Service fee (GHS/year/property)
+interface Props {
+  variant: "landlord" | "tenant";
+}
 
 const statusBadge = (s: string) => {
   const map: Record<string, string> = {
@@ -23,71 +26,99 @@ const statusBadge = (s: string) => {
   return map[s] || "bg-muted text-muted-foreground";
 };
 
-interface Props {
-  variant: "landlord" | "tenant";
-}
-
-/**
- * Premium Service — per-property yearly subscription.
- * Landlords and tenants can subscribe individual properties, with an assigned
- * agent, expiry date, and management support toggle.
- */
 const PremiumServicePage = ({ variant }: Props) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
   const [subs, setSubs] = useState<any[]>([]);
+  const [agents, setAgents] = useState<Record<string, any>>({});
   const [propertyId, setPropertyId] = useState("");
+  const [flag, setFlag] = useState<any>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    let propQuery;
+    let props: any[] = [];
     if (variant === "landlord") {
-      propQuery = supabase.from("properties").select("id,address").eq("landlord_user_id", user.id);
+      const { data } = await supabase.from("properties").select("id,address,property_name,region").eq("landlord_user_id", user.id);
+      props = data || [];
     } else {
       const { data: ts } = await supabase.from("tenancies").select("property_id").eq("tenant_user_id", user.id);
       const ids = [...new Set((ts || []).map((t: any) => t.property_id).filter(Boolean))];
-      propQuery = ids.length
-        ? supabase.from("properties").select("id,address").in("id", ids)
-        : Promise.resolve({ data: [] as any[] });
+      if (ids.length) {
+        const { data } = await supabase.from("properties").select("id,address,property_name,region").in("id", ids);
+        props = data || [];
+      }
     }
-    const [{ data: props }, { data: subRows }] = await Promise.all([
-      propQuery as any,
+
+    const [{ data: subRows }, { data: flagRow }] = await Promise.all([
       supabase
         .from("premium_subscriptions")
         .select("*")
         .eq("subscriber_user_id", user.id)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("feature_flags")
+        .select("fee_amount, fee_enabled, billing_frequency")
+        .eq("feature_key", "premium_service_subscription")
+        .maybeSingle(),
     ]);
-    setProperties(props || []);
-    setSubs(subRows || []);
-    setLoading(false);
-  };
 
-  useEffect(() => { load(); }, [user, variant]);
+    // Load agent details for assigned subscriptions
+    const agentIds = [...new Set((subRows || []).map((s: any) => s.assigned_agent_user_id).filter(Boolean))];
+    let agentMap: Record<string, any> = {};
+    if (agentIds.length) {
+      const { data: agentRows } = await supabase
+        .from("agent_staff")
+        .select("user_id, full_name, email, phone, professional_photo_url, region, operating_area")
+        .in("user_id", agentIds);
+      (agentRows || []).forEach((a: any) => { agentMap[a.user_id] = a; });
+    }
+
+    setProperties(props);
+    setSubs(subRows || []);
+    setAgents(agentMap);
+    setFlag(flagRow || { fee_amount: 100, fee_enabled: true, billing_frequency: "monthly" });
+    setLoading(false);
+  }, [user, variant]);
+
+  useEffect(() => { load(); }, [load]);
 
   const subscribe = async () => {
     if (!propertyId) { toast.error("Select a property"); return; }
     setSubmitting(true);
-    const now = new Date();
-    const expires = new Date(now); expires.setFullYear(expires.getFullYear() + 1);
-    const { error } = await supabase.from("premium_subscriptions").insert({
-      property_id: propertyId,
-      subscriber_user_id: user!.id,
-      subscriber_role: variant,
-      starts_at: now.toISOString(),
-      expires_at: expires.toISOString(),
-      yearly_fee: YEARLY_FEE,
-      status: "pending",
-      management_enabled: true,
-    });
-    setSubmitting(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Premium subscription created. Complete payment to activate.");
-    setPropertyId("");
-    load();
+    try {
+      const { data, error } = await supabase.functions.invoke("premium-checkout", {
+        body: { property_id: propertyId, subscriber_role: variant },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const ok = startBrandedCheckout({
+        ...(data as any),
+        onSuccess: async () => {
+          try {
+            const { data: v, error: vErr } = await supabase.functions.invoke("premium-verify", {
+              body: { reference: (data as any).reference },
+            });
+            if (vErr) throw vErr;
+            if ((v as any)?.error) throw new Error((v as any).error);
+            toast.success("Premium Service activated. Your agent has been assigned.");
+            setPropertyId("");
+            load();
+          } catch (err: any) {
+            toast.error(err.message || "Payment verification failed");
+          }
+        },
+      } as any);
+      if (!ok) {
+        toast.error("Could not open checkout — please try again.");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Could not start subscription");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const cancel = async (id: string) => {
@@ -102,14 +133,20 @@ const PremiumServicePage = ({ variant }: Props) => {
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
-  const propAddr = (id: string) => properties.find((p) => p.id === id)?.address || id.slice(0, 8);
+  const propLabel = (id: string) => {
+    const p = properties.find((x) => x.id === id);
+    return p?.property_name || p?.address || id.slice(0, 8);
+  };
   const availableProps = properties.filter((p) => !subs.some((s) => s.property_id === p.id && ["active", "pending"].includes(s.status)));
+  const feeAmount = Number(flag?.fee_amount || 0);
+  const frequency = flag?.billing_frequency || "monthly";
+  const freqLabel = frequency === "monthly" ? "month" : frequency === "yearly" ? "year" : frequency;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 p-4 md:p-6">
       <Seo
         title="Premium Service | Rent Control"
-        description="Per-property yearly premium management with an assigned agent."
+        description="Per-property premium management with an assigned agent."
         canonicalPath={typeof window !== "undefined" ? window.location.pathname : "/"}
       />
       <div>
@@ -117,7 +154,7 @@ const PremiumServicePage = ({ variant }: Props) => {
           <Crown className="h-7 w-7 text-primary" /> Premium Service
         </h1>
         <p className="text-muted-foreground mt-1">
-          Add full property-management support per property. Yearly subscription with an assigned agent, renewal reminders and priority handling.
+          Full property-management support per property. {frequency === "monthly" ? "Monthly" : "Recurring"} subscription with a dedicated agent, renewal reminders and priority handling.
         </p>
       </div>
 
@@ -130,19 +167,21 @@ const PremiumServicePage = ({ variant }: Props) => {
               <SelectTrigger><SelectValue placeholder="Choose a property" /></SelectTrigger>
               <SelectContent>
                 {availableProps.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.address}</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>{p.property_name || p.address}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Yearly fee</Label>
-            <div className="h-10 rounded-md border border-input bg-muted/40 px-3 flex items-center text-sm">{formatGHS(YEARLY_FEE)} / year / property</div>
+            <Label>Fee</Label>
+            <div className="h-10 rounded-md border border-input bg-muted/40 px-3 flex items-center text-sm">
+              {formatGHS(feeAmount)} / {freqLabel} / property
+            </div>
           </div>
         </div>
         <Button onClick={subscribe} disabled={submitting || availableProps.length === 0}>
           {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Subscribe
+          Subscribe & Pay
         </Button>
         {availableProps.length === 0 && (
           <p className="text-xs text-muted-foreground">
@@ -158,26 +197,66 @@ const PremiumServicePage = ({ variant }: Props) => {
         {subs.length === 0 ? (
           <p className="text-sm text-muted-foreground">No premium subscriptions yet.</p>
         ) : (
-          <div className="divide-y divide-border">
-            {subs.map((s) => (
-              <div key={s.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{propAddr(s.property_id)}</p>
-                  <p className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
-                    <span>Expires {format(new Date(s.expires_at), "dd MMM yyyy")}</span>
-                    <span>Fee {formatGHS(Number(s.yearly_fee))}</span>
-                    <span className="flex items-center gap-1"><UserCog className="h-3 w-3" /> Agent: {s.assigned_agent_user_id ? s.assigned_agent_user_id.slice(0, 8) : "Unassigned"}</span>
-                    <span>Management: {s.management_enabled ? "On" : "Off"}</span>
-                  </p>
+          <div className="space-y-4">
+            {subs.map((s) => {
+              const agent = s.assigned_agent_user_id ? agents[s.assigned_agent_user_id] : null;
+              return (
+                <div key={s.id} className="rounded-xl border border-border p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="font-semibold">{propLabel(s.property_id)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Expires {format(new Date(s.expires_at), "dd MMM yyyy")} · {formatGHS(Number(s.fee_amount ?? s.yearly_fee))} / {(s.billing_frequency === "monthly" ? "month" : s.billing_frequency === "yearly" ? "year" : s.billing_frequency || "cycle")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={statusBadge(s.status)}>{s.status}</Badge>
+                      {s.status !== "cancelled" && s.status !== "expired" && (
+                        <Button size="sm" variant="outline" onClick={() => cancel(s.id)}>Cancel</Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/40 p-3">
+                    <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-2"><UserCog className="h-3 w-3" /> ASSIGNED AGENT</p>
+                    {agent ? (
+                      <div className="flex items-start gap-3">
+                        {agent.professional_photo_url ? (
+                          <img src={agent.professional_photo_url} alt={agent.full_name} className="h-12 w-12 rounded-full object-cover" />
+                        ) : (
+                          <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold">
+                            {(agent.full_name || "A").slice(0, 1)}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">{agent.full_name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{agent.operating_area || agent.region}</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {agent.phone && (
+                              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                                <a href={`tel:${agent.phone}`}><Phone className="h-3 w-3 mr-1" /> Call</a>
+                              </Button>
+                            )}
+                            {agent.phone && (
+                              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                                <a href={`sms:${agent.phone}`}><MessageSquare className="h-3 w-3 mr-1" /> SMS</a>
+                              </Button>
+                            )}
+                            {agent.email && (
+                              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                                <a href={`mailto:${agent.email}`}><Mail className="h-3 w-3 mr-1" /> Email</a>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Awaiting agent assignment…</p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge className={statusBadge(s.status)}>{s.status}</Badge>
-                  {s.status !== "cancelled" && s.status !== "expired" && (
-                    <Button size="sm" variant="outline" onClick={() => cancel(s.id)}>Cancel</Button>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
