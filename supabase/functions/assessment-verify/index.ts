@@ -57,6 +57,12 @@ Deno.serve(async (req) => {
         reason: draft.reason,
         fee_amount: draft.fee_amount,
         status: "paid",
+        latitude: draft.latitude,
+        longitude: draft.longitude,
+        ghana_post_gps: draft.ghana_post_gps,
+        address_line: draft.address_line,
+        landmark: draft.landmark,
+        payment_reference: reference,
       })
       .select("id")
       .single();

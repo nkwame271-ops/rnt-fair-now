@@ -13,9 +13,20 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const body = await req.json();
-    const { property_id, requester_role, reason } = body || {};
-    if (!property_id) return json({ error: "property_id is required" }, 400);
+    const {
+      property_id,
+      requester_role,
+      reason,
+      latitude,
+      longitude,
+      ghana_post_gps,
+      address_line,
+      landmark,
+    } = body || {};
     if (!requester_role) return json({ error: "requester_role is required" }, 400);
+    if (!property_id && !address_line) {
+      return json({ error: "Either a registered property or an address is required" }, 400);
+    }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "unauthorized" }, 401);
@@ -42,12 +53,17 @@ Deno.serve(async (req) => {
     // Create draft — will be promoted into property_assessment_applications on payment verify.
     const { error: dErr } = await supabaseAdmin.from("pending_assessment_drafts").insert({
       user_id: user.id,
-      property_id,
+      property_id: property_id || null,
       requester_role,
       reason: reason || null,
       fee_amount: feeAmount,
       reference,
       status: feeEnabled && feeAmount > 0 ? "pending_payment" : "no_fee",
+      latitude: latitude ?? null,
+      longitude: longitude ?? null,
+      ghana_post_gps: ghana_post_gps || null,
+      address_line: address_line || null,
+      landmark: landmark || null,
     });
     if (dErr) throw dErr;
 
@@ -135,6 +151,11 @@ async function promoteDraft(admin: any, reference: string) {
     reason: draft.reason,
     fee_amount: draft.fee_amount,
     status: "paid",
+    latitude: draft.latitude,
+    longitude: draft.longitude,
+    ghana_post_gps: draft.ghana_post_gps,
+    address_line: draft.address_line,
+    landmark: draft.landmark,
   });
   await admin.from("pending_assessment_drafts").update({ status: "promoted" }).eq("reference", reference);
 }

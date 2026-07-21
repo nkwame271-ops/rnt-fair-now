@@ -5118,10 +5118,15 @@ export type Database = {
       }
       pending_assessment_drafts: {
         Row: {
+          address_line: string | null
           created_at: string
           fee_amount: number
+          ghana_post_gps: string | null
           id: string
-          property_id: string
+          landmark: string | null
+          latitude: number | null
+          longitude: number | null
+          property_id: string | null
           reason: string | null
           reference: string | null
           requester_role: string
@@ -5130,10 +5135,15 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          address_line?: string | null
           created_at?: string
           fee_amount?: number
+          ghana_post_gps?: string | null
           id?: string
-          property_id: string
+          landmark?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          property_id?: string | null
           reason?: string | null
           reference?: string | null
           requester_role: string
@@ -5142,10 +5152,15 @@ export type Database = {
           user_id: string
         }
         Update: {
+          address_line?: string | null
           created_at?: string
           fee_amount?: number
+          ghana_post_gps?: string | null
           id?: string
-          property_id?: string
+          landmark?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          property_id?: string | null
           reason?: string | null
           reference?: string | null
           requester_role?: string
@@ -5639,15 +5654,20 @@ export type Database = {
       }
       property_assessment_applications: {
         Row: {
+          address_line: string | null
           assigned_inspector: string | null
           created_at: string
           fee_amount: number
           fee_status: string
+          ghana_post_gps: string | null
           id: string
           landlord_user_id: string | null
+          landmark: string | null
+          latitude: number | null
+          longitude: number | null
           notes: string | null
           payment_reference: string | null
-          property_id: string
+          property_id: string | null
           reason: string | null
           requested_by: string
           requester_role: string
@@ -5656,15 +5676,20 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          address_line?: string | null
           assigned_inspector?: string | null
           created_at?: string
           fee_amount?: number
           fee_status?: string
+          ghana_post_gps?: string | null
           id?: string
           landlord_user_id?: string | null
+          landmark?: string | null
+          latitude?: number | null
+          longitude?: number | null
           notes?: string | null
           payment_reference?: string | null
-          property_id: string
+          property_id?: string | null
           reason?: string | null
           requested_by: string
           requester_role: string
@@ -5673,15 +5698,20 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          address_line?: string | null
           assigned_inspector?: string | null
           created_at?: string
           fee_amount?: number
           fee_status?: string
+          ghana_post_gps?: string | null
           id?: string
           landlord_user_id?: string | null
+          landmark?: string | null
+          latitude?: number | null
+          longitude?: number | null
           notes?: string | null
           payment_reference?: string | null
-          property_id?: string
+          property_id?: string | null
           reason?: string | null
           requested_by?: string
           requester_role?: string
