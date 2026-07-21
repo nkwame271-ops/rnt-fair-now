@@ -148,13 +148,29 @@ const PaymentSettings = () => {
           </>
         )}
 
+
+        <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+          <ShieldCheck className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+          <span>Changes to payout details require password + OTP confirmation on your verified phone.</span>
+        </div>
+
         <Button onClick={handleSave} disabled={saving} className="w-full">
           <Save className="h-4 w-4 mr-2" />
           {saving ? "Saving..." : "Save Payment Settings"}
         </Button>
       </div>
+
+      <SensitiveActionGate
+        open={gateOpen}
+        onOpenChange={setGateOpen}
+        title="Confirm payout change"
+        description="Payout accounts control where your rent money is sent. Confirm your password and OTP to save."
+        actionLabel="Save changes"
+        onVerified={performSave}
+      />
     </div>
   );
 };
+
 
 export default PaymentSettings;
