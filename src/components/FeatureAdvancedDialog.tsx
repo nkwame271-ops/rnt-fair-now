@@ -49,7 +49,7 @@ export default function FeatureAdvancedDialog({ open, onOpenChange, featureKey, 
       setGrace(initial.grace_period_days ?? 0);
       setSplits(Array.isArray(initial.revenue_split_json) ? initial.revenue_split_json : []);
     }
-  }, [open]);
+  }, [open, initial.fee_type, initial.billing_frequency, initial.payment_destination, initial.expiry_days, initial.renewal_days, initial.grace_period_days, initial.revenue_split_json]);
 
   const totalPct = splits.reduce((a, s) => a + Number(s.percentage || 0), 0);
   const splitInvalid = destination === "split" && Math.abs(totalPct - 100) > 0.01;
