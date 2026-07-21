@@ -362,8 +362,9 @@ const AgentRegister = () => {
           </div>
 
           {!user && (
-            <p className="text-xs text-warning bg-warning/10 border border-warning/30 rounded-lg p-3">
-              Tip: <button type="button" className="underline" onClick={() => navigate("/login?redirect=/agent/register")}>Sign in</button> before submitting so we can link the application to your account.
+            <p className="text-xs text-muted-foreground bg-muted/40 border border-border rounded-lg p-3">
+              We'll create your agent account with the email and password above. Already have an account?{" "}
+              <button type="button" className="underline" onClick={() => navigate("/login?redirect=/agent/register")}>Sign in first</button>.
             </p>
           )}
 
