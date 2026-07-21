@@ -42,24 +42,24 @@ export interface Form7Data {
 
 const wrapNumbered = (doc: jsPDF, n: number, label: string, value: string, y: number, width: number): number => {
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
+  doc.setFontSize(14);
   doc.text(`${n}.`, MARGIN, y);
-  doc.text(label, MARGIN + 16, y);
+  doc.text(label, MARGIN + 20, y);
   doc.setFont("helvetica", "normal");
+  doc.setFontSize(13);
   const v = value && value.trim() ? value : "—";
-  const lines = doc.splitTextToSize(v, width - 16);
-  // Underline-style answer: place on next line indented
-  doc.text(lines, MARGIN + 16, y + 13);
-  // Dotted underline
+  const lineH = 18;
+  const lines = doc.splitTextToSize(v, width - 20);
+  doc.text(lines, MARGIN + 20, y + 18);
   const totalLines = lines.length;
   for (let i = 0; i < totalLines; i++) {
-    const ly = y + 13 + i * 12 + 2;
+    const ly = y + 18 + i * lineH + 3;
     doc.setDrawColor(200);
     doc.setLineDashPattern([1, 2], 0);
-    doc.line(MARGIN + 16, ly, MARGIN + width, ly);
+    doc.line(MARGIN + 20, ly, MARGIN + width, ly);
   }
   doc.setLineDashPattern([], 0);
-  return y + 13 + totalLines * 12 + 10;
+  return y + 18 + totalLines * lineH + 12;
 };
 
 export function renderForm7(d: Form7Data): jsPDF {
