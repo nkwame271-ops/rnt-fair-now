@@ -230,18 +230,14 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-5 items-start">
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    {c.landlord_name && (
-                      <div>
-                        <p className="text-muted-foreground text-xs">Landlord</p>
-                        <p className="font-semibold">{c.landlord_name}</p>
-                      </div>
-                    )}
-                    {c.tenant_name && (
-                      <div>
-                        <p className="text-muted-foreground text-xs">Tenant</p>
-                        <p className="font-semibold">{c.tenant_name}</p>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-muted-foreground text-xs">Landlord</p>
+                      <p className="font-semibold">{c.landlord_name || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Tenant</p>
+                      <p className="font-semibold">{c.tenant_name || "—"}</p>
+                    </div>
                     {c.property_address && (
                       <div className="col-span-2">
                         <p className="text-muted-foreground text-xs">Property</p>
