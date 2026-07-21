@@ -124,36 +124,38 @@ export function renderForm33(d: Form33Data): jsPDF {
 
   // Top row: CA / Case number (left) — Parties line (right)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text(`${d.case_prefix || "CA"}  ${d.case_number || "—"}`, MARGIN, y);
+  doc.setFontSize(14);
+  doc.text(`${d.case_prefix || "CAR"}  ${d.case_number || "—"}`, MARGIN, y);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(13);
   doc.text(d.parties_line || "Complainant(s) VRS Respondent(s)", A4.W - MARGIN, y, { align: "right" });
-  y += 10;
+  y += 12;
   doc.setDrawColor(20, 80, 50);
   doc.line(MARGIN, y, A4.W - MARGIN, y);
-  y += 22;
+  y += 24;
 
   // FORM 33 + heading
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
+  doc.setFontSize(18);
   doc.text("FORM 33", A4.W / 2, y, { align: "center" });
-  y += 18;
-  doc.setFontSize(10);
+  y += 22;
+  doc.setFontSize(13);
   const heading = doc.splitTextToSize(
     "SUMMONS TO PERSONS AGAINST WHOM COMPLAINTS HAVE BEEN MADE",
     A4.W - MARGIN * 2
   );
   doc.text(heading, A4.W / 2, y, { align: "center" });
-  y += heading.length * 12 + 18;
+  y += heading.length * 16 + 20;
 
   // Rent Officer for / To
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(13);
   doc.text(`Rent Officer for ${d.rent_office || "—"}${d.rent_officer ? "  ·  " + d.rent_officer : ""}`, MARGIN, y);
-  y += 18;
+  y += 22;
+  doc.setFont("helvetica", "bold");
   doc.text(`To: ${d.person_summoned || "—"}`, MARGIN, y);
-  y += 18;
+  doc.setFont("helvetica", "normal");
+  y += 22;
 
   // Complainant basics (small line, helps recipient identify the case)
   if (d.complainant_name || d.complainant_phone || d.complainant_address) {
