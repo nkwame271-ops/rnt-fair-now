@@ -24,6 +24,7 @@ const LandlordDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
   const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
+  const [registrationExpiry, setRegistrationExpiry] = useState<string | null>(null);
   const [payingFee, setPayingFee] = useState(false);
   const [complianceScore, setComplianceScore] = useState(100);
   const [landlordMissing, setLandlordMissing] = useState(false);
