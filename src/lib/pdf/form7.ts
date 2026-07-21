@@ -42,24 +42,24 @@ export interface Form7Data {
 
 const wrapNumbered = (doc: jsPDF, n: number, label: string, value: string, y: number, width: number): number => {
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
+  doc.setFontSize(14);
   doc.text(`${n}.`, MARGIN, y);
-  doc.text(label, MARGIN + 16, y);
+  doc.text(label, MARGIN + 20, y);
   doc.setFont("helvetica", "normal");
+  doc.setFontSize(13);
   const v = value && value.trim() ? value : "—";
-  const lines = doc.splitTextToSize(v, width - 16);
-  // Underline-style answer: place on next line indented
-  doc.text(lines, MARGIN + 16, y + 13);
-  // Dotted underline
+  const lineH = 18;
+  const lines = doc.splitTextToSize(v, width - 20);
+  doc.text(lines, MARGIN + 20, y + 18);
   const totalLines = lines.length;
   for (let i = 0; i < totalLines; i++) {
-    const ly = y + 13 + i * 12 + 2;
+    const ly = y + 18 + i * lineH + 3;
     doc.setDrawColor(200);
     doc.setLineDashPattern([1, 2], 0);
-    doc.line(MARGIN + 16, ly, MARGIN + width, ly);
+    doc.line(MARGIN + 20, ly, MARGIN + width, ly);
   }
   doc.setLineDashPattern([], 0);
-  return y + 13 + totalLines * 12 + 10;
+  return y + 18 + totalLines * lineH + 12;
 };
 
 export function renderForm7(d: Form7Data): jsPDF {
@@ -124,18 +124,19 @@ export function renderForm7(d: Form7Data): jsPDF {
 
   // 6. Complaint narrative as paragraph
   doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
   doc.text("6.", MARGIN, y);
-  doc.text("Complaint, claim, etc.", MARGIN + 16, y);
-  y += 14;
+  doc.text("Complaint, claim, etc.", MARGIN + 20, y);
+  y += 20;
   if (d.complaint_category) {
     doc.setFont("helvetica", "italic");
-    doc.setFontSize(9);
-    doc.text(`Category: ${d.complaint_category}`, MARGIN + 16, y);
-    y += 12;
+    doc.setFontSize(12);
+    doc.text(`Category: ${d.complaint_category}`, MARGIN + 20, y);
+    y += 16;
   }
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  const narrLines = doc.splitTextToSize(narrative || "—", fieldWidth - 16);
+  doc.setFontSize(13);
+  const narrLines = doc.splitTextToSize(narrative || "—", fieldWidth - 20);
   // Allow page break
   for (const line of narrLines) {
     if (y > A4.H - 180) {
@@ -145,10 +146,10 @@ export function renderForm7(d: Form7Data): jsPDF {
       drawHeader(doc, { subtitle: "Rent Regulation 13 · Rent Regulation, 1964 (LI 369)" });
       y = 100;
     }
-    doc.text(line, MARGIN + 16, y);
-    y += 13;
+    doc.text(line, MARGIN + 20, y);
+    y += 18;
   }
-  y += 14;
+  y += 16;
 
   // Rent office
   doc.setFont("helvetica", "bold");

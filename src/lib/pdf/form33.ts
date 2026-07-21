@@ -117,47 +117,49 @@ export function renderForm33(d: Form33Data): jsPDF {
   drawWatermark(doc);
   drawHeader(doc, { subtitle: "Regulation 38(2) · Rent Regulation, 1964 (LI 369)" });
 
-  const bodySize = Math.max(9, Math.min(18, d.body_font_size || 10));
+  const bodySize = Math.max(9, Math.min(20, d.body_font_size || 14));
   const lineHeight = Math.round(bodySize * 1.4);
 
   let y = 86;
 
   // Top row: CA / Case number (left) — Parties line (right)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text(`${d.case_prefix || "CA"}  ${d.case_number || "—"}`, MARGIN, y);
+  doc.setFontSize(14);
+  doc.text(`${d.case_prefix || "CAR"}  ${d.case_number || "—"}`, MARGIN, y);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(13);
   doc.text(d.parties_line || "Complainant(s) VRS Respondent(s)", A4.W - MARGIN, y, { align: "right" });
-  y += 10;
+  y += 12;
   doc.setDrawColor(20, 80, 50);
   doc.line(MARGIN, y, A4.W - MARGIN, y);
-  y += 22;
+  y += 24;
 
   // FORM 33 + heading
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
+  doc.setFontSize(18);
   doc.text("FORM 33", A4.W / 2, y, { align: "center" });
-  y += 18;
-  doc.setFontSize(10);
+  y += 22;
+  doc.setFontSize(13);
   const heading = doc.splitTextToSize(
     "SUMMONS TO PERSONS AGAINST WHOM COMPLAINTS HAVE BEEN MADE",
     A4.W - MARGIN * 2
   );
   doc.text(heading, A4.W / 2, y, { align: "center" });
-  y += heading.length * 12 + 18;
+  y += heading.length * 16 + 20;
 
   // Rent Officer for / To
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(13);
   doc.text(`Rent Officer for ${d.rent_office || "—"}${d.rent_officer ? "  ·  " + d.rent_officer : ""}`, MARGIN, y);
-  y += 18;
+  y += 22;
+  doc.setFont("helvetica", "bold");
   doc.text(`To: ${d.person_summoned || "—"}`, MARGIN, y);
-  y += 18;
+  doc.setFont("helvetica", "normal");
+  y += 22;
 
   // Complainant basics (small line, helps recipient identify the case)
   if (d.complainant_name || d.complainant_phone || d.complainant_address) {
-    doc.setFontSize(9);
+    doc.setFontSize(11);
     doc.setTextColor(80);
     const parts = [
       d.complainant_name ? `Complainant: ${d.complainant_name}` : null,
@@ -166,27 +168,28 @@ export function renderForm33(d: Form33Data): jsPDF {
     ].filter(Boolean) as string[];
     const lineTxt = parts.join("  ·  ");
     const wrapped = doc.splitTextToSize(lineTxt, A4.W - MARGIN * 2);
-    for (const w of wrapped) { doc.text(w, MARGIN, y); y += 12; }
+    for (const w of wrapped) { doc.text(w, MARGIN, y); y += 15; }
     doc.setTextColor(0);
-    doc.setFontSize(10);
-    y += 4;
+    doc.setFontSize(13);
+    y += 6;
   } else {
-    y += 4;
+    y += 6;
   }
 
   // Whereas intro
+  doc.setFontSize(13);
   doc.text("Whereas your attendance is necessary to answer a complaint of a", MARGIN, y);
-  y += 18;
+  y += 22;
 
   // Centered bold underlined category
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
+  doc.setFontSize(16);
   const cat = (d.complaint_category || "—").toUpperCase();
   doc.text(cat, A4.W / 2, y, { align: "center" });
   const catWidth = doc.getTextWidth(cat);
-  doc.setLineWidth(0.6);
+  doc.setLineWidth(0.8);
   doc.line(A4.W / 2 - catWidth / 2, y + 3, A4.W / 2 + catWidth / 2, y + 3);
-  y += 22;
+  y += 26;
 
   // Summons paragraph — bolded day/date/time runs, configurable font size.
   doc.setFont("helvetica", "normal");
