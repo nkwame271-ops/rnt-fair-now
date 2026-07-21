@@ -963,7 +963,7 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
     const regData = {
       registration_fee_paid: true,
       registration_date: new Date().toISOString(),
-      expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     };
     if (landlord && !landlord.registration_fee_paid) {
       await supabaseAdmin.from("landlords").update(regData).eq("user_id", userId);
