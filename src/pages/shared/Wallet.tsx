@@ -267,7 +267,7 @@ function AddMoneyDialog({ open, onOpenChange, email, onDone }: any) {
   );
 }
 
-function WithdrawDialog({ open, onOpenChange, accounts, balance, onDone }: any) {
+function WithdrawDialog({ open, onOpenChange, accounts, balance, onDone, requireConfirm }: any) {
   const [amount, setAmount] = useState("");
   const [acctId, setAcctId] = useState("");
   const [busy, setBusy] = useState(false);
