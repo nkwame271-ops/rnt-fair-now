@@ -116,7 +116,7 @@ export function prefillForm33(c: any, officeName?: string, hearing?: { scheduled
   const primaryR = respondents[0]?.name || c.placeholder_respondent_name || c.landlord_name || "";
 
   return {
-    case_prefix: "CA",
+    case_prefix: "CAR",
     case_number: c.case_number || "",
     parties_line: `${cNames} VRS ${rNames}`,
     rent_office: officeName || c.hearing_venue || "",
@@ -136,7 +136,7 @@ export function prefillForm33(c: any, officeName?: string, hearing?: { scheduled
     complainant_name: primaryC.name || c.placeholder_complainant_name || c.complainant_name || "",
     complainant_phone: primaryC.phone || c.placeholder_complainant_phone || c.complainant_phone || "",
     complainant_address: primaryC.address || c.complainant_address || c.property_address || "",
-    body_font_size: 10,
+    body_font_size: 14,
   };
 }
 
