@@ -56,7 +56,7 @@ const navItems = [
   { to: "/landlord/rent-cards", label: "Manage Rent Cards", icon: Wallet, featureKey: "rent_cards" },
   { to: "/landlord/rent-card-view", label: "Rent Card Copies", icon: CreditCard },
   { to: "/landlord/assessments", label: "Property Assessments", icon: CreditCard },
-  { to: "/landlord/premium", label: "Premium Service", icon: Wallet },
+  
   { to: "/landlord/payment-settings", label: "Payment Settings", icon: CreditCard, featureKey: "payment_settings" },
   { to: "/landlord/wallet", label: "NAFLIS Wallet", icon: Wallet },
   { to: "/landlord/receipts", label: "Receipts", icon: FileText, featureKey: "landlord_receipts" },
