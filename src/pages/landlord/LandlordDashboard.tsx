@@ -24,6 +24,7 @@ const LandlordDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
   const [registrationFeePaid, setRegistrationFeePaid] = useState(true);
+  const [registrationExpiry, setRegistrationExpiry] = useState<string | null>(null);
   const [payingFee, setPayingFee] = useState(false);
   const [complianceScore, setComplianceScore] = useState(100);
   const [landlordMissing, setLandlordMissing] = useState(false);
@@ -37,7 +38,7 @@ const LandlordDashboard = () => {
       // Parallel fetch for independent queries
       const [profileRes, landlordRes, propsRes, tenanciesRes] = await Promise.all([
         supabase.from("profiles").select("full_name").eq("user_id", user.id).single(),
-        supabase.from("landlords").select("registration_fee_paid, compliance_score").eq("user_id", user.id).maybeSingle(),
+        supabase.from("landlords").select("registration_fee_paid, compliance_score, expiry_date").eq("user_id", user.id).maybeSingle(),
         supabase.from("properties").select("id").eq("landlord_user_id", user.id),
         supabase.from("tenancies").select("id, status").eq("landlord_user_id", user.id),
       ]);
@@ -50,6 +51,7 @@ const LandlordDashboard = () => {
         return;
       }
       setRegistrationFeePaid(landlordRes.data?.registration_fee_paid ?? true);
+      setRegistrationExpiry((landlordRes.data as any)?.expiry_date ?? null);
       setComplianceScore((landlordRes.data as any)?.compliance_score ?? 100);
 
       const props = propsRes.data || [];
@@ -147,19 +149,36 @@ const LandlordDashboard = () => {
   return (
     <PageTransition>
       <div className="max-w-5xl mx-auto space-y-8">
-        {!registrationFeePaid && regFeeEnabled && (
-          <Alert className="border-warning bg-warning/10 border-2">
-            <AlertTriangle className="h-5 w-5 text-warning" />
-            <AlertTitle className="text-warning font-semibold">Registration Fee Unpaid</AlertTitle>
-            <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1">
-              <span className="text-muted-foreground">Your registration fee (GH₵ {regFee.toFixed(0)}) is unpaid. Pay now to activate your Landlord ID and access all platform features.</span>
-              <Button onClick={handlePayRegistrationFee} disabled={payingFee} size="sm" className="shrink-0">
-                <CreditCard className="mr-2 h-4 w-4" />
-                {payingFee ? "Redirecting..." : `Pay GH₵ ${regFee.toFixed(0)} Now`}
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
+        {(() => {
+          const expiryMs = registrationExpiry ? Date.parse(registrationExpiry) : 0;
+          const now = Date.now();
+          const expired = registrationFeePaid && expiryMs > 0 && expiryMs <= now;
+          const expiringSoon = registrationFeePaid && expiryMs > now && expiryMs - now < 7 * 24 * 60 * 60 * 1000;
+          const unpaid = !registrationFeePaid;
+          if (!regFeeEnabled) return null;
+          if (!unpaid && !expired && !expiringSoon) return null;
+          const daysLeft = expiryMs > now ? Math.ceil((expiryMs - now) / (24 * 60 * 60 * 1000)) : 0;
+          const title = unpaid ? "Registration Fee Unpaid" : expired ? "Registration Expired" : "Registration Expiring Soon";
+          const msg = unpaid
+            ? `Your monthly registration fee (GH₵ ${regFee.toFixed(0)}) is unpaid. Pay now to activate your Landlord ID.`
+            : expired
+              ? `Your registration expired on ${new Date(expiryMs).toLocaleDateString()}. Renew now to keep platform access.`
+              : `Your registration expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}. Renew now to avoid interruption.`;
+          const label = unpaid ? `Pay GH₵ ${regFee.toFixed(0)} Now` : `Renew GH₵ ${regFee.toFixed(0)}`;
+          return (
+            <Alert className="border-warning bg-warning/10 border-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              <AlertTitle className="text-warning font-semibold">{title}</AlertTitle>
+              <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1">
+                <span className="text-muted-foreground">{msg}</span>
+                <Button onClick={handlePayRegistrationFee} disabled={payingFee} size="sm" className="shrink-0">
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  {payingFee ? "Redirecting..." : label}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          );
+        })()}
 
         <div className="flex items-center justify-between">
           <div>
