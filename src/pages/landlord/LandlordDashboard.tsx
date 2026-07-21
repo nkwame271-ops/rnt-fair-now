@@ -51,6 +51,7 @@ const LandlordDashboard = () => {
         return;
       }
       setRegistrationFeePaid(landlordRes.data?.registration_fee_paid ?? true);
+      setRegistrationExpiry((landlordRes.data as any)?.expiry_date ?? null);
       setComplianceScore((landlordRes.data as any)?.compliance_score ?? 100);
 
       const props = propsRes.data || [];
