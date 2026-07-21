@@ -67,30 +67,30 @@ export function renderForm7(d: Form7Data): jsPDF {
   drawWatermark(doc);
   drawHeader(doc, { subtitle: "Rent Regulation 13 · Rent Regulation, 1964 (LI 369)" });
 
-  let y = 92;
+  let y = 96;
 
-  // FORM 7 + heading
+  // FORM 7 + heading (larger, prominent)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
+  doc.setFontSize(24);
   doc.text("FORM 7", A4.W / 2, y, { align: "center" });
-  y += 18;
-  doc.setFontSize(10);
+  y += 26;
+  doc.setFontSize(16);
   const heading = doc.splitTextToSize(
     "COMPLAINT AGAINST CONDUCT OF LANDLORD / TENANT / PERSON INTERESTED IN PREMISES",
     A4.W - MARGIN * 2
   );
   doc.text(heading, A4.W / 2, y, { align: "center" });
-  y += heading.length * 12 + 6;
+  y += heading.length * 18 + 10;
 
   // Case ref / number row
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(14);
   doc.text(`Case Reference: ${d.case_reference || d.ticket_number || "—"}`, MARGIN, y);
   doc.text(`Case Number: ${d.case_number || "—"}`, A4.W - MARGIN, y, { align: "right" });
-  y += 8;
+  y += 10;
   doc.setDrawColor(20, 80, 50);
   doc.line(MARGIN, y, A4.W - MARGIN, y);
-  y += 16;
+  y += 22;
 
   // Fallback ingestion from old shape
   const complainantName = d.complainant_name
@@ -124,38 +124,37 @@ export function renderForm7(d: Form7Data): jsPDF {
 
   // 6. Complaint narrative as paragraph
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(20);
   doc.text("6.", MARGIN, y);
-  doc.text("Complaint, claim, etc.", MARGIN + 20, y);
-  y += 20;
+  doc.text("Complaint, claim, etc.", MARGIN + 26, y);
+  y += 26;
   if (d.complaint_category) {
     doc.setFont("helvetica", "italic");
-    doc.setFontSize(12);
-    doc.text(`Category: ${d.complaint_category}`, MARGIN + 20, y);
-    y += 16;
+    doc.setFontSize(15);
+    doc.text(`Category: ${d.complaint_category}`, MARGIN + 26, y);
+    y += 22;
   }
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(13);
-  const narrLines = doc.splitTextToSize(narrative || "—", fieldWidth - 20);
-  // Allow page break
+  doc.setFontSize(18);
+  const narrLines = doc.splitTextToSize(narrative || "—", fieldWidth - 26);
   for (const line of narrLines) {
     if (y > A4.H - 180) {
       drawFooter(doc, d.footer_slogan);
       doc.addPage();
       drawWatermark(doc);
       drawHeader(doc, { subtitle: "Rent Regulation 13 · Rent Regulation, 1964 (LI 369)" });
-      y = 100;
+      y = 110;
     }
-    doc.text(line, MARGIN + 20, y);
-    y += 18;
+    doc.text(line, MARGIN + 26, y);
+    y += 24;
   }
-  y += 16;
+  y += 18;
 
   // Rent office
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(14);
   doc.text(`Rent Office: ${d.rent_office || "—"}`, MARGIN, y);
-  y += 24;
+  y += 28;
 
   if (y > A4.H - 160) {
     drawFooter(doc, d.footer_slogan);
