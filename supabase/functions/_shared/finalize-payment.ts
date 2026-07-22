@@ -963,10 +963,10 @@ async function handleSideEffects(supabaseAdmin: any, opts: { paymentType: string
     const regData = {
       registration_fee_paid: true,
       registration_date: new Date().toISOString(),
-      expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
     };
     if (landlord) {
-      // Monthly renewal: always refresh the expiry window on paid registration.
+      // Yearly renewal: always refresh the expiry window on paid registration.
       await supabaseAdmin.from("landlords").update(regData).eq("user_id", userId);
     } else {
       const landlordId = "LL-" + new Date().getFullYear() + "-" + String(Math.floor(1000 + Math.random() * 9000));
