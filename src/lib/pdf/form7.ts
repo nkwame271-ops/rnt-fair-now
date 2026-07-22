@@ -124,19 +124,19 @@ export function renderForm7(d: Form7Data): jsPDF {
 
   // 6. Complaint narrative as paragraph
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
+  doc.setFontSize(16);
   doc.text("6.", MARGIN, y);
-  doc.text("Complaint, claim, etc.", MARGIN + 26, y);
-  y += 26;
+  doc.text("Complaint, claim, etc.", MARGIN + 22, y);
+  y += 20;
   if (d.complaint_category) {
     doc.setFont("helvetica", "italic");
-    doc.setFontSize(15);
-    doc.text(`Category: ${d.complaint_category}`, MARGIN + 26, y);
-    y += 22;
+    doc.setFontSize(12);
+    doc.text(`Category: ${d.complaint_category}`, MARGIN + 22, y);
+    y += 16;
   }
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(18);
-  const narrLines = doc.splitTextToSize(narrative || "—", fieldWidth - 26);
+  doc.setFontSize(14);
+  const narrLines = doc.splitTextToSize(narrative || "—", fieldWidth - 22);
   for (const line of narrLines) {
     if (y > A4.H - 180) {
       drawFooter(doc, d.footer_slogan);
@@ -145,16 +145,16 @@ export function renderForm7(d: Form7Data): jsPDF {
       drawHeader(doc, { subtitle: "Rent Regulation 13 · Rent Regulation, 1964 (LI 369)" });
       y = 110;
     }
-    doc.text(line, MARGIN + 26, y);
-    y += 24;
+    doc.text(line, MARGIN + 22, y);
+    y += 18;
   }
-  y += 18;
+  y += 12;
 
   // Rent office
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(13);
   doc.text(`Rent Office: ${d.rent_office || "—"}`, MARGIN, y);
-  y += 28;
+  y += 22;
 
   if (y > A4.H - 160) {
     drawFooter(doc, d.footer_slogan);
