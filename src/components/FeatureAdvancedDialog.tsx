@@ -40,18 +40,28 @@ export default function FeatureAdvancedDialog({ open, onOpenChange, featureKey, 
   const [saving, setSaving] = useState(false);
 
   // Only re-hydrate when the dialog OPENS or the feature being edited changes.
-  // Depending on `initial.*` caused a re-render loop that reset just-saved
-  // values because the parent recreates the `initial` object on every render.
+  // On every open, refetch the persisted row so users see the ACTUAL saved
+  // values (not a stale in-memory copy held by the parent list).
   useEffect(() => {
-    if (open) {
-      setFeeType(initial.fee_type || "fixed");
-      setBilling(initial.billing_frequency || "one_time");
-      setDestination(initial.payment_destination || "platform");
-      setExpiry(initial.expiry_days ?? "");
-      setRenewal(initial.renewal_days ?? "");
-      setGrace(initial.grace_period_days ?? 0);
-      setSplits(Array.isArray(initial.revenue_split_json) ? initial.revenue_split_json : []);
-    }
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("feature_flags")
+        .select("fee_type, billing_frequency, payment_destination, revenue_split_json, expiry_days, renewal_days, grace_period_days")
+        .eq("feature_key", featureKey)
+        .maybeSingle();
+      const src = (data as any) || initial;
+      if (cancelled) return;
+      setFeeType(src.fee_type || "fixed");
+      setBilling(src.billing_frequency || "one_time");
+      setDestination(src.payment_destination || "platform");
+      setExpiry(src.expiry_days ?? "");
+      setRenewal(src.renewal_days ?? "");
+      setGrace(src.grace_period_days ?? 0);
+      setSplits(Array.isArray(src.revenue_split_json) ? src.revenue_split_json : []);
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, featureKey]);
 
