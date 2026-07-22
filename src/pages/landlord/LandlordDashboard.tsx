@@ -160,7 +160,7 @@ const LandlordDashboard = () => {
           const daysLeft = expiryMs > now ? Math.ceil((expiryMs - now) / (24 * 60 * 60 * 1000)) : 0;
           const title = unpaid ? "Registration Fee Unpaid" : expired ? "Registration Expired" : "Registration Expiring Soon";
           const msg = unpaid
-            ? `Your monthly registration fee (GH₵ ${regFee.toFixed(0)}) is unpaid. Pay now to activate your Landlord ID.`
+            ? `Your annual registration fee (GH₵ ${regFee.toFixed(0)}) is unpaid. Pay now to activate your Landlord ID.`
             : expired
               ? `Your registration expired on ${new Date(expiryMs).toLocaleDateString()}. Renew now to keep platform access.`
               : `Your registration expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}. Renew now to avoid interruption.`;
