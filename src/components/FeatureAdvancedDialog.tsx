@@ -39,6 +39,9 @@ export default function FeatureAdvancedDialog({ open, onOpenChange, featureKey, 
   );
   const [saving, setSaving] = useState(false);
 
+  // Only re-hydrate when the dialog OPENS or the feature being edited changes.
+  // Depending on `initial.*` caused a re-render loop that reset just-saved
+  // values because the parent recreates the `initial` object on every render.
   useEffect(() => {
     if (open) {
       setFeeType(initial.fee_type || "fixed");
@@ -49,7 +52,8 @@ export default function FeatureAdvancedDialog({ open, onOpenChange, featureKey, 
       setGrace(initial.grace_period_days ?? 0);
       setSplits(Array.isArray(initial.revenue_split_json) ? initial.revenue_split_json : []);
     }
-  }, [open, initial.fee_type, initial.billing_frequency, initial.payment_destination, initial.expiry_days, initial.renewal_days, initial.grace_period_days, initial.revenue_split_json]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, featureKey]);
 
   const totalPct = splits.reduce((a, s) => a + Number(s.percentage || 0), 0);
   const splitInvalid = destination === "split" && Math.abs(totalPct - 100) > 0.01;
