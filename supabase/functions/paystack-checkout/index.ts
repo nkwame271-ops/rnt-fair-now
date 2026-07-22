@@ -664,7 +664,7 @@ Deno.serve(async (req) => {
         landlord = created;
       }
 
-      // Landlord registration is a MONTHLY subscription (30-day validity).
+      // Landlord registration is a YEARLY subscription (365-day validity).
       // Block only if currently paid AND expiry is still in the future.
       const expiryMs = landlord.expiry_date ? Date.parse(landlord.expiry_date as any) : 0;
       if (landlord.registration_fee_paid && expiryMs > Date.now()) {
@@ -676,7 +676,7 @@ Deno.serve(async (req) => {
 
       const fee = await determineFee(supabaseAdmin, "landlord_registration_fee");
       if (!fee.enabled || fee.amount === 0) {
-        await supabaseAdmin.from("landlords").update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).eq("user_id", userId);
+        await supabaseAdmin.from("landlords").update({ registration_fee_paid: true, registration_date: new Date().toISOString(), expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() }).eq("user_id", userId);
         return new Response(JSON.stringify({ skipped: true, message: "Registration fee is currently waived" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       totalAmount = fee.amount;
