@@ -65,10 +65,27 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
       // Enrich
       const propIds = [...new Set(use.map((c) => c.property_id).filter(Boolean))] as string[];
       const unitIds = [...new Set(use.map((c) => c.unit_id).filter(Boolean))] as string[];
-      // Fetch BOTH landlord and tenant profiles for every card, regardless of variant.
+      const tenancyIdsAll = [...new Set(use.map((c) => c.tenancy_id).filter(Boolean))] as string[];
+
+      // Fetch tenancies first — they carry authoritative tenant_user_id / landlord_user_id
+      // even when the rent_cards row wasn't backfilled.
+      const tenanciesRes = tenancyIdsAll.length
+        ? await supabase
+            .from("tenancies")
+            .select("id, tenant_user_id, landlord_user_id, property_id, unit_id, tenant_full_name")
+            .in("id", tenancyIdsAll)
+        : { data: [] as any[] };
+      const tmap = new Map((tenanciesRes.data || []).map((t: any) => [t.id, t]));
+
       const partnerIds = [
         ...new Set(
-          use.flatMap((c) => [c.landlord_user_id, c.tenant_user_id]).filter(Boolean),
+          use.flatMap((c) => {
+            const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
+            return [
+              c.landlord_user_id || t?.landlord_user_id,
+              c.tenant_user_id || t?.tenant_user_id,
+            ];
+          }).filter(Boolean),
         ),
       ] as string[];
 
@@ -87,13 +104,18 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
       const um = new Map((units.data || []).map((u: any) => [u.id, u.unit_number]));
       const nm = new Map((profs.data || []).map((p: any) => [p.user_id, p.full_name]));
 
-      const enriched: Enriched[] = use.map((c) => ({
-        ...c,
-        property_address: c.property_id ? pm.get(c.property_id) : undefined,
-        unit_name: c.unit_id ? um.get(c.unit_id) : undefined,
-        landlord_name: nm.get(c.landlord_user_id),
-        tenant_name: c.tenant_user_id ? nm.get(c.tenant_user_id) : undefined,
-      }));
+      const enriched: Enriched[] = use.map((c) => {
+        const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
+        const tenantId = c.tenant_user_id || t?.tenant_user_id;
+        const landlordId = c.landlord_user_id || t?.landlord_user_id;
+        return {
+          ...c,
+          property_address: c.property_id ? pm.get(c.property_id) : undefined,
+          unit_name: c.unit_id ? um.get(c.unit_id) : undefined,
+          landlord_name: landlordId ? nm.get(landlordId) : undefined,
+          tenant_name: (tenantId ? nm.get(tenantId) : undefined) || t?.tenant_full_name || undefined,
+        };
+      });
 
       // Payments per tenancy
       const tenancyIds = [...new Set(enriched.map((c) => c.tenancy_id).filter(Boolean))] as string[];

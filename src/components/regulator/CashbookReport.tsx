@@ -203,11 +203,16 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <StatCard label="Opening Balance" value={fmtGHS(totals.opening)} />
             <StatCard label="Money In" value={fmtGHS(totals.money_in)} tone="pos" />
             <StatCard label="Money Out" value={fmtGHS(totals.money_out)} tone="neg" />
+            <StatCard
+              label="Current Escrow Balance"
+              value={fmtGHS(totals.opening + totals.money_in - totals.money_out)}
+              tone="bold"
+            />
             <StatCard label="Reconciled" value={fmtGHS(totals.reconciled)} />
-            <StatCard label="Closing Balance" value={fmtGHS(totals.closing)} tone="bold" />
           </div>
 
           <div className="border rounded-md overflow-x-auto">

@@ -195,13 +195,26 @@ const RoleSelect = () => {
     if (role === "regulator") { navigate("/regulator/dashboard", { replace: true }); return; }
     if (role === "nugs_admin") { navigate("/nugs/dashboard", { replace: true }); return; }
     if (role === "landlord") { navigate("/landlord/dashboard", { replace: true }); return; }
+    if (role === "agent") { navigate("/agent/dashboard", { replace: true }); return; }
     if (role === "tenant") {
       // Branch student vs regular tenant
       supabase.from("tenants").select("is_student").eq("user_id", user.id).maybeSingle().then(({ data }) => {
         if ((data as any)?.is_student) navigate("/nugs/dashboard", { replace: true });
         else navigate("/tenant/dashboard", { replace: true });
       });
+      return;
     }
+    // Agent role may not be surfaced through user_roles yet — check agent_staff
+    (async () => {
+      const { data: agentRow } = await (supabase as any)
+        .from("agent_staff")
+        .select("id, status")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (agentRow && (agentRow.status === "active" || agentRow.status === "approved")) {
+        navigate("/agent/dashboard", { replace: true });
+      }
+    })();
   }, [user, role, loading, navigate]);
 
   const roles = [
@@ -218,13 +231,6 @@ const RoleSelect = () => {
       icon: Building2,
       path: "/login?role=landlord",
       color: "from-amber-500 to-orange-600",
-    },
-    {
-      title: "Student",
-      description: "Find hostels and halls, file complaints, and access NUGS-supported student housing services.",
-      icon: GraduationCap,
-      path: "/login?role=student",
-      color: "from-sky-500 to-indigo-600",
     },
   ];
 
