@@ -74,7 +74,7 @@ const MyAgreements = () => {
 
   const fetchData = async () => {
     if (!user) return;
-    const { data: profile } = await (supabase.from("profiles_counterparty" as any) as any).select("full_name").eq("user_id", user.id).single();
+    const { data: profile } = await (supabase.from("profiles_counterparty" as any) as any).select("full_name, phone").eq("user_id", user.id).single();
     setTenantName(profile?.full_name || "");
     const { data: tenantRec } = await supabase.from("tenants").select("tenant_id").eq("user_id", user.id).single();
     setTenantIdCode(tenantRec?.tenant_id || "");
@@ -86,6 +86,31 @@ const MyAgreements = () => {
       setTaxRatePct(Number((configData as any).tax_rate ?? 8));
     }
 
+    // Auto-link any admin-declared "existing" tenancies that were filed against
+    // the tenant's phone number but never bound to a user account. Without this
+    // the agreement stays invisible to the tenant even though the landlord
+    // completed the declaration.
+    const userPhone = (profile as any)?.phone as string | undefined;
+    if (userPhone) {
+      const digits = String(userPhone).replace(/\D/g, "");
+      const variants = Array.from(new Set([
+        userPhone,
+        digits,
+        digits.startsWith("233") ? "0" + digits.slice(3) : digits,
+        digits.startsWith("0") ? "233" + digits.slice(1) : digits,
+      ].filter(Boolean)));
+      const { data: orphaned } = await supabase
+        .from("tenancies")
+        .select("id, placeholder_tenant_phone")
+        .is("tenant_user_id", null)
+        .in("placeholder_tenant_phone", variants as string[]);
+      if (orphaned && orphaned.length) {
+        await supabase
+          .from("tenancies")
+          .update({ tenant_user_id: user.id, tenant_id_code: tenantRec?.tenant_id || undefined } as any)
+          .in("id", orphaned.map((o: any) => o.id));
+      }
+    }
 
     const { data: ts } = await supabase
       .from("tenancies")
@@ -94,6 +119,7 @@ const MyAgreements = () => {
       .order("created_at", { ascending: false });
 
     if (!ts || ts.length === 0) { setLoading(false); return; }
+
 
     const results: TenancyView[] = [];
     for (const t of ts as any[]) {

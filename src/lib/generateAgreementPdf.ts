@@ -315,8 +315,11 @@ export const generateAgreementPdf = async (data: AgreementPdfData): Promise<jsPD
   line(y);
   y += 10;
 
-  // Terms (skip for existing tenancies)
-  if (!data.isExistingTenancy) {
+  // Terms — always render from the active template (previously skipped for
+  // existing tenancies, which meant the T&Cs configured under Templates
+  // never appeared on drafts for migrated agreements).
+  {
+
     checkPage(20);
     left("KEY TERMS & CONDITIONS", y, 13, "bold");
     y += 10;

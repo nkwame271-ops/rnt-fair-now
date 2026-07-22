@@ -82,7 +82,10 @@ export async function renderTenancyAgreement(
         .maybeSingle()
     : { data: null as any };
 
-  // 3. Signatures — only allow "final" when both parties have signed
+  // 3. Signatures — accept either an explicit row in `tenancy_signatures`
+  //    OR the legacy landlord_signed_at / tenant_signed_at columns on the
+  //    tenancy row (older flows only stamp those columns). Final variant
+  //    unlocks as soon as BOTH parties have signed by either mechanism.
   const { data: sigs } = await supabase
     .from("tenancy_signatures")
     .select("signer_role, signer_user_id, signed_at, signature_method")
@@ -90,11 +93,15 @@ export async function renderTenancyAgreement(
 
   const findSig = (role: "landlord" | "tenant"): SignatureData | undefined => {
     const row = (sigs || []).find((s: any) => s.signer_role === role);
-    if (!row) return undefined;
+    const fallbackAt = role === "landlord"
+      ? (t as any).landlord_signed_at
+      : (t as any).tenant_signed_at;
+    const signedAt = (row as any)?.signed_at || fallbackAt;
+    if (!signedAt) return undefined;
     return {
       name: role === "landlord" ? (landlordProfile?.full_name || "Landlord") : (tenantProfile?.full_name || "Tenant"),
-      signedAt: (row as any).signed_at,
-      method: (row as any).signature_method || "digital",
+      signedAt,
+      method: (row as any)?.signature_method || "digital",
     };
   };
   const landlordSig = findSig("landlord");
@@ -105,6 +112,7 @@ export async function renderTenancyAgreement(
       "Both landlord and tenant must sign before the Final Agreement can be issued.",
     );
   }
+
 
   // 4. Compose render payload
   const unitAmenities = [
