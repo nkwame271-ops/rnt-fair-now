@@ -1,61 +1,86 @@
+# Fix Package — Admin, Landlord, Wallet, Agreements, Pagination, Developer
 
-## Admin Portal
+Grouped by area. Each item lists the change and where it lands.
 
-### A. Engine Room
-- Audit every recently added tenant/landlord feature (property assessment, premium service, wallet top-up, wallet withdrawal, digital rent card, safety report, agent program, rent management deduction) and ensure each has a row in `feature_flags` with: `enabled` toggle, `fee_type`, `amount/percentage`, `billing_frequency`, `expiry_days`, `renewal_days`, `grace_period_days`, `payment_destination`, and `revenue_split_json`. Add any missing rows via migration.
-- **Advanced Settings reset bug:** `FeatureAdvancedDialog` re-hydrates from the `initial` prop, but the parent list re-uses a stale in-memory copy after save so reopening shows the old values. Fix by (a) refetching the affected flag after `onSaved` in the Engine Room list and passing fresh `initial` in, and (b) letting the dialog return the saved payload so the parent updates local state optimistically. Also stop the dialog's `useEffect` from resetting local state on every parent re-render — key it strictly to `open` transitions.
+## 1. Admin Portal — Engine Room coverage
 
-### B. Cashbook (rebuild on Escrow Ledger)
-- Change data source from `cashbook_entries` aggregates to `escrow_transactions` (+ `escrow_splits`/`payout_transfers` for outflows). Cashbook becomes a read-model over the ledger.
-- Inherit RLS from `escrow_transactions`: Super Admin sees all; Regulator/Office admins see only their scoped rows (via existing `is_main_admin()` / office scope helpers). Totals are computed from the visible rowset only.
-- Summary cards: **Opening Balance, Money In, Money Out, Current Escrow Balance, Reconciled Amount**, with the invariant `Opening + In − Out = Current`. Opening = balance at range start; Current = Opening + In − Out for the range.
-- Table columns: Date, Receipt/Reference, Description, Money In, Money Out, Running Balance (computed via SQL window function `SUM(in − out) OVER (ORDER BY date, id)` seeded with Opening Balance).
-- Money Out sources: payouts to Paystack, wallet withdrawals, refunds, reversals, manual disbursements, automated settlements. If none, Money Out = GHS 0.00.
-- Deprecate the `post_receipt_to_cashbook` trigger path for display (keep the table for legacy but stop reading from it in the UI).
+Ensure every new payment-enabled feature has a `feature_flags` row with fee, percentage, billing frequency, expiry, and revenue split editable from the Engine Room UI.
 
-### C. Agent Portal redirect loop
-- `RoleSelect` sends approved agents back to `/` because `useAuth` role resolution races the `agent_staff` lookup. Fix `useAuth` to include agent role detection (query `agent_staff` where `user_id = auth.uid()` and `status='active'`) and expose an `isAgent` flag. Route agents to `/agent/dashboard` from `RoleSelect` and `ProtectedRoute` fallbacks. Also ensure `AgentRoute` waits for auth hydration before redirecting.
+- Register / verify rows for: `agent_application_fee`, `premium_service`, `property_assessment`, `wallet_topup`, `rent_card`, `landlord_registration`, `complaint_filing`, `viewing_request`, `rentcare`.
+- Extend `FeatureAdvancedDialog` so all payment features expose the full config surface (fee, %, frequency, expiry, split destinations). Where a field doesn't apply, hide it — don't hardcode.
+- Every checkout edge function (`premium-checkout`, `assessment-checkout`, `wallet-topup`, `paystack-checkout`, `approve-agent-application` fee lookup) must read fee/splits from `feature_flags` — no hardcoded amounts.
 
-### D. Complaints — Forms 7/33 and case numbers
-- **Form 7:** rescale to fit A4 single page — labels 16pt, body 14pt, tighter but balanced section spacing, reduced top/side margins. Verify with a print preview render.
-- **Form 33:** implement full generator using the same style as Form 7. Both forms pull from the same complaint record and must render the same `case_number`.
-- **Case numbering:** confirm `car_case_counters` assigns `<PREFIX> NNN/YYYY` once at complaint creation and stores it on `complaints.case_number`. Every downstream artifact (Form 7, Form 33, receipts, notifications, documents) reads that field — never regenerates. Keep `platform_config.car_case_prefix` editable in Admin.
+## 2. Admin Portal — Cashbook permissions
 
-## Landlord Portal
+Cashbook currently shows global totals. Change to mirror Escrow Ledger scoping:
 
-### A. Digital Rent Cards
-- Tenant name shows "-" when `rent_cards.tenant_user_id` is null. Root cause: some rent cards were created before the backfill and new issuance paths still don't set `tenant_user_id`/`tenancy_id`.
-- Fix issuance code (`issue-rent-card` / `ManageRentCards` flow) to require and store `tenancy_id` and derive `tenant_user_id`, `landlord_user_id`, `unit_id` at creation. Add a DB check/trigger to reject inserts with null tenancy linkage going forward.
-- Update `DigitalRentCardView` to join through `tenancies → tenants/landlords/units/properties/profiles` so name/unit/property are always resolved from the live tenancy, not denormalized strings.
-- Run one more backfill pass for any remaining unlinked rent cards.
+- Super Admin → all rows.
+- Office / Main admin → rows for their office (via `office_id` / `admin_staff.office_id`).
+- Summary cards (Opening, In, Out, Current, Reconciled) recomputed from the filtered rowset, not global.
+- Apply RLS + client-side scope filter in `CashbookReport.tsx` using `useAdminScope`.
 
-### B. Property Assessment checkout
-- `assessment-checkout` returns non-2xx. Inspect edge function logs to find the exact cause (likely missing `assessment_fee` flag row or missing `pending_assessment_drafts` insert permissions). Fix the function and add `assessment_fee` under **Platform Fees** in Engine Room with configurable amount/frequency.
+## 3. Agent Portal — Application paywall
 
-### C. Premium Service
-- Fix `premium-checkout` non-2xx (same investigation pattern — logs + fee flag). Ensure `premium_service_fee` is Engine-Room configurable.
-- **Premium dashboard for landlord** shows assigned agent card: avatar, agent ID, phone, email, service status, subscription status, expiry date, and the property currently under management. Actions: Call, SMS, Request Service, Revoke Access, Request Change of Agent.
-- Service requests write to `management_task_assignments` (or a new `premium_service_requests` table if needed) and surface in the agent's dashboard, using existing landlord workflows for execution.
-- Enforce agent restrictions: RLS + UI guard blocking agents from mutating `landlord_payment_settings`, `wallet_payout_accounts`, passwords, transaction PINs, or verified contact fields.
+- Add `agent_application_fee` feature flag (default GHS 100, configurable).
+- `AgentRegister.tsx` Submit → create `agent_applications` row with `status='awaiting_payment'` → redirect to Paystack checkout via a new/extended edge function → on webhook success flip to `status='pending'` for admin review.
+- Admin approve action reads the paid application only.
 
-### D. NAFLIS Wallet
-- **Add Money non-2xx:** check `wallet-topup` logs, confirm `wallet_topup` feature flag enabled, confirm Paystack init call succeeds, fix root cause (usually missing flag row or bad `amount` shape).
-- **Payout Accounts empty:** `wallet-list-banks` returns nothing. Verify the function is calling Paystack `/bank?country=ghana` with the live secret and returns both bank + mobile money entries. Fix response shape the UI expects (`{ banks: [], momo: [] }`).
-- Ensure withdrawal flow reuses stored account or accepts a fresh one.
+## 4. Complaints — Case numbering + Forms 7/33
 
-## Main Page
-- Hide the Student role tile on `/` (`RoleSelect` / landing role grid). Keep the route reachable via NUGS/institution flows but remove the self-registration entry point.
+- Single generator: on complaint creation, allocate `case_number = <PREFIX> NNN/YYYY` via `car_case_counters` (already exists) and persist to `complaints.case_number`. `CAR` prefix read from `platform_config.car_case_prefix` (already added) so it's changeable.
+- Form 7, Form 33, receipts, notifications, and case records all read `complaints.case_number` — no re-allocation.
+- **Form 7 layout**: reduce body to 12pt, labels 14pt, remove the dotted underlines on numbered fields (they force line height), tighten margins so a typical complaint fits on one A4 page. Add page-fit test with a long narrative.
+- **Form 33**: audit the data mapping — ensure `parties_line`, `person_summoned`, `complaint_category`, `hearing_*`, `complainant_*`, `rent_office`, `rent_officer`, `issued_*` all pull from the complaint + hearing record. Fix any `—` placeholders that are actually populated in the DB.
+
+## 5. Landlord Portal — Digital Rent Cards
+
+- `DigitalRentCardView.tsx` enrichment: when `rent_cards.tenancy_id` exists, always join `tenancies → profiles(tenant) + units + properties` and hydrate tenant name, unit label, property address regardless of whether `tenant_user_id` is set on the card row.
+- Backfill script: for cards missing `tenancy_id` but with matching `serial_number` on an active tenancy, link them.
+
+## 6. Landlord Portal — Property Assessment checkout
+
+- Root-cause the "non-2xx" from `assessment-checkout` by logging the actual error (read `supabase--edge_function_logs`). Common suspect: fee lookup from `feature_flags` returns null when the row is missing.
+- Add `property_assessment_fee` to Engine Room under Platform Fees.
+- Guarantee the function returns a 200 with a structured error if fee flag is missing, plus surface a user-friendly toast.
+
+## 7. Landlord Portal — Premium Service
+
+- Fix `premium-checkout` non-2xx (same pattern: read fee from `feature_flags.premium_service`, structured errors).
+- Premium dashboard (new/updated component) shows: assigned agent avatar, agent ID, phone, email, service status, subscription status, expiry, managed property.
+- Actions: Call (`tel:`), SMS (`sms:`), Request Service (creates `management_task_assignments` row), Revoke Access, Request Agent Change.
+- Service requests appear in Agent dashboard; agent completes via existing landlord workflows.
+- Agent role scoping: block edits to `landlord_payment_settings`, `wallet_payout_accounts`, `profiles.phone/email` (verified), password, and transaction PIN via RLS + UI hide.
+
+## 8. NAFLIS Wallet — Add Money
+
+- Pull `wallet-topup` edge function logs, identify the actual failure (likely Paystack init payload or missing fee flag / metadata).
+- Ensure fee split reads from `feature_flags.wallet_topup`. Return 200 with a structured error on any Paystack failure.
+
+## 9. Agreements
+
+1. **Existing Tenancy** → agreement not visible to tenant. `DeclareExistingTenancy` writes `tenant_user_id = null` when no match; the tenant-side auto-link by phone (already added in `MyAgreements`) needs verification, plus a notification on first link.
+2. **Add Tenant** → verify tenancy row + `tenancy_signatures` landlord row insert path; confirm surfacing in tenant dashboard.
+3. **Draft agreements → Terms not loading**: `getActiveAgreementTemplate` must load `agreement_template_config` even for draft/existing variants and inject T&Cs into the PDF.
+4. **"Both must sign" error** — when tenants accept via UI, insert a `tenancy_signatures` row with `signer_role='tenant'`. Same for landlord path. `renderTenancyAgreement` already reads that table.
+
+## 10. Pagination across large tables
+
+Add server-side pagination (LIMIT 100, offset, count) with page controls to:
+
+- `RegulatorLandlords`, `RegulatorTenants`, `RegulatorReceipts`, `RegulatorCashbook`, `ManageRentCards` (Pending + Assign tabs), plus any other list rendering >100 rows.
+- Fix responsiveness: wrap all tables in `overflow-x-auto` container; remove hover row transforms that shift layout — use `bg-muted/50` only.
+
+## 11. Developer Accounts / API Access — password exposure
+
+- Audit `DeveloperAccounts.tsx` and `ApiAccessRequests.tsx`: remove any rendering of `password`, `password_hash`, or plain-text credential fields.
+- Ensure API responses / edge functions don't return raw credentials — mask or omit.
 
 ## Technical notes
 
-- **Files (frontend):** `src/components/FeatureAdvancedDialog.tsx`, Engine Room list page, `src/pages/regulator/RegulatorCashbook.tsx`, `src/hooks/useAuth.tsx`, `src/pages/RoleSelect.tsx`, `src/components/AgentRoute.tsx`, `src/lib/pdf/form7.ts`, `src/lib/pdf/form33.ts`, `src/components/rentcards/DigitalRentCardView.tsx`, `src/pages/shared/PropertyAssessmentsPage.tsx`, `src/pages/PremiumServiceLanding.tsx` + landlord premium dashboard, `src/pages/shared/Wallet.tsx`, landing role grid.
-- **Files (edge):** `assessment-checkout`, `premium-checkout`, `wallet-topup`, `wallet-list-banks`, `wallet-add-payout-account`, `wallet-withdraw`, `issue-rent-card` (or equivalent), plus `_shared/finalize-payment.ts` where relevant.
-- **DB migrations:**
-  - Add/normalize `feature_flags` rows for all new payment features (including `assessment_fee`, `premium_service_fee`).
-  - Backfill `rent_cards.tenant_user_id` / `tenancy_id`; add NOT NULL + FK once clean.
-  - Optional `premium_service_requests` table (or reuse `management_task_assignments`) with RLS + GRANTs.
-  - Cashbook view: a SQL view `v_cashbook_entries` over `escrow_transactions` (+ outflow tables) with running balance, respecting the same RLS as the base tables. UI queries the view.
-- **Verification:** after each fix, hit the affected flow in the preview and confirm the network response, then screenshot the UI state (Cashbook totals reconcile, agent dashboard reachable, Form 7 = 1 page, Form 33 renders with matching case number, rent card shows tenant name, all three checkouts return 200 and open Paystack).
+- Edge function debugging uses `supabase--edge_function_logs` to see the real 5xx cause before "fixing" blind.
+- All new fees/splits stored on `feature_flags` (`fee_amount`, `fee_percentage`, `billing_frequency`, `expiry_days`, `revenue_split` jsonb). No further schema changes required for #1.
+- New DB work needed: none for pagination; #9.4 needs the tenant/landlord acceptance handlers to insert `tenancy_signatures`.
 
-## Open question
-The "Advanced Settings reset" complaint — before I ship the fix, confirm whether the values in the DB are correct after save (i.e. it's purely a UI re-hydration bug) or whether the save itself is silently dropping fields. I'll check with a `read_query` on `feature_flags` right after your next test save to be sure.
+## Out of scope for this pass
+
+Any item where the underlying edge-function log doesn't confirm the root cause will be surfaced back to you with the exact error payload rather than guessed at.
