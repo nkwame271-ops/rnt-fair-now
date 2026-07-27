@@ -12,17 +12,17 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const { property_id, subscriber_role } = await req.json();
-    if (!subscriber_role) return json({ error: "subscriber_role is required" }, 400);
-    if (!property_id) return json({ error: "property_id is required" }, 400);
+    if (!subscriber_role) return json({ error: "subscriber_role is required" }, 200);
+    if (!property_id) return json({ error: "property_id is required" }, 200);
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "unauthorized" }, 401);
+    if (!authHeader) return json({ error: "unauthorized" }, 200);
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user } } = await userClient.auth.getUser();
-    if (!user) return json({ error: "unauthorized" }, 401);
+    if (!user) return json({ error: "unauthorized" }, 200);
 
     const supabaseAdmin = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const billingFrequency = flag?.billing_frequency || "monthly";
 
     if (!feeEnabled || feeAmount <= 0) {
-      return json({ error: "Premium Service is not currently available." }, 400);
+      return json({ error: "Premium Service is not currently available." }, 200);
     }
 
     const reference = `PREM_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
@@ -53,11 +53,11 @@ Deno.serve(async (req) => {
     if (dErr) throw dErr;
 
     const email = user.email;
-    if (!email) return json({ error: "Your account needs an email address to check out." }, 400);
+    if (!email) return json({ error: "Your account needs an email address to check out." }, 200);
 
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
     const PAYSTACK_PUBLIC_KEY = Deno.env.get("PAYSTACK_PUBLIC_KEY");
-    if (!PAYSTACK_SECRET_KEY) return json({ error: "Payment gateway not configured" }, 500);
+    if (!PAYSTACK_SECRET_KEY) return json({ error: "Payment gateway not configured" }, 200);
 
     const initRes = await fetch("https://api.paystack.co/transaction/initialize", {
       method: "POST",
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
       }),
     });
     const initJson = await initRes.json();
-    if (!initJson?.status) return json({ error: initJson?.message || "Failed to start payment" }, 400);
+    if (!initJson?.status) return json({ error: initJson?.message || "Failed to start payment" }, 200);
 
     try {
       await supabaseAdmin.from("escrow_transactions").insert({
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
     });
   } catch (e: any) {
     console.error("premium-checkout error:", e?.message);
-    return json({ error: e?.message || String(e) }, 400);
+    return json({ error: e?.message || String(e) }, 200);
   }
 });
 

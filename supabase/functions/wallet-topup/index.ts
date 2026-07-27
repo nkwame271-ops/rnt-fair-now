@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
     } = body || {};
 
     if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
-      return json({ error: "amount is required" }, 400);
+      return json({ error: "amount is required" }, 200);
     }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -42,14 +42,14 @@ Deno.serve(async (req) => {
     }
 
     const recipientId = recipient_user_id || callerId;
-    if (!recipientId) return json({ error: "recipient_user_id required for anonymous top-ups" }, 400);
+    if (!recipientId) return json({ error: "recipient_user_id required for anonymous top-ups" }, 200);
 
     const email = payer_email || callerEmail;
-    if (!email) return json({ error: "payer_email is required" }, 400);
+    if (!email) return json({ error: "payer_email is required" }, 200);
 
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
     const PAYSTACK_PUBLIC_KEY = Deno.env.get("PAYSTACK_PUBLIC_KEY");
-    if (!PAYSTACK_SECRET_KEY) return json({ error: "Payment gateway not configured" }, 500);
+    if (!PAYSTACK_SECRET_KEY) return json({ error: "Payment gateway not configured" }, 200);
 
     const reference = `WTOP_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
 
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     });
     const initJson = await initRes.json();
     if (!initJson?.status) {
-      return json({ error: initJson?.message || "Failed to initialize payment" }, 400);
+      return json({ error: initJson?.message || "Failed to initialize payment" }, 200);
     }
 
     // Record an escrow_transactions row so verify-payment / audit tooling
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     });
   } catch (e: any) {
     console.error("wallet-topup error:", e?.message);
-    return json({ error: e?.message || String(e) }, 400);
+    return json({ error: e?.message || String(e) }, 200);
   }
 });
 
