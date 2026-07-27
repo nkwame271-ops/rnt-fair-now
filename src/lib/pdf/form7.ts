@@ -42,24 +42,24 @@ export interface Form7Data {
 
 const wrapNumbered = (doc: jsPDF, n: number, label: string, value: string, y: number, width: number): number => {
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
+  doc.setFontSize(12);
   doc.text(`${n}.`, MARGIN, y);
-  doc.text(label, MARGIN + 22, y);
+  doc.text(label, MARGIN + 18, y);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(14);
+  doc.setFontSize(11);
   const v = value && value.trim() ? value : "—";
-  const lineH = 18;
-  const lines = doc.splitTextToSize(v, width - 22);
-  doc.text(lines, MARGIN + 22, y + 18);
+  const lineH = 13;
+  const lines = doc.splitTextToSize(v, width - 18);
+  doc.text(lines, MARGIN + 18, y + 13);
   const totalLines = lines.length;
   for (let i = 0; i < totalLines; i++) {
-    const ly = y + 18 + i * lineH + 3;
+    const ly = y + 13 + i * lineH + 2;
     doc.setDrawColor(200);
     doc.setLineDashPattern([1, 2], 0);
-    doc.line(MARGIN + 22, ly, MARGIN + width, ly);
+    doc.line(MARGIN + 18, ly, MARGIN + width, ly);
   }
   doc.setLineDashPattern([], 0);
-  return y + 18 + totalLines * lineH + 10;
+  return y + 13 + totalLines * lineH + 6;
 };
 
 export function renderForm7(d: Form7Data): jsPDF {
@@ -67,30 +67,30 @@ export function renderForm7(d: Form7Data): jsPDF {
   drawWatermark(doc);
   drawHeader(doc, { subtitle: "Rent Regulation 13 · Rent Regulation, 1964 (LI 369)" });
 
-  let y = 96;
+  let y = 88;
 
-  // FORM 7 + heading (larger, prominent)
+  // FORM 7 + heading — compact to fit on one A4 page
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(24);
+  doc.setFontSize(18);
   doc.text("FORM 7", A4.W / 2, y, { align: "center" });
-  y += 26;
-  doc.setFontSize(16);
+  y += 18;
+  doc.setFontSize(12);
   const heading = doc.splitTextToSize(
     "COMPLAINT AGAINST CONDUCT OF LANDLORD / TENANT / PERSON INTERESTED IN PREMISES",
     A4.W - MARGIN * 2
   );
   doc.text(heading, A4.W / 2, y, { align: "center" });
-  y += heading.length * 18 + 10;
+  y += heading.length * 14 + 6;
 
   // Case ref / number row
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(14);
+  doc.setFontSize(11);
   doc.text(`Case Reference: ${d.case_reference || d.ticket_number || "—"}`, MARGIN, y);
   doc.text(`Case Number: ${d.case_number || "—"}`, A4.W - MARGIN, y, { align: "right" });
-  y += 10;
+  y += 8;
   doc.setDrawColor(20, 80, 50);
   doc.line(MARGIN, y, A4.W - MARGIN, y);
-  y += 22;
+  y += 14;
 
   // Fallback ingestion from old shape
   const complainantName = d.complainant_name
@@ -122,39 +122,39 @@ export function renderForm7(d: Form7Data): jsPDF {
     fieldWidth
   );
 
-  // 6. Complaint narrative as paragraph
+  // 6. Complaint narrative as paragraph — compact
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
+  doc.setFontSize(12);
   doc.text("6.", MARGIN, y);
-  doc.text("Complaint, claim, etc.", MARGIN + 22, y);
-  y += 20;
+  doc.text("Complaint, claim, etc.", MARGIN + 18, y);
+  y += 14;
   if (d.complaint_category) {
     doc.setFont("helvetica", "italic");
-    doc.setFontSize(12);
-    doc.text(`Category: ${d.complaint_category}`, MARGIN + 22, y);
-    y += 16;
+    doc.setFontSize(10);
+    doc.text(`Category: ${d.complaint_category}`, MARGIN + 18, y);
+    y += 12;
   }
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(14);
-  const narrLines = doc.splitTextToSize(narrative || "—", fieldWidth - 22);
+  doc.setFontSize(11);
+  const narrLines = doc.splitTextToSize(narrative || "—", fieldWidth - 18);
   for (const line of narrLines) {
-    if (y > A4.H - 180) {
+    if (y > A4.H - 170) {
       drawFooter(doc, d.footer_slogan);
       doc.addPage();
       drawWatermark(doc);
       drawHeader(doc, { subtitle: "Rent Regulation 13 · Rent Regulation, 1964 (LI 369)" });
       y = 110;
     }
-    doc.text(line, MARGIN + 22, y);
-    y += 18;
+    doc.text(line, MARGIN + 18, y);
+    y += 13;
   }
-  y += 12;
+  y += 8;
 
   // Rent office
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
+  doc.setFontSize(11);
   doc.text(`Rent Office: ${d.rent_office || "—"}`, MARGIN, y);
-  y += 22;
+  y += 16;
 
   if (y > A4.H - 160) {
     drawFooter(doc, d.footer_slogan);
