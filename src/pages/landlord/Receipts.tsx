@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import PaymentReceipt from "@/components/PaymentReceipt";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 
 const LandlordReceipts = () => {
   const { user } = useAuth();
