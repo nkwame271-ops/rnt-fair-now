@@ -242,6 +242,8 @@ const RegulatorReceipts = () => {
     return true;
   }), [rows, typeFilter, officeFilter, from, to, search]);
 
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
+
   const exportCSV = () => {
     const headers = ["Receipt", "Date", "Payer", "Type", "Amount (GHS)", "Office", "Ticket #", "Paystack Ref"];
     const csv = [headers, ...filtered.map(r => [
