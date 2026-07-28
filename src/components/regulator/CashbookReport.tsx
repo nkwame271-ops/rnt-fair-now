@@ -110,6 +110,8 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
   const offices = useMemo(() => Array.from(new Set(entries.map((e) => e.office || "unassigned"))), [entries]);
   const methods = useMemo(() => Array.from(new Set(entries.map((e) => e.method || "unspecified"))), [entries]);
 
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
+
   const exportCSV = () => {
     const rows = [
       ["Date", "Receipt No", "Payment Ref", "Description", "Category", "Payer", "Office", "Method", "Money In", "Money Out", "Running Balance", "Reconciliation"],
