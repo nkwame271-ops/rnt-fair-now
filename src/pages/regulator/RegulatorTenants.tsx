@@ -482,6 +482,7 @@ const RegulatorTenants = () => {
           );
         })}
       </div>
+      <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="tenants" />
     </div>
   );
 };
