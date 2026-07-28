@@ -342,7 +342,7 @@ const App = () => (
                 <Route path="termination" element={<LandlordTerminationRequest />} />
                 <Route path="rent-cards" element={<ManageRentCards />} />
                 <Route path="rent-card-view" element={<LandlordRentCardView />} />
-                <Route path="payment-settings" element={<LandlordPaymentSettings />} />
+                <Route path="payment-settings" element={<BlockAgentGuard><LandlordPaymentSettings /></BlockAgentGuard>} />
                 <Route path="receipts" element={<LandlordReceipts />} />
                 <Route path="invite-tenant" element={<InviteTenant />} />
                 <Route path="report-safety" element={<LandlordReportSafety />} />
