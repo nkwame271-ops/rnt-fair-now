@@ -113,7 +113,7 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
           property_address: c.property_id ? pm.get(c.property_id) : undefined,
           unit_name: c.unit_id ? um.get(c.unit_id) : undefined,
           landlord_name: landlordId ? nm.get(landlordId) : undefined,
-          tenant_name: (tenantId ? nm.get(tenantId) : undefined) || t?.tenant_full_name || undefined,
+          tenant_name: (tenantId ? nm.get(tenantId) : undefined) || t?.placeholder_tenant_name || undefined,
         };
       });
 
