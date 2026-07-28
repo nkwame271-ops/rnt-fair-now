@@ -348,7 +348,7 @@ const App = () => (
                 <Route path="report-safety" element={<LandlordReportSafety />} />
                 <Route path="my-safety-reports" element={<MySafetyReports />} />
                 <Route path="report-missing-payment" element={<ReportMissingPayment />} />
-                <Route path="profile" element={<ProfilePage />} />
+                <Route path="profile" element={<BlockAgentGuard><ProfilePage /></BlockAgentGuard>} />
                 <Route path="feedback" element={<LandlordFeedback />} />
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
                 <Route path="management-support" element={<Navigate to="/landlord/premium" replace />} />
