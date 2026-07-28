@@ -334,7 +334,7 @@ const RegulatorReceipts = () => {
       <div className="space-y-2">
         {filtered.length === 0 ? (
           <div className="bg-card rounded-xl p-12 text-center text-muted-foreground border border-border">No receipts found</div>
-        ) : filtered.map(r => {
+        ) : paged.map(r => {
           const expanded = expandedId === r.id;
           return (
             <div key={r.id} className="bg-card rounded-xl border border-border overflow-hidden">
