@@ -130,6 +130,71 @@ const AgentRegister = () => {
     }
   };
 
+  const [feeAmount, setFeeAmount] = useState<number>(100);
+  const [feeEnabled, setFeeEnabled] = useState<boolean>(true);
+
+  useEffect(() => {
+    supabase
+      .from("feature_flags")
+      .select("fee_amount, fee_enabled")
+      .eq("feature_key", "agent_application_fee")
+      .maybeSingle()
+      .then(({ data }: any) => {
+        if (data) {
+          setFeeAmount(Number(data.fee_amount ?? 100));
+          setFeeEnabled(data.fee_enabled ?? true);
+        }
+      });
+  }, []);
+
+  const startPayment = async (applicationId: string) => {
+    const { data, error } = await supabase.functions.invoke("agent-apply-checkout", {
+      body: { application_id: applicationId },
+    });
+    if (error) throw error;
+    if ((data as any)?.error) throw new Error((data as any).error);
+    if ((data as any)?.waived) {
+      toast.success("Application submitted for review.");
+      setSubmitted(true);
+      return;
+    }
+    startBrandedCheckout({
+      ...(data as any),
+      callbackPath: `/agent/register?verify=${(data as any).reference}`,
+      confirmationPath: `/agent/register?verify=${(data as any).reference}`,
+    } as any);
+  };
+
+  // If we return from checkout with ?verify=REF, confirm the payment.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("verify");
+    if (!ref) return;
+    (async () => {
+      const { data } = await supabase.functions.invoke("agent-apply-verify", {
+        body: { reference: ref },
+      });
+      if ((data as any)?.verified) {
+        toast.success("Payment received. Your application is under review.");
+        setSubmitted(true);
+        // Clean the URL
+        window.history.replaceState({}, "", "/agent/register");
+        // Refresh existing status
+        if (user) {
+          (supabase as any)
+            .from("agent_applications")
+            .select("*")
+            .eq("applicant_user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+            .then(({ data }: any) => data && setExisting(data));
+        }
+      }
+    })();
+     
+  }, [user?.id]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = schema.safeParse(form);
@@ -165,9 +230,22 @@ const AgentRegister = () => {
         professional_photo_url: photoUrl,
         supporting_documents: supportingDocs,
         applicant_user_id: applicantUserId,
+        status: feeEnabled && feeAmount > 0 ? "awaiting_payment" : "pending",
+        payment_status: feeEnabled && feeAmount > 0 ? "pending" : "not_required",
       };
-      const { error } = await (supabase as any).from("agent_applications").insert(payload);
+      const { data: inserted, error } = await (supabase as any)
+        .from("agent_applications")
+        .insert(payload)
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+
+      if (feeEnabled && feeAmount > 0) {
+        await startPayment(inserted.id);
+      } else {
+        setSubmitted(true);
+        toast.success("Application submitted. Admin will review and get back to you.");
+      }
 
       // Best-effort notify admins
       supabase.functions.invoke("send-notification", {
@@ -177,15 +255,13 @@ const AgentRegister = () => {
           data: { full_name: parsed.data.full_name, phone: parsed.data.phone, email: parsed.data.email },
         },
       }).catch(() => {});
-
-      setSubmitted(true);
-      toast.success("Application submitted. Admin will review and get back to you.");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit application");
     } finally {
       setSubmitting(false);
     }
   };
+
 
   if (existing && !submitted) {
     return (
