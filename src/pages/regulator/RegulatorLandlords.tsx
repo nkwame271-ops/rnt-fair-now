@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { generateProfilePdf } from "@/lib/generateProfilePdf";
 import { toast } from "sonner";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 
 interface LandlordFull {
   landlord_id: string;
