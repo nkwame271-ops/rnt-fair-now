@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Camera, ShieldCheck, Upload, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { Camera, ShieldCheck, Upload, ArrowLeft, Loader2, CheckCircle2, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/select";
 import Seo from "@/components/Seo";
 import { GHANA_REGIONS } from "@/hooks/useAdminProfile";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
+import { formatGHS } from "@/lib/formatters";
 
 const ID_TYPES = [
   { value: "ghana_card", label: "Ghana Card" },
@@ -128,6 +130,71 @@ const AgentRegister = () => {
     }
   };
 
+  const [feeAmount, setFeeAmount] = useState<number>(100);
+  const [feeEnabled, setFeeEnabled] = useState<boolean>(true);
+
+  useEffect(() => {
+    supabase
+      .from("feature_flags")
+      .select("fee_amount, fee_enabled")
+      .eq("feature_key", "agent_application_fee")
+      .maybeSingle()
+      .then(({ data }: any) => {
+        if (data) {
+          setFeeAmount(Number(data.fee_amount ?? 100));
+          setFeeEnabled(data.fee_enabled ?? true);
+        }
+      });
+  }, []);
+
+  const startPayment = async (applicationId: string) => {
+    const { data, error } = await supabase.functions.invoke("agent-apply-checkout", {
+      body: { application_id: applicationId },
+    });
+    if (error) throw error;
+    if ((data as any)?.error) throw new Error((data as any).error);
+    if ((data as any)?.waived) {
+      toast.success("Application submitted for review.");
+      setSubmitted(true);
+      return;
+    }
+    startBrandedCheckout({
+      ...(data as any),
+      callbackPath: `/agent/register?verify=${(data as any).reference}`,
+      confirmationPath: `/agent/register?verify=${(data as any).reference}`,
+    } as any);
+  };
+
+  // If we return from checkout with ?verify=REF, confirm the payment.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("verify");
+    if (!ref) return;
+    (async () => {
+      const { data } = await supabase.functions.invoke("agent-apply-verify", {
+        body: { reference: ref },
+      });
+      if ((data as any)?.verified) {
+        toast.success("Payment received. Your application is under review.");
+        setSubmitted(true);
+        // Clean the URL
+        window.history.replaceState({}, "", "/agent/register");
+        // Refresh existing status
+        if (user) {
+          (supabase as any)
+            .from("agent_applications")
+            .select("*")
+            .eq("applicant_user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+            .then(({ data }: any) => data && setExisting(data));
+        }
+      }
+    })();
+     
+  }, [user?.id]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = schema.safeParse(form);
@@ -163,9 +230,22 @@ const AgentRegister = () => {
         professional_photo_url: photoUrl,
         supporting_documents: supportingDocs,
         applicant_user_id: applicantUserId,
+        status: feeEnabled && feeAmount > 0 ? "awaiting_payment" : "pending",
+        payment_status: feeEnabled && feeAmount > 0 ? "pending" : "not_required",
       };
-      const { error } = await (supabase as any).from("agent_applications").insert(payload);
+      const { data: inserted, error } = await (supabase as any)
+        .from("agent_applications")
+        .insert(payload)
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+
+      if (feeEnabled && feeAmount > 0) {
+        await startPayment(inserted.id);
+      } else {
+        setSubmitted(true);
+        toast.success("Application submitted. Admin will review and get back to you.");
+      }
 
       // Best-effort notify admins
       supabase.functions.invoke("send-notification", {
@@ -175,15 +255,13 @@ const AgentRegister = () => {
           data: { full_name: parsed.data.full_name, phone: parsed.data.phone, email: parsed.data.email },
         },
       }).catch(() => {});
-
-      setSubmitted(true);
-      toast.success("Application submitted. Admin will review and get back to you.");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit application");
     } finally {
       setSubmitting(false);
     }
   };
+
 
   if (existing && !submitted) {
     return (
@@ -193,15 +271,23 @@ const AgentRegister = () => {
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
             <ShieldCheck className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold">Application {existing.status}</h1>
+          <h1 className="text-2xl font-bold">Application {existing.status.replace("_", " ")}</h1>
           <p className="text-muted-foreground text-sm">
             You submitted an application on {new Date(existing.created_at).toLocaleDateString()}.
+            {existing.status === "awaiting_payment" && " Complete payment to send your application for review."}
             {existing.status === "pending" && " Our team is reviewing your details."}
             {existing.status === "approved" && " You now have access to the Agent Portal."}
             {existing.status === "rejected" && (existing.reviewer_notes ? ` Reason: ${existing.reviewer_notes}` : "")}
           </p>
           {existing.status === "approved" ? (
             <Button className="w-full" onClick={() => navigate("/agent/dashboard")}>Go to Agent Portal</Button>
+          ) : existing.status === "awaiting_payment" ? (
+            <Button className="w-full" onClick={async () => {
+              try { await startPayment(existing.id); }
+              catch (e: any) { toast.error(e.message || "Could not start payment"); }
+            }}>
+              <CreditCard className="h-4 w-4 mr-2" /> Pay {formatGHS(feeAmount)} to submit
+            </Button>
           ) : (
             <Button variant="outline" className="w-full" onClick={() => navigate("/")}>Return home</Button>
           )}
@@ -368,8 +454,14 @@ const AgentRegister = () => {
             </p>
           )}
 
+          {feeEnabled && feeAmount > 0 && (
+            <div className="rounded-lg bg-muted/40 border border-border p-3 text-sm">
+              A non-refundable application fee of <strong>{formatGHS(feeAmount)}</strong> is required.
+              You'll be taken to secure checkout after clicking below.
+            </div>
+          )}
           <Button type="submit" disabled={submitting} className="w-full h-12 text-base font-semibold">
-            {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : "Submit Application"}
+            {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : (feeEnabled && feeAmount > 0 ? <><CreditCard className="h-4 w-4 mr-2" /> Continue to payment · {formatGHS(feeAmount)}</> : "Submit Application")}
           </Button>
           <p className="text-xs text-center text-muted-foreground">
             By submitting you agree that Rent Control may verify your identity and contact your emergency contact if needed.

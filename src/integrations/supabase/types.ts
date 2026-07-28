@@ -192,6 +192,9 @@ export type Database = {
           id_number: string
           id_type: string
           operating_area: string | null
+          payment_amount: number | null
+          payment_reference: string | null
+          payment_status: string
           phone: string
           professional_photo_url: string | null
           region: string
@@ -216,6 +219,9 @@ export type Database = {
           id_number: string
           id_type: string
           operating_area?: string | null
+          payment_amount?: number | null
+          payment_reference?: string | null
+          payment_status?: string
           phone: string
           professional_photo_url?: string | null
           region: string
@@ -240,6 +246,9 @@ export type Database = {
           id_number?: string
           id_type?: string
           operating_area?: string | null
+          payment_amount?: number | null
+          payment_reference?: string | null
+          payment_status?: string
           phone?: string
           professional_photo_url?: string | null
           region?: string
