@@ -288,7 +288,7 @@ const RegulatorTenants = () => {
       <div className="space-y-2">
         {filtered.length === 0 ? (
           <div className="bg-card rounded-xl p-12 text-center text-muted-foreground border border-border">No tenants found</div>
-        ) : filtered.map((t) => {
+        ) : paged.map((t) => {
           const isExpanded = expandedId === t.tenant_id;
           const activeTenancies = t.tenancies?.filter(tc => tc.status === "active") || [];
           const profile = t.profile;
