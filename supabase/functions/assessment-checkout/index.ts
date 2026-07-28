@@ -29,15 +29,19 @@ Deno.serve(async (req) => {
     }
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "unauthorized" }, 200);
+    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Please sign in to continue." }, 200);
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user } } = await userClient.auth.getUser();
-    if (!user) return json({ error: "unauthorized" }, 200);
-
     const supabaseAdmin = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const anonClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!);
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    let userId: string | null = null; let userEmail: string | null = null;
+    try {
+      const { data } = await (anonClient.auth as any).getClaims(token);
+      userId = data?.claims?.sub ?? null;
+      userEmail = data?.claims?.email ?? null;
+    } catch (_) {}
+    if (!userId) return json({ error: "Your session has expired. Please sign in again." }, 200);
+    const user = { id: userId, email: userEmail } as { id: string; email: string | null };
 
     // Fee from Engine Room feature_flags
     const { data: flag } = await supabaseAdmin
@@ -73,7 +77,11 @@ Deno.serve(async (req) => {
       return json({ no_payment: true, reference });
     }
 
-    const email = user.email;
+    let email = user.email;
+    if (!email) {
+      const { data: prof } = await supabaseAdmin.from("profiles").select("email").eq("id", user.id).maybeSingle();
+      email = (prof as any)?.email ?? null;
+    }
     if (!email) return json({ error: "Your account needs an email address to check out." }, 200);
 
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");

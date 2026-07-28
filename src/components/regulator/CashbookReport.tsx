@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Download, Printer, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
+import { useAdminScope } from "@/hooks/useAdminScope";
 
 type Entry = {
   id: string;
@@ -45,6 +46,7 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
   const [method, setMethod] = useState<string>("all");
   const [recStatus, setRecStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const { scopeOfficeId, isUnscoped, officeName, loading: scopeLoading } = useAdminScope();
 
   const load = async () => {
     setLoading(true);
@@ -56,6 +58,11 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
         q = q.gte("entry_date", from);
       }
       if (categoryFilter) q = q.eq("category", categoryFilter);
+      // Application-layer scoping: non-super/main admins only see their office's entries.
+      // The `office` column on cashbook_entries stores the office name.
+      if (!isUnscoped && officeName) {
+        q = q.eq("office", officeName);
+      }
       const { data, error } = await q.limit(1000);
       if (error) throw error;
       setEntries((data as Entry[]) || []);
@@ -67,9 +74,10 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
   };
 
   useEffect(() => {
+    if (scopeLoading) return;
     load();
      
-  }, [range, categoryFilter]);
+  }, [range, categoryFilter, scopeLoading, isUnscoped, officeName]);
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
