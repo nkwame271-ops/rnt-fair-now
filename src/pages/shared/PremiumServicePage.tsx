@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Crown, Loader2, ShieldCheck, UserCog, Phone, Mail, MessageSquare } from "lucide-react";
+import { Crown, Loader2, ShieldCheck, UserCog, Phone, Mail, MessageSquare, BadgeCheck, CalendarClock, Building2, HeartHandshake, UserX, RefreshCw } from "lucide-react";
 import Seo from "@/components/Seo";
 import { formatGHS } from "@/lib/formatters";
 import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
