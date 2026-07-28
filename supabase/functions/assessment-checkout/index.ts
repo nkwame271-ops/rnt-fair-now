@@ -77,7 +77,11 @@ Deno.serve(async (req) => {
       return json({ no_payment: true, reference });
     }
 
-    const email = user.email;
+    let email = user.email;
+    if (!email) {
+      const { data: prof } = await supabaseAdmin.from("profiles").select("email").eq("id", user.id).maybeSingle();
+      email = (prof as any)?.email ?? null;
+    }
     if (!email) return json({ error: "Your account needs an email address to check out." }, 200);
 
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
