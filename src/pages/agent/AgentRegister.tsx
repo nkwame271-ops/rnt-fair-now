@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Camera, ShieldCheck, Upload, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { Camera, ShieldCheck, Upload, ArrowLeft, Loader2, CheckCircle2, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/select";
 import Seo from "@/components/Seo";
 import { GHANA_REGIONS } from "@/hooks/useAdminProfile";
+import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
+import { formatGHS } from "@/lib/formatters";
 
 const ID_TYPES = [
   { value: "ghana_card", label: "Ghana Card" },
