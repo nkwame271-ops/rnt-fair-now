@@ -28,21 +28,29 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const supabaseAdmin = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // Try to identify the caller for their own top-up.
+    // Try to identify the caller for their own top-up. Use getClaims() —
+    // getUser() can silently fail under the signing-keys system.
     let callerId: string | null = null;
     let callerEmail: string | null = null;
     const authHeader = req.headers.get("Authorization");
     if (authHeader?.startsWith("Bearer ")) {
-      const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
-        global: { headers: { Authorization: authHeader } },
-      });
-      const { data: { user } } = await userClient.auth.getUser();
-      callerId = user?.id ?? null;
-      callerEmail = user?.email ?? null;
+      const token = authHeader.replace(/^Bearer\s+/i, "");
+      const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!);
+      try {
+        const { data } = await (userClient.auth as any).getClaims(token);
+        callerId = data?.claims?.sub ?? null;
+        callerEmail = data?.claims?.email ?? null;
+      } catch (_) { /* ignore */ }
+      // Fallback: fetch profile if email not in claims
+      if (callerId && !callerEmail) {
+        const { data: prof } = await supabaseAdmin
+          .from("profiles").select("email").eq("id", callerId).maybeSingle();
+        callerEmail = (prof as any)?.email ?? null;
+      }
     }
 
     const recipientId = recipient_user_id || callerId;
-    if (!recipientId) return json({ error: "recipient_user_id required for anonymous top-ups" }, 200);
+    if (!recipientId) return json({ error: "You must be signed in to add money to your wallet." }, 200);
 
     const email = payer_email || callerEmail;
     if (!email) return json({ error: "payer_email is required" }, 200);
