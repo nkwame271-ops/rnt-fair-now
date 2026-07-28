@@ -403,6 +403,7 @@ const RegulatorLandlords = () => {
           );
         })}
       </div>
+      <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="landlords" />
     </div>
   );
 };
