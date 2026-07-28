@@ -973,6 +973,9 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     return groups;
   }, [pendingCards]);
 
+  const purchaseEntries = useMemo(() => Array.from(cardsByPurchase.entries()), [cardsByPurchase]);
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(purchaseEntries, 100);
+
   const allSelected = pendingCards.length > 0 && selectedCardIds.size === pendingCards.length;
 
   return (
