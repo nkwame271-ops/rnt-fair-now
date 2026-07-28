@@ -208,6 +208,8 @@ const RegulatorTenants = () => {
     );
   });
 
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
+
   const studentCount = tenants.filter(t => t.is_student).length;
 
   const exportCSV = () => {
