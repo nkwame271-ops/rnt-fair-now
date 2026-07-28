@@ -1026,7 +1026,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           </div>
         )}
 
-        {Array.from(cardsByPurchase.entries()).map(([purchaseId, cards]) => (
+        {paged.map(([purchaseId, cards]) => (
           <div key={purchaseId} className="border border-border rounded-lg overflow-hidden">
             <div className="bg-muted/40 px-4 py-2 flex items-center justify-between">
               <div>
