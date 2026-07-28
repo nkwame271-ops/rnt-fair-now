@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import PaymentReceipt from "@/components/PaymentReceipt";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 
 const LandlordReceipts = () => {
   const { user } = useAuth();
@@ -122,6 +123,8 @@ const LandlordReceipts = () => {
   }, [user]);
 
 
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(receipts, 100);
+
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
@@ -139,7 +142,7 @@ const LandlordReceipts = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {receipts.map((r) => (
+          {paged.map((r) => (
             <PaymentReceipt
               key={r.id}
               receiptNumber={r.receipt_number}
@@ -154,6 +157,7 @@ const LandlordReceipts = () => {
               showSplits={false}
             />
           ))}
+          <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="receipts" />
         </div>
       )}
     </div>

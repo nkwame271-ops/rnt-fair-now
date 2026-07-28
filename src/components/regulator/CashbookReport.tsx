@@ -11,6 +11,7 @@ import { Download, Printer, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { useAdminScope } from "@/hooks/useAdminScope";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 
 type Entry = {
   id: string;
@@ -108,6 +109,8 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
 
   const offices = useMemo(() => Array.from(new Set(entries.map((e) => e.office || "unassigned"))), [entries]);
   const methods = useMemo(() => Array.from(new Set(entries.map((e) => e.method || "unspecified"))), [entries]);
+
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
 
   const exportCSV = () => {
     const rows = [
@@ -246,7 +249,7 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
                 ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">No entries in range.</TableCell></TableRow>
                 ) : (
-                  filtered.map((e) => (
+                  paged.map((e) => (
                     <TableRow key={e.id}>
                       <TableCell className="whitespace-nowrap">{format(new Date(e.entry_date), "dd MMM yyyy HH:mm")}</TableCell>
                       <TableCell className="font-mono text-xs">{e.receipt_no || "-"}</TableCell>
@@ -268,6 +271,7 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
                 )}
               </TableBody>
             </Table>
+            <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="entries" />
           </div>
         </CardContent>
       </Card>

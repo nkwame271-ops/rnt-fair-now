@@ -9,6 +9,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LogoLoader from "@/components/LogoLoader";
 import BrandedCheckoutHost from "@/components/payments/BrandedCheckoutHost";
+import BlockAgentGuard from "@/components/BlockAgentGuard";
 
 // Layouts loaded eagerly (used on every authenticated page)
 import TenantLayout from "./components/TenantLayout";
@@ -341,13 +342,13 @@ const App = () => (
                 <Route path="termination" element={<LandlordTerminationRequest />} />
                 <Route path="rent-cards" element={<ManageRentCards />} />
                 <Route path="rent-card-view" element={<LandlordRentCardView />} />
-                <Route path="payment-settings" element={<LandlordPaymentSettings />} />
+                <Route path="payment-settings" element={<BlockAgentGuard><LandlordPaymentSettings /></BlockAgentGuard>} />
                 <Route path="receipts" element={<LandlordReceipts />} />
                 <Route path="invite-tenant" element={<InviteTenant />} />
                 <Route path="report-safety" element={<LandlordReportSafety />} />
                 <Route path="my-safety-reports" element={<MySafetyReports />} />
                 <Route path="report-missing-payment" element={<ReportMissingPayment />} />
-                <Route path="profile" element={<ProfilePage />} />
+                <Route path="profile" element={<BlockAgentGuard><ProfilePage /></BlockAgentGuard>} />
                 <Route path="feedback" element={<LandlordFeedback />} />
                 <Route path="rent-increase-request" element={<RentIncreaseRequest />} />
                 <Route path="management-support" element={<Navigate to="/landlord/premium" replace />} />

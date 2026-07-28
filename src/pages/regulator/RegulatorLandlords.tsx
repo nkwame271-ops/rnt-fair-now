@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { generateProfilePdf } from "@/lib/generateProfilePdf";
 import { toast } from "sonner";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 
 interface LandlordFull {
   landlord_id: string;
@@ -222,6 +223,8 @@ const RegulatorLandlords = () => {
     return l.landlord_id.toLowerCase().includes(s) || l.profile?.full_name?.toLowerCase().includes(s) || l.profile?.phone?.includes(s);
   });
 
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
+
   const exportCSV = () => {
     const headers = ["Landlord ID", "Name", "Phone", "Email", "Nationality", "Properties", "Active Tenants", "Status", "Account Status", "Registered", "Expires"];
     const rows = filtered.map((l) => [
@@ -264,7 +267,7 @@ const RegulatorLandlords = () => {
       <div className="space-y-2">
         {filtered.length === 0 ? (
           <div className="bg-card rounded-xl p-12 text-center text-muted-foreground border border-border">No landlords found</div>
-        ) : filtered.map((l) => {
+        ) : paged.map((l) => {
           const isExpanded = expandedId === l.landlord_id;
           const activeTenancies = l.tenancies?.filter(t => t.status === "active") || [];
           const totalUnits = l.properties?.reduce((sum, p) => sum + (p.units?.length || 0), 0) || 0;
@@ -400,6 +403,7 @@ const RegulatorLandlords = () => {
           );
         })}
       </div>
+      <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="landlords" />
     </div>
   );
 };

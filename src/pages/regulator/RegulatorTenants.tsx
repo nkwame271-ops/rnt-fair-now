@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateProfilePdf } from "@/lib/generateProfilePdf";
 import { toast } from "sonner";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 
 interface TenantFull {
   tenant_id: string;
@@ -207,6 +208,8 @@ const RegulatorTenants = () => {
     );
   });
 
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
+
   const studentCount = tenants.filter(t => t.is_student).length;
 
   const exportCSV = () => {
@@ -285,7 +288,7 @@ const RegulatorTenants = () => {
       <div className="space-y-2">
         {filtered.length === 0 ? (
           <div className="bg-card rounded-xl p-12 text-center text-muted-foreground border border-border">No tenants found</div>
-        ) : filtered.map((t) => {
+        ) : paged.map((t) => {
           const isExpanded = expandedId === t.tenant_id;
           const activeTenancies = t.tenancies?.filter(tc => tc.status === "active") || [];
           const profile = t.profile;
@@ -479,6 +482,7 @@ const RegulatorTenants = () => {
           );
         })}
       </div>
+      <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="tenants" />
     </div>
   );
 };

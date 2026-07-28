@@ -11,6 +11,7 @@ import { useAdminScope } from "@/hooks/useAdminScope";
 import { useAuth } from "@/hooks/useAuth";
 import { formatGHSDecimal } from "@/lib/formatters";
 import { toast } from "sonner";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 import jsPDF from "jspdf";
 import QRCode from "qrcode";
 
@@ -241,6 +242,8 @@ const RegulatorReceipts = () => {
     return true;
   }), [rows, typeFilter, officeFilter, from, to, search]);
 
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
+
   const exportCSV = () => {
     const headers = ["Receipt", "Date", "Payer", "Type", "Amount (GHS)", "Office", "Ticket #", "Paystack Ref"];
     const csv = [headers, ...filtered.map(r => [
@@ -331,7 +334,7 @@ const RegulatorReceipts = () => {
       <div className="space-y-2">
         {filtered.length === 0 ? (
           <div className="bg-card rounded-xl p-12 text-center text-muted-foreground border border-border">No receipts found</div>
-        ) : filtered.map(r => {
+        ) : paged.map(r => {
           const expanded = expandedId === r.id;
           return (
             <div key={r.id} className="bg-card rounded-xl border border-border overflow-hidden">
@@ -425,6 +428,7 @@ const RegulatorReceipts = () => {
           );
         })}
       </div>
+      <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="receipts" />
     </div>
   );
 };
