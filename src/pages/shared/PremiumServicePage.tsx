@@ -108,6 +108,7 @@ const PremiumServicePage = ({ variant }: Props) => {
   };
 
   const cancel = async (id: string) => {
+    if (!confirm("Cancel this Premium Service subscription? Your assigned agent will be unassigned.")) return;
     const { error } = await supabase
       .from("premium_subscriptions")
       .update({ status: "cancelled" })
@@ -116,6 +117,57 @@ const PremiumServicePage = ({ variant }: Props) => {
     toast.success("Subscription cancelled");
     load();
   };
+
+  const requestService = async (sub: any) => {
+    if (!sub.assigned_agent_user_id) { toast.error("No agent assigned yet"); return; }
+    const note = window.prompt("Describe the service you need from your agent:");
+    if (!note || !note.trim()) return;
+    const { error } = await (supabase as any).from("notifications").insert([
+      { user_id: sub.assigned_agent_user_id, title: "New service request from Premium client", message: note.trim(), type: "premium_service_request" },
+    ]);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Request sent to your agent");
+  };
+
+  const revokeAgent = async (sub: any) => {
+    if (!sub.assigned_agent_user_id) return;
+    if (!confirm("Revoke this agent's access to your account? You can request a new agent afterwards.")) return;
+    const prevAgent = sub.assigned_agent_user_id;
+    const { error } = await supabase
+      .from("premium_subscriptions")
+      .update({ assigned_agent_user_id: null })
+      .eq("id", sub.id);
+    if (error) { toast.error(error.message); return; }
+    try {
+      await (supabase as any).from("agent_assignments")
+        .update({ active: false })
+        .eq("agent_user_id", prevAgent)
+        .eq("owner_user_id", user!.id);
+      await (supabase as any).from("notifications").insert({
+        user_id: prevAgent, title: "Premium client access revoked",
+        message: "A Premium client has revoked your access to their account.",
+        type: "agent_revoked",
+      });
+    } catch { /* non-fatal */ }
+    toast.success("Agent access revoked");
+    load();
+  };
+
+  const requestChange = async (sub: any) => {
+    const reason = window.prompt("Why do you want to change your assigned agent? (This is sent to Rent Control admin)");
+    if (!reason || !reason.trim()) return;
+    try {
+      await (supabase as any).from("notifications").insert({
+        user_id: user!.id, title: "Agent change request submitted",
+        message: `Your request to change agent has been received. Reason: ${reason.trim()}`,
+        type: "premium_agent_change_request",
+      });
+      toast.success("Change request submitted — admin will follow up");
+    } catch (e: any) {
+      toast.error(e.message || "Could not submit request");
+    }
+  };
+
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
