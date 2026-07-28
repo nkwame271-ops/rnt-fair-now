@@ -142,7 +142,7 @@ const LandlordReceipts = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {receipts.map((r) => (
+          {paged.map((r) => (
             <PaymentReceipt
               key={r.id}
               receiptNumber={r.receipt_number}
@@ -157,6 +157,7 @@ const LandlordReceipts = () => {
               showSplits={false}
             />
           ))}
+          <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="receipts" />
         </div>
       )}
     </div>
