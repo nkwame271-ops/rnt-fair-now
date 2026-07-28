@@ -11,6 +11,7 @@ import { useAdminScope } from "@/hooks/useAdminScope";
 import { useAuth } from "@/hooks/useAuth";
 import { formatGHSDecimal } from "@/lib/formatters";
 import { toast } from "sonner";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 import jsPDF from "jspdf";
 import QRCode from "qrcode";
 
