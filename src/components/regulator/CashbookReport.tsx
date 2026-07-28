@@ -11,6 +11,7 @@ import { Download, Printer, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { useAdminScope } from "@/hooks/useAdminScope";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 
 type Entry = {
   id: string;
