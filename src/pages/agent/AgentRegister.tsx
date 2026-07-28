@@ -271,15 +271,23 @@ const AgentRegister = () => {
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
             <ShieldCheck className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold">Application {existing.status}</h1>
+          <h1 className="text-2xl font-bold">Application {existing.status.replace("_", " ")}</h1>
           <p className="text-muted-foreground text-sm">
             You submitted an application on {new Date(existing.created_at).toLocaleDateString()}.
+            {existing.status === "awaiting_payment" && " Complete payment to send your application for review."}
             {existing.status === "pending" && " Our team is reviewing your details."}
             {existing.status === "approved" && " You now have access to the Agent Portal."}
             {existing.status === "rejected" && (existing.reviewer_notes ? ` Reason: ${existing.reviewer_notes}` : "")}
           </p>
           {existing.status === "approved" ? (
             <Button className="w-full" onClick={() => navigate("/agent/dashboard")}>Go to Agent Portal</Button>
+          ) : existing.status === "awaiting_payment" ? (
+            <Button className="w-full" onClick={async () => {
+              try { await startPayment(existing.id); }
+              catch (e: any) { toast.error(e.message || "Could not start payment"); }
+            }}>
+              <CreditCard className="h-4 w-4 mr-2" /> Pay {formatGHS(feeAmount)} to submit
+            </Button>
           ) : (
             <Button variant="outline" className="w-full" onClick={() => navigate("/")}>Return home</Button>
           )}
