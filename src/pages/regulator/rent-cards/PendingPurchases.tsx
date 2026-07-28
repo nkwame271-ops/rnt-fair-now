@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { AdminProfile, GHANA_OFFICES, getRegionForOffice } from "@/hooks/useAdminProfile";
 import { useAuth } from "@/hooks/useAuth";
 import AdminPasswordConfirm from "@/components/AdminPasswordConfirm";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 import {
   Dialog,
   DialogContent,
@@ -972,6 +973,9 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
     return groups;
   }, [pendingCards]);
 
+  const purchaseEntries = useMemo(() => Array.from(cardsByPurchase.entries()), [cardsByPurchase]);
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(purchaseEntries, 100);
+
   const allSelected = pendingCards.length > 0 && selectedCardIds.size === pendingCards.length;
 
   return (
@@ -1022,7 +1026,7 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           </div>
         )}
 
-        {Array.from(cardsByPurchase.entries()).map(([purchaseId, cards]) => (
+        {paged.map(([purchaseId, cards]) => (
           <div key={purchaseId} className="border border-border rounded-lg overflow-hidden">
             <div className="bg-muted/40 px-4 py-2 flex items-center justify-between">
               <div>
@@ -1055,6 +1059,10 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
             </div>
           </div>
         ))}
+
+        {purchaseEntries.length > 0 && (
+          <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="purchases" />
+        )}
 
         {Object.entries(assignedSerials).map(([purchaseId, serials]) => {
           const sorted = [...serials].sort();
