@@ -454,8 +454,14 @@ const AgentRegister = () => {
             </p>
           )}
 
+          {feeEnabled && feeAmount > 0 && (
+            <div className="rounded-lg bg-muted/40 border border-border p-3 text-sm">
+              A non-refundable application fee of <strong>{formatGHS(feeAmount)}</strong> is required.
+              You'll be taken to secure checkout after clicking below.
+            </div>
+          )}
           <Button type="submit" disabled={submitting} className="w-full h-12 text-base font-semibold">
-            {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : "Submit Application"}
+            {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : (feeEnabled && feeAmount > 0 ? <><CreditCard className="h-4 w-4 mr-2" /> Continue to payment · {formatGHS(feeAmount)}</> : "Submit Application")}
           </Button>
           <p className="text-xs text-center text-muted-foreground">
             By submitting you agree that Rent Control may verify your identity and contact your emergency contact if needed.
