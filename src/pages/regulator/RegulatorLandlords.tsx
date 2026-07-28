@@ -267,7 +267,7 @@ const RegulatorLandlords = () => {
       <div className="space-y-2">
         {filtered.length === 0 ? (
           <div className="bg-card rounded-xl p-12 text-center text-muted-foreground border border-border">No landlords found</div>
-        ) : filtered.map((l) => {
+        ) : paged.map((l) => {
           const isExpanded = expandedId === l.landlord_id;
           const activeTenancies = l.tenancies?.filter(t => t.status === "active") || [];
           const totalUnits = l.properties?.reduce((sum, p) => sum + (p.units?.length || 0), 0) || 0;
