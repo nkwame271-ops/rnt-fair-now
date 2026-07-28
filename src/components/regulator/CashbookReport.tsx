@@ -249,7 +249,7 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
                 ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">No entries in range.</TableCell></TableRow>
                 ) : (
-                  filtered.map((e) => (
+                  paged.map((e) => (
                     <TableRow key={e.id}>
                       <TableCell className="whitespace-nowrap">{format(new Date(e.entry_date), "dd MMM yyyy HH:mm")}</TableCell>
                       <TableCell className="font-mono text-xs">{e.receipt_no || "-"}</TableCell>
