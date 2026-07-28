@@ -1060,6 +1060,10 @@ const PendingPurchases = ({ profile, onStockChanged }: Props) => {
           </div>
         ))}
 
+        {purchaseEntries.length > 0 && (
+          <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="purchases" />
+        )}
+
         {Object.entries(assignedSerials).map(([purchaseId, serials]) => {
           const sorted = [...serials].sort();
           const rangeLabel = sorted.length > 1
