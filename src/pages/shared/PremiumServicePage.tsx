@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Crown, Loader2, ShieldCheck, UserCog, Phone, Mail, MessageSquare } from "lucide-react";
+import { Crown, Loader2, ShieldCheck, UserCog, Phone, Mail, MessageSquare, BadgeCheck, CalendarClock, Building2, HeartHandshake, UserX, RefreshCw } from "lucide-react";
 import Seo from "@/components/Seo";
 import { formatGHS } from "@/lib/formatters";
 import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
@@ -108,6 +108,7 @@ const PremiumServicePage = ({ variant }: Props) => {
   };
 
   const cancel = async (id: string) => {
+    if (!confirm("Cancel this Premium Service subscription? Your assigned agent will be unassigned.")) return;
     const { error } = await supabase
       .from("premium_subscriptions")
       .update({ status: "cancelled" })
@@ -116,6 +117,57 @@ const PremiumServicePage = ({ variant }: Props) => {
     toast.success("Subscription cancelled");
     load();
   };
+
+  const requestService = async (sub: any) => {
+    if (!sub.assigned_agent_user_id) { toast.error("No agent assigned yet"); return; }
+    const note = window.prompt("Describe the service you need from your agent:");
+    if (!note || !note.trim()) return;
+    const { error } = await (supabase as any).from("notifications").insert([
+      { user_id: sub.assigned_agent_user_id, title: "New service request from Premium client", message: note.trim(), type: "premium_service_request" },
+    ]);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Request sent to your agent");
+  };
+
+  const revokeAgent = async (sub: any) => {
+    if (!sub.assigned_agent_user_id) return;
+    if (!confirm("Revoke this agent's access to your account? You can request a new agent afterwards.")) return;
+    const prevAgent = sub.assigned_agent_user_id;
+    const { error } = await supabase
+      .from("premium_subscriptions")
+      .update({ assigned_agent_user_id: null })
+      .eq("id", sub.id);
+    if (error) { toast.error(error.message); return; }
+    try {
+      await (supabase as any).from("agent_assignments")
+        .update({ active: false })
+        .eq("agent_user_id", prevAgent)
+        .eq("owner_user_id", user!.id);
+      await (supabase as any).from("notifications").insert({
+        user_id: prevAgent, title: "Premium client access revoked",
+        message: "A Premium client has revoked your access to their account.",
+        type: "agent_revoked",
+      });
+    } catch { /* non-fatal */ }
+    toast.success("Agent access revoked");
+    load();
+  };
+
+  const requestChange = async (sub: any) => {
+    const reason = window.prompt("Why do you want to change your assigned agent? (This is sent to Rent Control admin)");
+    if (!reason || !reason.trim()) return;
+    try {
+      await (supabase as any).from("notifications").insert({
+        user_id: user!.id, title: "Agent change request submitted",
+        message: `Your request to change agent has been received. Reason: ${reason.trim()}`,
+        type: "premium_agent_change_request",
+      });
+      toast.success("Change request submitted — admin will follow up");
+    } catch (e: any) {
+      toast.error(e.message || "Could not submit request");
+    }
+  };
+
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -189,11 +241,12 @@ const PremiumServicePage = ({ variant }: Props) => {
               return (
                 <div key={s.id} className="rounded-xl border border-border p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div>
-                      <p className="font-semibold">{propLabel(s.property_id)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Expires {format(new Date(s.expires_at), "dd MMM yyyy")} · {formatGHS(Number(s.fee_amount ?? s.yearly_fee))} / {(s.billing_frequency === "monthly" ? "month" : s.billing_frequency === "yearly" ? "year" : s.billing_frequency || "cycle")}
-                      </p>
+                    <div className="min-w-0">
+                      <p className="font-semibold flex items-center gap-2"><Building2 className="h-4 w-4 text-primary" /> {propLabel(s.property_id)}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" /> Expires {format(new Date(s.expires_at), "dd MMM yyyy")}</span>
+                        <span>{formatGHS(Number(s.fee_amount ?? s.yearly_fee))} / {(s.billing_frequency === "monthly" ? "month" : s.billing_frequency === "yearly" ? "year" : s.billing_frequency || "cycle")}</span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={statusBadge(s.status)}>{s.status}</Badge>
@@ -206,34 +259,52 @@ const PremiumServicePage = ({ variant }: Props) => {
                   <div className="rounded-lg bg-muted/40 p-3">
                     <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-2"><UserCog className="h-3 w-3" /> ASSIGNED AGENT</p>
                     {agent ? (
-                      <div className="flex items-start gap-3">
-                        {agent.professional_photo_url ? (
-                          <img src={agent.professional_photo_url} alt={agent.full_name} className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold">
-                            {(agent.full_name || "A").slice(0, 1)}
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3">
+                          {agent.professional_photo_url ? (
+                            <img src={agent.professional_photo_url} alt={agent.full_name} className="h-14 w-14 rounded-full object-cover" />
+                          ) : (
+                            <div className="h-14 w-14 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold">
+                              {(agent.full_name || "A").slice(0, 1)}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <p className="font-medium truncate flex items-center gap-1">
+                              {agent.full_name}
+                              <BadgeCheck className="h-4 w-4 text-primary" />
+                            </p>
+                            <p className="text-[11px] text-muted-foreground font-mono">Agent ID: {String(agent.id || s.assigned_agent_user_id).slice(0, 8).toUpperCase()}</p>
+                            <p className="text-xs text-muted-foreground truncate">{agent.operating_area || agent.region || "—"}</p>
+                            {agent.phone && <p className="text-xs text-muted-foreground truncate">📞 {agent.phone}</p>}
+                            {agent.email && <p className="text-xs text-muted-foreground truncate">✉️ {agent.email}</p>}
                           </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate">{agent.full_name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{agent.operating_area || agent.region}</p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {agent.phone && (
-                              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                                <a href={`tel:${agent.phone}`}><Phone className="h-3 w-3 mr-1" /> Call</a>
-                              </Button>
-                            )}
-                            {agent.phone && (
-                              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                                <a href={`sms:${agent.phone}`}><MessageSquare className="h-3 w-3 mr-1" /> SMS</a>
-                              </Button>
-                            )}
-                            {agent.email && (
-                              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                                <a href={`mailto:${agent.email}`}><Mail className="h-3 w-3 mr-1" /> Email</a>
-                              </Button>
-                            )}
-                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {agent.phone && (
+                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                              <a href={`tel:${agent.phone}`}><Phone className="h-3 w-3 mr-1" /> Call</a>
+                            </Button>
+                          )}
+                          {agent.phone && (
+                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                              <a href={`sms:${agent.phone}`}><MessageSquare className="h-3 w-3 mr-1" /> SMS</a>
+                            </Button>
+                          )}
+                          {agent.email && (
+                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                              <a href={`mailto:${agent.email}`}><Mail className="h-3 w-3 mr-1" /> Email</a>
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => requestService(s)}>
+                            <HeartHandshake className="h-3 w-3 mr-1" /> Request Service
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => requestChange(s)}>
+                            <RefreshCw className="h-3 w-3 mr-1" /> Request Change
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-8 text-xs text-destructive hover:text-destructive" onClick={() => revokeAgent(s)}>
+                            <UserX className="h-3 w-3 mr-1" /> Revoke Access
+                          </Button>
                         </div>
                       </div>
                     ) : (
