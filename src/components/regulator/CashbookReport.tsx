@@ -271,6 +271,7 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
                 )}
               </TableBody>
             </Table>
+            <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} label="entries" />
           </div>
         </CardContent>
       </Card>
