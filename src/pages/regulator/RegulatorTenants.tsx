@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateProfilePdf } from "@/lib/generateProfilePdf";
 import { toast } from "sonner";
+import { usePagination, PaginationBar } from "@/components/ui/pagination-bar";
 
 interface TenantFull {
   tenant_id: string;
