@@ -241,11 +241,12 @@ const PremiumServicePage = ({ variant }: Props) => {
               return (
                 <div key={s.id} className="rounded-xl border border-border p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div>
-                      <p className="font-semibold">{propLabel(s.property_id)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Expires {format(new Date(s.expires_at), "dd MMM yyyy")} · {formatGHS(Number(s.fee_amount ?? s.yearly_fee))} / {(s.billing_frequency === "monthly" ? "month" : s.billing_frequency === "yearly" ? "year" : s.billing_frequency || "cycle")}
-                      </p>
+                    <div className="min-w-0">
+                      <p className="font-semibold flex items-center gap-2"><Building2 className="h-4 w-4 text-primary" /> {propLabel(s.property_id)}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" /> Expires {format(new Date(s.expires_at), "dd MMM yyyy")}</span>
+                        <span>{formatGHS(Number(s.fee_amount ?? s.yearly_fee))} / {(s.billing_frequency === "monthly" ? "month" : s.billing_frequency === "yearly" ? "year" : s.billing_frequency || "cycle")}</span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={statusBadge(s.status)}>{s.status}</Badge>
@@ -258,34 +259,52 @@ const PremiumServicePage = ({ variant }: Props) => {
                   <div className="rounded-lg bg-muted/40 p-3">
                     <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-2"><UserCog className="h-3 w-3" /> ASSIGNED AGENT</p>
                     {agent ? (
-                      <div className="flex items-start gap-3">
-                        {agent.professional_photo_url ? (
-                          <img src={agent.professional_photo_url} alt={agent.full_name} className="h-12 w-12 rounded-full object-cover" />
-                        ) : (
-                          <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold">
-                            {(agent.full_name || "A").slice(0, 1)}
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3">
+                          {agent.professional_photo_url ? (
+                            <img src={agent.professional_photo_url} alt={agent.full_name} className="h-14 w-14 rounded-full object-cover" />
+                          ) : (
+                            <div className="h-14 w-14 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold">
+                              {(agent.full_name || "A").slice(0, 1)}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <p className="font-medium truncate flex items-center gap-1">
+                              {agent.full_name}
+                              <BadgeCheck className="h-4 w-4 text-primary" />
+                            </p>
+                            <p className="text-[11px] text-muted-foreground font-mono">Agent ID: {String(agent.id || s.assigned_agent_user_id).slice(0, 8).toUpperCase()}</p>
+                            <p className="text-xs text-muted-foreground truncate">{agent.operating_area || agent.region || "—"}</p>
+                            {agent.phone && <p className="text-xs text-muted-foreground truncate">📞 {agent.phone}</p>}
+                            {agent.email && <p className="text-xs text-muted-foreground truncate">✉️ {agent.email}</p>}
                           </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate">{agent.full_name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{agent.operating_area || agent.region}</p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {agent.phone && (
-                              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                                <a href={`tel:${agent.phone}`}><Phone className="h-3 w-3 mr-1" /> Call</a>
-                              </Button>
-                            )}
-                            {agent.phone && (
-                              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                                <a href={`sms:${agent.phone}`}><MessageSquare className="h-3 w-3 mr-1" /> SMS</a>
-                              </Button>
-                            )}
-                            {agent.email && (
-                              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                                <a href={`mailto:${agent.email}`}><Mail className="h-3 w-3 mr-1" /> Email</a>
-                              </Button>
-                            )}
-                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {agent.phone && (
+                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                              <a href={`tel:${agent.phone}`}><Phone className="h-3 w-3 mr-1" /> Call</a>
+                            </Button>
+                          )}
+                          {agent.phone && (
+                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                              <a href={`sms:${agent.phone}`}><MessageSquare className="h-3 w-3 mr-1" /> SMS</a>
+                            </Button>
+                          )}
+                          {agent.email && (
+                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                              <a href={`mailto:${agent.email}`}><Mail className="h-3 w-3 mr-1" /> Email</a>
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => requestService(s)}>
+                            <HeartHandshake className="h-3 w-3 mr-1" /> Request Service
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => requestChange(s)}>
+                            <RefreshCw className="h-3 w-3 mr-1" /> Request Change
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-8 text-xs text-destructive hover:text-destructive" onClick={() => revokeAgent(s)}>
+                            <UserX className="h-3 w-3 mr-1" /> Revoke Access
+                          </Button>
                         </div>
                       </div>
                     ) : (
