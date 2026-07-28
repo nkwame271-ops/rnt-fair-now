@@ -223,6 +223,8 @@ const RegulatorLandlords = () => {
     return l.landlord_id.toLowerCase().includes(s) || l.profile?.full_name?.toLowerCase().includes(s) || l.profile?.phone?.includes(s);
   });
 
+  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
+
   const exportCSV = () => {
     const headers = ["Landlord ID", "Name", "Phone", "Email", "Nationality", "Properties", "Active Tenants", "Status", "Account Status", "Registered", "Expires"];
     const rows = filtered.map((l) => [
