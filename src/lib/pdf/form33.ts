@@ -122,17 +122,81 @@ export function renderForm33(d: Form33Data): jsPDF {
 
   let y = 86;
 
-  // Top row: CA / Case number (left) — Parties line (right)
+  // Top row: case number (left column) — parties block (right column, wrapping)
+  const CASE_SIZE = 18;
+  const GUTTER = 18;
+  const PARTIES_MAX = 16;
+  const PARTIES_MIN = 11;
+  const contentW = A4.W - MARGIN * 2;
+
+  const caseText = `${d.case_prefix || "CAR"}  ${d.case_number || "—"}`;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text(`${d.case_prefix || "CAR"}  ${d.case_number || "—"}`, MARGIN, y);
+  doc.setFontSize(CASE_SIZE);
+  const caseWidth = doc.getTextWidth(caseText);
+
+  const partiesText = d.parties_line || "Complainant(s) VRS Respondent(s)";
+
+  // Fit the parties block beside the case number, shrinking within bounds only.
+  const sideWidth = contentW - caseWidth - GUTTER;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(16);
-  doc.text(d.parties_line || "Complainant(s) VRS Respondent(s)", A4.W - MARGIN, y, { align: "right" });
-  y += 14;
+  let partiesSize = PARTIES_MAX;
+  let partiesLines: string[] = [];
+  let inline = false;
+
+  if (sideWidth > 60) {
+    for (let s = PARTIES_MAX; s >= PARTIES_MIN; s--) {
+      doc.setFontSize(s);
+      const lines: string[] = doc.splitTextToSize(partiesText, sideWidth);
+      if (lines.length <= 3) {
+        partiesSize = s;
+        partiesLines = lines;
+        inline = true;
+        break;
+      }
+      if (s === PARTIES_MIN) {
+        partiesSize = s;
+        partiesLines = lines;
+      }
+    }
+  }
+
+  if (!inline) {
+    // Fallback: full-width row underneath the case number — never collides.
+    partiesSize = PARTIES_MIN;
+    doc.setFontSize(partiesSize);
+    const full: string[] = doc.splitTextToSize(partiesText, contentW);
+    partiesLines = full.slice(0, 3);
+    if (full.length > 3) partiesLines[2] = partiesLines[2].replace(/\s+\S*$/, "") + "…";
+  } else if (partiesLines.length > 3) {
+    const kept = partiesLines.slice(0, 3);
+    kept[2] = kept[2].replace(/\s+\S*$/, "") + "…";
+    partiesLines = kept;
+  }
+
+  const partiesLH = Math.round(partiesSize * 1.25);
+
+  // Draw case number
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(CASE_SIZE);
+  doc.text(caseText, MARGIN, y);
+
+  // Draw parties block
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(partiesSize);
+  let py = inline ? y : y + CASE_SIZE + 6;
+  for (const line of partiesLines) {
+    doc.text(line, A4.W - MARGIN, py, { align: "right" });
+    py += partiesLH;
+  }
+
+  const caseBottom = y + 6;
+  const partiesBottom = (inline ? y : y + CASE_SIZE + 6) + (partiesLines.length - 1) * partiesLH + 6;
+  y = Math.max(caseBottom, partiesBottom) + 8;
+
   doc.setDrawColor(20, 80, 50);
   doc.line(MARGIN, y, A4.W - MARGIN, y);
   y += 28;
+
 
   // FORM 33 + heading (larger + more prominent than other text)
   doc.setFont("helvetica", "bold");
