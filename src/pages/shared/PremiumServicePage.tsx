@@ -145,8 +145,7 @@ const PremiumServicePage = ({ variant }: Props) => {
         .eq("owner_user_id", user!.id);
       await (supabase as any).from("notifications").insert({
         user_id: prevAgent, title: "Premium client access revoked",
-        message: "A Premium client has revoked your access to their account.",
-        type: "agent_revoked",
+        body: "A Premium client has revoked your access to their account.",
       });
     } catch { /* non-fatal */ }
     toast.success("Agent access revoked");
@@ -159,8 +158,7 @@ const PremiumServicePage = ({ variant }: Props) => {
     try {
       await (supabase as any).from("notifications").insert({
         user_id: user!.id, title: "Agent change request submitted",
-        message: `Your request to change agent has been received. Reason: ${reason.trim()}`,
-        type: "premium_agent_change_request",
+        body: `Your request to change agent has been received. Reason: ${reason.trim()}`,
       });
       toast.success("Change request submitted — admin will follow up");
     } catch (e: any) {

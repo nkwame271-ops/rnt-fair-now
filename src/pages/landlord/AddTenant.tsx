@@ -431,8 +431,7 @@ const AddTenant = () => {
     await (supabase as any).from("notifications").insert({
       user_id: draft.foundTenant.userId,
       title: "Agreement awaiting acceptance",
-      message: `Your tenancy agreement for ${propName} is ready for review and acceptance.`,
-      type: "agreement_review",
+      body: `Your tenancy agreement for ${propName} is ready for review and acceptance.`,
     });
     sendNotification("tenancy_registered", {
       phone: landlordProfile?.phone || undefined,

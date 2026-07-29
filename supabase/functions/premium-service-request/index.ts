@@ -47,8 +47,7 @@ Deno.serve(async (req) => {
     await admin.from("notifications").insert({
       user_id: sub.assigned_agent_user_id,
       title: "New Premium Service request",
-      message: note.trim().slice(0, 500),
-      type: "premium_service_request",
+      body: note.trim().slice(0, 500),
     });
 
     return json({ ok: true, task_id: task.id });

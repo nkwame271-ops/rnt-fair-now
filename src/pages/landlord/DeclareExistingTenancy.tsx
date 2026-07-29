@@ -436,8 +436,7 @@ const DeclareExistingTenancy = () => {
       await (supabase as any).from("notifications").insert({
         user_id: tenantUserId,
         title: "Agreement awaiting review",
-        message: `An existing tenancy for ${property.property_name || property.address} has been linked to your account for review and acceptance.`,
-        type: "agreement_review",
+        body: `An existing tenancy for ${property.property_name || property.address} has been linked to your account for review and acceptance.`,
       });
     }
 
