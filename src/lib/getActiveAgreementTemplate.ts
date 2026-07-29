@@ -96,12 +96,15 @@ export async function renderTenancyAgreement(
     const fallbackAt = role === "landlord"
       ? (t as any).landlord_signed_at
       : (t as any).tenant_signed_at;
-    const signedAt = (row as any)?.signed_at || fallbackAt;
+    const accepted = role === "landlord"
+      ? (t as any).landlord_accepted
+      : (t as any).tenant_accepted;
+    const signedAt = (row as any)?.signed_at || fallbackAt || (accepted ? (t as any).updated_at || (t as any).created_at || new Date().toISOString() : null);
     if (!signedAt) return undefined;
     return {
       name: role === "landlord" ? (landlordProfile?.full_name || "Landlord") : (tenantProfile?.full_name || "Tenant"),
       signedAt,
-      method: (row as any)?.signature_method || "digital",
+      method: (row as any)?.signature_method || (fallbackAt ? "digital" : "accepted"),
     };
   };
   const landlordSig = findSig("landlord");

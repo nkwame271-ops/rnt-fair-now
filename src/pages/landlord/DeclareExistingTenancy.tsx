@@ -253,21 +253,18 @@ const DeclareExistingTenancy = () => {
     if (!draft.tenantPhone.trim()) return;
     updateDraft(draft.unitId, { phoneSearching: true, matchedTenant: null, phoneSearchDone: false });
     try {
-      const phone = draft.tenantPhone.trim().replace(/\s/g, "");
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, phone")
-        .or(`phone.eq.${phone},phone.eq.0${phone.replace(/^233/, "")},phone.eq.233${phone.replace(/^0/, "")}`);
-      if (profiles && profiles.length > 0) {
-        const p = profiles[0];
-        const { data: tenant } = await supabase.from("tenants").select("tenant_id").eq("user_id", p.user_id).single();
-        if (tenant) {
-          updateDraft(draft.unitId, { matchedTenant: { userId: p.user_id, fullName: p.full_name, tenantIdCode: tenant.tenant_id } });
-          toast.success(`Tenant found: ${p.full_name}`);
-        } else {
-          updateDraft(draft.unitId, { matchedTenant: { userId: p.user_id, fullName: p.full_name, tenantIdCode: "" } });
-          toast.info(`User found (${p.full_name}) — will be linked`);
-        }
+      const { data, error } = await supabase.functions.invoke("lookup-tenant", { body: { query: draft.tenantPhone.trim() } });
+      if (error) throw error;
+      if (data?.found && data.tenant) {
+        updateDraft(draft.unitId, {
+          matchedTenant: {
+            userId: data.tenant.userId,
+            fullName: data.tenant.name,
+            tenantIdCode: data.tenant.tenantIdCode || "",
+          },
+          tenantName: data.tenant.name || draft.tenantName,
+        });
+        toast.success(`Tenant found: ${data.tenant.name}`);
       } else {
         toast.info("No account found — SMS invitation will be sent");
       }
@@ -435,6 +432,13 @@ const DeclareExistingTenancy = () => {
         });
         if (pendingData) await supabase.from("pending_tenants").update({ sms_sent: true } as any).eq("id", pendingData.id);
       } catch { /* ignore */ }
+    } else if (tenantUserId) {
+      await (supabase as any).from("notifications").insert({
+        user_id: tenantUserId,
+        title: "Agreement awaiting review",
+        message: `An existing tenancy for ${property.property_name || property.address} has been linked to your account for review and acceptance.`,
+        type: "agreement_review",
+      });
     }
 
     return { code: registrationCode };

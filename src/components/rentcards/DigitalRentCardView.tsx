@@ -63,8 +63,14 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
       const use = preferred.length > 0 ? preferred : list;
 
       // Enrich
-      const propIds = [...new Set(use.map((c) => c.property_id).filter(Boolean))] as string[];
-      const unitIds = [...new Set(use.map((c) => c.unit_id).filter(Boolean))] as string[];
+      const propIds = [...new Set(use.flatMap((c) => {
+        const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
+        return [c.property_id || t?.property_id].filter(Boolean);
+      }))] as string[];
+      const unitIds = [...new Set(use.flatMap((c) => {
+        const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
+        return [c.unit_id || t?.unit_id].filter(Boolean);
+      }))] as string[];
       const tenancyIdsAll = [...new Set(use.map((c) => c.tenancy_id).filter(Boolean))] as string[];
 
       // Fetch tenancies first — they carry authoritative tenant_user_id / landlord_user_id
@@ -94,14 +100,14 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
           ? supabase.from("properties").select("id, address").in("id", propIds)
           : Promise.resolve({ data: [] as any[] }),
         unitIds.length
-          ? supabase.from("units").select("id, unit_number").in("id", unitIds)
+          ? supabase.from("units").select("id, unit_name").in("id", unitIds)
           : Promise.resolve({ data: [] as any[] }),
         partnerIds.length
           ? supabase.from("profiles").select("user_id, full_name").in("user_id", partnerIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
       const pm = new Map((props.data || []).map((p: any) => [p.id, p.address]));
-      const um = new Map((units.data || []).map((u: any) => [u.id, u.unit_number]));
+      const um = new Map((units.data || []).map((u: any) => [u.id, u.unit_name]));
       const nm = new Map((profs.data || []).map((p: any) => [p.user_id, p.full_name]));
 
       const enriched: Enriched[] = use.map((c) => {
@@ -110,8 +116,8 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
         const landlordId = c.landlord_user_id || t?.landlord_user_id;
         return {
           ...c,
-          property_address: c.property_id ? pm.get(c.property_id) : undefined,
-          unit_name: c.unit_id ? um.get(c.unit_id) : undefined,
+          property_address: pm.get(c.property_id || t?.property_id) || undefined,
+          unit_name: um.get(c.unit_id || t?.unit_id) || undefined,
           landlord_name: landlordId ? nm.get(landlordId) : undefined,
           tenant_name: (tenantId ? nm.get(tenantId) : undefined) || t?.placeholder_tenant_name || undefined,
         };

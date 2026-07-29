@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Building2, Sparkles, Users, UserCheck, MapPin, Eye, UserPlus, MessageCircle, Shield, Wallet } from "lucide-react";
+import { Building2, Sparkles, Users, UserCheck, MapPin, Eye, UserPlus, MessageCircle, Shield, Wallet, ClipboardList, SlidersHorizontal, BarChart3, History, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface ManagedProperty {
@@ -35,6 +35,14 @@ interface Staff {
   office_name: string | null;
   type?: "staff" | "agent";
   status?: string;
+  email?: string | null;
+  phone?: string | null;
+  region?: string | null;
+  operating_area?: string | null;
+  active_assignments?: number;
+  pending_tasks?: number;
+  completed_tasks?: number;
+  audit_count?: number;
 }
 
 interface PremiumSubscription {
@@ -110,7 +118,7 @@ const RegulatorPropertyManagement = () => {
         .order("management_enabled_at", { ascending: false } as any),
       supabase.from("admin_staff").select("user_id, office_id, office_name"),
       (supabase.from("agent_staff") as any)
-        .select("user_id, full_name, region, operating_area, status")
+        .select("user_id, full_name, email, phone, region, operating_area, status")
         .in("status", ["active", "suspended", "revoked"]),
       (supabase.from("premium_subscriptions") as any)
         .select("id, property_id, subscriber_user_id, subscriber_role, assigned_agent_user_id, starts_at, expires_at, status")
@@ -138,6 +146,13 @@ const RegulatorPropertyManagement = () => {
       const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", staffIds);
       staffNameMap = new Map((profs || []).map((x: any) => [x.user_id, x.full_name]));
     }
+    const agentIds = ((agents || []) as any[]).map(x => x.user_id);
+    const [{ data: assignmentCounts }, { data: taskRows }, { data: auditRows }] = await Promise.all([
+      agentIds.length ? (supabase.from("agent_assignments" as any) as any).select("agent_user_id, active").in("agent_user_id", agentIds) : Promise.resolve({ data: [] as any[] }),
+      agentIds.length ? (supabase.from("management_task_assignments" as any) as any).select("assigned_staff_id, status").in("assigned_staff_id", agentIds) : Promise.resolve({ data: [] as any[] }),
+      agentIds.length ? (supabase.from("agent_action_log" as any) as any).select("agent_user_id").in("agent_user_id", agentIds).limit(1000) : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const countFor = (rows: any[], key: string, id: string, pred: (row: any) => boolean = () => true) => rows.filter((row) => row[key] === id && pred(row)).length;
     const adminStaff = ((s || []) as any[]).map(x => ({ ...x, type: "staff" as const, full_name: staffNameMap.get(x.user_id) || "Staff" }));
     const agentStaff = ((agents || []) as any[]).map(x => ({
       user_id: x.user_id,
@@ -146,6 +161,14 @@ const RegulatorPropertyManagement = () => {
       office_name: x.operating_area || x.region || "Agent",
       type: "agent" as const,
       status: x.status,
+      email: x.email,
+      phone: x.phone,
+      region: x.region,
+      operating_area: x.operating_area,
+      active_assignments: countFor(assignmentCounts || [], "agent_user_id", x.user_id, (row) => row.active === true),
+      pending_tasks: countFor(taskRows || [], "assigned_staff_id", x.user_id, (row) => row.status !== "done"),
+      completed_tasks: countFor(taskRows || [], "assigned_staff_id", x.user_id, (row) => row.status === "done"),
+      audit_count: countFor(auditRows || [], "agent_user_id", x.user_id),
     }));
     setStaff([...adminStaff, ...agentStaff]);
 

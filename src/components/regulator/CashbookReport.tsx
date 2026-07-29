@@ -59,10 +59,9 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
         q = q.gte("entry_date", from);
       }
       if (categoryFilter) q = q.eq("category", categoryFilter);
-      // Application-layer scoping: non-super/main admins only see their office's entries.
-      // The `office` column on cashbook_entries stores the office name.
-      if (!isUnscoped && officeName) {
-        q = q.eq("office", officeName);
+      // Match Escrow Ledger scoping: cashbook_entries.office stores the office id.
+      if (!isUnscoped && scopeOfficeId) {
+        q = q.eq("office", scopeOfficeId);
       }
       const { data, error } = await q.limit(1000);
       if (error) throw error;
@@ -78,11 +77,16 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
     if (scopeLoading) return;
     load();
      
-  }, [range, categoryFilter, scopeLoading, isUnscoped, officeName]);
+  }, [range, categoryFilter, scopeLoading, isUnscoped, scopeOfficeId]);
+
+  useEffect(() => {
+    if (!isUnscoped && scopeOfficeId) setOffice(scopeOfficeId);
+  }, [isUnscoped, scopeOfficeId]);
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
-      if (office !== "all" && (e.office || "unassigned") !== office) return false;
+      const enforcedOffice = !isUnscoped && scopeOfficeId ? scopeOfficeId : office;
+      if (enforcedOffice !== "all" && (e.office || "unassigned") !== enforcedOffice) return false;
       if (method !== "all" && (e.method || "unspecified") !== method) return false;
       if (recStatus !== "all" && e.reconciliation_status !== recStatus) return false;
       if (search) {
@@ -102,9 +106,8 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
     const money_out = filtered.reduce((s, e) => s + Number(e.money_out || 0), 0);
     const reconciled = filtered.filter((e) => e.reconciliation_status === "reconciled").reduce((s, e) => s + Number(e.money_in || 0), 0);
     const pending = filtered.filter((e) => e.reconciliation_status !== "reconciled").reduce((s, e) => s + Number(e.money_in || 0), 0);
-    const opening = filtered.length > 0 ? Number(filtered[filtered.length - 1].running_balance) - Number(filtered[filtered.length - 1].money_in) + Number(filtered[filtered.length - 1].money_out) : 0;
-    const closing = filtered.length > 0 ? Number(filtered[0].running_balance) : 0;
-    return { money_in, money_out, reconciled, pending, opening, closing };
+    const net = money_in - money_out;
+    return { money_in, money_out, reconciled, pending, net };
   }, [filtered]);
 
   const offices = useMemo(() => Array.from(new Set(entries.map((e) => e.office || "unassigned"))), [entries]);
@@ -175,10 +178,11 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
             </div>
             <div>
               <Label className="text-xs">Office</Label>
-              <Select value={office} onValueChange={setOffice}>
+              <Select value={!isUnscoped && scopeOfficeId ? scopeOfficeId : office} onValueChange={setOffice} disabled={!isUnscoped}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All offices</SelectItem>
+                  {isUnscoped ? <SelectItem value="all">All offices</SelectItem> : null}
+                  {!isUnscoped && scopeOfficeId ? <SelectItem value={scopeOfficeId}>{officeName || scopeOfficeId}</SelectItem> : null}
                   {offices.map((o) => (
                     <SelectItem key={o} value={o}>{o}</SelectItem>
                   ))}
@@ -215,12 +219,12 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <StatCard label="Opening Balance" value={fmtGHS(totals.opening)} />
+            <StatCard label="Visible Entries" value={filtered.length.toLocaleString()} />
             <StatCard label="Money In" value={fmtGHS(totals.money_in)} tone="pos" />
             <StatCard label="Money Out" value={fmtGHS(totals.money_out)} tone="neg" />
             <StatCard
-              label="Current Escrow Balance"
-              value={fmtGHS(totals.opening + totals.money_in - totals.money_out)}
+              label="Visible Net Balance"
+              value={fmtGHS(totals.net)}
               tone="bold"
             />
             <StatCard label="Reconciled" value={fmtGHS(totals.reconciled)} />

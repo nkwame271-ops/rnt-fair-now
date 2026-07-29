@@ -122,10 +122,10 @@ const PremiumServicePage = ({ variant }: Props) => {
     if (!sub.assigned_agent_user_id) { toast.error("No agent assigned yet"); return; }
     const note = window.prompt("Describe the service you need from your agent:");
     if (!note || !note.trim()) return;
-    const { error } = await (supabase as any).from("notifications").insert([
-      { user_id: sub.assigned_agent_user_id, title: "New service request from Premium client", message: note.trim(), type: "premium_service_request" },
-    ]);
-    if (error) { toast.error(error.message); return; }
+    const { data, error } = await supabase.functions.invoke("premium-service-request", {
+      body: { subscription_id: sub.id, request_type: "landlord_request", note: note.trim() },
+    });
+    if (error || (data as any)?.error) { toast.error((data as any)?.error || error?.message || "Could not send request"); return; }
     toast.success("Request sent to your agent");
   };
 
@@ -273,10 +273,14 @@ const PremiumServicePage = ({ variant }: Props) => {
                               {agent.full_name}
                               <BadgeCheck className="h-4 w-4 text-primary" />
                             </p>
-                            <p className="text-[11px] text-muted-foreground font-mono">Agent ID: {String(agent.id || s.assigned_agent_user_id).slice(0, 8).toUpperCase()}</p>
+                             <p className="text-[11px] text-muted-foreground font-mono">Agent ID: {String(agent.id || s.assigned_agent_user_id).slice(0, 8).toUpperCase()}</p>
                             <p className="text-xs text-muted-foreground truncate">{agent.operating_area || agent.region || "—"}</p>
                             {agent.phone && <p className="text-xs text-muted-foreground truncate">📞 {agent.phone}</p>}
                             {agent.email && <p className="text-xs text-muted-foreground truncate">✉️ {agent.email}</p>}
+                             <div className="flex flex-wrap gap-1 pt-1">
+                               <Badge variant="outline">Service: {s.management_enabled ? "Active" : "Standard"}</Badge>
+                               <Badge variant="outline">Subscription: {s.status}</Badge>
+                             </div>
                           </div>
                         </div>
 
