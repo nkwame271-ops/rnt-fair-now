@@ -316,9 +316,10 @@ async function dispatchForm33Sms(
     await supabase.from("admin_audit_log").insert({
       admin_user_id: auth.user?.id || null,
       action: "form33_sms_sent",
-      entity_type: "complaint",
-      entity_id: caseId,
-      metadata: { reference: ref, recipients: sent, when: whenIso || null, venue } as any,
+      target_type: "complaint",
+      target_id: caseId,
+      reason: "Form 33 summons notification dispatched",
+      new_state: { reference: ref, recipients: sent, when: whenIso || null, venue } as any,
     } as any);
   } catch { /* audit failures are non-fatal */ }
 }
