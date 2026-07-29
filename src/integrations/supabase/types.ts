@@ -9457,6 +9457,10 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_premium_property_to_agent: {
+        Args: { p_agent_user_id?: string; p_subscription_id: string }
+        Returns: Json
+      }
       assign_property_to_staff: {
         Args: {
           p_office_id?: string
@@ -9507,6 +9511,10 @@ export type Database = {
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
+      }
+      ensure_complaint_case_number: {
+        Args: { p_case_id: string; p_table?: string }
+        Returns: string
       }
       expire_overdue_tenancies: { Args: never; Returns: number }
       expire_tenancy_cascade: {
@@ -9618,6 +9626,10 @@ export type Database = {
         Returns: Json
       }
       refresh_dashboard_stats: { Args: never; Returns: undefined }
+      regulator_set_agent_status: {
+        Args: { p_agent_user_id: string; p_reason?: string; p_status: string }
+        Returns: Json
+      }
       regulator_set_developer_org_status: {
         Args: { p_org_id: string; p_reason?: string; p_status: string }
         Returns: Json

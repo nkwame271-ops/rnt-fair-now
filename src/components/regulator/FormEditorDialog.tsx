@@ -74,13 +74,28 @@ export default function FormEditorDialog({
 
   useEffect(() => {
     if (!open) return;
-    if (initialData) {
-      setData(initialData);
-      return;
-    }
-    if (formType === "form_7") setData(prefillForm7(complaint, officeName));
-    else if (formType === "form_33") setData(prefillForm33(complaint, officeName));
-    else setData(prefillForm32A(complaint, officeName));
+    let cancelled = false;
+    const hydrate = async () => {
+      const base = initialData
+        ? initialData
+        : formType === "form_7"
+          ? prefillForm7(complaint, officeName)
+          : formType === "form_33"
+            ? prefillForm33(complaint, officeName)
+            : prefillForm32A(complaint, officeName);
+
+      if (!base.case_number && complaint?.id) {
+        const { data: caseNumber, error } = await supabase.rpc("ensure_complaint_case_number" as any, {
+          p_case_id: complaint.id,
+          p_table: complaint?.landlord_user_id ? "landlord_complaints" : "complaints",
+        });
+        if (!error && caseNumber) base.case_number = caseNumber;
+      }
+
+      if (!cancelled) setData(base);
+    };
+    hydrate();
+    return () => { cancelled = true; };
   }, [open, formType, complaint, officeName, initialData]);
 
   const set = (k: string, v: any) => setData((d: any) => ({ ...d, [k]: v }));
