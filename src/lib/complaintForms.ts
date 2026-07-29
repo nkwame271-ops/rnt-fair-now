@@ -314,7 +314,7 @@ async function dispatchForm33Sms(
   try {
     const { data: auth } = await supabase.auth.getUser();
     await supabase.from("admin_audit_log").insert({
-      actor_user_id: auth.user?.id || null,
+      admin_user_id: auth.user?.id || null,
       action: "form33_sms_sent",
       entity_type: "complaint",
       entity_id: caseId,
