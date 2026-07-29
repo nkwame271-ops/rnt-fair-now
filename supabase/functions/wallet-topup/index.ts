@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     const recipientId = recipient_user_id || callerId;
     if (!recipientId) return json({ error: "You must be signed in to add money to your wallet." }, 200);
 
-    const email = normalizeEmail(payer_email || callerEmail);
+    const email = await resolveCheckoutEmail(supabaseAdmin, recipientId, callerEmail, payer_email);
     if (!email) return json({ error: "A valid email address is required to start checkout." }, 200);
 
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
@@ -132,5 +132,22 @@ function json(body: unknown, status = 200) {
 function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const email = value.trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) && !email.endsWith(".local") ? email : null;
+}
+
+async function resolveCheckoutEmail(admin: any, userId: string, claimsEmail?: unknown, requestEmail?: unknown): Promise<string | null> {
+  const claim = normalizeEmail(claimsEmail);
+  if (claim) return claim;
+
+  const { data: profile } = await admin.from("profiles").select("email").eq("user_id", userId).maybeSingle();
+  const profileEmail = normalizeEmail(profile?.email);
+  if (profileEmail) return profileEmail;
+
+  try {
+    const { data } = await admin.auth.admin.getUserById(userId);
+    const authEmail = normalizeEmail(data?.user?.email);
+    if (authEmail) return authEmail;
+  } catch (_) { /* ignore */ }
+
+  return normalizeEmail(requestEmail);
 }

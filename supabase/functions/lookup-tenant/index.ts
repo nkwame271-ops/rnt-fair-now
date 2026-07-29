@@ -13,6 +13,12 @@ function normalizePhone(raw: string): string {
   return d;
 }
 
+function phoneCandidates(raw: string): string[] {
+  const normalized = normalizePhone(raw);
+  const local = normalized.startsWith("233") ? `0${normalized.slice(3)}` : normalized;
+  return Array.from(new Set([raw, raw.replace(/\D/g, ""), normalized, local, `+${normalized}`].filter(Boolean)));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -68,13 +74,21 @@ Deno.serve(async (req) => {
     tenantRow = byCode ?? null;
 
     if (!tenantRow && cleaned.length >= 9) {
-      const phoneNorm = normalizePhone(cleaned);
-      const { data: prof } = await admin
+      const candidates = phoneCandidates(q);
+      const { data: exactProfiles } = await admin
         .from("profiles")
-        .select("user_id")
-        .or(`phone.eq.${phoneNorm},phone.eq.${cleaned}`)
-        .limit(1)
-        .maybeSingle();
+        .select("user_id, phone")
+        .in("phone", candidates)
+        .limit(10);
+      let prof = (exactProfiles || [])[0] || null;
+      if (!prof) {
+        const { data: maybeProfiles } = await admin
+          .from("profiles")
+          .select("user_id, phone")
+          .not("phone", "is", null)
+          .limit(1000);
+        prof = (maybeProfiles || []).find((p: any) => phoneCandidates(p.phone || "").includes(normalizePhone(q))) || null;
+      }
       if (prof) {
         const { data: t } = await admin
           .from("tenants")

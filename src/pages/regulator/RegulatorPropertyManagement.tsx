@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Building2, Sparkles, Users, UserCheck, MapPin, Eye, UserPlus, MessageCircle, Shield, Wallet } from "lucide-react";
+import { Building2, Sparkles, Users, UserCheck, MapPin, Eye, UserPlus, MessageCircle, Shield, Wallet, ClipboardList, SlidersHorizontal, BarChart3, History, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface ManagedProperty {
@@ -35,6 +35,15 @@ interface Staff {
   office_name: string | null;
   type?: "staff" | "agent";
   status?: string;
+  email?: string | null;
+  phone?: string | null;
+  region?: string | null;
+  operating_area?: string | null;
+  professional_photo_url?: string | null;
+  active_assignments?: number;
+  pending_tasks?: number;
+  completed_tasks?: number;
+  audit_count?: number;
 }
 
 interface PremiumSubscription {
@@ -110,7 +119,7 @@ const RegulatorPropertyManagement = () => {
         .order("management_enabled_at", { ascending: false } as any),
       supabase.from("admin_staff").select("user_id, office_id, office_name"),
       (supabase.from("agent_staff") as any)
-        .select("user_id, full_name, region, operating_area, status")
+        .select("user_id, full_name, email, phone, region, operating_area, professional_photo_url, status")
         .in("status", ["active", "suspended", "revoked"]),
       (supabase.from("premium_subscriptions") as any)
         .select("id, property_id, subscriber_user_id, subscriber_role, assigned_agent_user_id, starts_at, expires_at, status")
@@ -138,6 +147,13 @@ const RegulatorPropertyManagement = () => {
       const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", staffIds);
       staffNameMap = new Map((profs || []).map((x: any) => [x.user_id, x.full_name]));
     }
+    const agentIds = ((agents || []) as any[]).map(x => x.user_id);
+    const [{ data: assignmentCounts }, { data: taskRows }, { data: auditRows }] = await Promise.all([
+      agentIds.length ? (supabase.from("agent_assignments" as any) as any).select("agent_user_id, active").in("agent_user_id", agentIds) : Promise.resolve({ data: [] as any[] }),
+      agentIds.length ? (supabase.from("management_task_assignments" as any) as any).select("assigned_staff_id, status").in("assigned_staff_id", agentIds) : Promise.resolve({ data: [] as any[] }),
+      agentIds.length ? (supabase.from("agent_action_log" as any) as any).select("agent_user_id").in("agent_user_id", agentIds).limit(1000) : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const countFor = (rows: any[], key: string, id: string, pred: (row: any) => boolean = () => true) => rows.filter((row) => row[key] === id && pred(row)).length;
     const adminStaff = ((s || []) as any[]).map(x => ({ ...x, type: "staff" as const, full_name: staffNameMap.get(x.user_id) || "Staff" }));
     const agentStaff = ((agents || []) as any[]).map(x => ({
       user_id: x.user_id,
@@ -146,6 +162,15 @@ const RegulatorPropertyManagement = () => {
       office_name: x.operating_area || x.region || "Agent",
       type: "agent" as const,
       status: x.status,
+      email: x.email,
+      phone: x.phone,
+      region: x.region,
+      operating_area: x.operating_area,
+      professional_photo_url: x.professional_photo_url,
+      active_assignments: countFor(assignmentCounts || [], "agent_user_id", x.user_id, (row) => row.active === true),
+      pending_tasks: countFor(taskRows || [], "assigned_staff_id", x.user_id, (row) => row.status !== "done"),
+      completed_tasks: countFor(taskRows || [], "assigned_staff_id", x.user_id, (row) => row.status === "done"),
+      audit_count: countFor(auditRows || [], "agent_user_id", x.user_id),
     }));
     setStaff([...adminStaff, ...agentStaff]);
 
@@ -230,6 +255,56 @@ const RegulatorPropertyManagement = () => {
     });
     if (error) { toast.error(error.message); return; }
     toast.success(agentId === "unassigned" ? "Agent removed" : "Premium agent assigned");
+    fetchAll();
+  };
+
+  const updatePremiumStatus = async (sub: PremiumSubscription, status: "active" | "cancelled" | "suspended") => {
+    const label = status === "active" ? "approve/reactivate" : status;
+    const reason = window.prompt(`Reason to ${label} this Premium Service assignment:`) || "Updated by admin";
+    const { error } = await (supabase.from("premium_subscriptions") as any)
+      .update({ status, notes: reason })
+      .eq("id", sub.id);
+    if (error) { toast.error(error.message); return; }
+    if (status !== "active" && sub.assigned_agent_user_id) {
+      await (supabase.from("agent_assignments" as any) as any)
+        .update({ active: false, scope_notes: reason })
+        .eq("agent_user_id", sub.assigned_agent_user_id)
+        .eq("owner_user_id", sub.subscriber_user_id);
+    }
+    toast.success(`Premium Service ${status}`);
+    fetchAll();
+  };
+
+  const revokePremiumAgent = async (sub: PremiumSubscription) => {
+    if (!sub.assigned_agent_user_id) { toast.error("No assigned agent to revoke"); return; }
+    const reason = window.prompt("Reason to revoke this agent assignment:") || "Agent assignment revoked by admin";
+    const { error } = await (supabase.from("premium_subscriptions") as any)
+      .update({ assigned_agent_user_id: null, notes: reason })
+      .eq("id", sub.id);
+    if (error) { toast.error(error.message); return; }
+    await (supabase.from("agent_assignments" as any) as any)
+      .update({ active: false, scope_notes: reason })
+      .eq("agent_user_id", sub.assigned_agent_user_id)
+      .eq("owner_user_id", sub.subscriber_user_id);
+    toast.success("Agent assignment revoked");
+    fetchAll();
+  };
+
+  const configurePremiumPermissions = async (sub: PremiumSubscription) => {
+    const scope = window.prompt("Configure this agent's permitted scope for the property:", "Property visits, tenant follow-up, rent card support, complaint follow-up");
+    if (!scope?.trim()) return;
+    const { error } = await (supabase.from("premium_subscriptions") as any)
+      .update({ notes: `Agent permissions: ${scope.trim()}` })
+      .eq("id", sub.id);
+    if (error) { toast.error(error.message); return; }
+    if (sub.assigned_agent_user_id) {
+      await (supabase.from("agent_assignments" as any) as any)
+        .update({ scope_notes: scope.trim() })
+        .eq("agent_user_id", sub.assigned_agent_user_id)
+        .eq("owner_user_id", sub.subscriber_user_id)
+        .eq("active", true);
+    }
+    toast.success("Permissions configured");
     fetchAll();
   };
 
@@ -344,18 +419,30 @@ const RegulatorPropertyManagement = () => {
             return (
               <Card key={sub.id}>
                 <CardContent className="p-4 flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0">
+                  <div className="min-w-0 space-y-1">
                     <div className="font-medium">{sub.property_name || sub.property_code || "Premium property"}</div>
-                    <div className="text-xs text-muted-foreground">Client: {sub.client_name} · {sub.subscriber_role} · {sub.status}</div>
-                    <div className="text-xs text-muted-foreground mt-1">Assigned agent: {assigned?.full_name || "Unassigned"}</div>
+                    <div className="text-xs text-muted-foreground">Client: {sub.client_name} · {sub.subscriber_role}</div>
+                    <div className="flex gap-1 flex-wrap">
+                      <Badge variant="outline" className="capitalize">{sub.status}</Badge>
+                      {assigned && <Badge variant="outline">Agent: {assigned.full_name}</Badge>}
+                    </div>
                   </div>
-                  <Select value={sub.assigned_agent_user_id || "unassigned"} onValueChange={(v) => assignPremiumAgent(sub.id, v)}>
-                    <SelectTrigger className="w-64"><SelectValue placeholder="Assign agent" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {agents.filter(a => a.status === "active").map(a => <SelectItem key={a.user_id} value={a.user_id}>{a.full_name} {a.office_name ? `• ${a.office_name}` : ""}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <Select value={sub.assigned_agent_user_id || "unassigned"} onValueChange={(v) => assignPremiumAgent(sub.id, v)}>
+                      <SelectTrigger className="w-64"><SelectValue placeholder="Assign agent" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {agents.filter(a => a.status === "active").map(a => <SelectItem key={a.user_id} value={a.user_id}>{a.full_name} {a.office_name ? `• ${a.office_name}` : ""}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {sub.status !== "active" && <Button size="sm" variant="outline" onClick={() => updatePremiumStatus(sub, "active")}><CheckCircle2 className="h-3 w-3 mr-1" /> Approve</Button>}
+                    {sub.status === "active" && <Button size="sm" variant="outline" onClick={() => updatePremiumStatus(sub, "suspended")}><XCircle className="h-3 w-3 mr-1" /> Suspend</Button>}
+                    <Button size="sm" variant="outline" onClick={() => configurePremiumPermissions(sub)}><SlidersHorizontal className="h-3 w-3 mr-1" /> Permissions</Button>
+                    <Button size="sm" variant="outline" onClick={() => toast.info(`${sub.property_name || sub.property_code}: ${assigned?.full_name || "No agent"} · Status ${sub.status}`)}><BarChart3 className="h-3 w-3 mr-1" /> Reports</Button>
+                    <Button size="sm" variant="outline" onClick={() => toast.info(`Latest activity is visible in the Agent Profiles tab audit counters.`)}><History className="h-3 w-3 mr-1" /> Activity Log</Button>
+                    {sub.assigned_agent_user_id && <Button size="sm" variant="outline" onClick={() => revokePremiumAgent(sub)}>Revoke</Button>}
+                    {sub.status !== "cancelled" && <Button size="sm" variant="destructive" onClick={() => updatePremiumStatus(sub, "cancelled")}>Reject</Button>}
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -366,13 +453,32 @@ const RegulatorPropertyManagement = () => {
           {agents.length === 0 && <Card><CardContent className="p-6 text-sm text-muted-foreground">No registered agents found.</CardContent></Card>}
           {agents.map(agent => (
             <Card key={agent.user_id}>
-              <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="font-medium">{agent.full_name}</div>
-                  <div className="text-xs text-muted-foreground">{agent.office_name || "No operating area"}</div>
+              <CardContent className="p-4 flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0 flex items-start gap-3">
+                  <div className="h-12 w-12 rounded-full bg-muted overflow-hidden flex items-center justify-center shrink-0">
+                    {agent.professional_photo_url ? <img src={agent.professional_photo_url} alt={`${agent.full_name || "Agent"} profile`} className="h-full w-full object-cover" loading="lazy" /> : <UserCheck className="h-5 w-5 text-muted-foreground" />}
+                  </div>
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-medium">{agent.full_name}</div>
+                      <Badge variant="outline" className="capitalize">{agent.status || "active"}</Badge>
+                      <Badge variant="outline" className="font-mono">ID {agent.user_id.slice(0, 8).toUpperCase()}</Badge>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <div>Contact: {agent.phone || "—"}</div>
+                      <div>Email: {agent.email || "—"}</div>
+                      <div>Area: {agent.operating_area || agent.region || "—"}</div>
+                      <div>Ratings: Not rated</div>
+                      <div>Assigned properties: {agent.active_assignments || 0}</div>
+                      <div>Pending tasks: {agent.pending_tasks || 0}</div>
+                      <div>Completed tasks: {agent.completed_tasks || 0}</div>
+                      <div>Audit history: {agent.audit_count || 0} actions</div>
+                      <div>Complaints: {tasks.filter(t => t.assigned_staff_id === agent.user_id && t.task_type === "compliance" && t.status !== "done").length} open</div>
+                      <div className="sm:col-span-2">Permissions: Premium property support, assigned task handling, landlord/tenant follow-up only</div>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className="capitalize">{agent.status || "active"}</Badge>
                   {agent.status !== "active" && <Button size="sm" variant="outline" onClick={() => setAgentStatus(agent.user_id, "active")}>Reactivate</Button>}
                   {agent.status === "active" && <Button size="sm" variant="outline" onClick={() => setAgentStatus(agent.user_id, "suspended")}>Suspend</Button>}
                   {agent.status !== "revoked" && <Button size="sm" variant="destructive" onClick={() => setAgentStatus(agent.user_id, "revoked")}>Revoke</Button>}

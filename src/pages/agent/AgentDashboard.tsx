@@ -16,16 +16,23 @@ const AgentDashboard = () => {
         .from("agent_staff").select("full_name").eq("user_id", user.id).maybeSingle();
       if (staff?.full_name) setName(staff.full_name);
 
-      const { data: assignments } = await (supabase as any)
+      const [{ data: assignments }, { data: taskRows }] = await Promise.all([
+        (supabase as any)
         .from("agent_assignments")
         .select("owner_role")
         .eq("agent_user_id", user.id)
-        .eq("active", true);
+        .eq("active", true),
+        (supabase as any)
+          .from("management_task_assignments")
+          .select("id, status")
+          .eq("assigned_staff_id", user.id)
+          .neq("status", "done"),
+      ]);
       const list = assignments || [];
       setStats({
         landlords: list.filter((a: any) => a.owner_role === "landlord").length,
         tenants: list.filter((a: any) => a.owner_role === "tenant").length,
-        tasks: 0,
+        tasks: (taskRows || []).length,
       });
     })();
   }, [user]);

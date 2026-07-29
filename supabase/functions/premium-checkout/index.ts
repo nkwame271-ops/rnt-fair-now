@@ -56,12 +56,7 @@ Deno.serve(async (req) => {
     });
     if (dErr) throw dErr;
 
-    let email = user.email;
-    if (!email) {
-      const { data: prof } = await supabaseAdmin.from("profiles").select("email").eq("user_id", user.id).maybeSingle();
-      email = (prof as any)?.email ?? null;
-    }
-    email = normalizeEmail(email);
+    const email = await resolveCheckoutEmail(supabaseAdmin, user.id, user.email);
     if (!email) return json({ error: "Your account needs a valid email address to check out." }, 200);
 
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
@@ -132,5 +127,19 @@ function json(body: unknown, status = 200) {
 function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const email = value.trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) && !email.endsWith(".local") ? email : null;
+}
+
+async function resolveCheckoutEmail(admin: any, userId: string, claimsEmail?: unknown): Promise<string | null> {
+  const claim = normalizeEmail(claimsEmail);
+  if (claim) return claim;
+  const { data: prof } = await admin.from("profiles").select("email").eq("user_id", userId).maybeSingle();
+  const profileEmail = normalizeEmail(prof?.email);
+  if (profileEmail) return profileEmail;
+  try {
+    const { data } = await admin.auth.admin.getUserById(userId);
+    return normalizeEmail(data?.user?.email);
+  } catch (_) {
+    return null;
+  }
 }
