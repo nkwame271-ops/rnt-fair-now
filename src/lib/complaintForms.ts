@@ -74,6 +74,24 @@ const insertDoc = async (
   return { id: inserted.id, version: nextVersion, path };
 };
 
+const ensureCaseNumber = async (caseId: string, preferred?: string | null): Promise<string | null> => {
+  if (preferred && preferred.trim()) return preferred.trim();
+
+  const { data: tenantCaseNumber, error: tenantError } = await supabase.rpc("ensure_complaint_case_number" as any, {
+    p_case_id: caseId,
+    p_table: "complaints",
+  });
+  if (!tenantError && tenantCaseNumber) return tenantCaseNumber as string;
+
+  const { data: landlordCaseNumber, error: landlordError } = await supabase.rpc("ensure_complaint_case_number" as any, {
+    p_case_id: caseId,
+    p_table: "landlord_complaints",
+  });
+  if (!landlordError && landlordCaseNumber) return landlordCaseNumber as string;
+
+  throw tenantError || landlordError || new Error("Could not assign complaint case number");
+};
+
 /** Prefill a Form 7 editor payload from a complaint row. */
 export function prefillForm7(c: any, officeName?: string): Form7Data {
   const complainants = Array.isArray(c.complainants) ? c.complainants : [];
@@ -171,6 +189,7 @@ export async function generateStatutoryForm(
   formData: Form7Data | Form33Data | Form32AData,
   opts: { title?: string; metadata?: Record<string, any> } = {}
 ) {
+  const canonicalCaseNumber = await ensureCaseNumber(caseId, (formData as any).case_number);
   // Generate verification code + QR data URL for footer (does not alter statutory body)
   const verificationCode = generateVerificationCode();
   const verifyUrl = buildFormVerifyUrl(verificationCode);
@@ -184,6 +203,7 @@ export async function generateStatutoryForm(
 
   const formDataWithQr: any = {
     ...formData,
+    case_number: canonicalCaseNumber || (formData as any).case_number,
     qr_data_url: qrDataUrl,
     verification_code: verificationCode,
   };
@@ -221,7 +241,7 @@ export async function generateStatutoryForm(
     opts.title || defaultTitle,
     "finalized",
     path,
-    { ...formData, verification_code: verificationCode, verify_url: verifyUrl } as any,
+    { ...formData, case_number: canonicalCaseNumber || (formData as any).case_number, verification_code: verificationCode, verify_url: verifyUrl } as any,
     opts.metadata || {},
     verificationCode
   );
@@ -231,7 +251,7 @@ export async function generateStatutoryForm(
   // generation never blocks on telecoms.
   if (formType === "form_33") {
     try {
-      await dispatchForm33Sms(caseId, formData as Form33Data, opts.metadata?.hearing);
+      await dispatchForm33Sms(caseId, formDataWithQr as Form33Data, opts.metadata?.hearing);
     } catch (e) {
       console.warn("Form 33 SMS dispatch failed (non-blocking)", e);
     }
@@ -294,11 +314,12 @@ async function dispatchForm33Sms(
   try {
     const { data: auth } = await supabase.auth.getUser();
     await supabase.from("admin_audit_log").insert({
-      actor_user_id: auth.user?.id || null,
+      admin_user_id: auth.user?.id || null,
       action: "form33_sms_sent",
-      entity_type: "complaint",
-      entity_id: caseId,
-      metadata: { reference: ref, recipients: sent, when: whenIso || null, venue } as any,
+      target_type: "complaint",
+      target_id: caseId,
+      reason: "Form 33 summons notification dispatched",
+      new_state: { reference: ref, recipients: sent, when: whenIso || null, venue } as any,
     } as any);
   } catch { /* audit failures are non-fatal */ }
 }
@@ -322,17 +343,11 @@ export async function generateForm33Draft(
   complaint: any,
   hearing: { scheduled_at: string; venue?: string }
 ) {
-  let caseNumber = complaint.case_number as string | null;
-  if (!caseNumber) {
-    const { data: cn } = await supabase.rpc("issue_car_case_number" as any);
-    caseNumber = (cn as string) || null;
-    if (caseNumber) {
-      await supabase
-        .from("complaints")
-        .update({ case_number: caseNumber, summons_issued_at: new Date().toISOString() })
-        .eq("id", caseId);
-    }
-  }
+  const caseNumber = await ensureCaseNumber(caseId, complaint.case_number);
+  await supabase
+    .from("complaints")
+    .update({ summons_issued_at: new Date().toISOString() } as any)
+    .eq("id", caseId);
   const office = await officeName(complaint.office_id);
   const data = prefillForm33({ ...complaint, case_number: caseNumber || complaint.case_number }, office, hearing);
   const result = await generateStatutoryForm(caseId, "form_33", data, { metadata: { hearing } });

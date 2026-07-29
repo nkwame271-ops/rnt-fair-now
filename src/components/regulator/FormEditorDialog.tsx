@@ -74,13 +74,28 @@ export default function FormEditorDialog({
 
   useEffect(() => {
     if (!open) return;
-    if (initialData) {
-      setData(initialData);
-      return;
-    }
-    if (formType === "form_7") setData(prefillForm7(complaint, officeName));
-    else if (formType === "form_33") setData(prefillForm33(complaint, officeName));
-    else setData(prefillForm32A(complaint, officeName));
+    let cancelled = false;
+    const hydrate = async () => {
+      const base = initialData
+        ? initialData
+        : formType === "form_7"
+          ? prefillForm7(complaint, officeName)
+          : formType === "form_33"
+            ? prefillForm33(complaint, officeName)
+            : prefillForm32A(complaint, officeName);
+
+      if (!base.case_number && complaint?.id) {
+        const { data: caseNumber, error } = await supabase.rpc("ensure_complaint_case_number" as any, {
+          p_case_id: complaint.id,
+          p_table: complaint?.landlord_user_id ? "landlord_complaints" : "complaints",
+        });
+        if (!error && caseNumber) base.case_number = caseNumber;
+      }
+
+      if (!cancelled) setData(base);
+    };
+    hydrate();
+    return () => { cancelled = true; };
   }, [open, formType, complaint, officeName, initialData]);
 
   const set = (k: string, v: any) => setData((d: any) => ({ ...d, [k]: v }));
@@ -95,29 +110,8 @@ export default function FormEditorDialog({
     setBusy(true);
     try {
       await generateStatutoryForm(complaint.id, formType, data);
-      // Auto-SMS respondents when Form 33 (Summons) is generated
       if (formType === "form_33") {
-        try {
-          const respondents: any[] = Array.isArray(complaint.respondents) ? complaint.respondents : [];
-          const phones = respondents.map((r: any) => r?.phone).filter(Boolean);
-          const fallback = complaint.placeholder_respondent_phone || data.respondent_phone;
-          const targets = phones.length ? phones : (fallback ? [fallback] : []);
-          if (targets.length) {
-            const ref = complaint.complaint_code || complaint.case_number || data.case_number || complaint.id?.slice(0, 8);
-            const when = data.hearing_date ? `${data.hearing_date}${data.hearing_time ? " " + data.hearing_time : ""}` : "TBA";
-            const venue = data.hearing_venue || officeName || "Rent Control Office";
-            const message = `Rent Control: You have been summoned for Case ${ref}. Hearing: ${when} at ${venue}. Please attend or contact Rent Control.`;
-            for (const to of targets) {
-              supabase.functions.invoke("send-sms", { body: { to, message } }).catch(() => {});
-            }
-            toast({ title: "Form 33 generated", description: `Summons SMS sent to ${targets.length} respondent(s).` });
-          } else {
-            toast({ title: "Form 33 generated", description: "Saved to Complaint Documents. No respondent phone on file — SMS not sent." });
-          }
-        } catch (e) {
-          console.warn("Form 33 SMS dispatch failed", e);
-          toast({ title: "Form 33 generated", description: "Saved, but summons SMS could not be sent." });
-        }
+        toast({ title: "Form 33 generated", description: "Saved to Complaint Documents. Summons notification is handled by the form workflow." });
       } else {
         toast({ title: `${TITLES[formType].split(" — ")[0]} generated`, description: "Saved to Complaint Documents." });
       }

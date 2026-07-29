@@ -12,6 +12,7 @@ import {
 import { formatGHSDecimal } from "@/lib/formatters";
 import { toast } from "@/hooks/use-toast";
 import { LedgerSyncBadge } from "@/components/regulator/LedgerSyncBadge";
+import { useAdminScope } from "@/hooks/useAdminScope";
 
 type EscrowRow = {
   id: string;
@@ -20,6 +21,7 @@ type EscrowRow = {
   total_amount: number;
   status: string;
   user_id: string;
+  office_id: string | null;
   created_at: string;
 };
 
@@ -33,6 +35,7 @@ const stageBadge = (state: "ok" | "missing" | "pending") => {
 
 const TransactionExplorer = () => {
   const qc = useQueryClient();
+  const { scopeOfficeId, isUnscoped } = useAdminScope();
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -40,11 +43,13 @@ const TransactionExplorer = () => {
 
   // Type counts
   const { data: typeCounts, isLoading: countsLoading } = useQuery({
-    queryKey: ["txn-type-counts"],
+    queryKey: ["txn-type-counts", scopeOfficeId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("escrow_transactions")
         .select("payment_type, status");
+      if (scopeOfficeId) q = q.eq("office_id", scopeOfficeId);
+      const { data, error } = await q;
       if (error) throw error;
       const map = new Map<string, { total: number; paid: number }>();
       for (const r of data ?? []) {
@@ -62,15 +67,16 @@ const TransactionExplorer = () => {
 
   // Transactions for the selected type
   const { data: txns, isLoading: txnsLoading, refetch: refetchTxns } = useQuery({
-    queryKey: ["txn-list", selectedType, statusFilter, search],
+    queryKey: ["txn-list", selectedType, statusFilter, search, scopeOfficeId],
     enabled: !!selectedType,
     queryFn: async () => {
       let q = supabase
         .from("escrow_transactions")
-        .select("id, reference, payment_type, total_amount, status, user_id, created_at")
+        .select("id, reference, payment_type, total_amount, status, user_id, office_id, created_at")
         .eq("payment_type", selectedType!)
         .order("created_at", { ascending: false })
         .limit(200);
+      if (scopeOfficeId) q = q.eq("office_id", scopeOfficeId);
       if (statusFilter === "paid") q = q.in("status", PAID_STATUSES);
       else if (statusFilter === "pending") q = q.in("status", ["pending", "initiated"]);
       else if (statusFilter === "failed") q = q.in("status", ["failed", "abandoned"]);
@@ -83,7 +89,12 @@ const TransactionExplorer = () => {
 
   return (
     <div className="space-y-3">
-    <div className="flex justify-end"><LedgerSyncBadge /></div>
+    <div className="flex items-center justify-between gap-3 flex-wrap">
+      <p className="text-xs text-muted-foreground">
+        {isUnscoped ? "Showing all escrow ledger transactions." : `Showing escrow ledger transactions for office ${scopeOfficeId}.`}
+      </p>
+      <LedgerSyncBadge />
+    </div>
     <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_1fr] gap-3">
       {/* Type list */}
       <Card className="p-2 max-h-[70vh] overflow-y-auto">
@@ -169,6 +180,7 @@ const TransactionExplorer = () => {
         {selectedId ? (
           <LifecyclePanel
             escrowId={selectedId}
+            scopeOfficeId={scopeOfficeId}
             onRepaired={() => {
               qc.invalidateQueries({ queryKey: ["txn-list"] });
               qc.invalidateQueries({ queryKey: ["txn-type-counts"] });
@@ -187,7 +199,7 @@ const TransactionExplorer = () => {
 
 // ──────────────────────────────────────────────────────────────────────────────
 
-const LifecyclePanel = ({ escrowId, onRepaired }: { escrowId: string; onRepaired: () => void }) => {
+const LifecyclePanel = ({ escrowId, scopeOfficeId, onRepaired }: { escrowId: string; scopeOfficeId: string | null; onRepaired: () => void }) => {
   const [verifying, setVerifying] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [paystackVerified, setPaystackVerified] = useState<boolean | null>(null);
@@ -196,11 +208,12 @@ const LifecyclePanel = ({ escrowId, onRepaired }: { escrowId: string; onRepaired
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["txn-lifecycle", escrowId],
     queryFn: async () => {
-      const { data: escrow, error } = await supabase
+      let escrowQuery = supabase
         .from("escrow_transactions")
-        .select("id, reference, status, payment_type, total_amount, user_id, created_at, case_id")
-        .eq("id", escrowId)
-        .maybeSingle();
+        .select("id, reference, status, payment_type, total_amount, user_id, office_id, created_at, case_id")
+        .eq("id", escrowId);
+      if (scopeOfficeId) escrowQuery = escrowQuery.eq("office_id", scopeOfficeId);
+      const { data: escrow, error } = await escrowQuery.maybeSingle();
       if (error) throw error;
       if (!escrow) return null;
 

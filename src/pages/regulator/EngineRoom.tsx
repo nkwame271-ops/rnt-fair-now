@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X, UserX, Search, Archive, AlertTriangle, GraduationCap } from "lucide-react";
+import { Settings, Power, Loader2, Info, DollarSign, Users, Building2, CreditCard, Shield, UserCog, Eye, EyeOff, Save, Cog, ToggleLeft, Plus, Trash2, X, UserX, Search, Archive, AlertTriangle, GraduationCap, Hash } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -84,6 +84,12 @@ const PAYMENT_TYPE_LABELS: Record<string, string> = {
   student_complaint_fee: "Student Complaint Filing Fee",
   safety_report_fee: "Safety Report Fee",
   student_safety_report_fee: "Student Safety Report Fee",
+  property_assessment: "Property Assessment",
+  property_assessment_fee: "Property Assessment Fee",
+  premium_service_subscription: "Premium Service Subscription",
+  agent_application_fee: "Agent Application Fee",
+  wallet_topup: "Wallet Top-up",
+  wallet_topup_fee: "Wallet Top-up Fee",
 };
 
 const STUDENT_PAYMENT_TYPES = new Set(["student_registration", "student_complaint_fee", "student_safety_report_fee"]);
@@ -98,9 +104,12 @@ const RECIPIENT_LABELS: Record<string, string> = {
   igf: "IGF",
   nugs: "NUGS",
   cm: "CM",
+  office: "Office",
+  agent: "Agent",
 };
 
 const BAND_BASED_FEE_KEYS = new Set(["agreement_sale_fee", "add_tenant_fee"]);
+const BILLABLE_FEATURE_KEYS = new Set(["property_assessment", "premium_service_subscription", "agent_application_fee", "wallet_topup_fee"]);
 
 const EngineRoom = () => {
   // Loading guard rendered at end of component after all hooks
@@ -146,6 +155,41 @@ const EngineRoom = () => {
   const [addingFeature, setAddingFeature] = useState<string | null>(null);
   const [newFeatureKey, setNewFeatureKey] = useState("");
   const [advancedFlag, setAdvancedFlag] = useState<any | null>(null);
+  const [casePrefix, setCasePrefix] = useState("CAR");
+  const [savingCasePrefix, setSavingCasePrefix] = useState(false);
+
+  useEffect(() => {
+    if (!profile?.isMainAdmin) return;
+    supabase
+      .from("platform_config")
+      .select("config_value")
+      .eq("config_key", "complaint_case_numbering")
+      .maybeSingle()
+      .then(({ data }) => {
+        const prefix = (data as any)?.config_value?.prefix;
+        if (prefix) setCasePrefix(prefix);
+      });
+  }, [profile?.isMainAdmin]);
+
+  const handleCasePrefixSave = async () => {
+    const normalized = casePrefix.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || "CAR";
+    setSavingCasePrefix(true);
+    const { error } = await supabase
+      .from("platform_config")
+      .upsert({
+        config_key: "complaint_case_numbering",
+        config_value: { prefix: normalized },
+        description: "Configurable complaint case number prefix",
+        updated_by: user?.id,
+      } as any, { onConflict: "config_key" });
+    setSavingCasePrefix(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setCasePrefix(normalized);
+    toast.success(`Complaint case prefix set to ${normalized}`);
+  };
 
   // Fetch all admins for main admin view
   useEffect(() => {
@@ -556,7 +600,16 @@ const EngineRoom = () => {
   const tenantFlags = visibleFlags.filter((f) => f.category === "tenant");
   const landlordFlags = visibleFlags.filter((f) => f.category === "landlord");
   const generalFlags = visibleFlags.filter((f) => f.category === "general");
-  const feeFlags = visibleFlags.filter((f) => f.category === "fee");
+  const feeFlags = visibleFlags.filter((f) =>
+    !STUDENT_FEATURE_KEYS.has(f.feature_key)
+    && (
+      f.category === "fee"
+      || f.category === "platform_fees"
+      || f.category === "assessments"
+      || f.category === "subscriptions"
+      || BILLABLE_FEATURE_KEYS.has(f.feature_key)
+    )
+  );
   const studentPortalFlags = visibleFlags.filter((f) => f.category === "student" && !STUDENT_FEATURE_KEYS.has(f.feature_key));
   const nugsFlags = visibleFlags.filter((f) => f.category === "nugs");
 
@@ -726,6 +779,32 @@ const EngineRoom = () => {
         <div className="flex items-start gap-2 text-xs text-muted-foreground bg-info/5 p-3 rounded-lg border border-info/20">
           <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
           <span>Features awaiting approval from the Ministry of Works and Housing can be disabled here without modifying any code. Fees can be adjusted or turned off entirely — when payment is off, the feature becomes free.</span>
+        </div>
+      )}
+
+      {isMainAdmin && (
+        <div className="bg-card rounded-xl border border-border shadow-card p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-start gap-3">
+              <Hash className="h-5 w-5 mt-0.5 text-primary" />
+              <div>
+                <h3 className="font-semibold text-card-foreground">Complaint Case Numbering</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">Forms 7, 33, and 32A now share one saved case number for each complaint.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={casePrefix}
+                onChange={(e) => setCasePrefix(e.target.value.toUpperCase())}
+                className="h-9 w-28"
+                maxLength={8}
+                aria-label="Complaint case prefix"
+              />
+              <Button size="sm" variant="outline" onClick={handleCasePrefixSave} disabled={savingCasePrefix}>
+                {savingCasePrefix ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
