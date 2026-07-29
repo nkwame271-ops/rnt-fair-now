@@ -39,6 +39,7 @@ interface Staff {
   phone?: string | null;
   region?: string | null;
   operating_area?: string | null;
+  professional_photo_url?: string | null;
   active_assignments?: number;
   pending_tasks?: number;
   completed_tasks?: number;
@@ -118,7 +119,7 @@ const RegulatorPropertyManagement = () => {
         .order("management_enabled_at", { ascending: false } as any),
       supabase.from("admin_staff").select("user_id, office_id, office_name"),
       (supabase.from("agent_staff") as any)
-        .select("user_id, full_name, email, phone, region, operating_area, status")
+        .select("user_id, full_name, email, phone, region, operating_area, professional_photo_url, status")
         .in("status", ["active", "suspended", "revoked"]),
       (supabase.from("premium_subscriptions") as any)
         .select("id, property_id, subscriber_user_id, subscriber_role, assigned_agent_user_id, starts_at, expires_at, status")
@@ -165,6 +166,7 @@ const RegulatorPropertyManagement = () => {
       phone: x.phone,
       region: x.region,
       operating_area: x.operating_area,
+      professional_photo_url: x.professional_photo_url,
       active_assignments: countFor(assignmentCounts || [], "agent_user_id", x.user_id, (row) => row.active === true),
       pending_tasks: countFor(taskRows || [], "assigned_staff_id", x.user_id, (row) => row.status !== "done"),
       completed_tasks: countFor(taskRows || [], "assigned_staff_id", x.user_id, (row) => row.status === "done"),
@@ -452,23 +454,28 @@ const RegulatorPropertyManagement = () => {
           {agents.map(agent => (
             <Card key={agent.user_id}>
               <CardContent className="p-4 flex items-start justify-between gap-3 flex-wrap">
-                <div className="min-w-0 space-y-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="font-medium">{agent.full_name}</div>
-                    <Badge variant="outline" className="capitalize">{agent.status || "active"}</Badge>
-                    <Badge variant="outline" className="font-mono">ID {agent.user_id.slice(0, 8).toUpperCase()}</Badge>
+                <div className="min-w-0 flex items-start gap-3">
+                  <div className="h-12 w-12 rounded-full bg-muted overflow-hidden flex items-center justify-center shrink-0">
+                    {agent.professional_photo_url ? <img src={agent.professional_photo_url} alt={`${agent.full_name || "Agent"} profile`} className="h-full w-full object-cover" loading="lazy" /> : <UserCheck className="h-5 w-5 text-muted-foreground" />}
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <div>Contact: {agent.phone || "—"}</div>
-                    <div>Email: {agent.email || "—"}</div>
-                    <div>Area: {agent.operating_area || agent.region || "—"}</div>
-                    <div>Ratings: Not rated</div>
-                    <div>Assigned properties: {agent.active_assignments || 0}</div>
-                    <div>Pending tasks: {agent.pending_tasks || 0}</div>
-                    <div>Completed tasks: {agent.completed_tasks || 0}</div>
-                    <div>Audit history: {agent.audit_count || 0} actions</div>
-                    <div>Complaints: {tasks.filter(t => t.assigned_staff_id === agent.user_id && t.task_type === "compliance" && t.status !== "done").length} open</div>
-                    <div className="sm:col-span-2">Permissions: Premium property support, assigned task handling, landlord/tenant follow-up only</div>
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-medium">{agent.full_name}</div>
+                      <Badge variant="outline" className="capitalize">{agent.status || "active"}</Badge>
+                      <Badge variant="outline" className="font-mono">ID {agent.user_id.slice(0, 8).toUpperCase()}</Badge>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <div>Contact: {agent.phone || "—"}</div>
+                      <div>Email: {agent.email || "—"}</div>
+                      <div>Area: {agent.operating_area || agent.region || "—"}</div>
+                      <div>Ratings: Not rated</div>
+                      <div>Assigned properties: {agent.active_assignments || 0}</div>
+                      <div>Pending tasks: {agent.pending_tasks || 0}</div>
+                      <div>Completed tasks: {agent.completed_tasks || 0}</div>
+                      <div>Audit history: {agent.audit_count || 0} actions</div>
+                      <div>Complaints: {tasks.filter(t => t.assigned_staff_id === agent.user_id && t.task_type === "compliance" && t.status !== "done").length} open</div>
+                      <div className="sm:col-span-2">Permissions: Premium property support, assigned task handling, landlord/tenant follow-up only</div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
