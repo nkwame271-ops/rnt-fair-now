@@ -58,10 +58,11 @@ Deno.serve(async (req) => {
 
     let email = user.email;
     if (!email) {
-      const { data: prof } = await supabaseAdmin.from("profiles").select("email").eq("id", user.id).maybeSingle();
+      const { data: prof } = await supabaseAdmin.from("profiles").select("email").eq("user_id", user.id).maybeSingle();
       email = (prof as any)?.email ?? null;
     }
-    if (!email) return json({ error: "Your account needs an email address to check out." }, 200);
+    email = normalizeEmail(email);
+    if (!email) return json({ error: "Your account needs a valid email address to check out." }, 200);
 
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
     const PAYSTACK_PUBLIC_KEY = Deno.env.get("PAYSTACK_PUBLIC_KEY");
@@ -126,4 +127,10 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function normalizeEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }

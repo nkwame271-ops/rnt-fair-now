@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
       // Fallback: fetch profile if email not in claims
       if (callerId && !callerEmail) {
         const { data: prof } = await supabaseAdmin
-          .from("profiles").select("email").eq("id", callerId).maybeSingle();
+          .from("profiles").select("email").eq("user_id", callerId).maybeSingle();
         callerEmail = (prof as any)?.email ?? null;
       }
     }
@@ -52,8 +52,8 @@ Deno.serve(async (req) => {
     const recipientId = recipient_user_id || callerId;
     if (!recipientId) return json({ error: "You must be signed in to add money to your wallet." }, 200);
 
-    const email = payer_email || callerEmail;
-    if (!email) return json({ error: "payer_email is required" }, 200);
+    const email = normalizeEmail(payer_email || callerEmail);
+    if (!email) return json({ error: "A valid email address is required to start checkout." }, 200);
 
     const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY");
     const PAYSTACK_PUBLIC_KEY = Deno.env.get("PAYSTACK_PUBLIC_KEY");
@@ -127,4 +127,10 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function normalizeEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }
