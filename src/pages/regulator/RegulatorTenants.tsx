@@ -101,6 +101,27 @@ const SectionHeader = ({ icon: Icon, label }: { icon: any; label: string }) => (
   </div>
 );
 
+const chunkArray = <T,>(items: T[], size = 75): T[][] => {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
+
+const fetchInBatches = async <T,>(
+  ids: string[],
+  queryForBatch: (batch: string[]) => PromiseLike<{ data: T[] | null; error: { message?: string } | null }>
+): Promise<T[]> => {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  if (uniqueIds.length === 0) return [];
+
+  const responses = await Promise.all(chunkArray(uniqueIds).map((batch) => queryForBatch(batch)));
+  const firstError = responses.find((response) => response.error)?.error;
+  if (firstError) throw new Error(firstError.message || "Tenant lookup failed");
+  return responses.flatMap((response) => response.data || []);
+};
+
 const ExpiryValue = ({ date }: { date: string | null }) => {
   if (!date) return <NotProvided />;
   const d = new Date(date);
@@ -122,73 +143,90 @@ const RegulatorTenants = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: tenantData } = await supabase
-        .from("tenants")
-        .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, is_student, school, hostel_or_hall")
-        .order("created_at", { ascending: false });
+      try {
+        const { data: tenantData, error: tenantError } = await supabase
+          .from("tenants")
+          .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, is_student, school, hostel_or_hall")
+          .order("created_at", { ascending: false });
 
-      if (!tenantData || tenantData.length === 0) { setLoading(false); return; }
+        if (tenantError) throw tenantError;
+        if (!tenantData || tenantData.length === 0) { setLoading(false); return; }
 
-      const userIds = tenantData.map(t => t.user_id);
+        const userIds = tenantData.map(t => t.user_id);
 
-      const [profilesRes, tenanciesRes, complaintsRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, full_name, phone, email, nationality, is_citizen, ghana_card_no, residence_permit_no, occupation, emergency_contact_name, emergency_contact_phone, work_address, delivery_address, delivery_region").in("user_id", userIds),
-        supabase.from("tenancies").select("id, tenant_user_id, landlord_user_id, status, agreed_rent, start_date, end_date, move_in_date, registration_code, advance_months, unit_id").in("tenant_user_id", userIds).order("start_date", { ascending: false }),
-        supabase.from("complaints").select("tenant_user_id, complaint_code, complaint_type, status, created_at").in("tenant_user_id", userIds),
-      ]);
+        const [profilesData, tenanciesData, complaintsData] = await Promise.all([
+          fetchInBatches(userIds, (batch) =>
+            supabase.from("profiles").select("user_id, full_name, phone, email, nationality, is_citizen, ghana_card_no, residence_permit_no, occupation, emergency_contact_name, emergency_contact_phone, work_address, delivery_address, delivery_region").in("user_id", batch)
+          ),
+          fetchInBatches(userIds, (batch) =>
+            supabase.from("tenancies").select("id, tenant_user_id, landlord_user_id, status, agreed_rent, start_date, end_date, move_in_date, registration_code, advance_months, unit_id").in("tenant_user_id", batch).order("start_date", { ascending: false })
+          ),
+          fetchInBatches(userIds, (batch) =>
+            supabase.from("complaints").select("tenant_user_id, complaint_code, complaint_type, status, created_at").in("tenant_user_id", batch)
+          ),
+        ]);
 
-      const landlordIds = [...new Set((tenanciesRes.data || []).map(t => t.landlord_user_id))];
-      const unitIds = [...new Set((tenanciesRes.data || []).map(t => t.unit_id))];
+        const landlordIds = [...new Set(tenanciesData.map(t => t.landlord_user_id))];
+        const unitIds = [...new Set(tenanciesData.map(t => t.unit_id))];
 
-      const [landlordProfiles, unitsRes] = await Promise.all([
-        landlordIds.length > 0 ? supabase.from("profiles").select("user_id, full_name, phone").in("user_id", landlordIds) : { data: [] },
-        unitIds.length > 0 ? supabase.from("units").select("id, unit_name, property_id").in("id", unitIds) : { data: [] },
-      ]);
+        const [landlordProfilesData, unitsData] = await Promise.all([
+          fetchInBatches(landlordIds, (batch) =>
+            supabase.from("profiles").select("user_id, full_name, phone").in("user_id", batch)
+          ),
+          fetchInBatches(unitIds, (batch) =>
+            supabase.from("units").select("id, unit_name, property_id").in("id", batch)
+          ),
+        ]);
 
-      const propertyIds = [...new Set((unitsRes.data || []).map(u => u.property_id))];
-      const { data: properties } = propertyIds.length > 0
-        ? await supabase.from("properties").select("id, property_name, address, region").in("id", propertyIds)
-        : { data: [] };
+        const propertyIds = [...new Set(unitsData.map(u => u.property_id))];
+        const propertiesData = await fetchInBatches(propertyIds, (batch) =>
+          supabase.from("properties").select("id, property_name, address, region").in("id", batch)
+        );
 
-      const profileMap = new Map((profilesRes.data || []).map(p => [p.user_id, p]));
-      const landlordProfileMap = new Map(((landlordProfiles as any).data || []).map((p: any) => [p.user_id, { full_name: p.full_name, phone: p.phone }]));
-      const unitMap = new Map((unitsRes.data || []).map(u => [u.id, u]));
-      const propMap = new Map((properties || []).map(p => [p.id, p]));
+        const profileMap = new Map(profilesData.map(p => [p.user_id, p]));
+        const landlordProfileMap = new Map(landlordProfilesData.map((p: any) => [p.user_id, { full_name: p.full_name, phone: p.phone }]));
+        const unitMap = new Map(unitsData.map(u => [u.id, u]));
+        const propMap = new Map(propertiesData.map(p => [p.id, p]));
 
-      const tenancyMap = new Map<string, any[]>();
-      (tenanciesRes.data || []).forEach(t => {
-        const unit = unitMap.get(t.unit_id);
-        const prop = unit ? propMap.get(unit.property_id) : null;
-        const landlordProfile = landlordProfileMap.get(t.landlord_user_id) as any;
-        const enriched = {
+        const tenancyMap = new Map<string, any[]>();
+        tenanciesData.forEach(t => {
+          const unit = unitMap.get(t.unit_id);
+          const prop = unit ? propMap.get(unit.property_id) : null;
+          const landlordProfile = landlordProfileMap.get(t.landlord_user_id) as any;
+          const enriched = {
+            ...t,
+            _landlordName: (landlordProfile?.full_name as string) || "Unknown",
+            _landlordPhone: (landlordProfile?.phone as string) || "",
+            _propertyName: prop?.property_name || null,
+            _propertyAddress: prop?.address || null,
+            _unitName: unit?.unit_name || null,
+            _region: prop?.region || null,
+            _propertyId: prop?.id || null,
+          };
+          const arr = tenancyMap.get(t.tenant_user_id) || [];
+          arr.push(enriched);
+          tenancyMap.set(t.tenant_user_id, arr);
+        });
+
+        const complaintMap = new Map<string, any[]>();
+        complaintsData.forEach(c => {
+          const arr = complaintMap.get(c.tenant_user_id) || [];
+          arr.push(c);
+          complaintMap.set(c.tenant_user_id, arr);
+        });
+
+        setTenants(tenantData.map(t => ({
           ...t,
-          _landlordName: (landlordProfile?.full_name as string) || "Unknown",
-          _landlordPhone: (landlordProfile?.phone as string) || "",
-          _propertyName: prop?.property_name || null,
-          _propertyAddress: prop?.address || null,
-          _unitName: unit?.unit_name || null,
-          _region: prop?.region || null,
-          _propertyId: prop?.id || null,
-        };
-        const arr = tenancyMap.get(t.tenant_user_id) || [];
-        arr.push(enriched);
-        tenancyMap.set(t.tenant_user_id, arr);
-      });
-
-      const complaintMap = new Map<string, any[]>();
-      (complaintsRes.data || []).forEach(c => {
-        const arr = complaintMap.get(c.tenant_user_id) || [];
-        arr.push(c);
-        complaintMap.set(c.tenant_user_id, arr);
-      });
-
-      setTenants(tenantData.map(t => ({
-        ...t,
-        profile: profileMap.get(t.user_id) || undefined,
-        tenancies: tenancyMap.get(t.user_id) || [],
-        complaints: complaintMap.get(t.user_id) || [],
-      })));
-      setLoading(false);
+          profile: profileMap.get(t.user_id) || undefined,
+          tenancies: tenancyMap.get(t.user_id) || [],
+          complaints: complaintMap.get(t.user_id) || [],
+        })));
+      } catch (error: any) {
+        console.error("Tenant database load failed", error);
+        toast.error(error?.message || "Could not load tenant records");
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
