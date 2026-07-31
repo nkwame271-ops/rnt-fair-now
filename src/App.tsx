@@ -211,6 +211,8 @@ const AgentAssignedTenants = lazy(() => import("./pages/agent/AgentAssignedTenan
 const AgentPendingTasks = lazy(() => import("./pages/agent/AgentPendingTasks"));
 const AgentActivity = lazy(() => import("./pages/agent/AgentActivity"));
 const AgentProfile = lazy(() => import("./pages/agent/AgentProfile"));
+const AgentWorkspace = lazy(() => import("./pages/agent/AgentWorkspace"));
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -465,7 +467,9 @@ const App = () => (
                 <Route path="tenants" element={<AgentAssignedTenants />} />
                 <Route path="tasks" element={<AgentPendingTasks />} />
                 <Route path="activity" element={<AgentActivity />} />
+                <Route path="workspace/:ownerUserId" element={<ErrorBoundary section="Agent Workspace"><AgentWorkspace /></ErrorBoundary>} />
                 <Route path="profile" element={<ProfilePage />} />
+
                 <Route path="wallet" element={<WalletPage />} />
               </Route>
 

@@ -10,6 +10,8 @@ import coatOfArms from "@/assets/ghana-coat-of-arms.png";
 import { QRCodeSVG } from "qrcode.react";
 import Seo from "@/components/Seo";
 import { generateRentCardPdf } from "@/lib/generateRentCardPdf";
+import { toast } from "sonner";
+
 
 type Variant = "tenant" | "landlord";
 
@@ -44,105 +46,125 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
   const [loading, setLoading] = useState(true);
   const [cards, setCards] = useState<Enriched[]>([]);
   const [payments, setPayments] = useState<Record<string, any[]>>({});
+  const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     if (!user) return;
     (async () => {
       setLoading(true);
-      const filterCol = variant === "tenant" ? "tenant_user_id" : "landlord_user_id";
-      const roleFilter = variant === "tenant" ? "tenant_copy" : "landlord_copy";
-      const { data: raw } = await supabase
-        .from("rent_cards")
-        .select("*")
-        .eq(filterCol, user.id)
-        .order("created_at", { ascending: false });
-
-      const list = (raw || []) as RentCardRow[];
-      // Prefer the tenant/landlord copy where present, but fall back to any card
-      const preferred = list.filter((c) => (c.card_role || "") === roleFilter);
-      const use = preferred.length > 0 ? preferred : list;
-
-      // Enrich
-      const propIds = [...new Set(use.flatMap((c) => {
-        const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
-        return [c.property_id || t?.property_id].filter(Boolean);
-      }))] as string[];
-      const unitIds = [...new Set(use.flatMap((c) => {
-        const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
-        return [c.unit_id || t?.unit_id].filter(Boolean);
-      }))] as string[];
-      const tenancyIdsAll = [...new Set(use.map((c) => c.tenancy_id).filter(Boolean))] as string[];
-
-      // Fetch tenancies first — they carry authoritative tenant_user_id / landlord_user_id
-      // even when the rent_cards row wasn't backfilled.
-      const tenanciesRes = tenancyIdsAll.length
-        ? await supabase
-            .from("tenancies")
-            .select("id, tenant_user_id, landlord_user_id, property_id, unit_id, placeholder_tenant_name")
-            .in("id", tenancyIdsAll)
-        : { data: [] as any[] };
-      const tmap = new Map((tenanciesRes.data || []).map((t: any) => [t.id, t]));
-
-      const partnerIds = [
-        ...new Set(
-          use.flatMap((c) => {
-            const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
-            return [
-              c.landlord_user_id || t?.landlord_user_id,
-              c.tenant_user_id || t?.tenant_user_id,
-            ];
-          }).filter(Boolean),
-        ),
-      ] as string[];
-
-      const [props, units, profs] = await Promise.all([
-        propIds.length
-          ? supabase.from("properties").select("id, address").in("id", propIds)
-          : Promise.resolve({ data: [] as any[] }),
-        unitIds.length
-          ? supabase.from("units").select("id, unit_name").in("id", unitIds)
-          : Promise.resolve({ data: [] as any[] }),
-        partnerIds.length
-          ? supabase.from("profiles").select("user_id, full_name").in("user_id", partnerIds)
-          : Promise.resolve({ data: [] as any[] }),
-      ]);
-      const pm = new Map((props.data || []).map((p: any) => [p.id, p.address]));
-      const um = new Map((units.data || []).map((u: any) => [u.id, u.unit_name]));
-      const nm = new Map((profs.data || []).map((p: any) => [p.user_id, p.full_name]));
-
-      const enriched: Enriched[] = use.map((c) => {
-        const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
-        const tenantId = c.tenant_user_id || t?.tenant_user_id;
-        const landlordId = c.landlord_user_id || t?.landlord_user_id;
-        return {
-          ...c,
-          property_address: pm.get(c.property_id || t?.property_id) || undefined,
-          unit_name: um.get(c.unit_id || t?.unit_id) || undefined,
-          landlord_name: landlordId ? nm.get(landlordId) : undefined,
-          tenant_name: (tenantId ? nm.get(tenantId) : undefined) || t?.placeholder_tenant_name || undefined,
-        };
-      });
-
-      // Payments per tenancy
-      const tenancyIds = [...new Set(enriched.map((c) => c.tenancy_id).filter(Boolean))] as string[];
-      const payMap: Record<string, any[]> = {};
-      if (tenancyIds.length) {
-        const { data: recs } = await supabase
-          .from("payment_receipts")
-          .select("id, receipt_number, total_amount, payment_type, created_at, tenancy_id, status")
-          .in("tenancy_id", tenancyIds)
+      setError(null);
+      try {
+        const filterCol = variant === "tenant" ? "tenant_user_id" : "landlord_user_id";
+        const roleFilter = variant === "tenant" ? "tenant_copy" : "landlord_copy";
+        const { data: raw, error: cardsErr } = await supabase
+          .from("rent_cards")
+          .select("*")
+          .eq(filterCol, user.id)
           .order("created_at", { ascending: false });
-        (recs || []).forEach((r: any) => {
-          if (!r.tenancy_id) return;
-          (payMap[r.tenancy_id] ||= []).push(r);
-        });
-      }
+        if (cardsErr) throw cardsErr;
 
-      setCards(enriched);
-      setPayments(payMap);
-      setLoading(false);
+        const list = (raw || []) as RentCardRow[];
+        // Prefer the tenant/landlord copy where present, but fall back to any card
+        const preferred = list.filter((c) => (c.card_role || "") === roleFilter);
+        const use = preferred.length > 0 ? preferred : list;
+
+        // Fetch tenancies first — they carry authoritative tenant_user_id /
+        // landlord_user_id / unit_id even when rent_cards wasn't backfilled.
+        const tenancyIdsAll = [...new Set(use.map((c) => c.tenancy_id).filter(Boolean))] as string[];
+        const tenanciesRes = tenancyIdsAll.length
+          ? await supabase
+              .from("tenancies")
+              .select("id, tenant_user_id, landlord_user_id, unit_id, placeholder_tenant_name")
+              .in("id", tenancyIdsAll)
+          : { data: [] as any[] };
+        const tmap = new Map(((tenanciesRes as any).data || []).map((t: any) => [t.id, t]));
+
+        const unitIds = [...new Set(use.flatMap((c) => {
+          const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
+          return [c.unit_id || t?.unit_id].filter(Boolean);
+        }))] as string[];
+
+        // Units carry the property link (tenancies has no property_id column).
+        const unitsRes = unitIds.length
+          ? await supabase.from("units").select("id, unit_name, property_id").in("id", unitIds)
+          : { data: [] as any[] };
+        const unitRows = ((unitsRes as any).data || []) as any[];
+        const um = new Map(unitRows.map((u: any) => [u.id, u.unit_name]));
+        const unitProp = new Map(unitRows.map((u: any) => [u.id, u.property_id]));
+
+        const propIds = [...new Set(use.flatMap((c) => {
+          const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
+          const unitId = c.unit_id || t?.unit_id;
+          return [c.property_id || (unitId ? unitProp.get(unitId) : null)].filter(Boolean);
+        }))] as string[];
+
+        const partnerIds = [
+          ...new Set(
+            use.flatMap((c) => {
+              const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
+              return [
+                c.landlord_user_id || t?.landlord_user_id,
+                c.tenant_user_id || t?.tenant_user_id,
+              ];
+            }).filter(Boolean),
+          ),
+        ] as string[];
+
+        const [props, profs] = await Promise.all([
+          propIds.length
+            ? supabase.from("properties").select("id, address, property_name").in("id", propIds)
+            : Promise.resolve({ data: [] as any[] }),
+          partnerIds.length
+            ? supabase.from("profiles").select("user_id, full_name").in("user_id", partnerIds)
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
+        const pm = new Map<string, string>(((props as any).data || []).map((p: any) => [p.id, p.property_name || p.address]));
+        const nm = new Map<string, string>(((profs as any).data || []).map((p: any) => [p.user_id, p.full_name]));
+
+
+        const enriched: Enriched[] = use.map((c) => {
+          const t: any = c.tenancy_id ? tmap.get(c.tenancy_id) : null;
+          const tenantId = c.tenant_user_id || t?.tenant_user_id;
+          const landlordId = c.landlord_user_id || t?.landlord_user_id;
+          const unitId = c.unit_id || t?.unit_id;
+          const propertyId = c.property_id || (unitId ? unitProp.get(unitId) : null);
+          return {
+            ...c,
+            property_address: (propertyId ? pm.get(propertyId) : undefined) || undefined,
+            unit_name: (unitId ? um.get(unitId) : undefined) || undefined,
+            landlord_name: landlordId ? nm.get(landlordId) : undefined,
+            tenant_name: (tenantId ? nm.get(tenantId) : undefined) || t?.placeholder_tenant_name || undefined,
+          };
+        });
+
+        // Payments per tenancy
+        const tenancyIds = [...new Set(enriched.map((c) => c.tenancy_id).filter(Boolean))] as string[];
+        const payMap: Record<string, any[]> = {};
+        if (tenancyIds.length) {
+          const { data: recs } = await supabase
+            .from("payment_receipts")
+            .select("id, receipt_number, total_amount, payment_type, created_at, tenancy_id, status")
+            .in("tenancy_id", tenancyIds)
+            .order("created_at", { ascending: false });
+          (recs || []).forEach((r: any) => {
+            if (!r.tenancy_id) return;
+            (payMap[r.tenancy_id] ||= []).push(r);
+          });
+        }
+
+        setCards(enriched);
+        setPayments(payMap);
+      } catch (e: any) {
+        console.error("Rent card load failed", e);
+        setError(e?.message || "Could not load your rent card.");
+        toast.error(e?.message || "Could not load your rent card.");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [user, variant]);
+
 
   if (loading) return <LogoLoader message="Loading rent card…" />;
 
@@ -162,7 +184,14 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
         <p className="text-muted-foreground mt-1">{subtitle}</p>
       </div>
 
-      {cards.length === 0 ? (
+      {error ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+          <AlertTriangle className="h-8 w-8 text-destructive mx-auto mb-2" />
+          <h2 className="font-bold">Could not load rent cards</h2>
+          <p className="text-sm text-muted-foreground mt-1">{error}</p>
+        </div>
+      ) : cards.length === 0 ? (
+
         <div className="rounded-xl border border-border bg-card p-10 text-center">
           <CreditCard className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
           <h2 className="text-lg font-bold">No rent card yet</h2>
@@ -266,18 +295,15 @@ const DigitalRentCardView = ({ variant }: { variant: Variant }) => {
                       <p className="text-muted-foreground text-xs">Tenant</p>
                       <p className="font-semibold">{c.tenant_name || "—"}</p>
                     </div>
-                    {c.property_address && (
-                      <div className="col-span-2">
-                        <p className="text-muted-foreground text-xs">Property</p>
-                        <p className="font-semibold">{c.property_address}</p>
-                      </div>
-                    )}
-                    {c.unit_name && (
-                      <div>
-                        <p className="text-muted-foreground text-xs">Unit</p>
-                        <p className="font-semibold">{c.unit_name}</p>
-                      </div>
-                    )}
+                    <div className="col-span-2">
+                      <p className="text-muted-foreground text-xs">Property</p>
+                      <p className="font-semibold">{c.property_address || "Not linked"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Unit</p>
+                      <p className="font-semibold">{c.unit_name || "Not linked"}</p>
+                    </div>
+
                     {c.current_rent != null && (
                       <div>
                         <p className="text-muted-foreground text-xs">Monthly Rent</p>

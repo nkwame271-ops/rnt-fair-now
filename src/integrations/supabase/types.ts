@@ -9435,6 +9435,10 @@ export type Database = {
         Args: { _agent: string; _owner: string }
         Returns: boolean
       }
+      agent_can_view_profile: {
+        Args: { _agent: string; _profile_user: string }
+        Returns: boolean
+      }
       api_enqueue_webhook_event: {
         Args: { p_event_type: string; p_payload: Json }
         Returns: number
@@ -9479,6 +9483,23 @@ export type Database = {
         Returns: Json
       }
       capture_system_health_snapshot: { Args: never; Returns: string }
+      cashbook_totals: {
+        Args: {
+          _category?: string
+          _from?: string
+          _method?: string
+          _office?: string
+          _rec_status?: string
+          _search?: string
+        }
+        Returns: {
+          entry_count: number
+          money_in: number
+          money_out: number
+          pending: number
+          reconciled: number
+        }[]
+      }
       classify_nugs_rent_card_revenue: {
         Args: { p_card_ids: string[]; p_office_id: string }
         Returns: undefined
@@ -9531,6 +9552,20 @@ export type Database = {
       generate_rentcare_reference: { Args: never; Returns: string }
       generate_safety_ticket: { Args: never; Returns: string }
       generate_tenant_id: { Args: never; Returns: string }
+      get_assigned_agent_profile: {
+        Args: { _subscription_id: string }
+        Returns: {
+          agent_id: string
+          email: string
+          full_name: string
+          operating_area: string
+          phone: string
+          professional_photo_url: string
+          region: string
+          status: string
+          user_id: string
+        }[]
+      }
       get_regulator_dashboard_stats: {
         Args: { p_office_id?: string }
         Returns: Json
@@ -9570,6 +9605,10 @@ export type Database = {
       is_main_admin: { Args: { _user_id: string }; Returns: boolean }
       is_nugs_user: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_tenant_of_tenancy: {
+        Args: { _tenancy_id: string; _user_id: string }
+        Returns: boolean
+      }
       issue_car_case_number: { Args: never; Returns: string }
       lookup_serial_details: { Args: { p_serials: string[] }; Returns: Json }
       move_serials_atomic: {

@@ -65,16 +65,22 @@ const PremiumServicePage = ({ variant }: Props) => {
         .maybeSingle(),
     ]);
 
-    // Load agent details for assigned subscriptions
-    const agentIds = [...new Set((subRows || []).map((s: any) => s.assigned_agent_user_id).filter(Boolean))];
-    let agentMap: Record<string, any> = {};
-    if (agentIds.length) {
-      const { data: agentRows } = await supabase
-        .from("agent_staff")
-        .select("user_id, full_name, email, phone, professional_photo_url, region, operating_area")
-        .in("user_id", agentIds);
-      (agentRows || []).forEach((a: any) => { agentMap[a.user_id] = a; });
+    // Load agent details for assigned subscriptions via a secure RPC
+    // (agent_staff itself is not directly readable by subscribers).
+    const assigned = (subRows || []).filter((s: any) => s.assigned_agent_user_id);
+    const agentMap: Record<string, any> = {};
+    if (assigned.length) {
+      const results = await Promise.all(
+        assigned.map((s: any) =>
+          (supabase as any).rpc("get_assigned_agent_profile", { _subscription_id: s.id }),
+        ),
+      );
+      results.forEach((res: any, i: number) => {
+        const row = Array.isArray(res?.data) ? res.data[0] : res?.data;
+        if (row) agentMap[assigned[i].assigned_agent_user_id] = row;
+      });
     }
+
 
     setProperties(props);
     setSubs(subRows || []);
@@ -271,14 +277,18 @@ const PremiumServicePage = ({ variant }: Props) => {
                               {agent.full_name}
                               <BadgeCheck className="h-4 w-4 text-primary" />
                             </p>
-                             <p className="text-[11px] text-muted-foreground font-mono">Agent ID: {String(agent.id || s.assigned_agent_user_id).slice(0, 8).toUpperCase()}</p>
+                             <p className="text-[11px] text-muted-foreground font-mono">Agent ID: {agent.agent_id || String(s.assigned_agent_user_id).slice(0, 8).toUpperCase()}</p>
                             <p className="text-xs text-muted-foreground truncate">{agent.operating_area || agent.region || "—"}</p>
                             {agent.phone && <p className="text-xs text-muted-foreground truncate">📞 {agent.phone}</p>}
                             {agent.email && <p className="text-xs text-muted-foreground truncate">✉️ {agent.email}</p>}
+                            <p className="text-xs text-muted-foreground truncate">Managing: {propLabel(s.property_id)}</p>
                              <div className="flex flex-wrap gap-1 pt-1">
+                               <Badge variant="outline">Agent: {agent.status || "active"}</Badge>
                                <Badge variant="outline">Service: {s.management_enabled ? "Active" : "Standard"}</Badge>
                                <Badge variant="outline">Subscription: {s.status}</Badge>
+                               <Badge variant="outline">Expires {format(new Date(s.expires_at), "dd MMM yyyy")}</Badge>
                              </div>
+
                           </div>
                         </div>
 
@@ -310,7 +320,12 @@ const PremiumServicePage = ({ variant }: Props) => {
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Awaiting agent assignment…</p>
+                      <p className="text-sm text-muted-foreground">
+                        {s.assigned_agent_user_id
+                          ? "An agent is assigned — their profile is loading or unavailable. Please refresh."
+                          : "Awaiting agent assignment…"}
+                      </p>
+
                     )}
                   </div>
                 </div>

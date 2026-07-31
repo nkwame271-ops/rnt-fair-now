@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
+
 import { useAuth } from "@/hooks/useAuth";
 import { Building2 } from "lucide-react";
 import Seo from "@/components/Seo";
@@ -54,9 +56,10 @@ const AgentAssignedProperties = () => {
                 <p className="text-xs text-muted-foreground">{r.profile?.phone || r.owner_user_id.slice(0, 8)}</p>
                 {r.scope_notes && <p className="text-xs mt-1">{r.scope_notes}</p>}
               </div>
-              <button className="text-xs text-primary font-semibold hover:underline" disabled>
+              <Link to={`/agent/workspace/${r.owner_user_id}`} className="text-xs text-primary font-semibold hover:underline">
                 Open workspace →
-              </button>
+              </Link>
+
             </div>
           ))}
         </div>
