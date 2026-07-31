@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
+
 import { useAuth } from "@/hooks/useAuth";
 import { Users } from "lucide-react";
 import Seo from "@/components/Seo";
