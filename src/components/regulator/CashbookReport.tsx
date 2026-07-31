@@ -39,6 +39,8 @@ interface Props {
   title?: string;
 }
 
+const PAGE_SIZE = 100;
+
 const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props) => {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,25 +49,53 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
   const [method, setMethod] = useState<string>("all");
   const [recStatus, setRecStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totals, setTotals] = useState({ entry_count: 0, money_in: 0, money_out: 0, reconciled: 0, pending: 0 });
+  const [officeOptions, setOfficeOptions] = useState<string[]>([]);
+  const [methodOptions, setMethodOptions] = useState<string[]>([]);
   const { scopeOfficeId, isUnscoped, officeName, loading: scopeLoading } = useAdminScope();
+
+  const effectiveOffice = !isUnscoped && scopeOfficeId ? scopeOfficeId : office;
+
+  const fromIso = range === "all" ? null : new Date(Date.now() - Number(range) * 24 * 3600 * 1000).toISOString();
 
   const load = async () => {
     setLoading(true);
     try {
       let q = supabase.from("cashbook_entries").select("*").order("entry_date", { ascending: false });
-      if (range !== "all") {
-        const days = Number(range);
-        const from = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
-        q = q.gte("entry_date", from);
-      }
+      if (fromIso) q = q.gte("entry_date", fromIso);
       if (categoryFilter) q = q.eq("category", categoryFilter);
-      // Match Escrow Ledger scoping: cashbook_entries.office stores the office id.
-      if (!isUnscoped && scopeOfficeId) {
-        q = q.eq("office", scopeOfficeId);
+      if (effectiveOffice !== "all") q = q.eq("office", effectiveOffice);
+      if (method !== "all") q = q.eq("method", method === "unspecified" ? null as any : method);
+      if (recStatus !== "all") q = q.eq("reconciliation_status", recStatus);
+      if (search.trim()) {
+        const s = `%${search.trim()}%`;
+        q = q.or(
+          [`receipt_no.ilike.${s}`, `payment_ref.ilike.${s}`, `description.ilike.${s}`, `payer.ilike.${s}`, `category.ilike.${s}`].join(","),
+        );
       }
-      const { data, error } = await q.limit(1000);
-      if (error) throw error;
-      setEntries((data as Entry[]) || []);
+      const fromRow = (page - 1) * PAGE_SIZE;
+      const [rowsRes, totalsRes] = await Promise.all([
+        q.range(fromRow, fromRow + PAGE_SIZE - 1),
+        (supabase as any).rpc("cashbook_totals", {
+          _from: fromIso,
+          _category: categoryFilter ?? null,
+          _office: effectiveOffice === "all" ? null : effectiveOffice,
+          _method: method === "all" ? null : method,
+          _rec_status: recStatus === "all" ? null : recStatus,
+          _search: search.trim() || null,
+        }),
+      ]);
+      if (rowsRes.error) throw rowsRes.error;
+      setEntries((rowsRes.data as Entry[]) || []);
+      const t = Array.isArray(totalsRes?.data) ? totalsRes.data[0] : totalsRes?.data;
+      setTotals({
+        entry_count: Number(t?.entry_count || 0),
+        money_in: Number(t?.money_in || 0),
+        money_out: Number(t?.money_out || 0),
+        reconciled: Number(t?.reconciled || 0),
+        pending: Number(t?.pending || 0),
+      });
     } catch (e: any) {
       toast({ title: "Failed to load cashbook", description: e.message, variant: "destructive" });
     } finally {
@@ -77,43 +107,41 @@ const CashbookReport = ({ categoryFilter, title = "Automated Cashbook" }: Props)
     if (scopeLoading) return;
     load();
      
-  }, [range, categoryFilter, scopeLoading, isUnscoped, scopeOfficeId]);
+  }, [range, categoryFilter, scopeLoading, isUnscoped, scopeOfficeId, office, method, recStatus, page]);
+
+  // Debounced search
+  useEffect(() => {
+    if (scopeLoading) return;
+    const t = setTimeout(() => {
+      setPage(1);
+      load();
+    }, 400);
+    return () => clearTimeout(t);
+     
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [range, office, method, recStatus]);
 
   useEffect(() => {
     if (!isUnscoped && scopeOfficeId) setOffice(scopeOfficeId);
   }, [isUnscoped, scopeOfficeId]);
 
-  const filtered = useMemo(() => {
-    return entries.filter((e) => {
-      const enforcedOffice = !isUnscoped && scopeOfficeId ? scopeOfficeId : office;
-      if (enforcedOffice !== "all" && (e.office || "unassigned") !== enforcedOffice) return false;
-      if (method !== "all" && (e.method || "unspecified") !== method) return false;
-      if (recStatus !== "all" && e.reconciliation_status !== recStatus) return false;
-      if (search) {
-        const s = search.toLowerCase();
-        const hay = [e.receipt_no, e.payment_ref, e.description, e.payer, e.category]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        if (!hay.includes(s)) return false;
-      }
-      return true;
-    });
-  }, [entries, office, method, recStatus, search]);
+  // Keep filter dropdown options growing from what has been seen
+  useEffect(() => {
+    setOfficeOptions((prev) => Array.from(new Set([...prev, ...entries.map((e) => e.office || "unassigned")])));
+    setMethodOptions((prev) => Array.from(new Set([...prev, ...entries.map((e) => e.method || "unspecified")])));
+  }, [entries]);
 
-  const totals = useMemo(() => {
-    const money_in = filtered.reduce((s, e) => s + Number(e.money_in || 0), 0);
-    const money_out = filtered.reduce((s, e) => s + Number(e.money_out || 0), 0);
-    const reconciled = filtered.filter((e) => e.reconciliation_status === "reconciled").reduce((s, e) => s + Number(e.money_in || 0), 0);
-    const pending = filtered.filter((e) => e.reconciliation_status !== "reconciled").reduce((s, e) => s + Number(e.money_in || 0), 0);
-    const net = money_in - money_out;
-    return { money_in, money_out, reconciled, pending, net };
-  }, [filtered]);
+  const filtered = entries;
+  const offices = officeOptions;
+  const methods = methodOptions;
+  const total = totals.entry_count;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const paged = entries;
+  const pageSize = PAGE_SIZE;
 
-  const offices = useMemo(() => Array.from(new Set(entries.map((e) => e.office || "unassigned"))), [entries]);
-  const methods = useMemo(() => Array.from(new Set(entries.map((e) => e.method || "unspecified"))), [entries]);
-
-  const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
 
   const exportCSV = () => {
     const rows = [
