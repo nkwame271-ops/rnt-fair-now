@@ -211,6 +211,8 @@ const AgentAssignedTenants = lazy(() => import("./pages/agent/AgentAssignedTenan
 const AgentPendingTasks = lazy(() => import("./pages/agent/AgentPendingTasks"));
 const AgentActivity = lazy(() => import("./pages/agent/AgentActivity"));
 const AgentProfile = lazy(() => import("./pages/agent/AgentProfile"));
+const AgentWorkspace = lazy(() => import("./pages/agent/AgentWorkspace"));
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
