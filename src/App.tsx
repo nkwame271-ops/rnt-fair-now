@@ -467,7 +467,9 @@ const App = () => (
                 <Route path="tenants" element={<AgentAssignedTenants />} />
                 <Route path="tasks" element={<AgentPendingTasks />} />
                 <Route path="activity" element={<AgentActivity />} />
+                <Route path="workspace/:ownerUserId" element={<ErrorBoundary section="Agent Workspace"><AgentWorkspace /></ErrorBoundary>} />
                 <Route path="profile" element={<ProfilePage />} />
+
                 <Route path="wallet" element={<WalletPage />} />
               </Route>
 
