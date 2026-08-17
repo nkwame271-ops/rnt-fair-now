@@ -606,9 +606,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, channels: results, sms_error }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ success: true, channels: results, sms_error, sms_error_text, sms_message_id }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (error: unknown) {
     console.error("Notification error:", error);
     const msg = error instanceof Error ? error.message : "Unknown error";
