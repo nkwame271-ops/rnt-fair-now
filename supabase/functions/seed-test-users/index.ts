@@ -5,6 +5,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Idempotent test-account seeder.
+ *
+ * Two bugs made the demo accounts unusable:
+ *  1. Passwords were 6 characters, below the project's 8-character minimum, so the
+ *     accounts were created with a password nobody could sign in with (or not at all).
+ *  2. createUser() fails once the account exists, so re-running the seeder never
+ *     repaired the password. We now fall back to updateUserById.
+ */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -13,78 +22,100 @@ Deno.serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
     const results: string[] = [];
 
-    // 1. Regulator
-    const { data: regUser, error: regErr } = await supabase.auth.admin.createUser({
-      email: "admin@rentcontrol.gov.gh",
-      password: "Admin123!",
-      email_confirm: true,
-      user_metadata: {
-        full_name: "RCD Administrator",
-        phone: "0200000000",
-        role: "regulator",
-      },
-    });
-    if (regErr) {
-      results.push(`Regulator: ${regErr.message}`);
-    } else {
-      results.push(`Regulator created: ${regUser.user.id}`);
-    }
+    const findUserByEmail = async (email: string): Promise<string | null> => {
+      for (let page = 1; page <= 20; page++) {
+        const { data } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+        const users = data?.users || [];
+        const hit = users.find((u: any) => (u.email || "").toLowerCase() === email.toLowerCase());
+        if (hit) return hit.id;
+        if (users.length < 200) break;
+      }
+      return null;
+    };
 
-    // 2. Tenant
-    const { data: tenUser, error: tenErr } = await supabase.auth.admin.createUser({
-      email: "0240001234@rentcontrolghana.local",
-      password: "001234",
-      email_confirm: true,
-      user_metadata: {
-        full_name: "Kwame Asante",
-        phone: "0240001234",
-        role: "tenant",
-      },
+    /** Create the auth user, or reset the password + confirm the email when it already exists. */
+    const upsertUser = async (
+      label: string,
+      email: string,
+      password: string,
+      user_metadata: Record<string, unknown>,
+    ): Promise<{ id: string | null; created: boolean }> => {
+      const { data, error } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata,
+      });
+      if (!error && data?.user) {
+        results.push(`${label} created: ${data.user.id}`);
+        return { id: data.user.id, created: true };
+      }
+
+      const existingId = await findUserByEmail(email);
+      if (!existingId) {
+        results.push(`${label}: ${error?.message || "could not create or locate account"}`);
+        return { id: null, created: false };
+      }
+      const { error: updErr } = await supabase.auth.admin.updateUserById(existingId, {
+        password,
+        email_confirm: true,
+        user_metadata,
+      });
+      results.push(
+        updErr
+          ? `${label} password reset failed: ${updErr.message}`
+          : `${label} existed — password reset and email confirmed: ${existingId}`,
+      );
+      return { id: existingId, created: false };
+    };
+
+    // 1. Regulator
+    await upsertUser("Regulator", "admin@rentcontrol.gov.gh", "Admin123!", {
+      full_name: "RCD Administrator",
+      phone: "0200000000",
+      role: "regulator",
     });
-    if (tenErr) {
-      results.push(`Tenant: ${tenErr.message}`);
-    } else {
-      // Insert tenant record with fee paid
-      const { error: tInsErr } = await supabase.from("tenants").insert({
-        user_id: tenUser.user.id,
+
+    // 2. Tenant (phone login → synthetic email)
+    const tenant = await upsertUser("Tenant", "0240001234@rentcontrolghana.local", "Demo001234", {
+      full_name: "Kwame Asante",
+      phone: "0240001234",
+      role: "tenant",
+    });
+    if (tenant.id) {
+      const { error: tInsErr } = await supabase.from("tenants").upsert({
+        user_id: tenant.id,
         tenant_id: "TNT-DEMO-001",
         registration_fee_paid: true,
         registration_date: new Date().toISOString(),
         expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
         status: "active",
-      });
-      results.push(`Tenant created: ${tenUser.user.id}${tInsErr ? ` (tenant record error: ${tInsErr.message})` : ""}`);
+      }, { onConflict: "user_id" });
+      if (tInsErr) results.push(`Tenant record: ${tInsErr.message}`);
     }
 
-    // 3. Landlord
-    const { data: llUser, error: llErr } = await supabase.auth.admin.createUser({
-      email: "0240005678@rentcontrolghana.local",
-      password: "005678",
-      email_confirm: true,
-      user_metadata: {
-        full_name: "Ama Mensah",
-        phone: "0240005678",
-        role: "landlord",
-      },
+    // 3. Landlord (phone login → synthetic email)
+    const landlord = await upsertUser("Landlord", "0240005678@rentcontrolghana.local", "Demo005678", {
+      full_name: "Ama Mensah",
+      phone: "0240005678",
+      role: "landlord",
     });
-    if (llErr) {
-      results.push(`Landlord: ${llErr.message}`);
-    } else {
-      const { error: lInsErr } = await supabase.from("landlords").insert({
-        user_id: llUser.user.id,
+    if (landlord.id) {
+      const { error: lInsErr } = await supabase.from("landlords").upsert({
+        user_id: landlord.id,
         landlord_id: "LLD-DEMO-001",
         registration_fee_paid: true,
         registration_date: new Date().toISOString(),
         expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
         status: "active",
         compliance_score: 100,
-      });
-      results.push(`Landlord created: ${llUser.user.id}${lInsErr ? ` (landlord record error: ${lInsErr.message})` : ""}`);
+      }, { onConflict: "user_id" });
+      if (lInsErr) results.push(`Landlord record: ${lInsErr.message}`);
     }
 
     return new Response(JSON.stringify({ results }), {
