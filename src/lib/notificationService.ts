@@ -19,12 +19,45 @@ export type NotificationEvent =
   | "rent_card_copy"
   | "complaint_summary";
 
+export type SmsFailureReason =
+  | "no_api_key"
+  | "sender_rejected"
+  | "insufficient_balance"
+  | "invalid_recipient"
+  | "provider_unreachable"
+  | "provider_error";
+
+export type SmsState = "sent" | "unconfirmed" | "failed";
+
+export interface SmsErrorDetail {
+  reason: SmsFailureReason;
+  message: string;
+  sender_tried?: string;
+}
+
 export interface NotificationResult {
   success: boolean;
-  channels?: { sms?: "sent" | "failed"; email?: "enqueued"; inapp?: "inserted" };
-  sms_error?: string;
+  channels?: { sms?: SmsState; email?: "enqueued"; inapp?: "inserted" };
+  sms_error?: SmsErrorDetail;
+  sms_error_text?: string;
+  sms_message_id?: string;
   error?: string;
 }
+
+/** Short, user-facing explanation for each SMS failure reason. */
+export const SMS_FAILURE_MESSAGES: Record<SmsFailureReason, string> = {
+  no_api_key: "our SMS service is not configured",
+  sender_rejected: "our SMS sender ID is not approved by the network",
+  insufficient_balance: "our SMS account has run out of credit",
+  invalid_recipient: "the network rejected that phone number",
+  provider_unreachable: "the SMS network could not be reached",
+  provider_error: "the SMS network returned an error",
+};
+
+export const describeSmsFailure = (result: NotificationResult): string => {
+  const reason = result.sms_error?.reason;
+  return reason ? SMS_FAILURE_MESSAGES[reason] : "the SMS network returned an error";
+};
 
 export const sendNotification = async (
   event: NotificationEvent,

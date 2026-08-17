@@ -300,16 +300,102 @@ function normalizePhone(phone: string): string {
 // ── SMS sender (with sender ID fallback chain) ──
 const SMS_SENDER_FALLBACKS = ["RentControl", "R Control"];
 
-function isSenderRejection(msg: string): boolean {
-  const m = (msg || "").toLowerCase();
-  return (
-    m.includes("not allowed to use this sender id") ||
-    m.includes('"code":"111"') ||
-    m.includes("code: 111")
-  );
+export type SmsFailureReason =
+  | "no_api_key"
+  | "sender_rejected"
+  | "insufficient_balance"
+  | "invalid_recipient"
+  | "provider_unreachable"
+  | "provider_error";
+
+type SmsError = { reason: SmsFailureReason; message: string; sender_tried?: string };
+
+type SmsOutcome =
+  | { ok: true; state: "sent" | "unconfirmed"; via: string; sender: string; message_id?: string }
+  | { ok: false; state: "failed"; error: SmsError };
+
+const REASON_TEXT: Record<SmsFailureReason, string> = {
+  no_api_key: "SMS provider is not configured (missing API key).",
+  sender_rejected: "The SMS sender ID is not approved by the provider.",
+  insufficient_balance: "The SMS account has insufficient credit.",
+  invalid_recipient: "The phone number was rejected as invalid or unroutable.",
+  provider_unreachable: "The SMS provider could not be reached.",
+  provider_error: "The SMS provider returned an error.",
+};
+
+function maskPhone(p: string): string {
+  return p.length <= 5 ? "***" : p.slice(0, 5) + "****" + p.slice(-2);
 }
 
-async function trySendWithSender(apiKey: string, normalized: string, message: string, sender: string): Promise<{ ok: boolean; via?: string; error?: string; senderRejected?: boolean }> {
+function classifyArkesel(raw: string): SmsFailureReason {
+  const m = (raw || "").toLowerCase();
+  if (
+    m.includes("not allowed to use this sender id") ||
+    m.includes('"code":"111"') ||
+    m.includes("code: 111") ||
+    m.includes("sender id")
+  ) return "sender_rejected";
+  if (
+    m.includes("insufficient") ||
+    m.includes("no credit") ||
+    m.includes("low balance") ||
+    m.includes("out of credit") ||
+    m.includes('"code":"105"') ||
+    m.includes('"code":"106"')
+  ) return "insufficient_balance";
+  if (
+    m.includes("invalid recipient") ||
+    m.includes("invalid phone") ||
+    m.includes("invalid number") ||
+    m.includes("no recipient") ||
+    m.includes('"code":"103"') ||
+    m.includes('"code":"104"')
+  ) return "invalid_recipient";
+  if (
+    m.includes("dns") ||
+    m.includes("nxdomain") ||
+    m.includes("failed to fetch") ||
+    m.includes("error sending request") ||
+    m.includes("connection") ||
+    m.includes("timed out") ||
+    m.includes("timeout") ||
+    m.includes("network")
+  ) return "provider_unreachable";
+  return "provider_error";
+}
+
+// Pull the provider's message/campaign id out of either API shape.
+function extractMessageId(payload: unknown): string | undefined {
+  if (!payload) return undefined;
+  if (typeof payload === "string") {
+    const m = payload.match(/"(?:message_id|campaign_id|id)"\s*:\s*"?([\w-]+)"?/i);
+    return m ? m[1] : undefined;
+  }
+  if (typeof payload === "object") {
+    const o = payload as Record<string, any>;
+    const direct = o.message_id || o.campaign_id || o.id;
+    if (direct) return String(direct);
+    const arr = Array.isArray(o.data) ? o.data : undefined;
+    if (arr && arr.length) {
+      const first = arr[0] || {};
+      const nested = first.id || first.message_id || first.recipient;
+      if (nested) return String(nested);
+    }
+    if (o.data && typeof o.data === "object") {
+      const d = o.data as Record<string, any>;
+      const nested = d.message_id || d.campaign_id || d.id;
+      if (nested) return String(nested);
+    }
+  }
+  return undefined;
+}
+
+async function trySendWithSender(
+  apiKey: string,
+  normalized: string,
+  message: string,
+  sender: string,
+): Promise<{ ok: boolean; via?: string; message_id?: string; raw?: string; error?: SmsError }> {
   let v2Error = "";
   try {
     console.log(`Trying Arkesel V2 with sender "${sender}"...`);
@@ -319,8 +405,10 @@ async function trySendWithSender(apiKey: string, normalized: string, message: st
       body: JSON.stringify({ sender, message, recipients: [normalized] }),
     });
     const data = await res.json();
-    if (data.status !== "success") throw new Error(data.message || "V2 SMS failed");
-    return { ok: true, via: "v2" };
+    if (data.status !== "success") {
+      throw new Error(typeof data.message === "string" ? data.message : JSON.stringify(data));
+    }
+    return { ok: true, via: "v2", message_id: extractMessageId(data), raw: JSON.stringify(data) };
   } catch (v2Err) {
     v2Error = v2Err instanceof Error ? v2Err.message : String(v2Err);
     console.warn(`V2 failed for "${sender}":`, v2Error, "— trying V1...");
@@ -342,39 +430,77 @@ async function trySendWithSender(apiKey: string, normalized: string, message: st
     }
     const lower = text.toLowerCase();
     if (lower.includes("error") || lower.includes("fail")) {
-      throw new Error("V1 reported failure: " + text.slice(0, 120));
+      throw new Error("V1 reported failure: " + text.slice(0, 200));
     }
-    return { ok: true, via: "v1" };
+    return { ok: true, via: "v1", message_id: extractMessageId(text), raw: text.slice(0, 200) };
   } catch (v1Err) {
     const v1Msg = v1Err instanceof Error ? v1Err.message : String(v1Err);
-    const combined = `V2: ${v2Error} | V1: ${v1Msg}`;
-    return { ok: false, error: combined, senderRejected: isSenderRejection(v2Error) || isSenderRejection(v1Msg) };
+    // Prefer whichever response actually names a cause; sender rejection wins.
+    const v2Reason = classifyArkesel(v2Error);
+    const v1Reason = classifyArkesel(v1Msg);
+    const reason =
+      v2Reason === "sender_rejected" || v1Reason === "sender_rejected"
+        ? "sender_rejected"
+        : v1Reason !== "provider_error"
+          ? v1Reason
+          : v2Reason;
+    return {
+      ok: false,
+      error: {
+        reason,
+        message: `${REASON_TEXT[reason]} Provider said — V2: ${v2Error || "n/a"} | V1: ${v1Msg || "n/a"}`,
+        sender_tried: sender,
+      },
+    };
   }
 }
 
-async function sendSms(phone: string, message: string): Promise<{ ok: boolean; via?: string; error?: string; sender?: string }> {
+async function sendSms(phone: string, message: string): Promise<SmsOutcome> {
   const ARKESEL_API_KEY = Deno.env.get("ARKESEL_API_KEY");
   if (!ARKESEL_API_KEY) {
-    console.error("ARKESEL_API_KEY not configured, skipping SMS");
-    return { ok: false, error: "ARKESEL_API_KEY not configured" };
+    const error: SmsError = { reason: "no_api_key", message: REASON_TEXT.no_api_key };
+    console.error("SMS FAILED", JSON.stringify({ ...error, recipient: maskPhone(phone) }));
+    return { ok: false, state: "failed", error };
   }
   const normalized = normalizePhone(phone);
-  let lastError = "";
+  let lastError: SmsError = { reason: "provider_error", message: REASON_TEXT.provider_error };
+
   for (const candidate of SMS_SENDER_FALLBACKS) {
     const result = await trySendWithSender(ARKESEL_API_KEY, normalized, message, candidate);
     if (result.ok) {
-      console.log(`SMS sent via ${result.via} using sender "${candidate}"`);
-      return { ok: true, via: result.via, sender: candidate };
+      // Provider accepted the message. Without a message/campaign id we cannot
+      // claim delivery — treat it as unconfirmed so callers can warn the user.
+      if (!result.message_id) {
+        console.warn(
+          "SMS ACCEPTED WITHOUT ID",
+          JSON.stringify({
+            sender: candidate,
+            via: result.via,
+            recipient: maskPhone(normalized),
+            raw: result.raw,
+          }),
+        );
+        return { ok: true, state: "unconfirmed", via: result.via!, sender: candidate };
+      }
+      console.log(`SMS sent via ${result.via} using sender "${candidate}" (id: ${result.message_id})`);
+      return { ok: true, state: "sent", via: result.via!, sender: candidate, message_id: result.message_id };
     }
-    lastError = result.error || "unknown";
-    if (!result.senderRejected) {
-      console.error(`Non-sender failure for "${candidate}", aborting chain:`, lastError);
-      break;
-    }
+
+    lastError = result.error!;
+    console.error(
+      "SMS FAILED",
+      JSON.stringify({
+        reason: lastError.reason,
+        sender_tried: candidate,
+        recipient: maskPhone(normalized),
+        provider_message: lastError.message,
+      }),
+    );
+    if (lastError.reason !== "sender_rejected") break; // only sender issues are worth retrying
     console.warn(`Sender "${candidate}" rejected — trying next...`);
   }
-  console.error("All sender IDs failed:", lastError);
-  return { ok: false, error: lastError };
+
+  return { ok: false, state: "failed", error: lastError };
 }
 
 // ── Email enqueue ──
@@ -434,13 +560,24 @@ Deno.serve(async (req) => {
     const results: Record<string, string> = {};
 
     // SMS
-    let sms_error: string | undefined;
+    let sms_error: SmsError | undefined;
+    let sms_error_text: string | undefined;
+    let sms_message_id: string | undefined;
     if (channels.includes("sms") && phone) {
       const template = SMS_TEMPLATES[event];
       if (template) {
         const smsResult = await sendSms(phone, template(d));
-        results.sms = smsResult.ok ? "sent" : "failed";
-        if (!smsResult.ok) sms_error = smsResult.error;
+        results.sms = smsResult.state;
+        if (smsResult.ok) {
+          sms_message_id = smsResult.message_id;
+          if (smsResult.state === "unconfirmed") {
+            sms_error_text =
+              "The SMS provider accepted the message but returned no delivery reference, so delivery is unconfirmed.";
+          }
+        } else {
+          sms_error = smsResult.error;
+          sms_error_text = smsResult.error.message;
+        }
       }
     }
 
@@ -469,9 +606,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, channels: results, sms_error }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ success: true, channels: results, sms_error, sms_error_text, sms_message_id }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (error: unknown) {
     console.error("Notification error:", error);
     const msg = error instanceof Error ? error.message : "Unknown error";
