@@ -212,24 +212,32 @@ const EscrowDashboard = () => {
       });
       setRevenueByType(typeAgg);
 
-      // Splits — filter by completed transaction IDs to respect date/operational filters
+      // Splits — filter by completed transaction IDs to respect date/operational filters.
+      // Attribution is by the PARENT transaction's office (already filtered above): HQ and
+      // central-pool split rows intentionally carry office_id = NULL, so filtering splits by
+      // office_id would silently drop that money out of every office/region total.
       const completedIds = completed.map(t => t.id).filter(Boolean);
+      const txOfficeById = new Map<string, string | null>(completed.map(t => [t.id, t.office_id ?? null]));
       let splits: any[] = [];
       if (completedIds.length > 0) {
         const batchSize = 200;
         for (let i = 0; i < completedIds.length; i += batchSize) {
           const batch = completedIds.slice(i, i + batchSize);
           const batchSplits = await fetchAllPaged<any>(() => {
-            let q = supabase.from("escrow_splits")
+            return supabase.from("escrow_splits")
               .select("recipient, amount, office_id, release_mode, escrow_transaction_id, disbursement_status")
               .in("escrow_transaction_id", batch)
               .eq("status", "active");
-            if (officeFilter) q = q.eq("office_id", officeFilter);
-            return q;
           });
           splits.push(...batchSplits);
         }
+        // Resolve each split's reporting office from its parent transaction.
+        splits = splits.map((s: any) => ({
+          ...s,
+          office_id: s.office_id ?? txOfficeById.get(s.escrow_transaction_id) ?? null,
+        }));
       }
+
 
       // Index splits per transaction so totals can be recomputed against the viewer's visible recipients
       const splitMap = new Map<string, Array<{ recipient: string; amount: number; office_id?: string | null }>>();

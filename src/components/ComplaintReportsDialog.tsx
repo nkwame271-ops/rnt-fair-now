@@ -17,9 +17,14 @@ import {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Active filters from the complaints page — applied identically to tenant AND landlord complaints. */
+  officeFilter?: string;
+  statusFilter?: string;
+  regionFilter?: string;
+  typeFilter?: string;
 }
 
-const ComplaintReportsDialog = ({ open, onOpenChange }: Props) => {
+const ComplaintReportsDialog = ({ open, onOpenChange, officeFilter, statusFilter, regionFilter, typeFilter }: Props) => {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -27,45 +32,72 @@ const ComplaintReportsDialog = ({ open, onOpenChange }: Props) => {
   const fetchComplaintRows = async (): Promise<ComplaintReportRow[]> => {
     const fromIso = from ? new Date(from).toISOString() : null;
     const toIso = to ? new Date(to + "T23:59:59").toISOString() : null;
+    const active = (v?: string) => v && v !== "all" ? v : null;
 
-    const buildQuery = (table: "complaints" | "landlord_complaints") => {
-      let q: any = (supabase.from(table) as any).select("*");
-      if (fromIso) q = q.gte("created_at", fromIso);
-      if (toIso) q = q.lte("created_at", toIso);
-      return q.order("created_at", { ascending: false });
+    // Paged fetch so large ranges are never truncated at the 1000-row default cap.
+    const fetchAll = async (table: "complaints" | "landlord_complaints") => {
+      const PAGE = 1000;
+      const rows: any[] = [];
+      for (let page = 0; page < 50; page++) {
+        let q: any = (supabase.from(table) as any).select("*");
+        if (fromIso) q = q.gte("created_at", fromIso);
+        if (toIso) q = q.lte("created_at", toIso);
+        if (active(officeFilter)) q = q.eq("office_id", active(officeFilter));
+        if (active(statusFilter)) q = q.eq("status", active(statusFilter));
+        if (active(regionFilter)) q = q.eq("region", active(regionFilter));
+        if (active(typeFilter)) q = q.eq("complaint_type", active(typeFilter));
+        const { data, error } = await q
+          .order("created_at", { ascending: false })
+          .range(page * PAGE, page * PAGE + PAGE - 1);
+        if (error) throw error;
+        const batch = data || [];
+        rows.push(...batch);
+        if (batch.length < PAGE) break;
+      }
+      return rows;
     };
 
-    const [tRes, lRes, offRes] = await Promise.all([
-      buildQuery("complaints"),
-      buildQuery("landlord_complaints"),
+    const [tComps, lComps, offRes] = await Promise.all([
+      fetchAll("complaints"),
+      fetchAll("landlord_complaints"),
       supabase.from("offices").select("id, name"),
     ]);
-    const tComps: any[] = tRes.data || [];
-    const lComps: any[] = lRes.data || [];
     const officeMap = new Map((offRes.data || []).map((o: any) => [o.id, o.name]));
+
+    // Batched IN() lookups — long id lists otherwise blow past the request URL length limit
+    // and silently return nothing (which is what made exports look empty/incomplete).
+    const chunk = <T,>(arr: T[], size = 75): T[][] => {
+      const out: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    };
+    const fetchProfiles = async (ids: string[]) => {
+      const out: any[] = [];
+      for (const part of chunk(ids.filter(Boolean))) {
+        const { data } = await supabase.from("profiles").select("user_id, full_name").in("user_id", part);
+        out.push(...(data || []));
+      }
+      return out;
+    };
 
     const tenantIds = [...new Set(tComps.map((c: any) => c.tenant_user_id))];
     const landlordIds = [...new Set(lComps.map((c: any) => c.landlord_user_id))];
-    const userIds = [...new Set([...tenantIds, ...landlordIds])];
-    const { data: profs } = userIds.length
-      ? await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds)
-      : { data: [] as any[] };
-    const nameMap = new Map((profs || []).map((p: any) => [p.user_id, p.full_name]));
+    const userIds = [...new Set([...tenantIds, ...landlordIds])] as string[];
+    const nameMap = new Map((await fetchProfiles(userIds)).map((p: any) => [p.user_id, p.full_name]));
 
     const allIds = [...tComps.map((c) => c.id), ...lComps.map((c) => c.id)];
-    const { data: assigns } = allIds.length
-      ? await (supabase.from("complaint_assignments") as any)
-          .select("complaint_id, complaint_table, assigned_to")
-          .in("complaint_id", allIds)
-          .is("unassigned_at", null)
-      : { data: [] as any[] };
-    const assigneeIds = [...new Set((assigns || []).map((a: any) => a.assigned_to as string))] as string[];
-    const { data: aProfs } = assigneeIds.length
-      ? await supabase.from("profiles").select("user_id, full_name").in("user_id", assigneeIds)
-      : { data: [] as any[] };
-    const assigneeName = new Map((aProfs || []).map((p: any) => [p.user_id, p.full_name]));
+    const assigns: any[] = [];
+    for (const part of chunk(allIds)) {
+      const { data } = await (supabase.from("complaint_assignments") as any)
+        .select("complaint_id, complaint_table, assigned_to")
+        .in("complaint_id", part)
+        .is("unassigned_at", null);
+      assigns.push(...(data || []));
+    }
+    const assigneeIds = [...new Set(assigns.map((a: any) => a.assigned_to as string))] as string[];
+    const assigneeName = new Map((await fetchProfiles(assigneeIds)).map((p: any) => [p.user_id, p.full_name]));
     const assignByComplaint = new Map<string, string>();
-    (assigns || []).forEach((a: any) => assignByComplaint.set(`${a.complaint_table}:${a.complaint_id}`, assigneeName.get(a.assigned_to) || "Staff"));
+    assigns.forEach((a: any) => assignByComplaint.set(`${a.complaint_table}:${a.complaint_id}`, assigneeName.get(a.assigned_to) || "Staff"));
 
     const rows: ComplaintReportRow[] = [];
     const now = Date.now();
@@ -74,6 +106,7 @@ const ComplaintReportsDialog = ({ open, onOpenChange }: Props) => {
       rows.push({
         code: c.complaint_code,
         ticket: c.ticket_number,
+        source: "Tenant",
         type: c.complaint_type,
         complainant: nameMap.get(c.tenant_user_id) || "—",
         respondent: c.landlord_name || "—",
@@ -92,6 +125,7 @@ const ComplaintReportsDialog = ({ open, onOpenChange }: Props) => {
       rows.push({
         code: c.complaint_code,
         ticket: c.ticket_number,
+        source: "Landlord",
         type: c.complaint_type,
         complainant: nameMap.get(c.landlord_user_id) || "—",
         respondent: c.tenant_name || "—",
@@ -179,8 +213,8 @@ const ComplaintReportsDialog = ({ open, onOpenChange }: Props) => {
         if (kind === "complaint_csv") {
           downloadCsv(
             `complaint_report_${new Date().toISOString().slice(0, 10)}.csv`,
-            ["Code", "Ticket", "Type", "Complainant", "Respondent", "Region", "Office", "Status", "Payment Status", "Basket Total", "Assignee", "Filed", "Resolved", "Days Open"],
-            rows.map((r) => [r.code, r.ticket || "", r.type, r.complainant, r.respondent, r.region, r.office, r.status, r.paymentStatus, r.basketTotal ?? "", r.assignee, r.filedAt, r.resolvedAt || "", r.daysOpen])
+            ["Code", "Ticket", "Source", "Type", "Complainant", "Respondent", "Region", "Office", "Status", "Payment Status", "Basket Total", "Assignee", "Filed", "Resolved", "Days Open"],
+            rows.map((r) => [r.code, r.ticket || "", r.source || "", r.type, r.complainant, r.respondent, r.region, r.office, r.status, r.paymentStatus, r.basketTotal ?? "", r.assignee, r.filedAt, r.resolvedAt || "", r.daysOpen])
           );
         } else {
           generateComplaintReportPdf(rows, { from, to });

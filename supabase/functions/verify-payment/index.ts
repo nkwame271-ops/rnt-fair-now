@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     // Check escrow exists
     const { data: escrow } = await supabaseAdmin
       .from("escrow_transactions")
-      .select("id, status, user_id")
+      .select("id, status, user_id, total_amount")
       .eq("reference", reference)
       .maybeSingle();
 
@@ -59,10 +59,17 @@ Deno.serve(async (req) => {
     console.log("verify-payment local transaction:", JSON.stringify({ reference, escrow_status: escrow.status }));
     if (userId && escrow.user_id !== userId) throw new Error("Unauthorized");
 
-    // Already completed — run finalize anyway to fill any missing splits/receipts/payouts
+    // Already completed — run finalize anyway to fill any missing splits/receipts/payouts.
+    // Pass the ledger amount (NOT 0) so any receipt created on this recovery path
+    // carries the real transaction value.
     if (escrow.status === "completed") {
-      // Still call finalize to ensure splits, receipts, and payouts exist (idempotent)
-      await finalizePayment({ supabaseAdmin, reference, amountPaid: 0, transactionId: "", logError });
+      await finalizePayment({
+        supabaseAdmin,
+        reference,
+        amountPaid: Number(escrow.total_amount || 0),
+        transactionId: "",
+        logError,
+      });
       return new Response(JSON.stringify({ verified: true, status: "completed" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
