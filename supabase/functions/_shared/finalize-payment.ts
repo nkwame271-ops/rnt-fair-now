@@ -539,7 +539,14 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     const serviceFeeTotal = splitPlan
       .filter((s: any) => s?.is_service_fee === true)
       .reduce((sum: number, s: any) => sum + Number(s.amount || 0), 0);
-    const receiptAmount = Math.max(0, +(amountPaid - serviceFeeTotal).toFixed(2));
+    // A non-positive paid amount means "unknown" (e.g. recovery/idempotent re-runs where the
+    // processor amount is not available). Never write a 0.00 receipt for a funded transaction:
+    // fall back to the escrow total, then to the split-plan total.
+    const splitPlanTotal = splitPlan.reduce((sum: number, s: any) => sum + Number(s?.amount || 0), 0);
+    const effectivePaid = amountPaid > 0
+      ? amountPaid
+      : (Number(escrow.total_amount || 0) > 0 ? Number(escrow.total_amount) : splitPlanTotal);
+    const receiptAmount = Math.max(0, +(effectivePaid - serviceFeeTotal).toFixed(2));
     const splitBreakdown = splitPlan
       .filter((s: any) => s?.is_service_fee !== true)
       .map((s: SplitItem) => ({ recipient: s.recipient, amount: s.amount }));

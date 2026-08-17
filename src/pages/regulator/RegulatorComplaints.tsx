@@ -1177,7 +1177,12 @@ const RegulatorComplaints = () => {
 
 
 
-      <ComplaintReportsDialog open={reportsOpen} onOpenChange={setReportsOpen} />
+      <ComplaintReportsDialog
+        open={reportsOpen}
+        onOpenChange={setReportsOpen}
+        officeFilter={officeFilter}
+        statusFilter={statusFilter}
+      />
     </div>
   );
 };

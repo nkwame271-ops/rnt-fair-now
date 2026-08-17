@@ -56,10 +56,31 @@ Deno.serve(async (req) => {
       rawDigits.startsWith("233") ? "0" + rawDigits.slice(3) : rawDigits,
     ].filter(Boolean)));
 
+    // Prefer the auth account whose (synthetic) login email matches this phone. Duplicate
+    // profiles can share a phone number, and resetting the password on the wrong row locked
+    // people out of the account they actually sign in with.
     let userId: string | null = null;
-    for (const tryPhone of candidates) {
-      const { data: profile } = await admin.from("profiles").select("user_id").eq("phone", tryPhone).maybeSingle();
-      if (profile?.user_id) { userId = profile.user_id; break; }
+    const syntheticEmails = new Set(
+      candidates.map((c) => `${c.replace(/\D/g, "")}@rentcontrolghana.local`),
+    );
+    try {
+      const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const emailMatch = list?.users?.find((u: any) => syntheticEmails.has((u.email || "").toLowerCase()));
+      if (emailMatch) userId = emailMatch.id;
+    } catch (e) {
+      console.warn("listUsers email match failed:", e);
+    }
+
+    if (!userId) {
+      for (const tryPhone of candidates) {
+        const { data: profs } = await admin
+          .from("profiles")
+          .select("user_id, created_at")
+          .eq("phone", tryPhone)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (profs && profs.length > 0) { userId = profs[0].user_id; break; }
+      }
     }
 
     if (!userId) {
@@ -77,7 +98,7 @@ Deno.serve(async (req) => {
 
     if (!userId) return json({ ok: false, error: "No account found for this phone number." });
 
-    const { error: updateError } = await admin.auth.admin.updateUserById(userId, { password: new_password });
+    const { error: updateError } = await admin.auth.admin.updateUserById(userId, { password: new_password, email_confirm: true });
     if (updateError) {
       console.error("Password update failed:", updateError);
       return json({ ok: false, error: updateError.message || "Failed to update password" });

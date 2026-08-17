@@ -69,7 +69,20 @@ const getDateRange = (preset: DatePreset, customFrom?: Date, customTo?: Date): {
   }
 };
 
+interface StockOverview {
+  uploaded: number;
+  allocated: number;
+  assignedToLandlords: number;
+  centralUnassigned: number;
+  byRegion: { region: string; allocated: number; assigned: number; available: number }[];
+}
+
 const OfficeReconciliation = () => {
+  const [overview, setOverview] = useState<StockOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [expandedRegion, setExpandedRegion] = useState<string>("");
+  const [regionOfficeRows, setRegionOfficeRows] = useState<{ office_name: string; allocated: number; assigned: number; available: number }[]>([]);
+
   const [datePreset, setDatePreset] = useState<DatePreset>("this_month");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
@@ -91,16 +104,84 @@ const OfficeReconciliation = () => {
   const selectedOffice = regionOffices.find(o => o.id === selectedOfficeId);
   const officeName = selectedOffice?.name || "";
 
+  // ── Simplified stock reconciliation (counts come straight from card records) ──
+  const stockCount = async (build: (q: any) => any): Promise<number> => {
+    let q: any = supabase
+      .from("rent_card_serial_stock" as any)
+      .select("id", { count: "exact", head: true })
+      .eq("pair_index", 1);
+    q = build(q);
+    const { count } = await q;
+    return count || 0;
+  };
+
+  const fetchOverview = async () => {
+    setOverviewLoading(true);
+    try {
+      const [uploaded, allocated, assignedToLandlords, centralUnassigned] = await Promise.all([
+        stockCount((q) => q),
+        stockCount((q) => q.in("stock_type", ["office", "regional"])),
+        stockCount((q) => q.eq("status", "assigned")),
+        stockCount((q) => q.eq("stock_type", "central").eq("status", "available")),
+      ]);
+
+      const byRegion = await Promise.all(
+        GHANA_REGIONS.map(async (region: any) => {
+          const name = typeof region === "string" ? region : region.name;
+          const [alloc, asg, avail] = await Promise.all([
+            stockCount((q) => q.eq("region", name).in("stock_type", ["office", "regional"])),
+            stockCount((q) => q.eq("region", name).eq("status", "assigned")),
+            stockCount((q) => q.eq("region", name).eq("status", "available").in("stock_type", ["office", "regional"])),
+          ]);
+          return { region: name, allocated: alloc, assigned: asg, available: avail };
+        })
+      );
+
+      setOverview({
+        uploaded,
+        allocated,
+        assignedToLandlords,
+        centralUnassigned,
+        byRegion: byRegion.filter((r) => r.allocated > 0 || r.assigned > 0).sort((a, b) => b.allocated - a.allocated),
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load stock overview");
+    }
+    setOverviewLoading(false);
+  };
+
+  const loadRegionOffices = async (region: string) => {
+    if (expandedRegion === region) { setExpandedRegion(""); setRegionOfficeRows([]); return; }
+    setExpandedRegion(region);
+    setRegionOfficeRows([]);
+    const offices = getOfficesForRegion(region) || [];
+    const rows = await Promise.all(
+      offices.map(async (o: any) => {
+        const [alloc, asg, avail] = await Promise.all([
+          stockCount((q) => q.eq("office_name", o.name).in("stock_type", ["office", "regional"])),
+          stockCount((q) => q.eq("office_name", o.name).eq("status", "assigned")),
+          stockCount((q) => q.eq("office_name", o.name).eq("status", "available").in("stock_type", ["office", "regional"])),
+        ]);
+        return { office_name: o.name, allocated: alloc, assigned: asg, available: avail };
+      })
+    );
+    setRegionOfficeRows(rows.filter((r) => r.allocated > 0 || r.assigned > 0));
+  };
+
+  useEffect(() => { fetchOverview(); }, []);
+
   const fetchMetrics = async () => {
     setLoading(true);
     try {
       const { from, to } = getDateRange(datePreset, customFrom, customTo);
 
-      // 1. Total successful rent card payments
+      // 1. Total successful rent card payments.
+      // Rent card revenue is booked as `rent_card_bulk` (the legacy `rent_card_purchase`
+      // type is never written), so filtering on the old value returned 0 payments.
       const { count: totalPayments } = await supabase
         .from("escrow_transactions")
         .select("id", { count: "exact", head: true })
-        .eq("payment_type", "rent_card_purchase")
+        .in("payment_type", ["rent_card_bulk", "rent_card", "rent_card_purchase"])
         .eq("status", "completed")
         .gte("created_at", from)
         .lte("created_at", to);
@@ -400,6 +481,80 @@ const OfficeReconciliation = () => {
 
   return (
     <div className="space-y-6">
+      {/* ─── Simplified Card Stock Reconciliation ─── */}
+      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h2 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 text-primary" /> Card Stock Reconciliation
+          </h2>
+          <Button size="sm" variant="outline" onClick={fetchOverview} disabled={overviewLoading}>
+            {overviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Refresh"}
+          </Button>
+        </div>
+
+        {overviewLoading && !overview ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <Loader2 className="h-4 w-4 animate-spin" /> Counting card records…
+          </div>
+        ) : overview ? (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: "Total Cards Uploaded", value: overview.uploaded },
+                { label: "Allocated to Regions/Offices", value: overview.allocated },
+                { label: "Assigned to Landlords", value: overview.assignedToLandlords },
+                { label: "Unassigned Central Stock", value: overview.centralUnassigned },
+              ].map((c) => (
+                <div key={c.label} className="rounded-lg border border-border p-4">
+                  <p className="text-xs text-muted-foreground">{c.label}</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">{c.value.toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Allocation breakdown — Region → Office</p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Region</TableHead>
+                    <TableHead className="text-right">Allocated</TableHead>
+                    <TableHead className="text-right">Assigned</TableHead>
+                    <TableHead className="text-right">Available</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {overview.byRegion.length === 0 ? (
+                    <TableRow><TableCell colSpan={4} className="text-muted-foreground text-sm">No allocations yet.</TableCell></TableRow>
+                  ) : overview.byRegion.map((r) => (
+                    <>
+                      <TableRow
+                        key={r.region}
+                        className="cursor-pointer"
+                        onClick={() => loadRegionOffices(r.region)}
+                      >
+                        <TableCell className="font-medium">{r.region}</TableCell>
+                        <TableCell className="text-right">{r.allocated.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{r.assigned.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{r.available.toLocaleString()}</TableCell>
+                      </TableRow>
+                      {expandedRegion === r.region && regionOfficeRows.map((o) => (
+                        <TableRow key={`${r.region}-${o.office_name}`} className="bg-muted/40">
+                          <TableCell className="pl-8 text-sm text-muted-foreground">{o.office_name}</TableCell>
+                          <TableCell className="text-right text-sm">{o.allocated.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-sm">{o.assigned.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-sm">{o.available.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        ) : null}
+      </div>
+
       {/* ─── Sales Metrics Section ─── */}
       <div className="bg-card rounded-xl border border-border p-6 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -545,6 +700,26 @@ const OfficeReconciliation = () => {
               <span className="text-sm font-medium">
                 {officeResult.isBalanced ? "Stock is balanced — all serials accounted for." : "Discrepancy detected — stock does not balance."}
               </span>
+            </div>
+
+            {/* Simple office view: Received / Assigned / Available (Received − Assigned) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-lg border border-border p-4">
+                <p className="text-xs text-muted-foreground">Total Cards Received by Office</p>
+                <p className="text-2xl font-bold text-foreground mt-1">{officeResult.totalOfficeStock.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Allocations, transfers and quota increases</p>
+              </div>
+              <div className="rounded-lg border border-border p-4">
+                <p className="text-xs text-muted-foreground">Total Cards Assigned to Landlords</p>
+                <p className="text-2xl font-bold text-primary mt-1">{officeResult.assigned.toLocaleString()}</p>
+              </div>
+              <div className="rounded-lg border border-border p-4">
+                <p className="text-xs text-muted-foreground">Available Office Stock</p>
+                <p className="text-2xl font-bold text-success mt-1">
+                  {Math.max(0, officeResult.totalOfficeStock - officeResult.assigned).toLocaleString()}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Received − Assigned</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

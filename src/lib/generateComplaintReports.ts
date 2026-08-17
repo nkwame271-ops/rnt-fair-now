@@ -4,6 +4,7 @@ import { formatGHSDecimal } from "@/lib/formatters";
 export interface ComplaintReportRow {
   code: string;
   ticket?: string | null;
+  source?: string;
   type: string;
   complainant: string;
   respondent: string;
@@ -54,8 +55,8 @@ export const generateComplaintReportPdf = (rows: ComplaintReportRow[], opts: { t
   doc.text(subtitle, margin, y); y += 6;
   doc.setTextColor(0);
 
-  const headers = ["Code", "Type", "Complainant", "Respondent", "Office", "Status", "Pay", "Total", "Assignee", "Filed", "Days"];
-  const widths = [22, 30, 35, 35, 25, 22, 14, 22, 32, 22, 12];
+  const headers = ["Code", "Source", "Type", "Complainant", "Respondent", "Office", "Status", "Pay", "Total", "Assignee", "Filed", "Days"];
+  const widths = [22, 18, 28, 32, 32, 24, 22, 14, 22, 30, 20, 12];
   doc.setFontSize(8); doc.setFont("helvetica", "bold");
   let x = margin;
   headers.forEach((h, i) => { doc.text(h, x, y); x += widths[i]; });
@@ -68,7 +69,8 @@ export const generateComplaintReportPdf = (rows: ComplaintReportRow[], opts: { t
     x = margin;
     const cells = [
       r.code,
-      r.type.slice(0, 22),
+      (r.source || "—").slice(0, 10),
+      r.type.slice(0, 20),
       r.complainant.slice(0, 22),
       r.respondent.slice(0, 22),
       r.office.slice(0, 16),
