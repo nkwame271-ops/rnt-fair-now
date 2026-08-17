@@ -313,7 +313,7 @@ async function trySendWithSender(apiKey: string, normalized: string, message: st
   let v2Error = "";
   try {
     console.log(`Trying Arkesel V2 with sender "${sender}"...`);
-    const res = await fetch("https://api.arkesel.com/api/v2/sms/send", {
+    const res = await fetch("https://sms.arkesel.com/api/v2/sms/send", {
       method: "POST",
       headers: { "api-key": apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({ sender, message, recipients: [normalized] }),

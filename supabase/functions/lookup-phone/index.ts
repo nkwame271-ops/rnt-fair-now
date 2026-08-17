@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const message = `Your RentControlGhana verification code is: ${code}. Valid for 10 minutes. Do not share.`;
     let smsSent = false;
     try {
-      const res = await fetch("https://api.arkesel.com/api/v2/sms/send", {
+      const res = await fetch("https://sms.arkesel.com/api/v2/sms/send", {
         method: "POST",
         headers: { "api-key": apiKey!, "Content-Type": "application/json" },
         body: JSON.stringify({ sender: "RentControl", message, recipients: [normalized] }),

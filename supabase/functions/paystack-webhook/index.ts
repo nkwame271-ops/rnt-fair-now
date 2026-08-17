@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
             if (!phone.startsWith("233")) phone = "233" + phone;
             const ARKESEL_API_KEY = Deno.env.get("ARKESEL_API_KEY");
             if (ARKESEL_API_KEY) {
-              await fetch("https://api.arkesel.com/api/v2/sms/send", {
+              await fetch("https://sms.arkesel.com/api/v2/sms/send", {
                 method: "POST",
                 headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -299,7 +299,7 @@ Deno.serve(async (req) => {
             if (!phone.startsWith("233")) phone = "233" + phone;
             const ARKESEL_API_KEY = Deno.env.get("ARKESEL_API_KEY");
             if (ARKESEL_API_KEY) {
-              await fetch("https://api.arkesel.com/api/v2/sms/send", {
+              await fetch("https://sms.arkesel.com/api/v2/sms/send", {
                 method: "POST",
                 headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
                 body: JSON.stringify({
