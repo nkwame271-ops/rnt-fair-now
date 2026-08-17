@@ -221,7 +221,20 @@ const RegisterTenant = () => {
         data: { name: fullName, role: "Tenant", id: tenantId, phone: phoneDigits },
       });
       if (notifyResult.channels?.sms === "failed") {
-        toast.warning("Account created, but welcome SMS could not be delivered.");
+        console.error("Welcome SMS failed:", notifyResult.sms_error ?? notifyResult.error);
+        toast.error(`Welcome SMS not delivered — ${describeSmsFailure(notifyResult)}.`, {
+          description:
+            "Your account was created. Sign in with your phone number and your phone number as the temporary password, or visit the nearest Rent Control office.",
+          duration: Infinity,
+          closeButton: true,
+        });
+      } else if (notifyResult.channels?.sms === "unconfirmed") {
+        console.warn("Welcome SMS unconfirmed:", notifyResult.sms_error_text);
+        toast.warning("Welcome SMS delivery could not be confirmed.", {
+          description:
+            "You may not receive the message. Your account was created — sign in with your phone number, or contact the nearest Rent Control office.",
+          duration: 12000,
+        });
       }
 
       setStep(2);
