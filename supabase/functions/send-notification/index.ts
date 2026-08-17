@@ -560,13 +560,24 @@ Deno.serve(async (req) => {
     const results: Record<string, string> = {};
 
     // SMS
-    let sms_error: string | undefined;
+    let sms_error: SmsError | undefined;
+    let sms_error_text: string | undefined;
+    let sms_message_id: string | undefined;
     if (channels.includes("sms") && phone) {
       const template = SMS_TEMPLATES[event];
       if (template) {
         const smsResult = await sendSms(phone, template(d));
-        results.sms = smsResult.ok ? "sent" : "failed";
-        if (!smsResult.ok) sms_error = smsResult.error;
+        results.sms = smsResult.state;
+        if (smsResult.ok) {
+          sms_message_id = smsResult.message_id;
+          if (smsResult.state === "unconfirmed") {
+            sms_error_text =
+              "The SMS provider accepted the message but returned no delivery reference, so delivery is unconfirmed.";
+          }
+        } else {
+          sms_error = smsResult.error;
+          sms_error_text = smsResult.error.message;
+        }
       }
     }
 
