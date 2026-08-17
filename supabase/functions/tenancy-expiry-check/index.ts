@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
         let phone = tenantProfile.phone.replace(/\s/g, "").replace(/^0/, "233");
         if (!phone.startsWith("233")) phone = "233" + phone;
         try {
-          await fetch("https://api.arkesel.com/api/v2/sms/send", {
+          await fetch("https://sms.arkesel.com/api/v2/sms/send", {
             method: "POST",
             headers: { "api-key": ARKESEL_API_KEY, "Content-Type": "application/json" },
             body: JSON.stringify({

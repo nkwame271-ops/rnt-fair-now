@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ARKESEL_V2_URL = "https://api.arkesel.com/api/v2/sms/send";
+const ARKESEL_V2_URL = "https://sms.arkesel.com/api/v2/sms/send";
 const ARKESEL_V1_URL = "https://sms.arkesel.com/sms/api";
 
 const WELCOME_MESSAGE =

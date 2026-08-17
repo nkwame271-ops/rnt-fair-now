@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
 
     let smsSent = false;
     try {
-      const v2Res = await fetch("https://api.arkesel.com/api/v2/sms/send", {
+      const v2Res = await fetch("https://sms.arkesel.com/api/v2/sms/send", {
         method: "POST",
         headers: { "api-key": apiKey!, "Content-Type": "application/json" },
         body: JSON.stringify({ sender: "RentControl", message, recipients: [normalized] }),

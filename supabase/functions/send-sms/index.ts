@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const ARKESEL_V2_URL = "https://api.arkesel.com/api/v2/sms/send";
+const ARKESEL_V2_URL = "https://sms.arkesel.com/api/v2/sms/send";
 const ARKESEL_V1_URL = "https://sms.arkesel.com/sms/api";
 
 // Ordered fallback chain. Try "RentControl" first; if Arkesel rejects the
