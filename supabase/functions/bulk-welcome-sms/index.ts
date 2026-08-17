@@ -39,6 +39,10 @@ async function sendSms(apiKey: string, phone: string, message: string, sender: s
   const text = await res.text();
   console.log(`V1 response for ${phone}:`, text);
   if (!res.ok) throw new Error("V1 HTTP " + res.status + ": " + text);
+  const lower = text.toLowerCase();
+  if (lower.includes("error") || lower.includes("fail") || lower.includes("not allowed")) {
+    throw new Error("V1 reported failure: " + text.slice(0, 200));
+  }
   return { ok: true, via: "v1" };
 }
 
@@ -61,6 +65,8 @@ serve(async (req) => {
     let body: any = {};
     try { body = await req.json(); } catch { /* no body */ }
     const sinceHours = Number(body.since_hours ?? sinceHoursParam ?? 0);
+    const sinceIso = String(body.since ?? url.searchParams.get("since") ?? "").trim();
+    const dryRun = Boolean(body.dry_run ?? url.searchParams.get("dry_run") === "true");
 
     let query = supabase
       .from("profiles")
@@ -68,7 +74,10 @@ serve(async (req) => {
       .not("phone", "is", null)
       .neq("phone", "");
 
-    if (sinceHours > 0) {
+    if (sinceIso) {
+      query = query.gte("created_at", sinceIso);
+      console.log(`Filtering profiles created since ${sinceIso}`);
+    } else if (sinceHours > 0) {
       const cutoff = new Date(Date.now() - sinceHours * 3600 * 1000).toISOString();
       query = query.gte("created_at", cutoff);
       console.log(`Filtering profiles created since ${cutoff}`);
@@ -78,17 +87,42 @@ serve(async (req) => {
 
     if (error) throw new Error("Failed to fetch profiles: " + error.message);
 
-    const realProfiles = (profiles || []).filter(
-      (p) => p.phone && !p.phone.replace(/\s/g, "").match(/^0?200000/)
-    );
+    const normalize = (raw: string) => {
+      let phone = raw.replace(/[^\d+]/g, "").replace(/^\+/, "");
+      if (phone.startsWith("0")) phone = "233" + phone.slice(1);
+      if (!phone.startsWith("233")) phone = "233" + phone;
+      return phone;
+    };
 
-    console.log(`Found ${realProfiles.length} real phone numbers to message`);
+    const seen = new Set<string>();
+    const realProfiles = (profiles || [])
+      .filter((p) => p.phone && !p.phone.replace(/\s/g, "").match(/^0?200000/))
+      .filter((p) => {
+        const n = normalize(p.phone);
+        // Ghana MSISDNs are 233 + 9 digits; anything else is not a local handset.
+        if (n.length !== 12) return false;
+        if (seen.has(n)) return false;
+        seen.add(n);
+        return true;
+      });
+
+    console.log(`Found ${realProfiles.length} unique real phone numbers to message`);
+
+    if (dryRun) {
+      return new Response(
+        JSON.stringify({
+          dry_run: true,
+          count: realProfiles.length,
+          recipients: realProfiles.map((p) => ({ phone: normalize(p.phone), name: p.full_name })),
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const results = { sent: 0, failed: 0, errors: [] as string[], details: [] as string[] };
 
     for (const profile of realProfiles) {
-      let phone = profile.phone.replace(/\s/g, "").replace(/^0/, "233");
-      if (!phone.startsWith("233")) phone = "233" + phone;
+      const phone = normalize(profile.phone);
 
       try {
         const result = await sendSms(ARKESEL_API_KEY, phone, WELCOME_MESSAGE, "RentControl");
