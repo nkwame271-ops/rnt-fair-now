@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { regions } from "@/data/dummyData";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { sendNotification } from "@/lib/notificationService";
+import { sendNotification, describeSmsFailure } from "@/lib/notificationService";
 import FormField from "@/components/FormField";
 import { formatPhone, isValidPhone } from "@/lib/formatters";
 import { Switch } from "@/components/ui/switch";
