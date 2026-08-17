@@ -32,7 +32,7 @@ const ResetPassword = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 8) {
-      toast.error("Password must be at least 6 characters");
+      toast.error("Password must be at least 8 characters");
       return;
     }
     if (password !== confirmPassword) {
