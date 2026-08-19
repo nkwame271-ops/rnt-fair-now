@@ -9504,6 +9504,10 @@ export type Database = {
         Args: { p_card_ids: string[]; p_office_id: string }
         Returns: undefined
       }
+      confirm_complaint_receipt: {
+        Args: { p_receipt_id: string }
+        Returns: Json
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -9635,6 +9639,25 @@ export type Database = {
       nugs_has_permission: {
         Args: { _perm: string; _user_id: string }
         Returns: boolean
+      }
+      payment_reconciliation_summary: {
+        Args: { p_from?: string; p_office_id: string; p_to?: string }
+        Returns: {
+          admin_hq: number
+          admin_office: number
+          cashbook_total: number
+          gra: number
+          gross_total: number
+          igf_hq: number
+          igf_office: number
+          landlord: number
+          payment_type: string
+          platform: number
+          receipt_total: number
+          split_total: number
+          transaction_count: number
+          viewer_is_super_admin: boolean
+        }[]
       }
       rcss_office_summary: {
         Args: never
