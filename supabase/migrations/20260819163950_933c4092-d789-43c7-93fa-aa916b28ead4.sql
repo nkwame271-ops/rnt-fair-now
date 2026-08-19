@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Admin staff read complaints" ON public.complaints;

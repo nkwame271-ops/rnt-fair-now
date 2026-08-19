@@ -1,21 +1,22 @@
 import { useAdminProfile } from "@/hooks/useAdminProfile";
 
 /**
- * useAdminScope — small wrapper over useAdminProfile that returns the office_id
- * a non-super/main admin staff is scoped to. Super/main admins are unscoped (null).
- *
- * Used for query-layer filtering across complaints, receipts, etc. RLS is unchanged;
- * this is purely an application-layer scoping helper.
+ * Full region / multi-office scope for regulator query filtering. Database RLS
+ * remains the security boundary; this hook keeps totals and controls consistent.
  */
 export const useAdminScope = () => {
   const { profile, loading } = useAdminProfile();
 
   // Unscoped (sees everything): super admin, main admin, or no admin profile (legacy)
-  const isUnscoped = !profile || profile.isSuperAdmin || profile.isMainAdmin;
-  const scopeOfficeId = isUnscoped ? null : profile?.officeId || null;
+  const isUnscoped = profile?.scopeType === "ALL_REGIONS";
+  const scopeOfficeIds = isUnscoped ? [] : profile?.officeIds || [];
+  const scopeOfficeId = scopeOfficeIds.length === 1 ? scopeOfficeIds[0] : null;
 
   return {
     scopeOfficeId,
+    scopeOfficeIds,
+    scopeType: profile?.scopeType || null,
+    scopeRegionId: profile?.regionId || null,
     isUnscoped,
     officeName: profile?.officeName || null,
     loading,

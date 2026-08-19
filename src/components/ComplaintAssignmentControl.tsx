@@ -60,7 +60,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
         .eq("complaint_id", complaintId)
         .eq("complaint_table", complaintTable)
         .order("assigned_at", { ascending: false }),
-      supabase.from("hearing_rooms").select("id, name").order("name"),
+      (supabase.from("hearing_rooms") as any).select("id, name, office_id").eq("active", true).order("name"),
     ]);
 
     const staffRows: any[] = staffRes.data || [];
@@ -126,29 +126,14 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
     }
     setSaving(true);
     try {
-      if (current) {
-        const { error: closeErr } = await (supabase.from("complaint_assignments") as any)
-          .update({ unassigned_at: new Date().toISOString() })
-          .eq("id", current.id);
-        if (closeErr) throw closeErr;
-      }
-      const { error: insErr } = await (supabase.from("complaint_assignments") as any).insert({
-        complaint_id: complaintId,
-        complaint_table: complaintTable,
-        assigned_to: newAssigneeId,
-        assigned_by: user.id,
-        reason: current ? reassignmentReason.trim() : "Initial assignment",
-        room_id: selectedRoomId,
+      const { error: assignmentError } = await (supabase.rpc as any)("assign_complaint_case", {
+        p_complaint_id: complaintId,
+        p_complaint_table: complaintTable,
+        p_assigned_to: newAssigneeId,
+        p_room_id: selectedRoomId,
+        p_reason: current ? reassignmentReason.trim() : "Initial assignment",
       });
-      if (insErr) throw insErr;
-      await supabase.from("complaint_audit_log").insert({
-        case_id: complaintId,
-        case_kind: complaintTable === "complaints" ? "complaint" : "landlord_complaint",
-        actor_id: user.id,
-        action: current ? "case_reassigned" : "case_assigned",
-        old_value: current ? { assigned_to: current.assigned_to } : null,
-        new_value: { assigned_to: newAssigneeId, room_id: selectedRoomId, reason: current ? reassignmentReason.trim() : "Initial assignment" },
-      } as any);
+      if (assignmentError) throw assignmentError;
       toast.success(current ? "Complaint reassigned" : "Complaint assigned");
       await load();
       setPendingAssigneeId(null);
@@ -187,7 +172,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={selectedRoomId} onValueChange={setSelectedRoomId} disabled={saving}>
               <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Select room" /></SelectTrigger>
-              <SelectContent>{rooms.map((room) => <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>)}</SelectContent>
+               <SelectContent>{rooms.length ? rooms.map((room) => <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>) : <div className="px-2 py-2 text-xs text-muted-foreground">No hearing rooms configured</div>}</SelectContent>
             </Select>
             <Select value={selectedOffice} onValueChange={(v) => setSelectedOffice(v)} disabled={saving}>
               <SelectTrigger className="h-8 w-44"><SelectValue placeholder="Select office" /></SelectTrigger>

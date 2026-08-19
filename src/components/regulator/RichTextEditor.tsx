@@ -22,6 +22,7 @@ interface Props {
   onChange?: (html: string, json: any) => void;
   placeholder?: string;
   editable?: boolean;
+  compact?: boolean;
 }
 
 const ToolbarBtn = ({ active, onClick, children, title }: any) => (
@@ -71,7 +72,7 @@ const Toolbar = ({ editor }: { editor: Editor }) => {
   );
 };
 
-const RichTextEditor = ({ value = "", onChange, placeholder, editable = true }: Props) => {
+const RichTextEditor = ({ value = "", onChange, placeholder, editable = true, compact = false }: Props) => {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -91,7 +92,7 @@ const RichTextEditor = ({ value = "", onChange, placeholder, editable = true }: 
     },
     editorProps: {
       attributes: {
-        class: "prose prose-sm max-w-none min-h-[60vh] p-6 focus:outline-none [&_table]:border-collapse [&_td]:border [&_th]:border [&_td]:p-2 [&_th]:p-2 [&_th]:bg-muted",
+        class: `prose prose-sm max-w-none ${compact ? "min-h-52 p-4" : "min-h-[60vh] p-6"} focus:outline-none [&_table]:border-collapse [&_td]:border [&_th]:border [&_td]:p-2 [&_th]:p-2 [&_th]:bg-muted`,
       },
     },
   });

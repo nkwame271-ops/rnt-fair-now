@@ -10,6 +10,9 @@ export interface AdminProfile {
   mutedFeatures: string[];
   isMainAdmin: boolean;
   isSuperAdmin: boolean;
+  scopeType?: "ALL_REGIONS" | "SPECIFIC_REGION_ALL_OFFICES" | "SPECIFIC_OFFICES";
+  regionId?: string | null;
+  officeIds?: string[];
 }
 
 let cachedProfile: AdminProfile | null = null;
@@ -36,7 +39,7 @@ export const useAdminProfile = () => {
     const fetch = async () => {
       const { data, error } = await supabase
         .from("admin_staff")
-        .select("admin_type, office_id, office_name, allowed_features, muted_features")
+        .select("admin_type, office_id, office_name, allowed_features, muted_features, scope_type, region_id, office_ids")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -54,6 +57,9 @@ export const useAdminProfile = () => {
         mutedFeatures: (data as any).muted_features || [],
         isMainAdmin: (data as any).admin_type === "main_admin" || (data as any).admin_type === "super_admin",
         isSuperAdmin: (data as any).admin_type === "super_admin",
+        scopeType: ((data as any).scope_type || "SPECIFIC_OFFICES") as NonNullable<AdminProfile["scopeType"]>,
+        regionId: (data as any).region_id || null,
+        officeIds: (data as any).office_ids || ((data as any).office_id ? [(data as any).office_id] : []),
       };
 
       cachedProfile = p;

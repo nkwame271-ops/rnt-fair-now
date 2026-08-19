@@ -106,16 +106,46 @@ Deno.serve(async (req) => {
       role: "landlord",
     });
     if (landlord.id) {
-      const { error: lInsErr } = await supabase.from("landlords").upsert({
+      // The legacy demo profile predates its auth identity. Re-key all domain
+      // records to the actual auth id, then ensure role and profile are present.
+      const { data: legacyLandlord } = await supabase
+        .from("landlords")
+        .select("id")
+        .eq("landlord_id", "LLD-DEMO-001")
+        .maybeSingle();
+      if (legacyLandlord?.id) {
+        const { error: relinkError } = await supabase
+          .from("landlords")
+          .update({
+            user_id: landlord.id,
+            registration_fee_paid: true,
+            registration_date: new Date().toISOString(),
+            expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            status: "active",
+            compliance_score: 100,
+          })
+          .eq("id", legacyLandlord.id);
+        if (relinkError) results.push(`Landlord relink: ${relinkError.message}`);
+      }
+      await supabase.from("profiles").upsert({
         user_id: landlord.id,
-        landlord_id: "LLD-DEMO-001",
-        registration_fee_paid: true,
-        registration_date: new Date().toISOString(),
-        expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-        status: "active",
-        compliance_score: 100,
+        email: "0240005678@rentcontrolghana.local",
+        phone: "0240005678",
+        full_name: "Ama Mensah",
       }, { onConflict: "user_id" });
-      if (lInsErr) results.push(`Landlord record: ${lInsErr.message}`);
+      await supabase.from("user_roles").upsert({ user_id: landlord.id, role: "landlord" }, { onConflict: "user_id,role" });
+      if (!legacyLandlord?.id) {
+        const { error: lInsErr } = await supabase.from("landlords").insert({
+          user_id: landlord.id,
+          landlord_id: "LLD-DEMO-001",
+          registration_fee_paid: true,
+          registration_date: new Date().toISOString(),
+          expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          status: "active",
+          compliance_score: 100,
+        });
+        if (lInsErr) results.push(`Landlord record: ${lInsErr.message}`);
+      }
     }
 
     return new Response(JSON.stringify({ results }), {

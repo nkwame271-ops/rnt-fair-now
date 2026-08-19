@@ -271,7 +271,7 @@ Deno.serve(async (req) => {
     try {
       const { data: escrow } = await supabase
         .from("escrow_transactions")
-        .select("user_id, payment_type, metadata")
+        .select("id, user_id, payment_type, metadata")
         .eq("reference", reference)
         .maybeSingle();
 
@@ -284,10 +284,8 @@ Deno.serve(async (req) => {
         const { data: receipt } = await supabase
           .from("payment_receipts")
           .select("receipt_number")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+          .eq("escrow_transaction_id", escrow.id)
+          .maybeSingle();
 
         const receiptNo = receipt?.receipt_number || reference;
 

@@ -29,14 +29,19 @@ Deno.serve(async (req) => {
     drift: null as any,
   };
 
-  // 1. Paid escrows older than 5 min with no receipt → re-run finalize
+  // 1. Paid escrows older than 5 min with no receipt → re-run finalize.
+  // Fetch beyond the most recent fully-synchronized rows, then identify drift
+  // before applying the repair limit. The previous .limit(50) ran before the
+  // receipt check, so the same 50 healthy transactions hid older drift forever.
   const { data: orphanEscrows } = await supabaseAdmin
     .from("escrow_transactions")
     .select("id, reference, total_amount, paystack_transaction_id")
     .in("status", ["success", "completed", "paid"])
     .lt("created_at", new Date(Date.now() - 5 * 60_000).toISOString())
-    .limit(50);
+    .order("created_at", { ascending: false })
+    .limit(1000);
 
+  let repairCandidates = 0;
   for (const esc of orphanEscrows ?? []) {
     const { data: existing } = await supabaseAdmin
       .from("payment_receipts")
@@ -44,6 +49,8 @@ Deno.serve(async (req) => {
       .eq("escrow_transaction_id", esc.id)
       .maybeSingle();
     if (existing) continue;
+    if (repairCandidates >= 100) break;
+    repairCandidates += 1;
     try {
       await finalizePayment({
         supabaseAdmin,
@@ -52,6 +59,14 @@ Deno.serve(async (req) => {
         transactionId: esc.paystack_transaction_id ?? esc.reference,
         logError,
       });
+      const { data: repairedReceipt, error: receiptCheckError } = await supabaseAdmin
+        .from("payment_receipts")
+        .select("id")
+        .eq("escrow_transaction_id", esc.id)
+        .maybeSingle();
+      if (receiptCheckError || !repairedReceipt) {
+        throw new Error(receiptCheckError?.message || "Finalization returned without creating a receipt");
+      }
       result.repaired_escrows += 1;
       await supabaseAdmin
         .from("receipt_generation_failures")

@@ -9599,6 +9599,16 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_complaint_case: {
+        Args: {
+          p_assigned_to: string
+          p_complaint_id: string
+          p_complaint_table: string
+          p_reason: string
+          p_room_id: string
+        }
+        Returns: string
+      }
       assign_premium_property_to_agent: {
         Args: { p_agent_user_id?: string; p_subscription_id: string }
         Returns: Json
