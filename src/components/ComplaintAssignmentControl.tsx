@@ -3,6 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { UserPlus, History, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -40,19 +43,24 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedOffice, setSelectedOffice] = useState<string>("");
+  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [pendingAssigneeId, setPendingAssigneeId] = useState<string | null>(null);
+  const [reassignmentReason, setReassignmentReason] = useState("");
 
   const canAssign = !!profile?.isMainAdmin;
   const current = history.find((h) => !h.unassigned_at) || null;
 
   const load = async () => {
     setLoading(true);
-    const [staffRes, histRes] = await Promise.all([
+    const [staffRes, histRes, roomRes] = await Promise.all([
       (supabase.from("admin_staff") as any).select("user_id, office_name, admin_type"),
       (supabase.from("complaint_assignments") as any)
-        .select("id, assigned_to, assigned_by, assigned_at, unassigned_at, reason")
+        .select("id, assigned_to, assigned_by, assigned_at, unassigned_at, reason, room_id")
         .eq("complaint_id", complaintId)
         .eq("complaint_table", complaintTable)
         .order("assigned_at", { ascending: false }),
+      supabase.from("hearing_rooms").select("id, name").order("name"),
     ]);
 
     const staffRows: any[] = staffRes.data || [];
@@ -85,6 +93,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
         _assignedByName: nameMap.get(h.assigned_by) || "Admin",
       }))
     );
+    setRooms((roomRes.data || []) as { id: string; name: string }[]);
     setLoading(false);
   };
 
@@ -100,9 +109,21 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
     }
   }, [currentAssignment, staff]);
 
-  const handleAssign = async (newAssigneeId: string) => {
+  const handleAssign = async (newAssigneeId: string, confirmed = false) => {
     if (!user || !canAssign) return;
     if (current?.assigned_to === newAssigneeId) return;
+    if (!selectedRoomId) {
+      toast.error("Select a hearing room before assigning the case");
+      return;
+    }
+    if (current && !confirmed) {
+      setPendingAssigneeId(newAssigneeId);
+      return;
+    }
+    if (current && !reassignmentReason.trim()) {
+      toast.error("Reason for reassignment is required");
+      return;
+    }
     setSaving(true);
     try {
       if (current) {
@@ -116,11 +137,22 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
         complaint_table: complaintTable,
         assigned_to: newAssigneeId,
         assigned_by: user.id,
-        reason: current ? "Reassignment" : "Initial assignment",
+        reason: current ? reassignmentReason.trim() : "Initial assignment",
+        room_id: selectedRoomId,
       });
       if (insErr) throw insErr;
+      await supabase.from("complaint_audit_log").insert({
+        case_id: complaintId,
+        case_kind: complaintTable === "complaints" ? "complaint" : "landlord_complaint",
+        actor_id: user.id,
+        action: current ? "case_reassigned" : "case_assigned",
+        old_value: current ? { assigned_to: current.assigned_to } : null,
+        new_value: { assigned_to: newAssigneeId, room_id: selectedRoomId, reason: current ? reassignmentReason.trim() : "Initial assignment" },
+      } as any);
       toast.success(current ? "Complaint reassigned" : "Complaint assigned");
       await load();
+      setPendingAssigneeId(null);
+      setReassignmentReason("");
       onChanged?.();
     } catch (err: any) {
       toast.error(err.message || "Failed to assign");
@@ -153,6 +185,10 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
         <span className="text-sm font-semibold text-foreground">Assigned to:</span>
         {canAssign ? (
           <div className="flex items-center gap-2 flex-wrap">
+            <Select value={selectedRoomId} onValueChange={setSelectedRoomId} disabled={saving}>
+              <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Select room" /></SelectTrigger>
+              <SelectContent>{rooms.map((room) => <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>)}</SelectContent>
+            </Select>
             <Select value={selectedOffice} onValueChange={(v) => setSelectedOffice(v)} disabled={saving}>
               <SelectTrigger className="h-8 w-44"><SelectValue placeholder="Select office" /></SelectTrigger>
               <SelectContent>
@@ -223,6 +259,18 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
           </CollapsibleContent>
         </Collapsible>
       )}
+      <Dialog open={!!pendingAssigneeId} onOpenChange={(open) => { if (!open) { setPendingAssigneeId(null); setReassignmentReason(""); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Reason for Reassignment</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="reassignment-reason">Reason</Label>
+            <Input id="reassignment-reason" value={reassignmentReason} onChange={(event) => setReassignmentReason(event.target.value)} placeholder="Enter the reassignment reason" />
+          </div>
+          <DialogFooter>
+            <Button disabled={!reassignmentReason.trim() || saving} onClick={() => pendingAssigneeId && handleAssign(pendingAssigneeId, true)}>Confirm Reassignment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
