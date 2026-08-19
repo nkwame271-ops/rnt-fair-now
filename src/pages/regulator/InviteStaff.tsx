@@ -41,6 +41,7 @@ const InviteStaff = () => {
   const [password, setPassword] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [officeId, setOfficeId] = useState("");
+  const [scopeType, setScopeType] = useState<"ALL_REGIONS" | "SPECIFIC_REGION_ALL_OFFICES" | "SPECIFIC_OFFICES">("SPECIFIC_OFFICES");
   const [assignedSchool, setAssignedSchool] = useState("");
   const [nugsPermComplaints, setNugsPermComplaints] = useState(true);
   const [nugsPermRentCard, setNugsPermRentCard] = useState(false);
@@ -80,12 +81,16 @@ const InviteStaff = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
-    if (adminType === "sub_admin" && !officeId) {
-      toast.error("Please select an office for the Sub Admin");
+    if (adminType !== "nugs_admin" && scopeType === "SPECIFIC_REGION_ALL_OFFICES" && !selectedRegion) {
+      toast.error("Please select a region");
+      return;
+    }
+    if (adminType !== "nugs_admin" && scopeType === "SPECIFIC_OFFICES" && !officeId) {
+      toast.error("Please select an office");
       return;
     }
     if (adminType === "nugs_admin" && !assignedSchool) {
@@ -105,6 +110,9 @@ const InviteStaff = () => {
           adminType,
           officeId: adminType === "sub_admin" ? officeId : null,
           officeName: adminType === "sub_admin" ? office?.name : null,
+          scopeType: adminType === "nugs_admin" ? null : scopeType,
+          regionId: scopeType === "SPECIFIC_REGION_ALL_OFFICES" ? selectedRegion : null,
+          officeIds: scopeType === "SPECIFIC_OFFICES" ? [officeId] : [],
           assignedSchool: adminType === "nugs_admin" ? assignedSchool : null,
           allowedFeatures: selectedFeatures,
           salesChannelId: adminType !== "nugs_admin" && salesChannelId ? salesChannelId : null,
@@ -127,6 +135,7 @@ const InviteStaff = () => {
       setPassword("");
       setSelectedRegion("");
       setOfficeId("");
+      setScopeType("SPECIFIC_OFFICES");
       setAssignedSchool("");
       setSelectedFeatures([]);
       setSalesChannelId("");
@@ -277,12 +286,12 @@ const InviteStaff = () => {
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="password"
-                placeholder="Min 6 characters"
+                placeholder="Min 8 characters"
                 className="pl-10"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={8}
               />
             </div>
             <p className="text-xs text-muted-foreground">
@@ -290,8 +299,20 @@ const InviteStaff = () => {
             </p>
           </div>
 
-          {adminType === "sub_admin" && (
+          {adminType !== "nugs_admin" && (
             <>
+              <div className="space-y-2">
+                <Label>Data Access Scope</Label>
+                <Select value={scopeType} onValueChange={(value) => { setScopeType(value as typeof scopeType); setSelectedRegion(""); setOfficeId(""); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {profile?.isSuperAdmin && <SelectItem value="ALL_REGIONS">All Regions</SelectItem>}
+                    <SelectItem value="SPECIFIC_REGION_ALL_OFFICES">Specific Region — All Offices</SelectItem>
+                    <SelectItem value="SPECIFIC_OFFICES">Specific Office</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {scopeType !== "ALL_REGIONS" && (
               <div className="space-y-2">
                 <Label>Region</Label>
                 <Select value={selectedRegion} onValueChange={v => { setSelectedRegion(v); setOfficeId(""); }}>
@@ -303,8 +324,9 @@ const InviteStaff = () => {
                   </SelectContent>
                 </Select>
               </div>
+              )}
 
-              {selectedRegion && (
+              {scopeType === "SPECIFIC_OFFICES" && selectedRegion && (
                 <div className="space-y-2">
                   <Label>Assigned Office</Label>
                   <Select value={officeId} onValueChange={setOfficeId}>

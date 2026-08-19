@@ -54,18 +54,33 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { email, fullName, phone, password, adminType, officeId, officeName, assignedSchool, allowedFeatures, nugsPermissions, salesChannelId, channelPermissions } = body || {};
+    const { email, fullName, phone, password, adminType, officeId, officeName, assignedSchool, allowedFeatures, nugsPermissions, salesChannelId, channelPermissions, scopeType, regionId, officeIds } = body || {};
     const isNugs = adminType === "nugs_admin";
 
     if (isNugs && callerAdmin.admin_type !== "super_admin") {
       return json({ error: "Only Super Admins can create NUGS sub-admins." });
     }
     if (!email || !fullName || !password) return json({ error: "email, fullName, and password are required" });
-    if (password.length < 6) return json({ error: "Password must be at least 6 characters" });
+    if (password.length < 8) return json({ error: "Password must be at least 8 characters" });
 
     const resolvedAdminType = adminType || "sub_admin";
-    if (resolvedAdminType === "sub_admin" && !officeId) return json({ error: "Sub Admins must be assigned to an office" });
+    if (!["main_admin", "sub_admin", "nugs_admin"].includes(resolvedAdminType)) return json({ error: "Invalid admin type" });
+    if (resolvedAdminType === "main_admin" && callerAdmin.admin_type !== "super_admin") return json({ error: "Only Super Admins can create Main Admins." });
+    const resolvedScope = scopeType || "SPECIFIC_OFFICES";
+    if (!isNugs && !["ALL_REGIONS", "SPECIFIC_REGION_ALL_OFFICES", "SPECIFIC_OFFICES"].includes(resolvedScope)) return json({ error: "Invalid access scope" });
+    if (!isNugs && resolvedScope === "ALL_REGIONS" && callerAdmin.admin_type !== "super_admin") return json({ error: "Only Super Admins can grant All Regions access." });
+    if (!isNugs && resolvedScope === "SPECIFIC_REGION_ALL_OFFICES" && !regionId) return json({ error: "A region is required for regional access." });
+    if (!isNugs && resolvedScope === "SPECIFIC_OFFICES" && (!Array.isArray(officeIds) || officeIds.length === 0)) return json({ error: "At least one office is required." });
     if (isNugs && (!assignedSchool || !assignedSchool.trim())) return json({ error: "NUGS Sub-Admins must be assigned to a school" });
+
+    if (!isNugs && resolvedScope !== "ALL_REGIONS") {
+      const requestedOffices = resolvedScope === "SPECIFIC_OFFICES" ? officeIds : [];
+      if (requestedOffices.length) {
+        const { data: validOffices } = await adminClient.from("offices").select("id, region").in("id", requestedOffices);
+        if ((validOffices || []).length !== requestedOffices.length) return json({ error: "One or more selected offices are invalid." });
+        if (regionId && (validOffices || []).some((row: any) => row.region !== regionId)) return json({ error: "Selected offices must belong to the selected region." });
+      }
+    }
 
     // Email pre-check (paginated)
     try {
@@ -129,8 +144,11 @@ Deno.serve(async (req) => {
         .from("admin_staff").insert({
           user_id: newUserId,
           admin_type: resolvedAdminType,
-          office_id: resolvedAdminType === "main_admin" ? null : (officeId || null),
-          office_name: resolvedAdminType === "main_admin" ? null : (officeName || null),
+          office_id: resolvedScope === "SPECIFIC_OFFICES" ? (officeIds[0] || officeId || null) : null,
+          office_name: resolvedScope === "SPECIFIC_OFFICES" ? (officeName || null) : null,
+          scope_type: resolvedScope,
+          region_id: resolvedScope === "SPECIFIC_REGION_ALL_OFFICES" ? regionId : null,
+          office_ids: resolvedScope === "SPECIFIC_OFFICES" ? officeIds : [],
           allowed_features: allowedFeatures || [],
           muted_features: [],
           phone: phone || null,
