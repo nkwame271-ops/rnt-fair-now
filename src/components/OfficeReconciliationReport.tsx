@@ -25,8 +25,6 @@ import { useAdminProfile } from "@/hooks/useAdminProfile";
  *   • Landlord       = recipient = "landlord"
  */
 
-const BUNDLE_PARENT_TYPES = ["existing_tenancy_bundle", "add_tenant_fee"];
-
 interface Partitions {
   igfOffice: number;
   igfHq: number;
@@ -63,76 +61,33 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
     setPartitions(null);
     setByType([]);
 
-    // 1) Completed transactions for this office (excluding bundle parents)
-    let txQ = supabase
-      .from("escrow_transactions")
-      .select("id, total_amount, payment_type, created_at")
-      .eq("office_id", officeId)
-      .eq("status", "completed");
-    if (from) txQ = txQ.gte("created_at", new Date(from).toISOString());
-    if (to) txQ = txQ.lte("created_at", new Date(to + "T23:59:59").toISOString());
-    const { data: txns } = await txQ;
-    const completed = (txns || []).filter((t: any) => !BUNDLE_PARENT_TYPES.includes(t.payment_type));
-    const ids = completed.map((t: any) => t.id);
-
-    if (ids.length === 0) {
-      setPartitions({ igfOffice: 0, igfHq: 0, adminOffice: 0, adminHq: 0, platform: 0, gra: 0, landlord: 0, total: 0 });
-      setLoading(false);
-      return;
-    }
-
-    // 2) Active splits for those transactions (batched .in)
-    const splits: any[] = [];
-    const batch = 200;
-    for (let i = 0; i < ids.length; i += batch) {
-      const chunk = ids.slice(i, i + batch);
-      const { data } = await supabase
-        .from("escrow_splits")
-        .select("escrow_transaction_id, recipient, amount")
-        .in("escrow_transaction_id", chunk)
-        .eq("status", "active");
-      if (data) splits.push(...data);
-    }
-
     const empty = (): Partitions => ({ igfOffice: 0, igfHq: 0, adminOffice: 0, adminHq: 0, platform: 0, gra: 0, landlord: 0, total: 0 });
-    const accumulate = (p: Partitions, recipient: string, amount: number) => {
-      const a = Number(amount);
-      p.total += a;
-      if (recipient === "rent_control") p.igfOffice += a;
-      else if (recipient === "rent_control_hq") p.igfHq += a;
-      else if (recipient === "admin") p.adminOffice += a;
-      else if (recipient === "admin_hq") p.adminHq += a;
-      else if (recipient === "platform") p.platform += a;
-      else if (recipient === "gra") p.gra += a;
-      else if (recipient === "landlord") p.landlord += a;
-    };
-
-    // Index splits by transaction
-    const splitsByTx = new Map<string, any[]>();
-    for (const s of splits) {
-      const arr = splitsByTx.get(s.escrow_transaction_id) || [];
-      arr.push(s);
-      splitsByTx.set(s.escrow_transaction_id, arr);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-reconciliation", {
+        body: { action: "office_summary", office_id: officeId, from: from || null, to: to || null },
+      });
+      if (error) throw error;
+      const rows = (data?.rows ?? []) as Array<Record<string, number | string | boolean>>;
+      const mapped = rows.map((row) => {
+        const p: Partitions = {
+          igfOffice: Number(row.igf_office ?? 0), igfHq: Number(row.igf_hq ?? 0),
+          adminOffice: Number(row.admin_office ?? 0), adminHq: Number(row.admin_hq ?? 0),
+          platform: Number(row.platform ?? 0), gra: Number(row.gra ?? 0),
+          landlord: Number(row.landlord ?? 0), total: Number(row.split_total ?? 0),
+        };
+        return { type: String(row.payment_type), total: Number(row.gross_total ?? 0), count: Number(row.transaction_count ?? 0), partitions: p };
+      });
+      const overall = mapped.reduce((sum, row) => ({
+        igfOffice: sum.igfOffice + row.partitions.igfOffice, igfHq: sum.igfHq + row.partitions.igfHq,
+        adminOffice: sum.adminOffice + row.partitions.adminOffice, adminHq: sum.adminHq + row.partitions.adminHq,
+        platform: sum.platform + row.partitions.platform, gra: sum.gra + row.partitions.gra,
+        landlord: sum.landlord + row.partitions.landlord, total: sum.total + row.partitions.total,
+      }), empty());
+      setPartitions(overall);
+      setByType(mapped);
+    } finally {
+      setLoading(false);
     }
-
-    // Overall partitions
-    const overall = empty();
-    splits.forEach(s => accumulate(overall, s.recipient, s.amount));
-
-    // Per type partitions
-    const typeMap = new Map<string, { total: number; count: number; partitions: Partitions }>();
-    for (const t of completed) {
-      const e = typeMap.get(t.payment_type) || { total: 0, count: 0, partitions: empty() };
-      e.total += Number(t.total_amount);
-      e.count += 1;
-      const sList = splitsByTx.get(t.id) || [];
-      sList.forEach(s => accumulate(e.partitions, s.recipient, s.amount));
-      typeMap.set(t.payment_type, e);
-    }
-
-    setPartitions(overall);
-    setByType(Array.from(typeMap.entries()).map(([type, v]) => ({ type, ...v })).sort((a, b) => b.total - a.total));
-    setLoading(false);
   };
 
   const exportCSV = () => {
