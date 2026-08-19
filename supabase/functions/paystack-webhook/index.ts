@@ -284,10 +284,8 @@ Deno.serve(async (req) => {
         const { data: receipt } = await supabase
           .from("payment_receipts")
           .select("receipt_number")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+          .eq("escrow_transaction_id", result.escrowId)
+          .maybeSingle();
 
         const receiptNo = receipt?.receipt_number || reference;
 

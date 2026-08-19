@@ -507,7 +507,7 @@ const AssignDialog = ({ open, onOpenChange, complaint, offices, admins, onSaved 
 
 const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved }: any) => {
   const [when, setWhen] = useState("");
-  const [roomNumber, setRoomNumber] = useState<string>("");
+  const [roomId, setRoomId] = useState<string>("");
   const [officerId, setOfficerId] = useState(complaint.assigned_officer_user_id || "");
   const [priority, setPriority] = useState("normal");
   const [saving, setSaving] = useState(false);
@@ -543,17 +543,11 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
     setSaving(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
-      // Map numbered room (1-10) to an entry in hearing_rooms by name when present, otherwise persist the label only.
-      let roomId: string | null = null;
-      if (roomNumber) {
-        const want = `Room ${roomNumber}`;
-        const match = (rooms || []).find((r: any) => (r.name || "").toLowerCase() === want.toLowerCase());
-        roomId = match?.id || null;
-      }
+      const selectedRoom = (rooms || []).find((room: any) => room.id === roomId);
       const { data: hearing, error } = await supabase.from("complaint_hearings").insert({
         case_id: complaint.id, case_kind: "complaint",
         scheduled_at: new Date(when).toISOString(),
-        room_id: roomId, room_label: roomNumber ? `Room ${roomNumber}` : null,
+        room_id: roomId || null, room_label: selectedRoom?.name || null,
         officer_user_id: officerId || null,
         priority, status: "scheduled", created_by: auth.user?.id,
       } as any).select("id").single();
@@ -566,7 +560,7 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
         const { generateForm33Draft } = await import("@/lib/complaintForms");
         await generateForm33Draft(complaint.id, complaint, {
           scheduled_at: new Date(when).toISOString(),
-          venue: roomNumber ? `Room ${roomNumber}` : undefined,
+          venue: selectedRoom?.name || undefined,
         });
       } catch (e) { console.warn("Form 33 auto-generate failed", e); }
 
@@ -588,11 +582,11 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
         <div className="space-y-3">
           <div><Label>Date & Time</Label><Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} /></div>
           <div><Label>Room</Label>
-            <Select value={roomNumber} onValueChange={setRoomNumber}>
-              <SelectTrigger><SelectValue placeholder="Select room number" /></SelectTrigger>
+            <Select value={roomId} onValueChange={setRoomId}>
+              <SelectTrigger><SelectValue placeholder={rooms.length ? "Select room" : "No rooms configured for this office"} /></SelectTrigger>
               <SelectContent>
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                  <SelectItem key={n} value={String(n)}>Room {n}</SelectItem>
+                {rooms.map((room: any) => (
+                  <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -689,6 +683,7 @@ const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
   const [orders, setOrders] = useState("");
   const [deadline, setDeadline] = useState("");
   const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const save = async () => {
     if (!summary.trim()) return toast({ title: "Overview required", variant: "destructive" });
     if (outcome === "adjourned" && !deadline) return toast({ title: "Adjournment date required", variant: "destructive" });
@@ -727,9 +722,17 @@ const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Record Decision</DialogTitle></DialogHeader>
-        <div className="space-y-3">
+      <DialogContent className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-3xl flex-col overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-6 py-4"><DialogTitle>{previewing ? "Preview Decision" : "Record Decision"}</DialogTitle></DialogHeader>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
+          {previewing ? (
+            <div className="space-y-4">
+              <div><Label>Outcome</Label><p className="mt-1 capitalize">{outcome.replace(/_/g, " ")}</p></div>
+              <div><Label>Overview</Label><div className="prose prose-sm mt-1 max-w-none rounded-md border p-4" dangerouslySetInnerHTML={{ __html: summary }} /></div>
+              <div><Label>Determination</Label><p className="mt-1 whitespace-pre-wrap">{orders || "—"}</p></div>
+              <div><Label>Date</Label><p className="mt-1">{deadline || "—"}</p></div>
+            </div>
+          ) : <>
           <div><Label>Outcome</Label>
             <Select value={outcome} onValueChange={setOutcome}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -743,12 +746,14 @@ const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
               </SelectContent>
             </Select>
           </div>
-          <div><Label>Overview</Label><RichTextEditor value={summary} onChange={(html) => setSummary(html)} placeholder="Record the case overview…" /></div>
+          <div><Label>Overview</Label><RichTextEditor compact value={summary} onChange={(html) => setSummary(html)} placeholder="Record the case overview…" /></div>
           <div><Label>Determination</Label><Textarea rows={3} value={orders} onChange={(e) => setOrders(e.target.value)} /></div>
           <div><Label>{outcome === "adjourned" ? "Adjournment Date" : "Date"}</Label><Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></div>
+          </>}
         </div>
-        <DialogFooter>
-          <Button onClick={save} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Record</Button>
+        <DialogFooter className="shrink-0 border-t px-6 py-4">
+          {previewing ? <Button variant="outline" onClick={() => setPreviewing(false)}>Edit</Button> : <Button variant="outline" onClick={() => setPreviewing(true)} disabled={!summary.trim()}>Preview</Button>}
+          <Button onClick={save} disabled={saving || !previewing}>{saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Record</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

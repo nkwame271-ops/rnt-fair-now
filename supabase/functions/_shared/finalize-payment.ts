@@ -534,11 +534,6 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       .eq("user_id", userId)
       .single();
 
-    // Service-fee splits are real escrow rows for revenue reporting but must
-    // not appear on the customer receipt.
-    const serviceFeeTotal = splitPlan
-      .filter((s: any) => s?.is_service_fee === true)
-      .reduce((sum: number, s: any) => sum + Number(s.amount || 0), 0);
     // A non-positive paid amount means "unknown" (e.g. recovery/idempotent re-runs where the
     // processor amount is not available). Never write a 0.00 receipt for a funded transaction:
     // fall back to the escrow total, then to the split-plan total.
@@ -546,7 +541,9 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     const effectivePaid = amountPaid > 0
       ? amountPaid
       : (Number(escrow.total_amount || 0) > 0 ? Number(escrow.total_amount) : splitPlanTotal);
-    const receiptAmount = Math.max(0, +(effectivePaid - serviceFeeTotal).toFixed(2));
+    // A receipt records the gross amount collected. Service-fee rows remain
+    // excluded from the customer-facing split breakdown, not from cash received.
+    const receiptAmount = Math.max(0, +effectivePaid.toFixed(2));
     const splitBreakdown = splitPlan
       .filter((s: any) => s?.is_service_fee !== true)
       .map((s: SplitItem) => ({ recipient: s.recipient, amount: s.amount }));
@@ -656,6 +653,7 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
           attempted_payload: receiptPayload as unknown as Record<string, unknown>,
         });
       } catch (_e) { /* best-effort */ }
+      throw new Error(`Payment funded but receipt synchronization failed: ${receiptErr.message}`);
     }
     receiptId = insertedReceipt?.id || null;
   }
@@ -730,14 +728,15 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
   try {
     const { data: existingPayouts } = await supabaseAdmin
       .from("payout_transfers")
-      .select("id")
-      .eq("escrow_transaction_id", escrowId)
-      .limit(1);
+      .select("escrow_split_id")
+      .eq("escrow_transaction_id", escrowId);
 
-    if (!existingPayouts || existingPayouts.length === 0) {
+    const paidSplitIds = new Set((existingPayouts || []).map((p: any) => p.escrow_split_id).filter(Boolean));
+    {
       const PAYSTACK_SK = Deno.env.get("PAYSTACK_SECRET_KEY");
       if (PAYSTACK_SK && splits.length > 0) {
         for (const split of splits) {
+          if (split.id && paidSplitIds.has(split.id)) continue;
           if (split.recipient === "landlord" || split.disbursement_status === "held" || split.disbursement_status === "deferred" || split.amount <= 0) continue;
 
           const accountType = RECIPIENT_TO_ACCOUNT_TYPE[split.recipient];
@@ -869,14 +868,15 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
     const storedSplitPlan = meta.split_plan;
     if (Array.isArray(storedSplitPlan) && storedSplitPlan.length > 0) {
       const storedTotal = storedSplitPlan.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
-      if (Math.abs(storedTotal - amountPaid) > 0.5) {
+      const allocationPaid = amountPaid > 0 ? amountPaid : Number(escrow.total_amount || 0);
+      if (Math.abs(storedTotal - allocationPaid) > 0.5) {
         await logError({
           escrow_transaction_id: escrowId,
           reference,
           error_stage: "allocation_validation",
-          error_message: `Split plan total (${storedTotal}) differs from paid amount (${amountPaid}) by ${Math.abs(storedTotal - amountPaid).toFixed(2)}`,
+          error_message: `Split plan total (${storedTotal}) differs from paid amount (${allocationPaid}) by ${Math.abs(storedTotal - allocationPaid).toFixed(2)}`,
           severity: "warning",
-          error_context: { stored_total: storedTotal, paid: amountPaid },
+          error_context: { stored_total: storedTotal, paid: allocationPaid },
         });
       }
     }
