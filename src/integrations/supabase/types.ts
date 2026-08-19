@@ -87,10 +87,13 @@ export type Database = {
           id: string
           muted_features: string[] | null
           office_id: string | null
+          office_ids: string[]
           office_name: string | null
           payment_permissions: Json
           phone: string | null
+          region_id: string | null
           sales_channel_id: string | null
+          scope_type: string
           stock_alert_threshold: number | null
           updated_at: string | null
           user_id: string
@@ -104,10 +107,13 @@ export type Database = {
           id?: string
           muted_features?: string[] | null
           office_id?: string | null
+          office_ids?: string[]
           office_name?: string | null
           payment_permissions?: Json
           phone?: string | null
+          region_id?: string | null
           sales_channel_id?: string | null
+          scope_type?: string
           stock_alert_threshold?: number | null
           updated_at?: string | null
           user_id: string
@@ -121,10 +127,13 @@ export type Database = {
           id?: string
           muted_features?: string[] | null
           office_id?: string | null
+          office_ids?: string[]
           office_name?: string | null
           payment_permissions?: Json
           phone?: string | null
+          region_id?: string | null
           sales_channel_id?: string | null
+          scope_type?: string
           stock_alert_threshold?: number | null
           updated_at?: string | null
           user_id?: string
@@ -1453,6 +1462,36 @@ export type Database = {
           },
         ]
       }
+      complaint_adjournments: {
+        Row: {
+          adjourned_to: string
+          case_id: string
+          case_kind: string
+          id: string
+          reason: string | null
+          recorded_at: string
+          recorded_by: string
+        }
+        Insert: {
+          adjourned_to: string
+          case_id: string
+          case_kind: string
+          id?: string
+          reason?: string | null
+          recorded_at?: string
+          recorded_by: string
+        }
+        Update: {
+          adjourned_to?: string
+          case_id?: string
+          case_kind?: string
+          id?: string
+          reason?: string | null
+          recorded_at?: string
+          recorded_by?: string
+        }
+        Relationships: []
+      }
       complaint_assignments: {
         Row: {
           assigned_at: string
@@ -1462,6 +1501,7 @@ export type Database = {
           complaint_table: string
           id: string
           reason: string | null
+          room_id: string | null
           unassigned_at: string | null
         }
         Insert: {
@@ -1472,6 +1512,7 @@ export type Database = {
           complaint_table: string
           id?: string
           reason?: string | null
+          room_id?: string | null
           unassigned_at?: string | null
         }
         Update: {
@@ -1482,9 +1523,18 @@ export type Database = {
           complaint_table?: string
           id?: string
           reason?: string | null
+          room_id?: string | null
           unassigned_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "complaint_assignments_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "hearing_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       complaint_audit_log: {
         Row: {
@@ -4039,6 +4089,8 @@ export type Database = {
           expiry_date: string | null
           id: string
           landlord_id: string
+          office_id: string | null
+          region_id: string | null
           registration_date: string | null
           registration_fee_paid: boolean
           rent_card_delivery_requested: boolean
@@ -4052,6 +4104,8 @@ export type Database = {
           expiry_date?: string | null
           id?: string
           landlord_id: string
+          office_id?: string | null
+          region_id?: string | null
           registration_date?: string | null
           registration_fee_paid?: boolean
           rent_card_delivery_requested?: boolean
@@ -4065,13 +4119,30 @@ export type Database = {
           expiry_date?: string | null
           id?: string
           landlord_id?: string
+          office_id?: string | null
+          region_id?: string | null
           registration_date?: string | null
           registration_fee_paid?: boolean
           rent_card_delivery_requested?: boolean
           status?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "landlords_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
+          {
+            foreignKeyName: "landlords_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       management_task_assignments: {
         Row: {
@@ -8650,6 +8721,8 @@ export type Database = {
           hostel_region: string | null
           id: string
           is_student: boolean
+          office_id: string | null
+          region_id: string | null
           registration_date: string | null
           registration_fee_paid: boolean
           room_or_bed_space: string | null
@@ -8673,6 +8746,8 @@ export type Database = {
           hostel_region?: string | null
           id?: string
           is_student?: boolean
+          office_id?: string | null
+          region_id?: string | null
           registration_date?: string | null
           registration_fee_paid?: boolean
           room_or_bed_space?: string | null
@@ -8696,6 +8771,8 @@ export type Database = {
           hostel_region?: string | null
           id?: string
           is_student?: boolean
+          office_id?: string | null
+          region_id?: string | null
           registration_date?: string | null
           registration_fee_paid?: boolean
           room_or_bed_space?: string | null
@@ -8705,7 +8782,22 @@ export type Database = {
           tenant_id?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tenants_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "mv_office_dashboard_stats"
+            referencedColumns: ["office_id"]
+          },
+          {
+            foreignKeyName: "tenants_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       termination_applications: {
         Row: {
@@ -9473,6 +9565,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_can_access_office: {
+        Args: { _office_id: string; _user_id: string }
+        Returns: boolean
+      }
       agent_can_act_on: {
         Args: { _agent: string; _owner: string }
         Returns: boolean
@@ -9545,6 +9641,10 @@ export type Database = {
       classify_nugs_rent_card_revenue: {
         Args: { p_card_ids: string[]; p_office_id: string }
         Returns: undefined
+      }
+      complaint_payment_ready: {
+        Args: { _complaint_id: string }
+        Returns: boolean
       }
       confirm_complaint_receipt: {
         Args: { p_actor: string; p_receipt_id: string }
