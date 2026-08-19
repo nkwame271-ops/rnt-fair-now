@@ -19,6 +19,7 @@ import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
 import { SignedImage } from "@/components/SignedMedia";
 import { openSignedStorageUrl } from "@/lib/openSignedUrl";
 import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
+import { sendNotification, describeSmsFailure } from "@/lib/notificationService";
 
 const complaintTypes = [
   "Tenant refusing to vacate",
@@ -446,6 +447,74 @@ const LandlordComplaints = () => {
           },
         } as any);
       } catch (e) { console.error("Case creation error:", e); }
+      // Notify complainant (this landlord) and the respondent tenant by SMS.
+      try {
+        const { data: me } = await supabase
+          .from("profiles")
+          .select("phone, full_name")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        const filedResult = await sendNotification("complaint_filed", {
+          phone: (me as any)?.phone || undefined,
+          user_id: user.id,
+          data: { code, office: region || "" },
+        });
+        if (filedResult.channels?.sms === "failed") {
+          console.error("Complaint SMS failed:", filedResult.sms_error ?? filedResult.error);
+          toast.warning(`Confirmation SMS not delivered — ${describeSmsFailure(filedResult)}.`, {
+            description: `Your complaint ${code} was still filed successfully.`,
+            duration: 12000,
+          });
+        }
+
+        // Resolve the respondent tenant's phone from the active tenancy on the property/unit.
+        let unitIds: string[] = selectedUnitId ? [selectedUnitId] : [];
+        if (!unitIds.length) {
+          const { data: units } = await (supabase.from("units") as any)
+            .select("id")
+            .eq("property_id", selectedPropertyId);
+          unitIds = ((units as any[]) || []).map((u) => u.id);
+        }
+
+        let tenancy: any = null;
+        if (unitIds.length) {
+          const { data: rows } = await (supabase.from("tenancies") as any)
+            .select("tenant_user_id, placeholder_tenant_phone")
+            .eq("landlord_user_id", user.id)
+            .in("unit_id", unitIds)
+            .order("created_at", { ascending: false })
+            .limit(1);
+          tenancy = ((rows as any[]) || [])[0] || null;
+        }
+
+        let respondentPhone: string | null = (tenancy as any)?.placeholder_tenant_phone || null;
+        if (!respondentPhone && (tenancy as any)?.tenant_user_id) {
+          const { data: tp } = await supabase
+            .from("profiles")
+            .select("phone")
+            .eq("user_id", (tenancy as any).tenant_user_id)
+            .maybeSingle();
+          respondentPhone = (tp as any)?.phone || null;
+        }
+
+        if (respondentPhone) {
+          await sendNotification("complaint_filed_against", {
+            phone: respondentPhone,
+            user_id: (tenancy as any)?.tenant_user_id || undefined,
+            data: {
+              code,
+              complainant: (me as any)?.full_name || "your landlord",
+              property: propertyAddress || "",
+            },
+          });
+        } else {
+          console.warn("No respondent phone found for landlord complaint", code);
+        }
+      } catch (notifyErr) {
+        console.error("Complaint notification failed:", notifyErr);
+      }
+
       toast.success(`Complaint filed! Code: ${code}`);
       setDialogOpen(false);
       resetForm();

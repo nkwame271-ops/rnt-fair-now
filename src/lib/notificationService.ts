@@ -14,6 +14,8 @@ export type NotificationEvent =
   | "login_alert"
   | "tenancy_expiry_reminder"
   | "complaint_reminder"
+  | "complaint_filed"
+  | "complaint_filed_against"
   | "full_receipt"
   | "tenancy_agreement"
   | "rent_card_copy"

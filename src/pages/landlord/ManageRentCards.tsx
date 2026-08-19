@@ -43,9 +43,9 @@ interface EnrichedRentCard extends RentCard {
   unit_name?: string;
 }
 
-const PRICE_PER_PAIR = 25;
 import { PUBLIC_URL as PUBLISHED_URL } from "@/lib/projectDomain";
 import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
+import { useFeeConfig } from "@/hooks/useFeatureFlag";
 
 const statusBadge = (status: string) => {
   switch (status) {
@@ -71,6 +71,8 @@ const statusLabel = (status: string) => {
 
 const ManageRentCards = () => {
   const { user } = useAuth();
+  // Rent card price is configured in Engine Room (rent_card_fee) — single source of truth.
+  const { amount: pricePerPair, loading: priceLoading } = useFeeConfig("rent_card_fee");
   const [cards, setCards] = useState<EnrichedRentCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
@@ -275,7 +277,7 @@ const ManageRentCards = () => {
             <ShoppingCart className="h-5 w-5 text-primary" /> Purchase Rent Cards
           </h2>
           <p className="text-sm text-muted-foreground">
-            Each purchase includes <strong>2 rent cards</strong> (Landlord Copy + Tenant Copy) at <strong>GH₵ {PRICE_PER_PAIR}</strong> per pair. After purchase, collect physical cards from your Rent Control office.
+            Each purchase includes <strong>2 rent cards</strong> (Landlord Copy + Tenant Copy) at <strong>GH₵ {priceLoading ? "…" : pricePerPair.toLocaleString()}</strong> per pair. After purchase, collect physical cards from your Rent Control office.
           </p>
           <div className="flex items-end gap-4 flex-wrap">
             <div className="space-y-2">
@@ -284,7 +286,7 @@ const ManageRentCards = () => {
             </div>
             <div className="text-sm text-muted-foreground pb-2">
               <span>{parseInt(quantity) * 2 || 0} cards</span> •{" "}
-              Total: <strong className="text-foreground">GH₵ {(parseInt(quantity) * PRICE_PER_PAIR || 0).toLocaleString()}</strong>
+              Total: <strong className="text-foreground">GH₵ {(parseInt(quantity) * pricePerPair || 0).toLocaleString()}</strong>
             </div>
             <Button onClick={handlePurchase} disabled={purchasing || !parseInt(quantity) || parseInt(quantity) < 1}>
               <CreditCard className="h-4 w-4 mr-1" />
