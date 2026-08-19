@@ -1,0 +1,1 @@
+SELECT setval('public.receipt_number_seq', GREATEST((SELECT last_value FROM public.receipt_number_seq), COALESCE((SELECT max((regexp_match(receipt_number,'([0-9]+)$'))[1]::bigint) FROM public.payment_receipts WHERE receipt_number ~ '[0-9]+$'), 0) + 1), true);
