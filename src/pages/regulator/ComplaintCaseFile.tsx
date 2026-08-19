@@ -20,6 +20,7 @@ import { notifyComplaintParties, complaintRecipients } from "@/lib/complaintNoti
 import { signStorageUrl } from "@/lib/signStorageUrl";
 import ComplaintDocumentsHub from "@/components/regulator/ComplaintDocumentsHub";
 import FormEditorDialog from "@/components/regulator/FormEditorDialog";
+import RichTextEditor from "@/components/regulator/RichTextEditor";
 import { StatutoryFormType } from "@/lib/complaintForms";
 
 const ComplaintCaseFile = () => {
@@ -376,8 +377,8 @@ const ComplaintCaseFile = () => {
               <>
                 <Row k="Outcome" v={decision.outcome} />
                 <Row k="Summary" v={decision.decision_summary} />
-                <Row k="Orders" v={decision.orders} />
-                <Row k="Compliance Deadline" v={decision.compliance_deadline} />
+                <Row k="Determination" v={decision.orders} />
+                <Row k="Date" v={decision.compliance_deadline} />
                 <Row k="Recorded" v={new Date(decision.recorded_at).toLocaleString()} />
               </>
             )}
@@ -683,13 +684,14 @@ const NoteDialog = ({ open, onOpenChange, caseId, onSaved }: any) => {
 };
 
 const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
-  const [outcome, setOutcome] = useState("decided");
+  const [outcome, setOutcome] = useState("pending");
   const [summary, setSummary] = useState("");
   const [orders, setOrders] = useState("");
   const [deadline, setDeadline] = useState("");
   const [saving, setSaving] = useState(false);
   const save = async () => {
-    if (!summary.trim()) return toast({ title: "Decision summary required", variant: "destructive" });
+    if (!summary.trim()) return toast({ title: "Overview required", variant: "destructive" });
+    if (outcome === "adjourned" && !deadline) return toast({ title: "Adjournment date required", variant: "destructive" });
     setSaving(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
@@ -700,6 +702,16 @@ const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
         officer_user_id: auth.user?.id,
       });
       if (error) throw error;
+      if (outcome === "adjourned") {
+        const { error: adjournmentError } = await (supabase.from("complaint_adjournments") as any).insert({
+          case_id: complaint.id,
+          case_kind: "complaint",
+          adjourned_to: new Date(`${deadline}T09:00:00`).toISOString(),
+          reason: orders || null,
+          recorded_by: auth.user?.id,
+        });
+        if (adjournmentError) throw adjournmentError;
+      }
       await transitionStage({ caseId: complaint.id, toStage: outcome, reason: "Decision recorded" });
       const evt = outcome === "settled" ? "settled" : outcome === "closed" ? "closed" : "decided";
       await notifyComplaintParties({
@@ -722,17 +734,18 @@ const DecisionDialog = ({ open, onOpenChange, complaint, onSaved }: any) => {
             <Select value={outcome} onValueChange={setOutcome}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="decided">Decided</SelectItem>
-                <SelectItem value="settled">Settled</SelectItem>
-                <SelectItem value="dismissed">Dismissed</SelectItem>
-                <SelectItem value="withdrawn">Withdrawn</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
+                <SelectItem value="adjourned">Adjournment</SelectItem>
+                <SelectItem value="struck_off">Struck Off</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="inspection">Inspection</SelectItem>
+                <SelectItem value="adjourn_sine_die">Adjourn Sine Die</SelectItem>
+                <SelectItem value="referred_to_court">Referred to Court</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div><Label>Summary</Label><Textarea rows={4} value={summary} onChange={(e) => setSummary(e.target.value)} /></div>
-          <div><Label>Orders / Directions</Label><Textarea rows={3} value={orders} onChange={(e) => setOrders(e.target.value)} /></div>
-          <div><Label>Compliance Deadline</Label><Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></div>
+          <div><Label>Overview</Label><RichTextEditor value={summary} onChange={(html) => setSummary(html)} placeholder="Record the case overview…" /></div>
+          <div><Label>Determination</Label><Textarea rows={3} value={orders} onChange={(e) => setOrders(e.target.value)} /></div>
+          <div><Label>{outcome === "adjourned" ? "Adjournment Date" : "Date"}</Label><Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></div>
         </div>
         <DialogFooter>
           <Button onClick={save} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Record</Button>
