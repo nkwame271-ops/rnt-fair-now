@@ -267,10 +267,9 @@ const RegulatorReceipts = () => {
     if (!user) return;
     setConfirming(receiptId);
     try {
-      const { error } = await supabase
-        .from("payment_receipts")
-        .update({ admin_confirmed_at: new Date().toISOString(), admin_confirmed_by: user.id } as any)
-        .eq("id", receiptId);
+      const { error } = await supabase.functions.invoke("admin-reconciliation", {
+        body: { action: "confirm_complaint_receipt", receipt_id: receiptId },
+      });
       if (error) throw error;
       toast.success("Payment confirmed. Complainant can now be scheduled.");
       setRows((prev) => prev.map((r) => r.id === receiptId ? { ...r, admin_confirmed_at: new Date().toISOString(), admin_confirmed_by: user.id } : r));
