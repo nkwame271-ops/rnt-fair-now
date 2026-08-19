@@ -106,6 +106,16 @@ Deno.serve(async (req) => {
       role: "landlord",
     });
     if (landlord.id) {
+      // The legacy demo profile predates its auth identity. Re-key all domain
+      // records to the actual auth id, then ensure role and profile are present.
+      await supabase.from("profiles").update({ user_id: landlord.id }).eq("email", "0240005678@rentcontrolghana.local").neq("user_id", landlord.id);
+      await supabase.from("profiles").upsert({
+        user_id: landlord.id,
+        email: "0240005678@rentcontrolghana.local",
+        phone: "0240005678",
+        full_name: "Ama Mensah",
+      }, { onConflict: "user_id" });
+      await supabase.from("user_roles").upsert({ user_id: landlord.id, role: "landlord" }, { onConflict: "user_id,role" });
       const { error: lInsErr } = await supabase.from("landlords").upsert({
         user_id: landlord.id,
         landlord_id: "LLD-DEMO-001",

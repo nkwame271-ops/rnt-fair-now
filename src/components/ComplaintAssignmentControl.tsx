@@ -60,7 +60,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
         .eq("complaint_id", complaintId)
         .eq("complaint_table", complaintTable)
         .order("assigned_at", { ascending: false }),
-      (supabase.from("hearing_rooms") as any).select("id, name, office_id").order("name"),
+      (supabase.from("hearing_rooms") as any).select("id, name, office_id").eq("active", true).order("name"),
     ]);
 
     const staffRows: any[] = staffRes.data || [];
