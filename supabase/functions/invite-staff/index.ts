@@ -111,11 +111,17 @@ Deno.serve(async (req) => {
 
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email, password, email_confirm: true,
-      user_metadata: { full_name: fullName, phone: phone || "", role: userRole },
+      user_metadata: { full_name: fullName, phone: phoneForNewUser, role: userRole },
     });
     if (createError || !newUser?.user) {
-      return json({ error: createError?.message || "Failed to create user" });
+      const raw = createError?.message || "Failed to create user";
+      console.error("createUser failed:", raw, createError);
+      const friendly = /database error/i.test(raw)
+        ? `Could not create the account (${raw}). This is usually a duplicate email or phone number already on another account — check both and try again.`
+        : raw;
+      return json({ error: friendly });
     }
+
     const newUserId = newUser.user.id;
 
     if (!isNugs) {
