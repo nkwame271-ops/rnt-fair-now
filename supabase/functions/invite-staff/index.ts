@@ -77,16 +77,35 @@ Deno.serve(async (req) => {
       // continue — createUser will catch duplicates with its own error
     }
 
-    // Cleanup orphaned profile (prevents unique constraint violation)
+    // Cleanup TRULY orphaned profile (auth user no longer exists) — never delete a live user's profile
     try {
       const { data: orphanProfile } = await adminClient
         .from("profiles").select("user_id").eq("email", email.toLowerCase()).maybeSingle();
       if (orphanProfile) {
-        await adminClient.from("profiles").delete().eq("user_id", orphanProfile.user_id);
+        const { data: existingAuth } = await adminClient.auth.admin.getUserById(orphanProfile.user_id);
+        if (!existingAuth?.user) {
+          await adminClient.from("profiles").delete().eq("user_id", orphanProfile.user_id);
+        } else {
+          return json({ error: `Email "${email}" is already linked to an existing account.` });
+        }
       }
     } catch (e) {
       console.error("Orphan profile cleanup error:", e);
     }
+
+    // Phone conflict pre-check — profiles.phone is unique, so a clash used to
+    // surface as the opaque "Database error creating new user".
+    let phoneForNewUser: string = (phone || "").trim();
+    if (phoneForNewUser) {
+      const { data: phoneOwner } = await adminClient
+        .from("profiles").select("user_id, full_name").eq("phone", phoneForNewUser).maybeSingle();
+      if (phoneOwner) {
+        return json({
+          error: `Phone number ${phoneForNewUser} is already used by another account${phoneOwner.full_name ? ` (${phoneOwner.full_name})` : ""}. Use a different number.`,
+        });
+      }
+    }
+
 
     const userRole = isNugs ? "nugs_admin" : "regulator";
 
