@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useJsApiLoader } from "@react-google-maps/api";
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from "@/lib/googleMaps";
 import { startBrandedCheckout } from "@/lib/payments/brandedCheckout";
+import { sendNotification, describeSmsFailure } from "@/lib/notificationService";
 
 const steps = ["Office", "Complaint Type", "Property Details", "Location", "Description & Evidence", "Review & Submit"];
 
@@ -415,6 +416,7 @@ const FileComplaint = () => {
         gps_confirmed_at: form.gpsConfirmed ? new Date().toISOString() : null,
         office_id: form.officeId,
         complaint_property_id: cp?.id || null,
+        placeholder_respondent_phone: form.landlordPhone?.trim() || null,
       } as any).select("id").single();
 
       if (error) throw error;
@@ -453,14 +455,43 @@ const FileComplaint = () => {
       }
 
       toast.success("Your complaint has been received. Please keep checking your dashboard for updates.");
-      if (user && complaint?.id) {
-        await supabase.from("notifications").insert({
+
+      // Notify the complainant (SMS + in-app) and the respondent (SMS).
+      try {
+        const { data: me } = await supabase
+          .from("profiles")
+          .select("phone, full_name")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        const complainantResult = await sendNotification("complaint_filed", {
+          phone: (me as any)?.phone || undefined,
           user_id: user.id,
-          title: "Complaint Received",
-          body: "Your complaint has been received. Please keep checking your dashboard for updates.",
-          link: "/tenant/my-cases",
-        } as any);
+          data: { code: complaintCode, office: selectedOffice?.name || "" },
+        });
+        if (complainantResult.channels?.sms === "failed") {
+          console.error("Complaint SMS failed:", complainantResult.sms_error ?? complainantResult.error);
+          toast.warning(`Confirmation SMS not delivered — ${describeSmsFailure(complainantResult)}.`, {
+            description: `Your complaint ${complaintCode} was still filed successfully.`,
+            duration: 12000,
+          });
+        }
+
+        const respondentPhone = form.landlordPhone?.trim();
+        if (respondentPhone) {
+          await sendNotification("complaint_filed_against", {
+            phone: respondentPhone,
+            data: {
+              code: complaintCode,
+              complainant: (me as any)?.full_name || "a tenant",
+              property: form.address || "",
+            },
+          });
+        }
+      } catch (notifyErr) {
+        console.error("Complaint notification failed:", notifyErr);
       }
+
       navigate("/tenant/my-cases");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit complaint");

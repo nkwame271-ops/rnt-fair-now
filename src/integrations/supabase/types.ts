@@ -7976,6 +7976,48 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_send_log: {
+        Row: {
+          created_at: string
+          event: string
+          failure_reason: string | null
+          id: string
+          provider_message: string | null
+          provider_message_id: string | null
+          recipient_masked: string
+          sender_used: string | null
+          state: string
+          user_id: string | null
+          via: string | null
+        }
+        Insert: {
+          created_at?: string
+          event: string
+          failure_reason?: string | null
+          id?: string
+          provider_message?: string | null
+          provider_message_id?: string | null
+          recipient_masked: string
+          sender_used?: string | null
+          state: string
+          user_id?: string | null
+          via?: string | null
+        }
+        Update: {
+          created_at?: string
+          event?: string
+          failure_reason?: string | null
+          id?: string
+          provider_message?: string | null
+          provider_message_id?: string | null
+          recipient_masked?: string
+          sender_used?: string | null
+          state?: string
+          user_id?: string | null
+          via?: string | null
+        }
+        Relationships: []
+      }
       split_configurations: {
         Row: {
           amount: number

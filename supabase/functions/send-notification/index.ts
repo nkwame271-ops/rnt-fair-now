@@ -25,6 +25,8 @@ const CHANNEL_MAP: Record<string, Channel[]> = {
   otp:                   ["sms"],
   login_alert:           ["sms", "inapp"],
   tenancy_expiry_reminder: ["sms", "inapp"],
+  complaint_filed:       ["sms", "inapp"],
+  complaint_filed_against: ["sms", "inapp"],
   complaint_reminder:    ["sms", "inapp"],
   // Email only (+ in-app)
   full_receipt:          ["email", "inapp"],
@@ -65,6 +67,10 @@ const SMS_TEMPLATES: Record<string, (d: Record<string, string>) => string> = {
     `RentControl: Your tenancy${d.property ? " at " + d.property : ""} expires in ${d.days_left} days. Request a renewal or plan your exit.`,
   complaint_reminder: (d) =>
     `RentControl: Your complaint (${d.code}) is still pending review. We will update you on progress.`,
+  complaint_filed: (d) =>
+    `RentControl: Your complaint (${d.code}) has been received by the Rent Control Department${d.office ? " (" + d.office + ")" : ""}. Keep this reference and check your dashboard for updates.`,
+  complaint_filed_against: (d) =>
+    `RentControl: A complaint (${d.code}) has been filed against you${d.complainant ? " by " + d.complainant : ""}${d.property ? " regarding " + d.property : ""}. The Rent Control Department will contact you. Visit rentcontrolghana.com or your nearest Rent Control office.`,
 };
 
 // ── Email Templates ──
@@ -258,6 +264,8 @@ const INAPP_TEMPLATES: Record<string, (d: Record<string, string>) => { title: st
   login_alert: () => ({ title: "New Login Detected", body: "A new login was detected on your account.", link: "/profile" }),
   tenancy_expiry_reminder: (d) => ({ title: "Tenancy Expiring Soon", body: `Your tenancy${d.property ? " at " + d.property : ""} expires in ${d.days_left} days.`, link: "/tenant/renewal" }),
   complaint_reminder: (d) => ({ title: "Complaint Update", body: `Your complaint (${d.code}) is still pending review.`, link: "/tenant/my-cases" }),
+  complaint_filed: (d) => ({ title: "Complaint Received", body: `Your complaint (${d.code}) has been received. Check your dashboard for updates.`, link: "/tenant/my-cases" }),
+  complaint_filed_against: (d) => ({ title: "Complaint Filed Against You", body: `A complaint (${d.code}) has been filed against you. Rent Control will be in touch.`, link: "/" }),
   full_receipt: (d) => ({ title: "Receipt Ready", body: `Your receipt for GHS ${d.amount} is ready.`, link: "/tenant/receipts" }),
   tenancy_agreement: (d) => ({ title: "Tenancy Agreement", body: `Agreement ${d.tenancy_id} has been ${d.action || "created"}.`, link: "/tenant/my-agreements" }),
   rent_card_copy: () => ({ title: "Rent Card Available", body: "Your rent card details are available.", link: "/landlord/rent-cards" }),
@@ -578,8 +586,25 @@ Deno.serve(async (req) => {
           sms_error = smsResult.error;
           sms_error_text = smsResult.error.message;
         }
+        // Persist every attempt so failures are traceable after the fact.
+        try {
+          await supabase.from("sms_send_log").insert({
+            event,
+            recipient_masked: maskPhone(normalizePhone(String(phone))),
+            state: smsResult.state,
+            failure_reason: smsResult.ok ? null : smsResult.error.reason,
+            provider_message: smsResult.ok ? (sms_error_text ?? null) : smsResult.error.message,
+            provider_message_id: smsResult.ok ? (smsResult.message_id ?? null) : null,
+            sender_used: smsResult.ok ? smsResult.sender : (smsResult.error.sender_tried ?? null),
+            via: smsResult.ok ? smsResult.via : null,
+            user_id: user_id ?? null,
+          });
+        } catch (logErr) {
+          console.error("sms_send_log insert failed:", logErr);
+        }
       }
     }
+
 
     // Email
     if (channels.includes("email") && email) {
