@@ -9505,7 +9505,7 @@ export type Database = {
         Returns: undefined
       }
       confirm_complaint_receipt: {
-        Args: { p_receipt_id: string }
+        Args: { p_actor: string; p_receipt_id: string }
         Returns: Json
       }
       delete_email: {
@@ -9641,7 +9641,12 @@ export type Database = {
         Returns: boolean
       }
       payment_reconciliation_summary: {
-        Args: { p_from?: string; p_office_id: string; p_to?: string }
+        Args: {
+          p_actor: string
+          p_from: string
+          p_office_id: string
+          p_to: string
+        }
         Returns: {
           admin_hq: number
           admin_office: number
