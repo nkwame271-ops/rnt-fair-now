@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFeeConfig, useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -33,6 +33,8 @@ const RegisterTenant = () => {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [region, setRegion] = useState("");
+  const [officeId, setOfficeId] = useState("");
+  const [offices, setOffices] = useState<{ id: string; name: string; region: string }[]>([]);
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -63,6 +65,11 @@ const RegisterTenant = () => {
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
+
+  useEffect(() => {
+    supabase.from("offices").select("id, name, region").order("region").order("name")
+      .then(({ data }) => setOffices((data || []) as { id: string; name: string; region: string }[]));
+  }, []);
 
   const handleSendOtp = async () => {
     setSendingOtp(true);
@@ -131,7 +138,7 @@ const RegisterTenant = () => {
   const canProceed = () => {
     switch (step) {
       case 0: {
-        const baseValid = fullName.length > 2 && isValidPhone(phone) && !!region && password.length >= 8 && password === confirmPassword;
+        const baseValid = fullName.length > 2 && isValidPhone(phone) && !!officeId && password.length >= 8 && password === confirmPassword;
         const citizenValid = isCitizen || (nationality.length > 1 && residencePermitNo.length > 2);
         const otpValid = !otpEnabled || phoneVerified;
         return baseValid && citizenValid && otpValid;
@@ -176,6 +183,7 @@ const RegisterTenant = () => {
           hostel_region: isStudent ? (hostelRegion || null) : null,
           hostel_contact_number: isStudent ? (hostelContact.replace(/\D/g, "") || null) : null,
           reg_fee_enabled: regFeeEnabled,
+          office_id: officeId,
         },
       });
 
@@ -499,10 +507,13 @@ const RegisterTenant = () => {
                       </div>
                     </FormField>
 
-                    <FormField label="Region of Stay" valid={!!region}>
-                      <Select value={region} onValueChange={setRegion}>
-                        <SelectTrigger><SelectValue placeholder="Select your region" /></SelectTrigger>
-                        <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                    <FormField label="Rent Control Office" valid={!!officeId} hint={region ? `Region: ${region}` : undefined}>
+                      <Select value={officeId} onValueChange={(value) => {
+                        setOfficeId(value);
+                        setRegion(offices.find((office) => office.id === value)?.region || "");
+                      }}>
+                        <SelectTrigger><SelectValue placeholder="Select your office" /></SelectTrigger>
+                        <SelectContent>{offices.map((office) => <SelectItem key={office.id} value={office.id}>{office.region} · {office.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </FormField>
 

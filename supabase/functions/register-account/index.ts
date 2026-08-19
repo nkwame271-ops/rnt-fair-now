@@ -18,6 +18,7 @@ interface RegisterBody {
   is_citizen?: boolean;
   nationality?: string | null;
   residence_permit_no?: string | null;
+  office_id?: string | null;
 
   // tenant-only
   delivery_region?: string | null;
@@ -69,11 +70,11 @@ Deno.serve(async (req) => {
   if (!body || (body.role !== "tenant" && body.role !== "landlord")) {
     return jsonResp({ ok: false, error: "role must be 'tenant' or 'landlord'", code: "BAD_REQUEST" }, 200);
   }
-  if (!body.full_name?.trim() || !body.phone?.trim() || !body.password) {
-    return jsonResp({ ok: false, error: "full_name, phone, and password are required", code: "BAD_REQUEST" }, 200);
+  if (!body.full_name?.trim() || !body.phone?.trim() || !body.password || !body.office_id) {
+    return jsonResp({ ok: false, error: "Name, phone, password, and Rent Control office are required", code: "BAD_REQUEST" }, 200);
   }
-  if (body.password.length < 6) {
-    return jsonResp({ ok: false, error: "password must be at least 6 characters", code: "BAD_REQUEST" }, 200);
+  if (body.password.length < 8) {
+    return jsonResp({ ok: false, error: "password must be at least 8 characters", code: "BAD_REQUEST" }, 200);
   }
 
   const phoneDigits = normalizePhone(body.phone);
@@ -81,6 +82,10 @@ Deno.serve(async (req) => {
     return jsonResp({ ok: false, error: "phone number looks invalid", code: "BAD_REQUEST" }, 200);
   }
   const syntheticEmail = `${phoneDigits}@rentcontrolghana.local`;
+  const { data: selectedOffice } = await admin.from("offices").select("id, region").eq("id", body.office_id).maybeSingle();
+  if (!selectedOffice) {
+    return jsonResp({ ok: false, error: "Select a valid Rent Control office", code: "BAD_REQUEST" }, 200);
+  }
 
   // 1. Pre-check: existing profile with this phone
   const { data: existingProfile } = await admin
@@ -183,6 +188,8 @@ Deno.serve(async (req) => {
       room_or_bed_space: body.is_student ? (body.room_or_bed_space || null) : null,
       hostel_region: body.is_student ? (body.hostel_region || null) : null,
       hostel_contact_number: body.is_student ? (body.hostel_contact_number || null) : null,
+      office_id: selectedOffice.id,
+      region_id: selectedOffice.region,
     };
     if (!regFeeEnabled) {
       tenantInsert.registration_date = now.toISOString();
@@ -195,6 +202,8 @@ Deno.serve(async (req) => {
       user_id: userId,
       landlord_id: domainId,
       registration_fee_paid: !regFeeEnabled,
+      office_id: selectedOffice.id,
+      region_id: selectedOffice.region,
     };
     if (!regFeeEnabled) {
       landlordInsert.registration_date = now.toISOString();

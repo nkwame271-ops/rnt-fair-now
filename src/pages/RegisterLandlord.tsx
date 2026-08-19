@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFeeConfig, useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -7,7 +7,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { regions } from "@/data/dummyData";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { sendNotification, describeSmsFailure } from "@/lib/notificationService";
@@ -30,6 +29,8 @@ const RegisterLandlord = () => {
   const [businessName, setBusinessName] = useState("");
   const [phone, setPhone] = useState("");
   const [region, setRegion] = useState("");
+  const [officeId, setOfficeId] = useState("");
+  const [offices, setOffices] = useState<{ id: string; name: string; region: string }[]>([]);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -48,6 +49,11 @@ const RegisterLandlord = () => {
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
+
+  useEffect(() => {
+    supabase.from("offices").select("id, name, region").order("region").order("name")
+      .then(({ data }) => setOffices((data || []) as { id: string; name: string; region: string }[]));
+  }, []);
 
   const handleSendOtp = async () => {
     setSendingOtp(true);
@@ -114,7 +120,7 @@ const RegisterLandlord = () => {
   };
 
   const canProceed = () => {
-    const baseValid = fullName.length > 2 && isValidPhone(phone) && !!region && password.length >= 8 && password === confirmPassword;
+    const baseValid = fullName.length > 2 && isValidPhone(phone) && !!officeId && password.length >= 8 && password === confirmPassword;
     const citizenValid = isCitizen || (nationality.length > 1 && residencePermitNo.length > 2);
     const otpValid = !otpEnabled || phoneVerified;
     return baseValid && citizenValid && otpValid;
@@ -143,6 +149,7 @@ const RegisterLandlord = () => {
           nationality: isCitizen ? "Ghanaian" : nationality,
           residence_permit_no: isCitizen ? null : residencePermitNo,
           reg_fee_enabled: regFeeEnabled,
+          office_id: officeId,
         },
       });
 
@@ -371,10 +378,13 @@ const RegisterLandlord = () => {
                       </div>
                     </FormField>
 
-                    <FormField label="Region" valid={!!region}>
-                      <Select value={region} onValueChange={setRegion}>
-                        <SelectTrigger><SelectValue placeholder="Select your region" /></SelectTrigger>
-                        <SelectContent>{regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                    <FormField label="Rent Control Office" valid={!!officeId} hint={region ? `Region: ${region}` : undefined}>
+                      <Select value={officeId} onValueChange={(value) => {
+                        setOfficeId(value);
+                        setRegion(offices.find((office) => office.id === value)?.region || "");
+                      }}>
+                        <SelectTrigger><SelectValue placeholder="Select your office" /></SelectTrigger>
+                        <SelectContent>{offices.map((office) => <SelectItem key={office.id} value={office.id}>{office.region} · {office.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </FormField>
                   </div>
