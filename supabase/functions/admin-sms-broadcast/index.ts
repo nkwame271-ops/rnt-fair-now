@@ -113,18 +113,21 @@ serve(async (req) => {
       const todayStart = new Date();
       todayStart.setUTCHours(0, 0, 0, 0);
 
-      const { data: authUsers, error: authErr } = await adminClient
-        .schema("auth")
-        .from("users")
-        .select("id, last_sign_in_at")
-        .gte("last_sign_in_at", todayStart.toISOString())
-        .limit(5000);
-
-      if (authErr) {
-        return respond({ ok: false, error: "Failed to load today's sign-ins: " + authErr.message });
+      const userIdsToday: string[] = [];
+      for (let page = 1; page <= 10; page++) {
+        const { data: listed, error: authErr } = await adminClient.auth.admin.listUsers({
+          page,
+          perPage: 1000,
+        });
+        if (authErr) {
+          return respond({ ok: false, error: "Failed to load today's sign-ins: " + authErr.message });
+        }
+        const users = listed?.users ?? [];
+        for (const u of users) {
+          if (u.last_sign_in_at && new Date(u.last_sign_in_at) >= todayStart) userIdsToday.push(u.id);
+        }
+        if (users.length < 1000) break;
       }
-
-      const userIdsToday = (authUsers || []).map((u: any) => u.id);
       if (!userIdsToday.length) {
         return respond({ ok: true, total: 0, sent: 0, failed: 0, skipped_no_phone: 0, skipped_already_sent: 0, failures: [] });
       }
