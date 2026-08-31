@@ -133,8 +133,19 @@ Deno.serve(async (req) => {
         .or("phone.eq.0240005678,email.eq.0240005678@rentcontrolghana.local")
         .neq("user_id", landlord.id);
       for (const duplicate of duplicateProfiles || []) {
+        // Release unique profile identifiers before attempting auth cleanup so
+        // the real login account can always receive the demo phone and email.
+        await supabase.from("profiles").update({
+          phone: null,
+          email: `archived-${duplicate.user_id}@rentcontrolghana.local`,
+        }).eq("user_id", duplicate.user_id);
         const { data: duplicateAuth } = await supabase.auth.admin.getUserById(duplicate.user_id);
-        if (!duplicateAuth?.user) {
+        if (duplicateAuth?.user) {
+          const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(duplicate.user_id);
+          // Legacy domain rows can prevent auth deletion; keeping that archived
+          // identity is safe because it no longer owns the login identifiers.
+          if (deleteAuthError) results.push("Stale landlord identity archived");
+        } else {
           await supabase.from("user_roles").delete().eq("user_id", duplicate.user_id).eq("role", "landlord");
           await supabase.from("profiles").delete().eq("user_id", duplicate.user_id);
         }

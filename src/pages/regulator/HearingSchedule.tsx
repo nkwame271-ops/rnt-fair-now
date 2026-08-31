@@ -34,6 +34,7 @@ const HearingSchedule = () => {
   const [complaints, setComplaints] = useState<Record<string, any>>({});
   const [rooms, setRooms] = useState<any[]>([]);
   const [officers, setOfficers] = useState<any[]>([]);
+  const [officeNames, setOfficeNames] = useState<Record<string, string>>({});
   const [filterOfficer, setFilterOfficer] = useState<string>("all");
   const [filterRoom, setFilterRoom] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -52,13 +53,14 @@ const HearingSchedule = () => {
 
   useEffect(() => {
     (async () => {
-      const [hRes, rRes, sRes] = await Promise.all([
+      const [hRes, rRes, sRes, oRes] = await Promise.all([
         supabase.from("complaint_hearings").select("*")
           .gte("scheduled_at", range.from.toISOString())
           .lt("scheduled_at", range.to.toISOString())
           .order("scheduled_at"),
         supabase.from("hearing_rooms").select("*").eq("active", true),
         supabase.from("admin_staff").select("user_id, full_name, admin_type, office_id"),
+        supabase.from("offices").select("id, name").order("name"),
       ]);
       setHearings(hRes.data || []);
       const scopedRooms = (rRes.data || []).filter((room: any) =>
@@ -69,6 +71,7 @@ const HearingSchedule = () => {
         ["adjudicating_officer", "case_admin"].includes(s.admin_type)
         && (isUnscoped || scopeOfficeIds.length === 0 || scopeOfficeIds.includes(s.office_id))
       ));
+      setOfficeNames(Object.fromEntries((oRes.data || []).map((office: any) => [office.id, office.name])));
       const ids = Array.from(new Set((hRes.data || []).map((h: any) => h.case_id)));
       if (ids.length) {
         const { data: cs } = await supabase
@@ -147,7 +150,7 @@ const HearingSchedule = () => {
             <SelectTrigger><SelectValue placeholder="Office" /></SelectTrigger>
             <SelectContent>
               {isUnscoped && <SelectItem value="all">All offices</SelectItem>}
-              {officeIds.map((officeId) => <SelectItem key={officeId} value={officeId}>{officeId.replace(/_/g, " ")}</SelectItem>)}
+              {officeIds.map((officeId) => <SelectItem key={officeId} value={officeId}>{officeNames[officeId] || officeId}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterOfficer} onValueChange={setFilterOfficer}>
