@@ -235,7 +235,7 @@ const RegulatorReceipts = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetchReceipts(); }, [scopeOfficeId, allOffices.length]);
+  useEffect(() => { fetchReceipts(); }, [scopeOfficeId, scopeOfficeIds.join(","), officeFilter, allOffices.length]);
 
   const filtered = useMemo(() => rows.filter(r => {
     if (typeFilter !== "all" && r.payment_type !== typeFilter) return false;
@@ -315,9 +315,9 @@ const RegulatorReceipts = () => {
       </div>
 
       <OfficeReconciliationReport
-        offices={allOffices}
-        defaultOfficeId={scopeOfficeId || (allOffices[0]?.id ?? null)}
-        isUnscoped={isUnscoped}
+        offices={selectableOffices}
+        defaultOfficeId={scopeOfficeId || (selectableOffices[0]?.id ?? null)}
+        isUnscoped={isUnscoped || selectableOffices.length > 1}
       />
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-center">
@@ -333,15 +333,16 @@ const RegulatorReceipts = () => {
             ))}
           </SelectContent>
         </Select>
-        <Select value={officeFilter} onValueChange={setOfficeFilter} disabled={!isUnscoped}>
+        <Select value={officeFilter} onValueChange={setOfficeFilter} disabled={officeLocked}>
           <SelectTrigger className="w-52"><SelectValue placeholder="Office" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Offices</SelectItem>
-            {allOffices.map(o => (
+            <SelectItem value="all">{isUnscoped ? "All Offices" : "All My Offices"}</SelectItem>
+            {selectableOffices.map(o => (
               <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+
         <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" placeholder="From" />
         <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" placeholder="To" />
       </div>
