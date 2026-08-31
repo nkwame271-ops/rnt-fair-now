@@ -27,7 +27,7 @@ const SystemHealthTile = () => {
   const load = async () => {
     const { data } = await supabase
       .from("system_health_snapshots")
-      .select("id, captured_at, missing_receipts, missing_receipt_numbers, unreconciled, open_failures_24h, dashboard_stale_seconds, alert, db_connections_used, db_connections_max, db_connections_pct")
+      .select("id, captured_at, missing_receipts, missing_receipt_numbers, unreconciled, open_failures_24h, dashboard_stale_seconds, alert, db_connections_used, db_connections_max, db_connections_pct, failed_cron_runs_1h")
       .order("captured_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -92,6 +92,12 @@ const SystemHealthTile = () => {
         <Metric label="Unreconciled" value={snapshot.unreconciled} />
         <Metric label="Open failures 24h" value={snapshot.open_failures_24h} />
       </div>
+
+      {(snapshot.failed_cron_runs_1h ?? 0) > 0 && (
+        <p className={`text-xs mt-3 ${(snapshot.failed_cron_runs_1h ?? 0) >= 3 ? "text-destructive font-medium" : "text-amber-600"}`}>
+          Background jobs failed {snapshot.failed_cron_runs_1h} time(s) in the last hour — the backend was under strain.
+        </p>
+      )}
 
       {snapshot.dashboard_stale_seconds !== null && (
         <p className="text-xs text-muted-foreground mt-3">
