@@ -39,8 +39,10 @@ Deno.serve(async (req) => {
 
   if (orphanError) {
     await logError({
+      function_name: "receipt-drift-monitor",
       error_stage: "drift_monitor_scan",
       error_message: orphanError.message,
+      severity: "warning",
     });
   }
 
