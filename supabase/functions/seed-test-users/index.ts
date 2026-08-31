@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
         // Release unique profile identifiers before attempting auth cleanup so
         // the real login account can always receive the demo phone and email.
         await supabase.from("profiles").update({
-          phone: null,
+          phone: `archived-${duplicate.user_id}`,
           email: `archived-${duplicate.user_id}@rentcontrolghana.local`,
         }).eq("user_id", duplicate.user_id);
         const { data: duplicateAuth } = await supabase.auth.admin.getUserById(duplicate.user_id);
