@@ -292,7 +292,13 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   hearings: ["/regulator/hearings"],
   property_management: ["/regulator/property-management"],
   management_support: ["/regulator/management-support"],
+  cashbook: ["/regulator/cashbook"],
+  agent_applications: ["/regulator/agent-applications"],
+  api_access_requests: ["/regulator/api-access-requests"],
+  developer_accounts: ["/regulator/developer-accounts"],
+  payment_reconciliation: ["/regulator/payment-reconciliation"],
 };
+
 
 // Reverse: route → feature key
 export const getFeatureKeyForRoute = (route: string): string | null => {
