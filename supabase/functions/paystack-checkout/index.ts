@@ -205,12 +205,11 @@ const resolveOffice = async (supabaseAdmin: any, opts: { propertyId?: string; re
       }
     }
     if (opts.userId) {
-      const [{ data: landlord }, { data: tenant }, { data: prof }] = await Promise.all([
+      const [{ data: landlord }, { data: tenant }] = await Promise.all([
         supabaseAdmin.from("landlords").select("office_id").eq("user_id", opts.userId).maybeSingle(),
         supabaseAdmin.from("tenants").select("office_id").eq("user_id", opts.userId).maybeSingle(),
-        supabaseAdmin.from("profiles").select("office_id").eq("user_id", opts.userId).maybeSingle(),
       ]);
-      const registeredOffice = landlord?.office_id || tenant?.office_id || prof?.office_id;
+      const registeredOffice = landlord?.office_id || tenant?.office_id;
       if (registeredOffice) return registeredOffice;
     }
     if (opts.region) {
