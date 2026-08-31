@@ -187,9 +187,7 @@ const getTaxSplitPlan = async (supabaseAdmin: any, taxAmount: number, descriptio
   return [{ recipient: "rent_control", amount: taxAmount, description }];
 };
 
-// Resolve office_id from property, the user's registered office, or region.
-// The office a user PICKED at registration always wins over region guessing —
-// otherwise every registration payment silently lands on accra_central.
+// Resolve office_id from property or region
 const resolveOffice = async (supabaseAdmin: any, opts: { propertyId?: string; region?: string; area?: string; userId?: string }): Promise<string> => {
   try {
     if (opts.propertyId) {
@@ -203,14 +201,6 @@ const resolveOffice = async (supabaseAdmin: any, opts: { propertyId?: string; re
         const { data: officeId } = await supabaseAdmin.rpc("resolve_office_id", { p_region: prop.region, p_area: prop.area });
         return officeId || "accra_central";
       }
-    }
-    if (opts.userId) {
-      const [{ data: landlord }, { data: tenant }] = await Promise.all([
-        supabaseAdmin.from("landlords").select("office_id").eq("user_id", opts.userId).maybeSingle(),
-        supabaseAdmin.from("tenants").select("office_id").eq("user_id", opts.userId).maybeSingle(),
-      ]);
-      const registeredOffice = landlord?.office_id || tenant?.office_id;
-      if (registeredOffice) return registeredOffice;
     }
     if (opts.region) {
       const { data: officeId } = await supabaseAdmin.rpc("resolve_office_id", { p_region: opts.region, p_area: opts.area || null });
@@ -232,7 +222,6 @@ const resolveOffice = async (supabaseAdmin: any, opts: { propertyId?: string; re
   }
   return "accra_central";
 };
-
 
 const createCase = async (supabaseAdmin: any, opts: { officeId: string; userId: string; caseType: string; relatedPropertyId?: string; relatedTenancyId?: string; relatedComplaintId?: string; metadata?: any }): Promise<{ caseId: string; caseNumber: string }> => {
   try {
