@@ -1,10 +1,46 @@
 # Scaling Playbook — Rent Control Ghana
 
-Last updated: 2026-05-25 (after Stages A–D of the concurrency hardening work).
+Last updated: 2026-08-31 (after the baseline-load reduction work).
 
 This document is the single reference for "what do we do when traffic grows".
 It is paired with the live **System Health** tile on the Payment Reconciliation
 Centre, which is the primary signal source.
+
+---
+
+## 0. What a database wobble looks like (read this first)
+
+When the app returns "internal error" but the code did not change, the cause is
+almost always the database being pushed into an unhealthy state by **background
+load**, not by app traffic. The first thing to check is failed scheduled jobs:
+
+```sql
+select jobid, status, count(*), max(end_time)
+from cron.job_run_details
+where start_time > now() - interval '6 hours'
+group by 1,2 order by 1;
+```
+
+A burst of `failed` rows across several jobs marks the outage window. The System
+Health tile now surfaces this directly as "Background jobs failed N time(s) in
+the last hour" and turns the tile red at 3+ failures.
+
+Second check: slow queries. A query on a small table with a high mean time means
+either a missing index or an RLS helper function that is not `SECURITY DEFINER`
+(which re-runs policy checks on every single row).
+
+### Scheduled job cadences (deliberate — do not tighten)
+
+| Job | Schedule | Why |
+|-----|----------|-----|
+| `receipt-drift-monitor` | every 15 min | set-based scan; repairs only rows genuinely missing a receipt |
+| `refresh-dashboard-stats` | every 5 min | skips the refresh entirely when the cache is <4 min old |
+| `capture-system-health` | every 15 min | snapshot only |
+| `daily-tenancy-expiry-check` | 06:00 daily | batch |
+
+The drift monitor used to run every minute and probe receipts one row at a time
+(~85,000 single-row queries against a 4,000-row table). That was the dominant
+baseline load and is exactly what tipped the database over. Keep it set-based.
 
 ---
 
@@ -18,7 +54,8 @@ Measured on the current Lovable Cloud default instance:
 | Active connections    | ~2–5 typical    | comfortable            |
 | Deadlocks since boot  | 0               | investigate at any growth |
 | Cache hit ratio       | 99.99%          | excellent              |
-| Dashboard cache age   | 0–60s           | refreshed every minute, CONCURRENTLY |
+| Dashboard cache age   | 0–300s          | refreshed every 5 minutes, CONCURRENTLY |
+
 
 Edge functions scale automatically per request — they are **not** the bottleneck.
 The bottleneck is always the database connection pool and, secondarily, RAM / CPU.
