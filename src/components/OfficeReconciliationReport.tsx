@@ -49,6 +49,11 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
   const visibleTotal = (p: Partitions) =>
     p.igfOffice + p.igfHq + p.adminOffice + p.adminHq + (isSuperAdmin ? p.platform : 0) + p.gra + p.landlord;
   const [officeId, setOfficeId] = useState<string>(defaultOfficeId || (offices[0]?.id ?? ""));
+  // Offices load asynchronously — adopt the scoped default once it arrives.
+  useEffect(() => {
+    if (!officeId) setOfficeId(defaultOfficeId || (offices[0]?.id ?? ""));
+  }, [defaultOfficeId, offices.length]);
+
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(false);
