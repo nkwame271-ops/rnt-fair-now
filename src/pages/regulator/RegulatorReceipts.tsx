@@ -98,7 +98,7 @@ const PAYMENT_TYPES = [
 ];
 
 const RegulatorReceipts = () => {
-  const { scopeOfficeId, isUnscoped } = useAdminScope();
+  const { scopeOfficeId, scopeOfficeIds, isUnscoped } = useAdminScope();
   const { user } = useAuth();
   const [confirming, setConfirming] = useState<string | null>(null);
   const [rows, setRows] = useState<ReceiptRow[]>([]);
@@ -112,10 +112,17 @@ const RegulatorReceipts = () => {
   const [to, setTo] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Lock office filter when scoped
+  // Offices this admin may select. Region-scoped admins get every office in
+  // their region; single-office admins are locked to theirs.
+  const selectableOffices = isUnscoped
+    ? allOffices
+    : allOffices.filter((o) => scopeOfficeIds.includes(o.id));
+  const officeLocked = !isUnscoped && selectableOffices.length <= 1;
+
+  // Lock office filter only when the admin truly has one office
   useEffect(() => {
-    if (!isUnscoped && scopeOfficeId) setOfficeFilter(scopeOfficeId);
-  }, [isUnscoped, scopeOfficeId]);
+    if (officeLocked && scopeOfficeId) setOfficeFilter(scopeOfficeId);
+  }, [officeLocked, scopeOfficeId]);
 
   useEffect(() => {
     (async () => {
@@ -127,12 +134,20 @@ const RegulatorReceipts = () => {
   const fetchReceipts = async () => {
     setLoading(true);
 
+    // Office restriction applied to every query: explicit selection first, then
+    // the admin's full scope (which may be several offices in one region).
+    const applyOfficeScope = (q: any) => {
+      if (officeFilter !== "all") return q.eq("office_id", officeFilter);
+      if (!isUnscoped && scopeOfficeIds.length > 0) return q.in("office_id", scopeOfficeIds);
+      return q;
+    };
+
     // True total via head count — never bounded by the row limit below.
     let countQ = supabase
       .from("payment_receipts")
       .select("id", { count: "exact", head: true })
       .not("payment_type", "in", "(student_registration,student_complaint_fee)");
-    if (scopeOfficeId) countQ = countQ.eq("office_id", scopeOfficeId);
+    countQ = applyOfficeScope(countQ);
     const { count: total } = await countQ;
     setTotalReceipts(total || 0);
 
@@ -148,13 +163,14 @@ const RegulatorReceipts = () => {
         .not("payment_type", "in", "(student_registration,student_complaint_fee)")
         .order("created_at", { ascending: false })
         .range(offset, offset + PAGE - 1);
-      if (scopeOfficeId) q = q.eq("office_id", scopeOfficeId);
+      q = applyOfficeScope(q);
       const { data: page, error } = await q;
       if (error || !page) break;
       allReceipts.push(...page);
       if (page.length < PAGE) break;
       offset += PAGE;
     }
+
     const receipts = allReceipts;
     if (receipts.length === 0) { setRows([]); setLoading(false); return; }
 
@@ -219,7 +235,7 @@ const RegulatorReceipts = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetchReceipts(); }, [scopeOfficeId, allOffices.length]);
+  useEffect(() => { fetchReceipts(); }, [scopeOfficeId, scopeOfficeIds.join(","), officeFilter, allOffices.length]);
 
   const filtered = useMemo(() => rows.filter(r => {
     if (typeFilter !== "all" && r.payment_type !== typeFilter) return false;
@@ -299,9 +315,9 @@ const RegulatorReceipts = () => {
       </div>
 
       <OfficeReconciliationReport
-        offices={allOffices}
-        defaultOfficeId={scopeOfficeId || (allOffices[0]?.id ?? null)}
-        isUnscoped={isUnscoped}
+        offices={selectableOffices}
+        defaultOfficeId={scopeOfficeId || (selectableOffices[0]?.id ?? null)}
+        isUnscoped={isUnscoped || selectableOffices.length > 1}
       />
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-center">
@@ -317,15 +333,16 @@ const RegulatorReceipts = () => {
             ))}
           </SelectContent>
         </Select>
-        <Select value={officeFilter} onValueChange={setOfficeFilter} disabled={!isUnscoped}>
+        <Select value={officeFilter} onValueChange={setOfficeFilter} disabled={officeLocked}>
           <SelectTrigger className="w-52"><SelectValue placeholder="Office" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Offices</SelectItem>
-            {allOffices.map(o => (
+            <SelectItem value="all">{isUnscoped ? "All Offices" : "All My Offices"}</SelectItem>
+            {selectableOffices.map(o => (
               <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+
         <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" placeholder="From" />
         <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" placeholder="To" />
       </div>

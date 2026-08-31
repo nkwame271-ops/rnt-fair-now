@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2, FileBarChart, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,11 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
   const visibleTotal = (p: Partitions) =>
     p.igfOffice + p.igfHq + p.adminOffice + p.adminHq + (isSuperAdmin ? p.platform : 0) + p.gra + p.landlord;
   const [officeId, setOfficeId] = useState<string>(defaultOfficeId || (offices[0]?.id ?? ""));
+  // Offices load asynchronously — adopt the scoped default once it arrives.
+  useEffect(() => {
+    if (!officeId) setOfficeId(defaultOfficeId || (offices[0]?.id ?? ""));
+  }, [defaultOfficeId, offices.length]);
+
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(false);
@@ -151,7 +156,7 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
       <div className="flex flex-wrap gap-3 items-end">
         <div className="space-y-1 min-w-[220px]">
           <label className="text-xs text-muted-foreground">Office</label>
-          <Select value={officeId} onValueChange={setOfficeId} disabled={!isUnscoped}>
+          <Select value={officeId} onValueChange={setOfficeId} disabled={offices.length <= 1}>
             <SelectTrigger><SelectValue placeholder="Select office" /></SelectTrigger>
             <SelectContent>
               {offices.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
