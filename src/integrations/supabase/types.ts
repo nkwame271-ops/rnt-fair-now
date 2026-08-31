@@ -8377,6 +8377,7 @@ export type Database = {
           db_connections_pct: number | null
           db_connections_used: number | null
           details: Json
+          failed_cron_runs_1h: number
           id: string
           missing_receipt_numbers: number
           missing_receipts: number
@@ -8392,6 +8393,7 @@ export type Database = {
           db_connections_pct?: number | null
           db_connections_used?: number | null
           details?: Json
+          failed_cron_runs_1h?: number
           id?: string
           missing_receipt_numbers?: number
           missing_receipts?: number
@@ -8407,6 +8409,7 @@ export type Database = {
           db_connections_pct?: number | null
           db_connections_used?: number | null
           details?: Json
+          failed_cron_runs_1h?: number
           id?: string
           missing_receipt_numbers?: number
           missing_receipts?: number
@@ -9766,6 +9769,15 @@ export type Database = {
         Returns: boolean
       }
       issue_car_case_number: { Args: never; Returns: string }
+      list_escrows_missing_receipts: {
+        Args: { p_limit?: number }
+        Returns: {
+          id: string
+          paystack_transaction_id: string
+          reference: string
+          total_amount: number
+        }[]
+      }
       lookup_serial_details: { Args: { p_serials: string[] }; Returns: Json }
       move_serials_atomic: {
         Args: {
