@@ -103,6 +103,125 @@ serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
+    // ============ DOWNTIME NOTICE (sequential, one recipient at a time) ============
+    if (action === "downtime-notice") {
+      const DOWNTIME_EVENT = "downtime_notice";
+      const DOWNTIME_MESSAGE =
+        "RentControlGhana: Our system was briefly down today for a scheduled upgrade. Everything is back up and running. Thank you for your patience. - Rent Control";
+
+      // Audience: accounts with a sign-in recorded today
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      const { data: authUsers, error: authErr } = await adminClient
+        .schema("auth")
+        .from("users")
+        .select("id, last_sign_in_at")
+        .gte("last_sign_in_at", todayStart.toISOString())
+        .limit(5000);
+
+      if (authErr) {
+        return respond({ ok: false, error: "Failed to load today's sign-ins: " + authErr.message });
+      }
+
+      const userIdsToday = (authUsers || []).map((u: any) => u.id);
+      if (!userIdsToday.length) {
+        return respond({ ok: true, total: 0, sent: 0, failed: 0, skipped_no_phone: 0, skipped_already_sent: 0, failures: [] });
+      }
+
+      const { data: profs, error: profErr } = await adminClient
+        .from("profiles")
+        .select("user_id, phone")
+        .in("user_id", userIdsToday);
+      if (profErr) return respond({ ok: false, error: "Failed to load profiles: " + profErr.message });
+
+      // Already-notified users today (idempotent re-run)
+      const { data: priorLogs } = await adminClient
+        .from("sms_send_log")
+        .select("user_id, state")
+        .eq("event", DOWNTIME_EVENT)
+        .gte("created_at", todayStart.toISOString());
+      const alreadySent = new Set(
+        (priorLogs || []).filter((r: any) => r.state === "sent" && r.user_id).map((r: any) => r.user_id),
+      );
+
+      const targets: Array<{ user_id: string; phone: string }> = [];
+      const seenPhones = new Set<string>();
+      let skippedNoPhone = 0;
+      let skippedAlreadySent = 0;
+
+      for (const p of (profs || [])) {
+        const uid = (p as any).user_id as string;
+        const norm = normalizePhone((p as any).phone || "");
+        if (!norm) { skippedNoPhone++; continue; }
+        if (alreadySent.has(uid)) { skippedAlreadySent++; continue; }
+        if (seenPhones.has(norm)) continue;
+        seenPhones.add(norm);
+        targets.push({ user_id: uid, phone: norm });
+      }
+      skippedNoPhone += userIdsToday.length - (profs?.length ?? 0);
+
+      let sent = 0;
+      let failed = 0;
+      const failures: Array<{ phone: string; reason: string }> = [];
+
+      const mask = (p: string) => `${p.slice(0, 6)}***${p.slice(-3)}`;
+
+      // Strictly sequential — one Arkesel request at a time
+      for (const t of targets) {
+        const result = await sendOne(ARKESEL_API_KEY, t.phone, DOWNTIME_MESSAGE, undefined);
+        if (result.ok) sent++;
+        else {
+          failed++;
+          if (failures.length < 15) failures.push({ phone: mask(t.phone), reason: result.reason || "unknown" });
+        }
+        try {
+          await adminClient.from("sms_send_log").insert({
+            event: DOWNTIME_EVENT,
+            recipient_masked: mask(t.phone),
+            state: result.ok ? "sent" : "failed",
+            failure_reason: result.ok ? null : "provider_error",
+            provider_message: result.ok ? null : (result.reason ?? null),
+            sender_used: "RentControl",
+            via: "admin-sms-broadcast",
+            user_id: t.user_id,
+          });
+        } catch (e) {
+          console.error("sms_send_log insert failed", e);
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+
+      try {
+        await adminClient.from("admin_audit_log").insert({
+          admin_user_id: userId,
+          action: "sms_downtime_notice",
+          target_type: "sms",
+          target_id: `signed_in_today:${targets.length}`,
+          reason: `Downtime notice to ${targets.length} recipients (${sent} sent, ${failed} failed)`,
+          new_state: {
+            message: DOWNTIME_MESSAGE,
+            skipped_no_phone: skippedNoPhone,
+            skipped_already_sent: skippedAlreadySent,
+            sample_failures: failures,
+          },
+        });
+      } catch (e) {
+        console.error("Audit log insert failed:", e);
+      }
+
+      return respond({
+        ok: true,
+        total: targets.length,
+        sent,
+        failed,
+        skipped_no_phone: skippedNoPhone,
+        skipped_already_sent: skippedAlreadySent,
+        failures,
+      });
+    }
+
+
     // ============ CHECK BALANCE ============
     if (action === "check-balance") {
       const params = new URLSearchParams({
