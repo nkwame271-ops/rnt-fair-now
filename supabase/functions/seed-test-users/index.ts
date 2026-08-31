@@ -133,8 +133,13 @@ Deno.serve(async (req) => {
         .or("phone.eq.0240005678,email.eq.0240005678@rentcontrolghana.local")
         .neq("user_id", landlord.id);
       for (const duplicate of duplicateProfiles || []) {
+        // This fixed demo identity must have one auth owner. Remove the stale
+        // duplicate first so its unique phone/email cannot block profile repair.
         const { data: duplicateAuth } = await supabase.auth.admin.getUserById(duplicate.user_id);
-        if (!duplicateAuth?.user) {
+        if (duplicateAuth?.user) {
+          const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(duplicate.user_id);
+          if (deleteAuthError) results.push(`Stale landlord auth cleanup: ${deleteAuthError.message}`);
+        } else {
           await supabase.from("user_roles").delete().eq("user_id", duplicate.user_id).eq("role", "landlord");
           await supabase.from("profiles").delete().eq("user_id", duplicate.user_id);
         }
