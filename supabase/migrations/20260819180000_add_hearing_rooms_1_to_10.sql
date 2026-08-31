@@ -1,6 +1,7 @@
+-- Add unique constraint to prevent duplicate rooms in the same office
+ALTER TABLE public.hearing_rooms ADD CONSTRAINT hearing_rooms_office_name_key UNIQUE (office_id, name);
+
 -- Ensure all offices have hearing rooms 1 through 10.
--- First, we can remove the existing "Hearing Room 1" if we want to be clean, 
--- or just use ON CONFLICT or a loop that skips existing ones.
 DO $$
 DECLARE
     o RECORD;
