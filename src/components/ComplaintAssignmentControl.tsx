@@ -93,7 +93,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
         _assignedByName: nameMap.get(h.assigned_by) || "Admin",
       }))
     );
-    setRooms((roomRes.data || []) as { id: string; name: string }[]);
+    setRooms((roomRes.data || []) as { id: string; name: string; office_id: string }[]);
     setLoading(false);
   };
 
