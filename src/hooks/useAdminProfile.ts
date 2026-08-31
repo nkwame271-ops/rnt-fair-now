@@ -276,7 +276,11 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   feedback: ["/regulator/feedback"],
   support_chats: ["/regulator/support-chats"],
   sms_broadcast: ["/regulator/sms-broadcast"],
-  api_keys: ["/regulator/api-keys"],
+  api_keys: ["/regulator/api-keys", "/regulator/api-access-requests"],
+  developer_accounts: ["/regulator/developer-accounts"],
+  agent_applications: ["/regulator/agents"],
+  cashbook: ["/regulator/cashbook"],
+  payment_reconciliation: ["/regulator/payment-reconciliation"],
   office_wallet: ["/regulator/office-fund-requests"],
   payout_settings: ["/regulator/office-payout-settings"],
   rent_reviews: ["/regulator/rent-reviews"],
@@ -297,7 +301,15 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
 // Reverse: route → feature key
 export const getFeatureKeyForRoute = (route: string): string | null => {
   for (const [key, routes] of Object.entries(FEATURE_ROUTE_MAP)) {
-    if (routes.includes(route)) return key;
+    if (routes.some((base) => route === base || route.startsWith(`${base}/`))) return key;
   }
   return null;
 };
+
+export const SENSITIVE_ADMIN_FEATURES = new Set([
+  "cashbook",
+  "agent_applications",
+  "api_keys",
+  "developer_accounts",
+  "payment_reconciliation",
+]);

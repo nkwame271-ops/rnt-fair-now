@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { ChevronLeft, ChevronRight, CalendarClock, Filter } from "lucide-react";
+import { useAdminScope } from "@/hooks/useAdminScope";
 
 type View = "day" | "week" | "month";
 
@@ -26,6 +27,7 @@ const sameDay = (a: Date, b: Date) =>
 
 const HearingSchedule = () => {
   const navigate = useNavigate();
+  const { scopeOfficeId, scopeOfficeIds, isUnscoped } = useAdminScope();
   const [view, setView] = useState<View>("week");
   const [anchor, setAnchor] = useState<Date>(startOfDay(new Date()));
   const [hearings, setHearings] = useState<any[]>([]);
@@ -35,6 +37,7 @@ const HearingSchedule = () => {
   const [filterOfficer, setFilterOfficer] = useState<string>("all");
   const [filterRoom, setFilterRoom] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterOffice, setFilterOffice] = useState<string>(scopeOfficeId || "all");
 
   const range = useMemo(() => {
     if (view === "day") return { from: anchor, to: addDays(anchor, 1) };
@@ -54,12 +57,18 @@ const HearingSchedule = () => {
           .gte("scheduled_at", range.from.toISOString())
           .lt("scheduled_at", range.to.toISOString())
           .order("scheduled_at"),
-        supabase.from("hearing_rooms").select("*"),
-        supabase.from("admin_staff").select("user_id, full_name, admin_type"),
+        supabase.from("hearing_rooms").select("*").eq("active", true),
+        supabase.from("admin_staff").select("user_id, full_name, admin_type, office_id"),
       ]);
       setHearings(hRes.data || []);
-      setRooms(rRes.data || []);
-      setOfficers((sRes.data || []).filter((s: any) => ["adjudicating_officer", "case_admin"].includes(s.admin_type)));
+      const scopedRooms = (rRes.data || []).filter((room: any) =>
+        isUnscoped || scopeOfficeIds.length === 0 || scopeOfficeIds.includes(room.office_id)
+      );
+      setRooms(scopedRooms.sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true })));
+      setOfficers((sRes.data || []).filter((s: any) =>
+        ["adjudicating_officer", "case_admin"].includes(s.admin_type)
+        && (isUnscoped || scopeOfficeIds.length === 0 || scopeOfficeIds.includes(s.office_id))
+      ));
       const ids = Array.from(new Set((hRes.data || []).map((h: any) => h.case_id)));
       if (ids.length) {
         const { data: cs } = await supabase
@@ -71,14 +80,24 @@ const HearingSchedule = () => {
         setComplaints(map);
       }
     })();
-  }, [range.from, range.to]);
+  }, [range.from, range.to, isUnscoped, scopeOfficeIds.join(",")]);
+
+  const officeIds = useMemo(
+    () => Array.from(new Set(rooms.map((room: any) => room.office_id))).sort(),
+    [rooms]
+  );
+  const visibleRooms = useMemo(
+    () => rooms.filter((room: any) => filterOffice === "all" || room.office_id === filterOffice),
+    [rooms, filterOffice]
+  );
 
   const filtered = useMemo(() => hearings.filter((h) => {
     if (filterOfficer !== "all" && h.officer_user_id !== filterOfficer) return false;
     if (filterRoom !== "all" && h.room_id !== filterRoom) return false;
+    if (filterOffice !== "all" && !visibleRooms.some((room: any) => room.id === h.room_id)) return false;
     if (filterStatus !== "all" && h.status !== filterStatus) return false;
     return true;
-  }), [hearings, filterOfficer, filterRoom, filterStatus]);
+  }), [hearings, filterOfficer, filterRoom, filterStatus, filterOffice, visibleRooms]);
 
   const days = useMemo(() => {
     if (view === "day") return [anchor];
@@ -123,7 +142,14 @@ const HearingSchedule = () => {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2"><Filter className="h-4 w-4" /> Filters</CardTitle>
         </CardHeader>
-        <CardContent className="grid sm:grid-cols-3 gap-3">
+        <CardContent className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <Select value={filterOffice} onValueChange={(value) => { setFilterOffice(value); setFilterRoom("all"); }}>
+            <SelectTrigger><SelectValue placeholder="Office" /></SelectTrigger>
+            <SelectContent>
+              {isUnscoped && <SelectItem value="all">All offices</SelectItem>}
+              {officeIds.map((officeId) => <SelectItem key={officeId} value={officeId}>{officeId.replace(/_/g, " ")}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={filterOfficer} onValueChange={setFilterOfficer}>
             <SelectTrigger><SelectValue placeholder="Officer" /></SelectTrigger>
             <SelectContent>
@@ -135,7 +161,7 @@ const HearingSchedule = () => {
             <SelectTrigger><SelectValue placeholder="Room" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All rooms</SelectItem>
-              {rooms.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+              {visibleRooms.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>

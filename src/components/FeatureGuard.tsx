@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { Lock, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAdminProfile, getFeatureKeyForRoute } from "@/hooks/useAdminProfile";
+import { useAdminProfile, getFeatureKeyForRoute, SENSITIVE_ADMIN_FEATURES } from "@/hooks/useAdminProfile";
 
 /**
  * Wraps the regulator outlet to enforce per-route feature access for Sub Admins.
@@ -14,23 +14,23 @@ const FeatureGuard = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
 
   if (loading || !profile) return <>{children}</>;
-  if (profile.isSuperAdmin || profile.isMainAdmin) return <>{children}</>;
+  if (profile.isSuperAdmin) return <>{children}</>;
 
   // Match route — strip trailing segments to find the base nav route
   const path = location.pathname;
   const featureKey = getFeatureKeyForRoute(path)
     || getFeatureKeyForRoute("/" + path.split("/").slice(1, 3).join("/"));
 
+  if (profile.isMainAdmin) {
+    const blockedSensitiveFeature = featureKey
+      && SENSITIVE_ADMIN_FEATURES.has(featureKey)
+      && (!profile.allowedFeatures.includes(featureKey) || profile.mutedFeatures.includes(featureKey));
+    if (!blockedSensitiveFeature) return <>{children}</>;
+  }
+
   if (featureKey === "dashboard") return <>{children}</>;
 
-  if (!featureKey) {
-    // Unknown sub-route — allow if any parent matches an allowed feature
-    const allowed = profile.allowedFeatures.some(k => {
-      const routes = (k && (path.includes(k.replace(/_/g, "-")) || path.includes(k))) || false;
-      return routes;
-    });
-    if (allowed) return <>{children}</>;
-  } else if (profile.allowedFeatures.includes(featureKey) && !profile.mutedFeatures.includes(featureKey)) {
+  if (featureKey && profile.allowedFeatures.includes(featureKey) && !profile.mutedFeatures.includes(featureKey)) {
     return <>{children}</>;
   }
 

@@ -454,8 +454,11 @@ const AssignDialog = ({ open, onOpenChange, complaint, offices, admins, onSaved 
   const [officerId, setOfficerId] = useState(complaint.assigned_officer_user_id || "");
   const [saving, setSaving] = useState(false);
   const eligible = useMemo(
-    () => admins.filter((a: any) => ["adjudicating_officer", "case_admin", "main_admin", "super_admin"].includes(a.admin_type)),
-    [admins]
+    () => admins.filter((a: any) =>
+      ["adjudicating_officer", "case_admin", "main_admin", "super_admin"].includes(a.admin_type)
+      && a.office_id === officeId
+    ),
+    [admins, officeId]
   );
   const save = async () => {
     setSaving(true);
@@ -485,7 +488,7 @@ const AssignDialog = ({ open, onOpenChange, complaint, offices, admins, onSaved 
         <DialogHeader><DialogTitle>Assign Case</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div><Label>Office</Label>
-            <Select value={officeId} onValueChange={setOfficeId}>
+            <Select value={officeId} onValueChange={(value) => { setOfficeId(value); setOfficerId(""); }}>
               <SelectTrigger><SelectValue placeholder="Select office" /></SelectTrigger>
               <SelectContent>{offices.map((o: any) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}</SelectContent>
             </Select>
@@ -512,6 +515,12 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
   const [priority, setPriority] = useState("normal");
   const [saving, setSaving] = useState(false);
   const [assignedOfficers, setAssignedOfficers] = useState<any[]>([]);
+  const officeRooms = useMemo(
+    () => (rooms || [])
+      .filter((room: any) => room.active !== false && room.office_id === complaint.office_id)
+      .sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true })),
+    [rooms, complaint.office_id]
+  );
 
   // Populate the officer dropdown from the case's "Assigned To" list (complaint_assignments).
   useEffect(() => {
@@ -543,7 +552,8 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
     setSaving(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
-      const selectedRoom = (rooms || []).find((room: any) => room.id === roomId);
+      const selectedRoom = officeRooms.find((room: any) => room.id === roomId);
+      if (!selectedRoom) throw new Error("Select a hearing room from the complaint's assigned office");
       const { data: hearing, error } = await supabase.from("complaint_hearings").insert({
         case_id: complaint.id, case_kind: "complaint",
         scheduled_at: new Date(when).toISOString(),
@@ -583,9 +593,9 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
           <div><Label>Date & Time</Label><Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} /></div>
           <div><Label>Room</Label>
             <Select value={roomId} onValueChange={setRoomId}>
-              <SelectTrigger><SelectValue placeholder={rooms.length ? "Select room" : "No rooms configured for this office"} /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={officeRooms.length ? "Select room" : "No rooms configured for this office"} /></SelectTrigger>
               <SelectContent>
-                {rooms.map((room: any) => (
+                {officeRooms.map((room: any) => (
                   <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>
                 ))}
               </SelectContent>

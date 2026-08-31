@@ -127,13 +127,28 @@ Deno.serve(async (req) => {
           .eq("id", legacyLandlord.id);
         if (relinkError) results.push(`Landlord relink: ${relinkError.message}`);
       }
-      await supabase.from("profiles").upsert({
+      const { data: duplicateProfiles } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .or("phone.eq.0240005678,email.eq.0240005678@rentcontrolghana.local")
+        .neq("user_id", landlord.id);
+      for (const duplicate of duplicateProfiles || []) {
+        const { data: duplicateAuth } = await supabase.auth.admin.getUserById(duplicate.user_id);
+        if (!duplicateAuth?.user) {
+          await supabase.from("user_roles").delete().eq("user_id", duplicate.user_id).eq("role", "landlord");
+          await supabase.from("profiles").delete().eq("user_id", duplicate.user_id);
+        }
+      }
+      const { error: profileError } = await supabase.from("profiles").upsert({
         user_id: landlord.id,
         email: "0240005678@rentcontrolghana.local",
         phone: "0240005678",
         full_name: "Ama Mensah",
+        user_type: "landlord",
       }, { onConflict: "user_id" });
-      await supabase.from("user_roles").upsert({ user_id: landlord.id, role: "landlord" }, { onConflict: "user_id,role" });
+      if (profileError) results.push(`Landlord profile: ${profileError.message}`);
+      const { error: roleError } = await supabase.from("user_roles").upsert({ user_id: landlord.id, role: "landlord" }, { onConflict: "user_id,role" });
+      if (roleError) results.push(`Landlord role: ${roleError.message}`);
       if (!legacyLandlord?.id) {
         const { error: lInsErr } = await supabase.from("landlords").insert({
           user_id: landlord.id,

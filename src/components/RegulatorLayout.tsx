@@ -30,7 +30,7 @@ import {
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdminProfile, getFeatureKeyForRoute } from "@/hooks/useAdminProfile";
+import { useAdminProfile, getFeatureKeyForRoute, SENSITIVE_ADMIN_FEATURES } from "@/hooks/useAdminProfile";
 import { useFeatureLabels } from "@/hooks/useFeatureLabel";
 import TourGuide from "@/components/TourGuide";
 import { regulatorTourSteps } from "@/data/tourSteps";
@@ -160,10 +160,13 @@ const RegulatorLayout = () => {
     if (!profile) return true;
     // Main admin: empty allowed_features = full access (backward compatible)
     if (profile.isMainAdmin) {
-      if (profile.allowedFeatures.length === 0) return true;
       const featureKey = getFeatureKeyForRoute(item.to);
       if (!featureKey) return true;
       const isMuted = profile.mutedFeatures.includes(featureKey);
+      if (SENSITIVE_ADMIN_FEATURES.has(featureKey)) {
+        return profile.allowedFeatures.includes(featureKey) && !isMuted;
+      }
+      if (profile.allowedFeatures.length === 0) return !isMuted;
       return profile.allowedFeatures.includes(featureKey) && !isMuted;
     }
     // Sub admin — must explicitly include the feature (dashboard always allowed)
