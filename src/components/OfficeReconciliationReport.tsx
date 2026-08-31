@@ -151,7 +151,7 @@ const OfficeReconciliationReport = ({ offices, defaultOfficeId, isUnscoped }: Pr
       <div className="flex flex-wrap gap-3 items-end">
         <div className="space-y-1 min-w-[220px]">
           <label className="text-xs text-muted-foreground">Office</label>
-          <Select value={officeId} onValueChange={setOfficeId} disabled={!isUnscoped}>
+          <Select value={officeId} onValueChange={setOfficeId} disabled={offices.length <= 1}>
             <SelectTrigger><SelectValue placeholder="Select office" /></SelectTrigger>
             <SelectContent>
               {offices.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
