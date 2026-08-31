@@ -30,27 +30,26 @@ Deno.serve(async (req) => {
   };
 
   // 1. Paid escrows older than 5 min with no receipt → re-run finalize.
-  // Fetch beyond the most recent fully-synchronized rows, then identify drift
-  // before applying the repair limit. The previous .limit(50) ran before the
-  // receipt check, so the same 50 healthy transactions hid older drift forever.
-  const { data: orphanEscrows } = await supabaseAdmin
-    .from("escrow_transactions")
-    .select("id, reference, total_amount, paystack_transaction_id")
-    .in("status", ["success", "completed", "paid"])
-    .lt("created_at", new Date(Date.now() - 5 * 60_000).toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1000);
+  // A single set-based RPC returns ONLY the transactions genuinely missing a
+  // receipt. The previous version fetched 1000 paid rows every minute and then
+  // issued one receipt lookup per row (~85k wasted single-row queries), which
+  // was the dominant source of baseline database load.
+  const { data: orphanEscrows, error: orphanError } = await supabaseAdmin
+    .rpc("list_escrows_missing_receipts", { p_limit: 100 });
 
-  let repairCandidates = 0;
-  for (const esc of orphanEscrows ?? []) {
-    const { data: existing } = await supabaseAdmin
-      .from("payment_receipts")
-      .select("id")
-      .eq("escrow_transaction_id", esc.id)
-      .maybeSingle();
-    if (existing) continue;
-    if (repairCandidates >= 100) break;
-    repairCandidates += 1;
+  if (orphanError) {
+    await logError({
+      error_stage: "drift_monitor_scan",
+      error_message: orphanError.message,
+    });
+  }
+
+  for (const esc of (orphanEscrows ?? []) as Array<{
+    id: string;
+    reference: string;
+    total_amount: number;
+    paystack_transaction_id: string | null;
+  }>) {
     try {
       await finalizePayment({
         supabaseAdmin,
@@ -87,6 +86,7 @@ Deno.serve(async (req) => {
       });
     }
   }
+
 
   // 2. Paid case_payments missing receipt_number → relink
   const { data: missingNum } = await supabaseAdmin

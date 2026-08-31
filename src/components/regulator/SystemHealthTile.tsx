@@ -16,6 +16,7 @@ interface Snapshot {
   db_connections_used: number | null;
   db_connections_max: number | null;
   db_connections_pct: number | null;
+  failed_cron_runs_1h: number | null;
 }
 
 const SystemHealthTile = () => {
