@@ -224,7 +224,7 @@ const InviteStaff = () => {
         <div className="mb-4 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
           {adminType === "main_admin" && (
             <>
-              <strong className="text-foreground">Main Admin</strong> — Select which features this Main Admin can access. Leave all unchecked for full access.
+              <strong className="text-foreground">Main Admin</strong> — Select which features this Main Admin can access. Sensitive new features remain unavailable unless selected.
             </>
           )}
           {adminType === "sub_admin" && (
@@ -422,7 +422,7 @@ const InviteStaff = () => {
               <Label>Allowed Features</Label>
               <p className="text-xs text-muted-foreground mb-2">
                 {adminType === "main_admin"
-                  ? "Select features this Main Admin can access. Leave all unchecked for full access (backward compatible)."
+                  ? "Select features this Main Admin can access. Cashbook, Agent Applications, API access, Developer Accounts, and Payment Reconciliation are opt-in."
                   : "Select which features this Sub Admin can access."}
               </p>
               <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border border-border rounded-lg p-3">

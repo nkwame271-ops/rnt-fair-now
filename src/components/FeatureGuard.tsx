@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { Lock, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAdminProfile, getFeatureKeyForRoute } from "@/hooks/useAdminProfile";
+import { useAdminProfile, getFeatureKeyForRoute, SENSITIVE_ADMIN_FEATURES } from "@/hooks/useAdminProfile";
 
 /**
  * Wraps the regulator outlet to enforce per-route feature access for Sub Admins.
@@ -14,12 +14,19 @@ const FeatureGuard = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
 
   if (loading || !profile) return <>{children}</>;
-  if (profile.isSuperAdmin || profile.isMainAdmin) return <>{children}</>;
+  if (profile.isSuperAdmin) return <>{children}</>;
 
   // Match route — strip trailing segments to find the base nav route
   const path = location.pathname;
   const featureKey = getFeatureKeyForRoute(path)
     || getFeatureKeyForRoute("/" + path.split("/").slice(1, 3).join("/"));
+
+  if (profile.isMainAdmin) {
+    const blockedSensitiveFeature = featureKey
+      && SENSITIVE_ADMIN_FEATURES.has(featureKey)
+      && (!profile.allowedFeatures.includes(featureKey) || profile.mutedFeatures.includes(featureKey));
+    if (!blockedSensitiveFeature) return <>{children}</>;
+  }
 
   if (featureKey === "dashboard") return <>{children}</>;
 

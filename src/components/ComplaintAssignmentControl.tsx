@@ -14,6 +14,7 @@ import { useAdminProfile } from "@/hooks/useAdminProfile";
 interface StaffOption {
   user_id: string;
   full_name: string;
+  office_id: string | null;
   office_name: string | null;
   admin_type: string;
 }
@@ -43,7 +44,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedOffice, setSelectedOffice] = useState<string>("");
-  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
+  const [rooms, setRooms] = useState<{ id: string; name: string; office_id: string }[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [pendingAssigneeId, setPendingAssigneeId] = useState<string | null>(null);
   const [reassignmentReason, setReassignmentReason] = useState("");
@@ -54,7 +55,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
   const load = async () => {
     setLoading(true);
     const [staffRes, histRes, roomRes] = await Promise.all([
-      (supabase.from("admin_staff") as any).select("user_id, office_name, admin_type"),
+      (supabase.from("admin_staff") as any).select("user_id, office_id, office_name, admin_type"),
       (supabase.from("complaint_assignments") as any)
         .select("id, assigned_to, assigned_by, assigned_at, unassigned_at, reason, room_id")
         .eq("complaint_id", complaintId)
@@ -82,6 +83,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
       staffRows.map((s) => ({
         user_id: s.user_id,
         full_name: nameMap.get(s.user_id) || "Staff member",
+        office_id: s.office_id,
         office_name: s.office_name,
         admin_type: s.admin_type,
       }))
@@ -105,7 +107,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
   useEffect(() => {
     if (currentAssignment) {
       const assignee = staff.find((s) => s.user_id === currentAssignment.assigned_to);
-      if (assignee) setSelectedOffice(assignee.office_name || "HQ / Unassigned Office");
+      if (assignee?.office_id) setSelectedOffice(assignee.office_id);
     }
   }, [currentAssignment, staff]);
 
@@ -152,13 +154,18 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
 
   // Group staff by office (organizational hierarchy: Office → Staff)
   const staffByOffice = staff.reduce((acc, s) => {
-    const office = s.office_name || "HQ / Unassigned Office";
-    if (!acc[office]) acc[office] = [];
-    acc[office].push(s);
+    if (!s.office_id) return acc;
+    if (!acc[s.office_id]) acc[s.office_id] = [];
+    acc[s.office_id].push(s);
     return acc;
   }, {} as Record<string, StaffOption[]>);
-  const officeNames = Object.keys(staffByOffice).sort();
+  const officeIds = Object.keys(staffByOffice).sort((a, b) =>
+    (staffByOffice[a][0]?.office_name || a).localeCompare(staffByOffice[b][0]?.office_name || b)
+  );
   const filteredStaff = selectedOffice ? (staffByOffice[selectedOffice] || []) : [];
+  const filteredRooms = rooms
+    .filter((room) => room.office_id === selectedOffice)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
   // Sync handled by hook above (declared before early return to keep hook order stable).
 
@@ -170,15 +177,15 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
         <span className="text-sm font-semibold text-foreground">Assigned to:</span>
         {canAssign ? (
           <div className="flex items-center gap-2 flex-wrap">
-            <Select value={selectedRoomId} onValueChange={setSelectedRoomId} disabled={saving}>
+            <Select value={selectedRoomId} onValueChange={setSelectedRoomId} disabled={saving || !selectedOffice}>
               <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Select room" /></SelectTrigger>
-               <SelectContent>{rooms.length ? rooms.map((room) => <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>) : <div className="px-2 py-2 text-xs text-muted-foreground">No hearing rooms configured</div>}</SelectContent>
+               <SelectContent>{filteredRooms.length ? filteredRooms.map((room) => <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>) : <div className="px-2 py-2 text-xs text-muted-foreground">No hearing rooms configured for this office</div>}</SelectContent>
             </Select>
-            <Select value={selectedOffice} onValueChange={(v) => setSelectedOffice(v)} disabled={saving}>
+            <Select value={selectedOffice} onValueChange={(v) => { setSelectedOffice(v); setSelectedRoomId(""); }} disabled={saving}>
               <SelectTrigger className="h-8 w-44"><SelectValue placeholder="Select office" /></SelectTrigger>
               <SelectContent>
-                {officeNames.map((o) => (
-                  <SelectItem key={o} value={o}>{o} ({staffByOffice[o].length})</SelectItem>
+                {officeIds.map((officeId) => (
+                  <SelectItem key={officeId} value={officeId}>{staffByOffice[officeId][0]?.office_name || officeId} ({staffByOffice[officeId].length})</SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -223,6 +223,28 @@ const resolveOffice = async (supabaseAdmin: any, opts: { propertyId?: string; re
   return "accra_central";
 };
 
+const resolveRegistrationOffice = async (
+  supabaseAdmin: any,
+  userId: string,
+  roleTable: "tenants" | "landlords",
+): Promise<string> => {
+  const { data: roleRecord, error: roleError } = await supabaseAdmin
+    .from(roleTable)
+    .select("office_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (roleError) throw new Error(`Could not verify your selected registration office: ${roleError.message}`);
+  if (!roleRecord?.office_id) throw new Error("No registration office is assigned to this account. Please update your registration before paying.");
+
+  const { data: office, error: officeError } = await supabaseAdmin
+    .from("offices")
+    .select("id")
+    .eq("id", roleRecord.office_id)
+    .maybeSingle();
+  if (officeError || !office?.id) throw new Error("Your selected registration office is invalid. Please contact support before paying.");
+  return office.id;
+};
+
 const createCase = async (supabaseAdmin: any, opts: { officeId: string; userId: string; caseType: string; relatedPropertyId?: string; relatedTenancyId?: string; relatedComplaintId?: string; metadata?: any }): Promise<{ caseId: string; caseNumber: string }> => {
   try {
     const { data: caseNumber } = await supabaseAdmin.rpc("generate_case_number");
@@ -627,7 +649,7 @@ Deno.serve(async (req) => {
         // Student revenue: never tied to an office.
         officeId = "accra_central";
       } else {
-        officeId = await resolveOffice(supabaseAdmin, { userId, region: profile?.delivery_region || undefined, area: profile?.delivery_area || undefined });
+        officeId = await resolveRegistrationOffice(supabaseAdmin, userId, "tenants");
       }
 
       const feeKey = effectiveType === "student_registration" ? "student_registration" : "tenant_registration_fee";
@@ -671,7 +693,7 @@ Deno.serve(async (req) => {
         throw new Error("Registration is already active. It will renew after " + new Date(expiryMs).toLocaleDateString());
       }
 
-      officeId = await resolveOffice(supabaseAdmin, { userId, region: profile?.delivery_region || undefined, area: profile?.delivery_area || undefined });
+      officeId = await resolveRegistrationOffice(supabaseAdmin, userId, "landlords");
       caseType = "registration";
 
       const fee = await determineFee(supabaseAdmin, "landlord_registration_fee");
