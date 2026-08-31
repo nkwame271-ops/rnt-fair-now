@@ -30,14 +30,7 @@ const FeatureGuard = ({ children }: { children: React.ReactNode }) => {
 
   if (featureKey === "dashboard") return <>{children}</>;
 
-  if (!featureKey) {
-    // Unknown sub-route — allow if any parent matches an allowed feature
-    const allowed = profile.allowedFeatures.some(k => {
-      const routes = (k && (path.includes(k.replace(/_/g, "-")) || path.includes(k))) || false;
-      return routes;
-    });
-    if (allowed) return <>{children}</>;
-  } else if (profile.allowedFeatures.includes(featureKey) && !profile.mutedFeatures.includes(featureKey)) {
+  if (featureKey && profile.allowedFeatures.includes(featureKey) && !profile.mutedFeatures.includes(featureKey)) {
     return <>{children}</>;
   }
 
