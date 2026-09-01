@@ -294,7 +294,10 @@ const RegulatorLandlords = () => {
               >
                 <div className="flex-1 flex flex-col gap-1.5 sm:grid sm:grid-cols-6 sm:gap-2 sm:items-center text-sm">
                   <div className="font-mono font-bold text-primary">{l.landlord_id}</div>
-                  <div className="font-medium text-foreground">{l.profile?.full_name || "—"}</div>
+                  <div className="font-medium text-foreground">
+                    {l.profile?.full_name || "—"}
+                    <span className="block text-xs font-normal text-muted-foreground">{l._officeName || "Office not assigned"}</span>
+                  </div>
                   <div className="text-muted-foreground">{l.profile?.phone || "—"}</div>
                   <div className="text-muted-foreground">{l.properties?.length || 0} properties • {totalUnits} units</div>
                   <div className="text-muted-foreground">{activeTenancies.length} active tenants</div>
