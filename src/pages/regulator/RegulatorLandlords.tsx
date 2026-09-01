@@ -323,6 +323,7 @@ const RegulatorLandlords = () => {
                         registrationDate: l.registration_date,
                         expiryDate: l.expiry_date,
                         registrationFeePaid: l.registration_fee_paid,
+                        officeName: l._officeName || null,
                         profile: l.profile as any,
                         kyc: kyc as any,
                         properties: l.properties,
