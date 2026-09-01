@@ -20,6 +20,8 @@ interface TenantFull {
   expiry_date: string | null;
   registration_fee_paid: boolean;
   is_student?: boolean;
+  office_id?: string | null;
+  _officeName?: string | null;
   school?: string | null;
   hostel_or_hall?: string | null;
   profile?: {
