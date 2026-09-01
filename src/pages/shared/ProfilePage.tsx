@@ -38,6 +38,8 @@ const ProfilePage = () => {
   const [registrationFeePaid, setRegistrationFeePaid] = useState(false);
   const [registrationDate, setRegistrationDate] = useState<string | null>(null);
   const [expiryDate, setExpiryDate] = useState<string | null>(null);
+  const [officeName, setOfficeName] = useState<string | null>(null);
+  const [officeRegion, setOfficeRegion] = useState<string | null>(null);
 
   // Avatar + Student ID
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
