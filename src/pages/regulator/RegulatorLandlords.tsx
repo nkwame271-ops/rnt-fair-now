@@ -204,8 +204,17 @@ const RegulatorLandlords = () => {
         tenanciesByLandlord.set(t.landlord_user_id, arr);
       });
 
+
+      // Registration office recorded on the landlord record — shown as-is,
+      // with no fallback, so a blank office is visible rather than defaulted.
+      const { data: officeRows } = await supabase.from("offices").select("id, name, region");
+      const officeMap = new Map((officeRows || []).map((o: any) => [o.id, o]));
+
       setLandlords(landlordData.map(l => ({
         ...l,
+        _officeName: l.office_id
+          ? `${officeMap.get(l.office_id)?.name || l.office_id}${officeMap.get(l.office_id)?.region ? ` — ${officeMap.get(l.office_id)?.region}` : ""}`
+          : null,
         profile: profileMap.get(l.user_id) || undefined,
         properties: propsByLandlord.get(l.user_id) || [],
         tenancies: tenanciesByLandlord.get(l.user_id) || [],
