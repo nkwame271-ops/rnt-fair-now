@@ -20,6 +20,8 @@ interface TenantFull {
   expiry_date: string | null;
   registration_fee_paid: boolean;
   is_student?: boolean;
+  office_id?: string | null;
+  _officeName?: string | null;
   school?: string | null;
   hostel_or_hall?: string | null;
   profile?: {
@@ -146,7 +148,7 @@ const RegulatorTenants = () => {
       try {
         const { data: tenantData, error: tenantError } = await supabase
           .from("tenants")
-          .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, is_student, school, hostel_or_hall")
+          .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, is_student, school, hostel_or_hall, office_id")
           .order("created_at", { ascending: false });
 
         if (tenantError) throw tenantError;
@@ -215,8 +217,15 @@ const RegulatorTenants = () => {
           complaintMap.set(c.tenant_user_id, arr);
         });
 
+        // Registration office recorded at signup — shown as-is, no fallback.
+        const { data: officeRows } = await supabase.from("offices").select("id, name, region");
+        const officeMap = new Map((officeRows || []).map((o: any) => [o.id, o]));
+
         setTenants(tenantData.map(t => ({
           ...t,
+          _officeName: (t as any).office_id
+            ? `${officeMap.get((t as any).office_id)?.name || (t as any).office_id}${officeMap.get((t as any).office_id)?.region ? ` — ${officeMap.get((t as any).office_id)?.region}` : ""}`
+            : null,
           profile: profileMap.get(t.user_id) || undefined,
           tenancies: tenancyMap.get(t.user_id) || [],
           complaints: complaintMap.get(t.user_id) || [],
@@ -251,12 +260,12 @@ const RegulatorTenants = () => {
   const studentCount = tenants.filter(t => t.is_student).length;
 
   const exportCSV = () => {
-    const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Status", "Account Status", "Active Tenancies", "Complaints", "Registered", "Expires"];
+    const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Registration Office", "Status", "Account Status", "Active Tenancies", "Complaints", "Registered", "Expires"];
     const rows = filtered.map((t) => [
       t.tenant_id, t.profile?.full_name || "", t.profile?.phone || "", t.profile?.email || "",
       t.profile?.nationality || "", t.profile?.is_citizen ? "Yes" : "No",
       t.profile?.is_citizen ? t.profile?.ghana_card_no || "" : t.profile?.residence_permit_no || "",
-      t.profile?.occupation || "", t.status, t.account_status,
+      t.profile?.occupation || "", `"${t._officeName || "Not assigned"}"`, t.status, t.account_status,
       t.tenancies?.filter(tc => tc.status === "active").length || 0,
       t.complaints?.length || 0,
       t.registration_date ? new Date(t.registration_date).toLocaleDateString() : "",
@@ -277,6 +286,7 @@ const RegulatorTenants = () => {
       registrationDate: t.registration_date,
       expiryDate: t.expiry_date,
       registrationFeePaid: t.registration_fee_paid,
+      officeName: t._officeName || null,
       profile: t.profile as any,
       kyc: kyc as any,
       tenancies: t.tenancies,
@@ -340,9 +350,12 @@ const RegulatorTenants = () => {
               >
                 <div className="flex-1 flex flex-col gap-1.5 sm:grid sm:grid-cols-7 sm:gap-2 sm:items-center">
                   <div><TenantIdPill id={t.tenant_id} /></div>
-                  <div className="text-[14px] font-medium text-foreground flex items-center gap-1.5">
-                    {profile?.full_name || <NotProvided />}
-                    {t.is_student && <Badge variant="info" className="text-[10px]">Student</Badge>}
+                  <div className="text-[14px] font-medium text-foreground">
+                    <span className="flex items-center gap-1.5">
+                      {profile?.full_name || <NotProvided />}
+                      {t.is_student && <Badge variant="info" className="text-[10px]">Student</Badge>}
+                    </span>
+                    <span className="block text-[11px] font-normal text-muted-foreground">{t._officeName || "Office not assigned"}</span>
                   </div>
                   <div className="text-[13px] text-muted-foreground">{profile?.phone || "—"}</div>
                   <div className="text-[13px] text-muted-foreground">{profile?.is_citizen ? "🇬🇭 Citizen" : "Permit"}</div>

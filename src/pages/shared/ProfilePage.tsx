@@ -38,6 +38,8 @@ const ProfilePage = () => {
   const [registrationFeePaid, setRegistrationFeePaid] = useState(false);
   const [registrationDate, setRegistrationDate] = useState<string | null>(null);
   const [expiryDate, setExpiryDate] = useState<string | null>(null);
+  const [officeName, setOfficeName] = useState<string | null>(null);
+  const [officeRegion, setOfficeRegion] = useState<string | null>(null);
 
   // Avatar + Student ID
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -87,6 +89,7 @@ const ProfilePage = () => {
         setStudentIdUrl((profile as any).student_id_url || null);
       }
 
+      let officeId: string | null = null;
       if (role === "tenant") {
         const { data: tenant } = await supabase.from("tenants").select("*").eq("user_id", user.id).maybeSingle();
         if (tenant) {
@@ -96,6 +99,7 @@ const ProfilePage = () => {
           setExpiryDate(tenant.expiry_date);
           setIsStudent(!!(tenant as any).is_student);
           setStudentIdVerifiedAt((tenant as any).student_id_verified_at || null);
+          officeId = (tenant as any).office_id || null;
         }
       } else if (role === "landlord") {
         const { data: landlord } = await supabase.from("landlords").select("*").eq("user_id", user.id).maybeSingle();
@@ -104,8 +108,23 @@ const ProfilePage = () => {
           setRegistrationFeePaid(landlord.registration_fee_paid);
           setRegistrationDate(landlord.registration_date);
           setExpiryDate(landlord.expiry_date);
+          officeId = (landlord as any).office_id || null;
         }
       }
+
+      // Show the office actually recorded at registration — never a default.
+      if (officeId) {
+        const { data: office } = await supabase
+          .from("offices")
+          .select("name, region")
+          .eq("id", officeId)
+          .maybeSingle();
+        if (office) {
+          setOfficeName(office.name);
+          setOfficeRegion(office.region);
+        }
+      }
+
 
       // Generate signed URL for existing student ID if any
       if ((profile as any)?.student_id_url) {
@@ -366,6 +385,13 @@ const ProfilePage = () => {
                   {expiryDate && ` • Expires: ${new Date(expiryDate).toLocaleDateString()}`}
                 </p>
               )}
+              <p className="text-xs text-muted-foreground">
+                Rent Control Office:{" "}
+                <span className="font-semibold text-foreground">
+                  {officeName ? `${officeName}${officeRegion ? ` — ${officeRegion}` : ""}` : "Not assigned"}
+                </span>
+              </p>
+
               <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap">
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <QrCode className="h-3.5 w-3.5" /> Scan QR code to verify registration status

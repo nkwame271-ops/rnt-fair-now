@@ -17,6 +17,9 @@ interface LandlordFull {
   registration_date: string | null;
   expiry_date: string | null;
   registration_fee_paid: boolean;
+  office_id?: string | null;
+  region_id?: string | null;
+  _officeName?: string | null;
   profile?: {
     full_name: string;
     phone: string;
@@ -91,7 +94,7 @@ const RegulatorLandlords = () => {
       while (offset < (totalCount || 0)) {
         const { data: page, error: pageErr } = await supabase
           .from("landlords")
-          .select("landlord_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, created_at")
+          .select("landlord_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, created_at, office_id, region_id")
           .order("created_at", { ascending: false })
           .range(offset, offset + PAGE - 1);
         if (pageErr) { console.error("Landlords fetch error:", pageErr); toast.error("Failed to load landlords: " + pageErr.message); setLoading(false); return; }
@@ -201,8 +204,17 @@ const RegulatorLandlords = () => {
         tenanciesByLandlord.set(t.landlord_user_id, arr);
       });
 
+
+      // Registration office recorded on the landlord record — shown as-is,
+      // with no fallback, so a blank office is visible rather than defaulted.
+      const { data: officeRows } = await supabase.from("offices").select("id, name, region");
+      const officeMap = new Map((officeRows || []).map((o: any) => [o.id, o]));
+
       setLandlords(landlordData.map(l => ({
         ...l,
+        _officeName: l.office_id
+          ? `${officeMap.get(l.office_id)?.name || l.office_id}${officeMap.get(l.office_id)?.region ? ` — ${officeMap.get(l.office_id)?.region}` : ""}`
+          : null,
         profile: profileMap.get(l.user_id) || undefined,
         properties: propsByLandlord.get(l.user_id) || [],
         tenancies: tenanciesByLandlord.get(l.user_id) || [],
@@ -226,9 +238,10 @@ const RegulatorLandlords = () => {
   const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
 
   const exportCSV = () => {
-    const headers = ["Landlord ID", "Name", "Phone", "Email", "Nationality", "Properties", "Active Tenants", "Status", "Account Status", "Registered", "Expires"];
+    const headers = ["Landlord ID", "Name", "Phone", "Email", "Nationality", "Registration Office", "Properties", "Active Tenants", "Status", "Account Status", "Registered", "Expires"];
     const rows = filtered.map((l) => [
       l.landlord_id, l.profile?.full_name || "", l.profile?.phone || "", l.profile?.email || "", l.profile?.nationality || "",
+      `"${l._officeName || "Not assigned"}"`,
       l.properties?.length || 0, l.tenancies?.filter(t => t.status === "active").length || 0,
       l.status, l.account_status, l.registration_date ? new Date(l.registration_date).toLocaleDateString() : "",
       l.expiry_date ? new Date(l.expiry_date).toLocaleDateString() : "",
@@ -281,7 +294,10 @@ const RegulatorLandlords = () => {
               >
                 <div className="flex-1 flex flex-col gap-1.5 sm:grid sm:grid-cols-6 sm:gap-2 sm:items-center text-sm">
                   <div className="font-mono font-bold text-primary">{l.landlord_id}</div>
-                  <div className="font-medium text-foreground">{l.profile?.full_name || "—"}</div>
+                  <div className="font-medium text-foreground">
+                    {l.profile?.full_name || "—"}
+                    <span className="block text-xs font-normal text-muted-foreground">{l._officeName || "Office not assigned"}</span>
+                  </div>
                   <div className="text-muted-foreground">{l.profile?.phone || "—"}</div>
                   <div className="text-muted-foreground">{l.properties?.length || 0} properties • {totalUnits} units</div>
                   <div className="text-muted-foreground">{activeTenancies.length} active tenants</div>
@@ -307,6 +323,7 @@ const RegulatorLandlords = () => {
                         registrationDate: l.registration_date,
                         expiryDate: l.expiry_date,
                         registrationFeePaid: l.registration_fee_paid,
+                        officeName: l._officeName || null,
                         profile: l.profile as any,
                         kyc: kyc as any,
                         properties: l.properties,

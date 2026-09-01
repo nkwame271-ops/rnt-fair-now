@@ -155,6 +155,14 @@ const RegulatorComplaints = () => {
         }
       }
 
+      // Registration office recorded on the party's own record — no fallback.
+      let officeName: string | null = null;
+      if (roleRow?.office_id) {
+        const { data: office } = await supabase
+          .from("offices").select("name, region").eq("id", roleRow.office_id).maybeSingle();
+        if (office) officeName = `${office.name}${office.region ? ` — ${office.region}` : ""}`;
+      }
+
       generateProfilePdf({
         role,
         roleId: roleRow?.[roleIdCol] || "—",
@@ -162,6 +170,7 @@ const RegulatorComplaints = () => {
         registrationDate: roleRow?.registration_date || null,
         expiryDate: roleRow?.expiry_date || null,
         registrationFeePaid: !!roleRow?.registration_fee_paid,
+        officeName,
         profile: prof ? {
           full_name: prof.full_name,
           phone: prof.phone,

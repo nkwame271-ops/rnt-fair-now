@@ -8,6 +8,7 @@ interface ProfileData {
   registrationDate: string | null;
   expiryDate: string | null;
   registrationFeePaid: boolean;
+  officeName?: string | null;
   profile?: {
     full_name: string;
     phone: string;
@@ -127,6 +128,7 @@ export const generateProfilePdf = (data: ProfileData) => {
   addLine("Fee Paid:", data.registrationFeePaid ? "Yes" : "No");
   addLine("Registered:", data.registrationDate ? new Date(data.registrationDate).toLocaleDateString() : "—");
   addLine("Expires:", data.expiryDate ? new Date(data.expiryDate).toLocaleDateString() : "—");
+  addLine("Registration Office:", data.officeName || "Not assigned");
 
   // Personal Info
   if (data.profile) {
