@@ -349,9 +349,12 @@ const RegulatorTenants = () => {
               >
                 <div className="flex-1 flex flex-col gap-1.5 sm:grid sm:grid-cols-7 sm:gap-2 sm:items-center">
                   <div><TenantIdPill id={t.tenant_id} /></div>
-                  <div className="text-[14px] font-medium text-foreground flex items-center gap-1.5">
-                    {profile?.full_name || <NotProvided />}
-                    {t.is_student && <Badge variant="info" className="text-[10px]">Student</Badge>}
+                  <div className="text-[14px] font-medium text-foreground">
+                    <span className="flex items-center gap-1.5">
+                      {profile?.full_name || <NotProvided />}
+                      {t.is_student && <Badge variant="info" className="text-[10px]">Student</Badge>}
+                    </span>
+                    <span className="block text-[11px] font-normal text-muted-foreground">{t._officeName || "Office not assigned"}</span>
                   </div>
                   <div className="text-[13px] text-muted-foreground">{profile?.phone || "—"}</div>
                   <div className="text-[13px] text-muted-foreground">{profile?.is_citizen ? "🇬🇭 Citizen" : "Permit"}</div>
