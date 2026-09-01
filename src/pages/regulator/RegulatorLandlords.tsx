@@ -17,6 +17,9 @@ interface LandlordFull {
   registration_date: string | null;
   expiry_date: string | null;
   registration_fee_paid: boolean;
+  office_id?: string | null;
+  region_id?: string | null;
+  _officeName?: string | null;
   profile?: {
     full_name: string;
     phone: string;
