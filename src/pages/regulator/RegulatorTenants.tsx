@@ -286,6 +286,7 @@ const RegulatorTenants = () => {
       registrationDate: t.registration_date,
       expiryDate: t.expiry_date,
       registrationFeePaid: t.registration_fee_paid,
+      officeName: t._officeName || null,
       profile: t.profile as any,
       kyc: kyc as any,
       tenancies: t.tenancies,
