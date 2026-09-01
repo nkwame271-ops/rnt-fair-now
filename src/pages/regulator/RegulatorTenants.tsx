@@ -260,12 +260,12 @@ const RegulatorTenants = () => {
   const studentCount = tenants.filter(t => t.is_student).length;
 
   const exportCSV = () => {
-    const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Status", "Account Status", "Active Tenancies", "Complaints", "Registered", "Expires"];
+    const headers = ["Tenant ID", "Name", "Phone", "Email", "Nationality", "Citizen", "ID Number", "Occupation", "Registration Office", "Status", "Account Status", "Active Tenancies", "Complaints", "Registered", "Expires"];
     const rows = filtered.map((t) => [
       t.tenant_id, t.profile?.full_name || "", t.profile?.phone || "", t.profile?.email || "",
       t.profile?.nationality || "", t.profile?.is_citizen ? "Yes" : "No",
       t.profile?.is_citizen ? t.profile?.ghana_card_no || "" : t.profile?.residence_permit_no || "",
-      t.profile?.occupation || "", t.status, t.account_status,
+      t.profile?.occupation || "", `"${t._officeName || "Not assigned"}"`, t.status, t.account_status,
       t.tenancies?.filter(tc => tc.status === "active").length || 0,
       t.complaints?.length || 0,
       t.registration_date ? new Date(t.registration_date).toLocaleDateString() : "",
