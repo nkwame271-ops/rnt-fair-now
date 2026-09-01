@@ -238,9 +238,10 @@ const RegulatorLandlords = () => {
   const { page, setPage, totalPages, total, paged, pageSize } = usePagination(filtered, 100);
 
   const exportCSV = () => {
-    const headers = ["Landlord ID", "Name", "Phone", "Email", "Nationality", "Properties", "Active Tenants", "Status", "Account Status", "Registered", "Expires"];
+    const headers = ["Landlord ID", "Name", "Phone", "Email", "Nationality", "Registration Office", "Properties", "Active Tenants", "Status", "Account Status", "Registered", "Expires"];
     const rows = filtered.map((l) => [
       l.landlord_id, l.profile?.full_name || "", l.profile?.phone || "", l.profile?.email || "", l.profile?.nationality || "",
+      `"${l._officeName || "Not assigned"}"`,
       l.properties?.length || 0, l.tenancies?.filter(t => t.status === "active").length || 0,
       l.status, l.account_status, l.registration_date ? new Date(l.registration_date).toLocaleDateString() : "",
       l.expiry_date ? new Date(l.expiry_date).toLocaleDateString() : "",
