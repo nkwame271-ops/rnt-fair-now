@@ -385,6 +385,13 @@ const ProfilePage = () => {
                   {expiryDate && ` • Expires: ${new Date(expiryDate).toLocaleDateString()}`}
                 </p>
               )}
+              <p className="text-xs text-muted-foreground">
+                Rent Control Office:{" "}
+                <span className="font-semibold text-foreground">
+                  {officeName ? `${officeName}${officeRegion ? ` — ${officeRegion}` : ""}` : "Not assigned"}
+                </span>
+              </p>
+
               <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap">
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <QrCode className="h-3.5 w-3.5" /> Scan QR code to verify registration status
