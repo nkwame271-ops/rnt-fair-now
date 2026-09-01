@@ -94,7 +94,7 @@ const RegulatorLandlords = () => {
       while (offset < (totalCount || 0)) {
         const { data: page, error: pageErr } = await supabase
           .from("landlords")
-          .select("landlord_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, created_at")
+          .select("landlord_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, created_at, office_id, region_id")
           .order("created_at", { ascending: false })
           .range(offset, offset + PAGE - 1);
         if (pageErr) { console.error("Landlords fetch error:", pageErr); toast.error("Failed to load landlords: " + pageErr.message); setLoading(false); return; }
