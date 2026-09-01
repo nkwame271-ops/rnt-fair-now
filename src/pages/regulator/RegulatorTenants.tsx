@@ -215,8 +215,15 @@ const RegulatorTenants = () => {
           complaintMap.set(c.tenant_user_id, arr);
         });
 
+        // Registration office recorded at signup — shown as-is, no fallback.
+        const { data: officeRows } = await supabase.from("offices").select("id, name, region");
+        const officeMap = new Map((officeRows || []).map((o: any) => [o.id, o]));
+
         setTenants(tenantData.map(t => ({
           ...t,
+          _officeName: (t as any).office_id
+            ? `${officeMap.get((t as any).office_id)?.name || (t as any).office_id}${officeMap.get((t as any).office_id)?.region ? ` — ${officeMap.get((t as any).office_id)?.region}` : ""}`
+            : null,
           profile: profileMap.get(t.user_id) || undefined,
           tenancies: tenancyMap.get(t.user_id) || [],
           complaints: complaintMap.get(t.user_id) || [],
