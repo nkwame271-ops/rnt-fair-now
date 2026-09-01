@@ -146,7 +146,7 @@ const RegulatorTenants = () => {
       try {
         const { data: tenantData, error: tenantError } = await supabase
           .from("tenants")
-          .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, is_student, school, hostel_or_hall")
+          .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, is_student, school, hostel_or_hall, office_id")
           .order("created_at", { ascending: false });
 
         if (tenantError) throw tenantError;
