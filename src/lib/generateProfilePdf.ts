@@ -8,6 +8,7 @@ interface ProfileData {
   registrationDate: string | null;
   expiryDate: string | null;
   registrationFeePaid: boolean;
+  officeName?: string | null;
   profile?: {
     full_name: string;
     phone: string;
