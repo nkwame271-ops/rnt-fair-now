@@ -89,6 +89,7 @@ const ProfilePage = () => {
         setStudentIdUrl((profile as any).student_id_url || null);
       }
 
+      let officeId: string | null = null;
       if (role === "tenant") {
         const { data: tenant } = await supabase.from("tenants").select("*").eq("user_id", user.id).maybeSingle();
         if (tenant) {
@@ -98,6 +99,7 @@ const ProfilePage = () => {
           setExpiryDate(tenant.expiry_date);
           setIsStudent(!!(tenant as any).is_student);
           setStudentIdVerifiedAt((tenant as any).student_id_verified_at || null);
+          officeId = (tenant as any).office_id || null;
         }
       } else if (role === "landlord") {
         const { data: landlord } = await supabase.from("landlords").select("*").eq("user_id", user.id).maybeSingle();
@@ -106,8 +108,23 @@ const ProfilePage = () => {
           setRegistrationFeePaid(landlord.registration_fee_paid);
           setRegistrationDate(landlord.registration_date);
           setExpiryDate(landlord.expiry_date);
+          officeId = (landlord as any).office_id || null;
         }
       }
+
+      // Show the office actually recorded at registration — never a default.
+      if (officeId) {
+        const { data: office } = await supabase
+          .from("offices")
+          .select("name, region")
+          .eq("id", officeId)
+          .maybeSingle();
+        if (office) {
+          setOfficeName(office.name);
+          setOfficeRegion(office.region);
+        }
+      }
+
 
       // Generate signed URL for existing student ID if any
       if ((profile as any)?.student_id_url) {
