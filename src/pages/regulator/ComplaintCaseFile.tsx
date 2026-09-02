@@ -460,10 +460,18 @@ const AssignDialog = ({ open, onOpenChange, complaint, offices, admins, onSaved 
   const [officeId, setOfficeId] = useState(complaint.office_id || "");
   const [officerId, setOfficerId] = useState(complaint.assigned_officer_user_id || "");
   const [saving, setSaving] = useState(false);
+  // Office staff first, but head-office / national officers (no office on record)
+  // and main/super admins must always remain assignable.
   const eligible = useMemo(
     () => admins.filter((a: any) =>
       ["adjudicating_officer", "case_admin", "main_admin", "super_admin"].includes(a.admin_type)
-      && a.office_id === officeId
+      && (
+        !officeId
+        || a.office_id === officeId
+        || !a.office_id
+        || (a.office_ids || []).includes(officeId)
+        || ["main_admin", "super_admin"].includes(a.admin_type)
+      )
     ),
     [admins, officeId]
   );
