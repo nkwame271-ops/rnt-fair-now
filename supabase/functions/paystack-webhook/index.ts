@@ -333,6 +333,8 @@ Deno.serve(async (req) => {
                   text: `Payment of GHS ${amountPaid.toFixed(2)} for ${description} confirmed. Receipt: ${receiptNo}`,
                   purpose: "transactional",
                   label: "payment_successful",
+                  idempotency_key: messageId,
+                  unsubscribe_token: unsubscribeToken,
                   queued_at: new Date().toISOString(),
                 },
               });

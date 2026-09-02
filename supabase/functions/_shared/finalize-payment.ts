@@ -630,11 +630,32 @@ export async function finalizePayment({ supabaseAdmin, reference, amountPaid, tr
       paystack_reference: transactionId,
       payment_date: new Date().toISOString(),
     };
-    const { data: insertedReceipt, error: receiptErr } = await supabaseAdmin
-      .from("payment_receipts")
-      .insert(receiptPayload)
-      .select("id")
-      .single();
+    // receipt_number is assigned by the DB default. If two receipts race (or the
+    // number sequence lags behind existing rows) the unique index rejects the row —
+    // retry so a funded payment is never left without a receipt.
+    let insertedReceipt: { id: string } | null = null;
+    let receiptErr: { message: string; code?: string } | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await supabaseAdmin
+        .from("payment_receipts")
+        .insert(receiptPayload)
+        .select("id")
+        .single();
+      insertedReceipt = (res.data as any) || null;
+      receiptErr = (res.error as any) || null;
+      if (!receiptErr) break;
+      const isDuplicateNumber =
+        receiptErr.code === "23505" && /receipt_number/i.test(receiptErr.message || "");
+      if (!isDuplicateNumber) break;
+      // Another writer may have created the receipt for this escrow in the meantime.
+      const { data: raced } = await supabaseAdmin
+        .from("payment_receipts")
+        .select("id")
+        .eq("escrow_transaction_id", escrowId)
+        .maybeSingle();
+      if (raced?.id) { insertedReceipt = raced as any; receiptErr = null; break; }
+      await new Promise((r) => setTimeout(r, 120 * (attempt + 1)));
+    }
     if (receiptErr) {
       await logError({
         escrow_transaction_id: escrowId,
