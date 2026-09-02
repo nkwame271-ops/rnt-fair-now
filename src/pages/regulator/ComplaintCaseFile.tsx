@@ -102,7 +102,7 @@ const ComplaintCaseFile = () => {
       supabase.from("complaint_audit_log").select("*").eq("case_id", id).order("created_at", { ascending: false }).limit(100),
       supabase.from("offices").select("*").order("name"),
       supabase.from("hearing_rooms").select("*").order("name"),
-      supabase.from("admin_staff").select("user_id, admin_type, full_name, office_id"),
+      supabase.from("admin_staff").select("user_id, admin_type, office_id"),
       // Receipts linked through the real cases row
       realCaseId
         ? supabase.from("payment_receipts").select("*").eq("case_id", realCaseId).order("created_at", { ascending: false })
@@ -130,7 +130,14 @@ const ComplaintCaseFile = () => {
     setAudit(audRes.data || []);
     setOffices(offRes.data || []);
     setRooms(roomRes.data || []);
-    setAdmins(staffRes.data || []);
+    // admin_staff carries no name column — resolve display names from profiles.
+    const staffRows: any[] = staffRes.data || [];
+    const staffIds = staffRows.map((s: any) => s.user_id);
+    const { data: staffProfiles } = staffIds.length
+      ? await supabase.from("profiles").select("user_id, full_name").in("user_id", staffIds)
+      : { data: [] as any[] };
+    const staffNames = new Map((staffProfiles || []).map((p: any) => [p.user_id, p.full_name]));
+    setAdmins(staffRows.map((s: any) => ({ ...s, full_name: staffNames.get(s.user_id) || "Staff member" })));
     // Merge & dedupe receipts found via case_id and via escrow linkage
     const seen = new Set<string>();
     const allReceipts = [...(rcptByCaseRes.data || []), ...(rcptByEscrowRes.data || [])].filter((r: any) => {
