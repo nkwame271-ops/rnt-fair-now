@@ -56,6 +56,7 @@ async function enqueueEmail(admin: any, to: string, subject: string, html: strin
         purpose: "transactional",
         label: "contact_reply",
         idempotency_key: messageId,
+        unsubscribe_token: unsubscribeToken,
         queued_at: new Date().toISOString(),
       },
     });
