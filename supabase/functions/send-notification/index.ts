@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getUnsubscribeToken } from "../_shared/unsubscribe-token.ts";
 import { FROM_ADDRESS, SENDER_DOMAIN } from "../_shared/project-domain.ts";
 
 const corsHeaders = {
@@ -513,6 +514,7 @@ async function sendSms(phone: string, message: string): Promise<SmsOutcome> {
 
 // ── Email enqueue ──
 async function enqueueEmail(supabase: any, to: string, subject: string, html: string): Promise<void> {
+  const unsubscribeToken = await getUnsubscribeToken(supabase, to);
   try {
     const messageId = crypto.randomUUID();
     await supabase.from("email_send_log").insert({
