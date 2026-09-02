@@ -165,9 +165,11 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
   const officeIds = Object.keys(staffByOffice).sort((a, b) =>
     (staffByOffice[a][0]?.office_name || a).localeCompare(staffByOffice[b][0]?.office_name || b)
   );
+  const officeLabel = (officeId: string) =>
+    officeId === HQ_BUCKET ? "Head office / national" : (staffByOffice[officeId][0]?.office_name || officeId);
   const filteredStaff = selectedOffice ? (staffByOffice[selectedOffice] || []) : [];
-  const filteredRooms = rooms
-    .filter((room) => room.office_id === selectedOffice)
+  const scopedRooms = rooms.filter((room) => room.office_id === selectedOffice);
+  const filteredRooms = (scopedRooms.length ? scopedRooms : (selectedOffice === HQ_BUCKET ? rooms : scopedRooms))
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
   // Sync handled by hook above (declared before early return to keep hook order stable).
