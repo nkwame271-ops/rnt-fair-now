@@ -190,7 +190,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
               <SelectTrigger className="h-8 w-44"><SelectValue placeholder="Select office" /></SelectTrigger>
               <SelectContent>
                 {officeIds.map((officeId) => (
-                  <SelectItem key={officeId} value={officeId}>{staffByOffice[officeId][0]?.office_name || officeId} ({staffByOffice[officeId].length})</SelectItem>
+                  <SelectItem key={officeId} value={officeId}>{officeLabel(officeId)} ({staffByOffice[officeId].length})</SelectItem>
                 ))}
               </SelectContent>
             </Select>
