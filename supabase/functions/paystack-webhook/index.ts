@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createHmac } from "node:crypto";
 import { finalizePayment } from "../_shared/finalize-payment.ts";
 import { FROM_ADDRESS, SENDER_DOMAIN } from "../_shared/project-domain.ts";
+import { getUnsubscribeToken } from "../_shared/unsubscribe-token.ts";
 
 // Payment type labels for SMS/email
 const PAYMENT_LABELS: Record<string, string> = {
@@ -313,6 +314,7 @@ Deno.serve(async (req) => {
           if (profile?.email) {
             try {
               const messageId = crypto.randomUUID();
+              const unsubscribeToken = await getUnsubscribeToken(supabase, profile.email);
               await supabase.from("email_send_log").insert({
                 message_id: messageId,
                 template_name: "payment_successful",
