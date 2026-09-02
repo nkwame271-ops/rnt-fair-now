@@ -152,11 +152,14 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
     return <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading assignment…</div>;
   }
 
-  // Group staff by office (organizational hierarchy: Office → Staff)
+  // Group staff by office (organizational hierarchy: Office → Staff).
+  // Head-office / national staff carry no office_id — keep them in their own bucket
+  // so they stay assignable instead of disappearing from every list.
+  const HQ_BUCKET = "__hq__";
   const staffByOffice = staff.reduce((acc, s) => {
-    if (!s.office_id) return acc;
-    if (!acc[s.office_id]) acc[s.office_id] = [];
-    acc[s.office_id].push(s);
+    const key = s.office_id || HQ_BUCKET;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(s);
     return acc;
   }, {} as Record<string, StaffOption[]>);
   const officeIds = Object.keys(staffByOffice).sort((a, b) =>
