@@ -511,7 +511,7 @@ const AssignDialog = ({ open, onOpenChange, complaint, offices, admins, onSaved 
           <div><Label>Officer</Label>
             <Select value={officerId} onValueChange={setOfficerId}>
               <SelectTrigger><SelectValue placeholder="Select officer" /></SelectTrigger>
-              <SelectContent>{eligible.map((a: any) => <SelectItem key={a.user_id} value={a.user_id}>{a.full_name} ({a.admin_type})</SelectItem>)}</SelectContent>
+              <SelectContent>{eligible.map((a: any) => <SelectItem key={a.user_id} value={a.user_id}>{a.full_name} ({a.admin_type}{a.office_id ? "" : " · head office"})</SelectItem>)}</SelectContent>
             </Select>
           </div>
         </div>
