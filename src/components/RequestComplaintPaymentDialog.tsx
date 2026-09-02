@@ -164,12 +164,17 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
           return;
         }
       }
-      // 2) Try complaint snapshot via parent complaint row
-      const { data: complaintRow } = await (supabase.from(complaintTable) as any)
-        .select("complaint_property_id")
-        .eq("id", complaintId)
-        .maybeSingle();
-      const cpId = complaintRow?.complaint_property_id;
+      // 2) Try complaint snapshot via parent complaint row.
+      // Only the tenant `complaints` table carries complaint_property_id;
+      // landlord_complaints has no such column, so skip the lookup there.
+      let cpId: string | null = null;
+      if (complaintTable === "complaints") {
+        const { data: complaintRow } = await (supabase.from("complaints") as any)
+          .select("complaint_property_id")
+          .eq("id", complaintId)
+          .maybeSingle();
+        cpId = complaintRow?.complaint_property_id ?? null;
+      }
       if (cpId) {
         const { data: cp } = await supabase
           .from("complaint_properties")
