@@ -530,12 +530,17 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
   const [priority, setPriority] = useState("normal");
   const [saving, setSaving] = useState(false);
   const [assignedOfficers, setAssignedOfficers] = useState<any[]>([]);
-  const officeRooms = useMemo(
-    () => (rooms || [])
-      .filter((room: any) => room.active !== false && room.office_id === complaint.office_id)
-      .sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true })),
-    [rooms, complaint.office_id]
-  );
+  // Prefer rooms in the complaint's office. When the case has no office recorded
+  // (or that office has no rooms configured), fall back to every active room so a
+  // hearing can still be scheduled.
+  const officeRooms = useMemo(() => {
+    const active = (rooms || []).filter((room: any) => room.active !== false);
+    const scoped = complaint.office_id
+      ? active.filter((room: any) => room.office_id === complaint.office_id)
+      : [];
+    return (scoped.length ? scoped : active)
+      .sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  }, [rooms, complaint.office_id]);
 
   // Populate the officer dropdown from the case's "Assigned To" list (complaint_assignments).
   useEffect(() => {
