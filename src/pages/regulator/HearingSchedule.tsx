@@ -59,7 +59,7 @@ const HearingSchedule = () => {
           .lt("scheduled_at", range.to.toISOString())
           .order("scheduled_at"),
         supabase.from("hearing_rooms").select("*").eq("active", true),
-        supabase.from("admin_staff").select("user_id, full_name, admin_type, office_id"),
+        supabase.from("admin_staff").select("user_id, admin_type, office_id"),
         supabase.from("offices").select("id, name").order("name"),
       ]);
       setHearings(hRes.data || []);
@@ -67,10 +67,17 @@ const HearingSchedule = () => {
         isUnscoped || scopeOfficeIds.length === 0 || scopeOfficeIds.includes(room.office_id)
       );
       setRooms(scopedRooms.sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true })));
-      setOfficers((sRes.data || []).filter((s: any) =>
+      const officerRows = (sRes.data || []).filter((s: any) =>
         ["adjudicating_officer", "case_admin"].includes(s.admin_type)
         && (isUnscoped || scopeOfficeIds.length === 0 || scopeOfficeIds.includes(s.office_id))
-      ));
+      );
+      // admin_staff has no name column — resolve display names from profiles.
+      const officerIds = officerRows.map((s: any) => s.user_id);
+      const { data: officerProfiles } = officerIds.length
+        ? await supabase.from("profiles").select("user_id, full_name").in("user_id", officerIds)
+        : { data: [] as any[] };
+      const officerNames = new Map((officerProfiles || []).map((p: any) => [p.user_id, p.full_name]));
+      setOfficers(officerRows.map((s: any) => ({ ...s, full_name: officerNames.get(s.user_id) || "Staff member" })));
       setOfficeNames(Object.fromEntries((oRes.data || []).map((office: any) => [office.id, office.name])));
       const ids = Array.from(new Set((hRes.data || []).map((h: any) => h.case_id)));
       if (ids.length) {

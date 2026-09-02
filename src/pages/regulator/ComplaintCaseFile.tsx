@@ -102,7 +102,7 @@ const ComplaintCaseFile = () => {
       supabase.from("complaint_audit_log").select("*").eq("case_id", id).order("created_at", { ascending: false }).limit(100),
       supabase.from("offices").select("*").order("name"),
       supabase.from("hearing_rooms").select("*").order("name"),
-      supabase.from("admin_staff").select("user_id, admin_type, full_name, office_id"),
+      supabase.from("admin_staff").select("user_id, admin_type, office_id"),
       // Receipts linked through the real cases row
       realCaseId
         ? supabase.from("payment_receipts").select("*").eq("case_id", realCaseId).order("created_at", { ascending: false })
@@ -130,7 +130,14 @@ const ComplaintCaseFile = () => {
     setAudit(audRes.data || []);
     setOffices(offRes.data || []);
     setRooms(roomRes.data || []);
-    setAdmins(staffRes.data || []);
+    // admin_staff carries no name column — resolve display names from profiles.
+    const staffRows: any[] = staffRes.data || [];
+    const staffIds = staffRows.map((s: any) => s.user_id);
+    const { data: staffProfiles } = staffIds.length
+      ? await supabase.from("profiles").select("user_id, full_name").in("user_id", staffIds)
+      : { data: [] as any[] };
+    const staffNames = new Map((staffProfiles || []).map((p: any) => [p.user_id, p.full_name]));
+    setAdmins(staffRows.map((s: any) => ({ ...s, full_name: staffNames.get(s.user_id) || "Staff member" })));
     // Merge & dedupe receipts found via case_id and via escrow linkage
     const seen = new Set<string>();
     const allReceipts = [...(rcptByCaseRes.data || []), ...(rcptByEscrowRes.data || [])].filter((r: any) => {
@@ -453,10 +460,18 @@ const AssignDialog = ({ open, onOpenChange, complaint, offices, admins, onSaved 
   const [officeId, setOfficeId] = useState(complaint.office_id || "");
   const [officerId, setOfficerId] = useState(complaint.assigned_officer_user_id || "");
   const [saving, setSaving] = useState(false);
+  // Office staff first, but head-office / national officers (no office on record)
+  // and main/super admins must always remain assignable.
   const eligible = useMemo(
     () => admins.filter((a: any) =>
       ["adjudicating_officer", "case_admin", "main_admin", "super_admin"].includes(a.admin_type)
-      && a.office_id === officeId
+      && (
+        !officeId
+        || a.office_id === officeId
+        || !a.office_id
+        || (a.office_ids || []).includes(officeId)
+        || ["main_admin", "super_admin"].includes(a.admin_type)
+      )
     ),
     [admins, officeId]
   );
@@ -496,7 +511,7 @@ const AssignDialog = ({ open, onOpenChange, complaint, offices, admins, onSaved 
           <div><Label>Officer</Label>
             <Select value={officerId} onValueChange={setOfficerId}>
               <SelectTrigger><SelectValue placeholder="Select officer" /></SelectTrigger>
-              <SelectContent>{eligible.map((a: any) => <SelectItem key={a.user_id} value={a.user_id}>{a.full_name} ({a.admin_type})</SelectItem>)}</SelectContent>
+              <SelectContent>{eligible.map((a: any) => <SelectItem key={a.user_id} value={a.user_id}>{a.full_name} ({a.admin_type}{a.office_id ? "" : " · head office"})</SelectItem>)}</SelectContent>
             </Select>
           </div>
         </div>
@@ -515,12 +530,17 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
   const [priority, setPriority] = useState("normal");
   const [saving, setSaving] = useState(false);
   const [assignedOfficers, setAssignedOfficers] = useState<any[]>([]);
-  const officeRooms = useMemo(
-    () => (rooms || [])
-      .filter((room: any) => room.active !== false && room.office_id === complaint.office_id)
-      .sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true })),
-    [rooms, complaint.office_id]
-  );
+  // Prefer rooms in the complaint's office. When the case has no office recorded
+  // (or that office has no rooms configured), fall back to every active room so a
+  // hearing can still be scheduled.
+  const officeRooms = useMemo(() => {
+    const active = (rooms || []).filter((room: any) => room.active !== false);
+    const scoped = complaint.office_id
+      ? active.filter((room: any) => room.office_id === complaint.office_id)
+      : [];
+    return (scoped.length ? scoped : active)
+      .sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  }, [rooms, complaint.office_id]);
 
   // Populate the officer dropdown from the case's "Assigned To" list (complaint_assignments).
   useEffect(() => {
@@ -553,7 +573,7 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
     try {
       const { data: auth } = await supabase.auth.getUser();
       const selectedRoom = officeRooms.find((room: any) => room.id === roomId);
-      if (!selectedRoom) throw new Error("Select a hearing room from the complaint's assigned office");
+      if (!selectedRoom) throw new Error(officeRooms.length ? "Select a hearing room" : "No active hearing rooms are configured — add one in Hearing Rooms first");
       const { data: hearing, error } = await supabase.from("complaint_hearings").insert({
         case_id: complaint.id, case_kind: "complaint",
         scheduled_at: new Date(when).toISOString(),
@@ -593,7 +613,7 @@ const ScheduleDialog = ({ open, onOpenChange, complaint, rooms, admins, onSaved 
           <div><Label>Date & Time</Label><Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} /></div>
           <div><Label>Room</Label>
             <Select value={roomId} onValueChange={setRoomId}>
-              <SelectTrigger><SelectValue placeholder={officeRooms.length ? "Select room" : "No rooms configured for this office"} /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={officeRooms.length ? "Select room" : "No active hearing rooms configured"} /></SelectTrigger>
               <SelectContent>
                 {officeRooms.map((room: any) => (
                   <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>

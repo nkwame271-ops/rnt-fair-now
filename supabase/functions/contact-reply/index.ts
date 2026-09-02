@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { FROM_ADDRESS, ROOT_DOMAIN, SENDER_DOMAIN } from "../_shared/project-domain.ts";
+import { getUnsubscribeToken } from "../_shared/unsubscribe-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,6 +36,7 @@ function emailLayout(content: string, subject: string) {
 async function enqueueEmail(admin: any, to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   try {
     const messageId = crypto.randomUUID();
+    const unsubscribeToken = await getUnsubscribeToken(admin, to);
     await admin.from("email_send_log").insert({
       message_id: messageId,
       template_name: "contact_reply",
@@ -54,6 +56,7 @@ async function enqueueEmail(admin: any, to: string, subject: string, html: strin
         purpose: "transactional",
         label: "contact_reply",
         idempotency_key: messageId,
+        unsubscribe_token: unsubscribeToken,
         queued_at: new Date().toISOString(),
       },
     });
