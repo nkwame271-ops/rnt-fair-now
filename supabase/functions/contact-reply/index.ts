@@ -36,6 +36,7 @@ function emailLayout(content: string, subject: string) {
 async function enqueueEmail(admin: any, to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   try {
     const messageId = crypto.randomUUID();
+    const unsubscribeToken = await getUnsubscribeToken(admin, to);
     await admin.from("email_send_log").insert({
       message_id: messageId,
       template_name: "contact_reply",
