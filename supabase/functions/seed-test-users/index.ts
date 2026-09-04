@@ -99,80 +99,123 @@ Deno.serve(async (req) => {
       if (tInsErr) results.push(`Tenant record: ${tInsErr.message}`);
     }
 
-    // 3. Landlord (phone login → synthetic email)
-    const landlord = await upsertUser("Landlord", "0240005678@rentcontrolghana.local", "Demo005678", {
-      full_name: "Ama Mensah",
-      phone: "0240005678",
-      role: "landlord",
-    });
-    if (landlord.id) {
-      // The legacy demo profile predates its auth identity. Re-key all domain
-      // records to the actual auth id, then ensure role and profile are present.
-      const { data: legacyLandlord } = await supabase
-        .from("landlords")
-        .select("id")
-        .eq("landlord_id", "LLD-DEMO-001")
-        .maybeSingle();
-      if (legacyLandlord?.id) {
-        const { error: relinkError } = await supabase
-          .from("landlords")
-          .update({
-            user_id: landlord.id,
-            registration_fee_paid: true,
-            registration_date: new Date().toISOString(),
-            expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-            status: "active",
-            compliance_score: 100,
-          })
-          .eq("id", legacyLandlord.id);
-        if (relinkError) results.push(`Landlord relink: ${relinkError.message}`);
+    // 3. Landlord demo account (phone login → synthetic email).
+    //
+    // History: the original demo landlord (created via email signup, phone
+    // 0240005678 in its metadata) owns ALL the demo properties, tenancies and
+    // payments. An earlier version of this seeder created a *second* synthetic
+    // account for the same phone and archived the original profile — so phone
+    // login landed on an empty account with no properties, while the Engine
+    // Room still showed the original as active.
+    //
+    // Correct behaviour: keep whichever account actually owns the data, give it
+    // the phone-login email + password, and remove the empty duplicate.
+    const DEMO_PHONE = "0240005678";
+    const DEMO_EMAIL = `${DEMO_PHONE}@rentcontrolghana.local`;
+    const DEMO_PASSWORD = "Demo005678";
+
+    const candidateIds = new Set<string>();
+    for (let page = 1; page <= 20; page++) {
+      const { data } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+      const users = data?.users || [];
+      for (const u of users as any[]) {
+        const metaPhone = String(u.user_metadata?.phone || "").replace(/\D/g, "");
+        const emailMatch = (u.email || "").toLowerCase() === DEMO_EMAIL;
+        if (emailMatch || metaPhone.endsWith(DEMO_PHONE.slice(1))) candidateIds.add(u.id);
       }
-      const { data: duplicateProfiles } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .or("phone.eq.0240005678,email.eq.0240005678@rentcontrolghana.local")
-        .neq("user_id", landlord.id);
-      for (const duplicate of duplicateProfiles || []) {
-        // Release unique profile identifiers before attempting auth cleanup so
-        // the real login account can always receive the demo phone and email.
-        await supabase.from("profiles").update({
-          phone: `archived-${duplicate.user_id}`,
-          email: `archived-${duplicate.user_id}@rentcontrolghana.local`,
-        }).eq("user_id", duplicate.user_id);
-        const { data: duplicateAuth } = await supabase.auth.admin.getUserById(duplicate.user_id);
-        if (duplicateAuth?.user) {
-          const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(duplicate.user_id);
-          // Legacy domain rows can prevent auth deletion; keeping that archived
-          // identity is safe because it no longer owns the login identifiers.
-          if (deleteAuthError) results.push("Stale landlord identity archived");
-        } else {
-          await supabase.from("user_roles").delete().eq("user_id", duplicate.user_id).eq("role", "landlord");
-          await supabase.from("profiles").delete().eq("user_id", duplicate.user_id);
+      if (users.length < 200) break;
+    }
+    const { data: phoneProfiles } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .or(`phone.eq.${DEMO_PHONE},email.eq.${DEMO_EMAIL}`);
+    for (const p of phoneProfiles || []) candidateIds.add(p.user_id);
+
+    /** Owned-data weight decides which identity is the real demo landlord. */
+    const dataWeight = async (id: string) => {
+      const [props, tens, esc] = await Promise.all([
+        supabase.from("properties").select("id", { count: "exact", head: true }).eq("landlord_user_id", id),
+        supabase.from("tenancies").select("id", { count: "exact", head: true }).eq("landlord_user_id", id),
+        supabase.from("escrow_transactions").select("id", { count: "exact", head: true }).eq("user_id", id),
+      ]);
+      return (props.count || 0) * 100 + (tens.count || 0) * 10 + (esc.count || 0);
+    };
+
+    const scored: { id: string; weight: number }[] = [];
+    for (const id of candidateIds) scored.push({ id, weight: await dataWeight(id) });
+    scored.sort((a, b) => b.weight - a.weight);
+
+    let landlordId: string | null = scored[0]?.id ?? null;
+    if (landlordId) {
+      results.push(`Landlord demo identity kept: ${landlordId} (data weight ${scored[0].weight})`);
+    } else {
+      const created = await upsertUser("Landlord", DEMO_EMAIL, DEMO_PASSWORD, {
+        full_name: "Ama Mensah",
+        phone: DEMO_PHONE,
+        role: "landlord",
+      });
+      landlordId = created.id;
+    }
+
+    if (landlordId) {
+      const keeper = landlordId;
+
+      // Empty duplicates must release the phone/email before the keeper takes them.
+      for (const other of scored.slice(1)) {
+        if (other.weight > 0) {
+          results.push(`Left ${other.id} untouched — it owns real records`);
+          continue;
         }
+        await supabase.from("profiles").delete().eq("user_id", other.id);
+        await supabase.from("landlords").delete().eq("user_id", other.id);
+        await supabase.from("user_roles").delete().eq("user_id", other.id);
+        const { error: delErr } = await supabase.auth.admin.deleteUser(other.id);
+        results.push(delErr ? `Duplicate ${other.id} kept (${delErr.message})` : `Duplicate ${other.id} removed`);
       }
+
+      const { error: authErr } = await supabase.auth.admin.updateUserById(keeper, {
+        email: DEMO_EMAIL,
+        password: DEMO_PASSWORD,
+        email_confirm: true,
+        user_metadata: { full_name: "Ama Mensah", phone: DEMO_PHONE, role: "landlord" },
+      });
+      if (authErr) results.push(`Landlord auth repair: ${authErr.message}`);
+
       const { error: profileError } = await supabase.from("profiles").upsert({
-        user_id: landlord.id,
-        email: "0240005678@rentcontrolghana.local",
-        phone: "0240005678",
+        user_id: keeper,
+        email: DEMO_EMAIL,
+        phone: DEMO_PHONE,
         full_name: "Ama Mensah",
         user_type: "landlord",
       }, { onConflict: "user_id" });
       if (profileError) results.push(`Landlord profile: ${profileError.message}`);
-      const { error: roleError } = await supabase.from("user_roles").upsert({ user_id: landlord.id, role: "landlord" }, { onConflict: "user_id,role" });
+
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .upsert({ user_id: keeper, role: "landlord" }, { onConflict: "user_id,role" });
       if (roleError) results.push(`Landlord role: ${roleError.message}`);
-      if (!legacyLandlord?.id) {
-        const { error: lInsErr } = await supabase.from("landlords").insert({
-          user_id: landlord.id,
-          landlord_id: "LLD-DEMO-001",
-          registration_fee_paid: true,
-          registration_date: new Date().toISOString(),
-          expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          status: "active",
-          compliance_score: 100,
-        });
-        if (lInsErr) results.push(`Landlord record: ${lInsErr.message}`);
-      }
+
+      const landlordRecord = {
+        user_id: keeper,
+        landlord_id: "LLD-DEMO-001",
+        registration_fee_paid: true,
+        registration_date: new Date().toISOString(),
+        expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        status: "active",
+        account_status: "active",
+        compliance_score: 100,
+      };
+      const { data: demoLandlord } = await supabase
+        .from("landlords")
+        .select("id")
+        .eq("landlord_id", "LLD-DEMO-001")
+        .maybeSingle();
+      const { error: lErr } = demoLandlord?.id
+        ? await supabase.from("landlords").update(landlordRecord).eq("id", demoLandlord.id)
+        : await supabase.from("landlords").insert(landlordRecord);
+      if (lErr) results.push(`Landlord record: ${lErr.message}`);
     }
+
 
     return new Response(JSON.stringify({ results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
