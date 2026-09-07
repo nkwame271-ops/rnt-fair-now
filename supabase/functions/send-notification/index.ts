@@ -512,39 +512,29 @@ async function sendSms(phone: string, message: string): Promise<SmsOutcome> {
   return { ok: false, state: "failed", error: lastError };
 }
 
-// ── Email enqueue ──
-async function enqueueEmail(supabase: any, to: string, subject: string, html: string): Promise<void> {
-  const unsubscribeToken = await getUnsubscribeToken(supabase, to);
+// ── Email send (managed delivery) ──
+async function sendEmail(
+  supabase: any,
+  to: string,
+  subject: string,
+  html: string,
+): Promise<string> {
   try {
-    const messageId = crypto.randomUUID();
-    await supabase.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: "notification",
-      recipient_email: to,
-      status: "pending",
+    const result = await sendManagedEmail(supabase, {
+      to,
+      subject,
+      html,
+      text: subject,
+      label: "notification",
     });
-    const { error } = await supabase.rpc("enqueue_email", {
-      queue_name: "transactional_emails",
-      payload: {
-        message_id: messageId,
-        to,
-        from: FROM_ADDRESS,
-        sender_domain: SENDER_DOMAIN,
-        subject,
-        html,
-        text: subject,
-        purpose: "transactional",
-        label: "notification",
-        idempotency_key: messageId,
-        unsubscribe_token: unsubscribeToken,
-        queued_at: new Date().toISOString(),
-      },
-    });
-    if (error) console.error("Email enqueue error:", error);
+    if (result.sent) return "sent";
+    return result.reason === "recipient_suppressed" ? "suppressed" : "failed";
   } catch (e) {
-    console.error("Email enqueue failed:", e);
+    console.error("Email send failed:", e instanceof Error ? e.message : String(e));
+    return "failed";
   }
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
