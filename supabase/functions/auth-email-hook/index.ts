@@ -15,7 +15,7 @@ const corsHeaders = {
 }
 
 // Configuration
-const SITE_NAME = "R control"
+const SITE_NAME = "RentControlGhana"
 const SENDER_DOMAIN = "notify.rentcontrolghana.com"
 const ROOT_DOMAIN = "rentcontrolghana.com"
 const FROM_DOMAIN = "notify.rentcontrolghana.com"
