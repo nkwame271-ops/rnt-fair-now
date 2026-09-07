@@ -329,10 +329,6 @@ Deno.serve(async (req) => {
               await logError({ error_stage: "email", error_message: emailErr.message || String(emailErr), severity: "warning" });
             }
 
-            } catch (emailErr: any) {
-              console.error("Payment email error:", emailErr);
-              await logError({ error_stage: "email", error_message: emailErr.message || String(emailErr), severity: "warning" });
-            }
           }
         } catch (smsErr: any) {
           console.error("SMS error:", smsErr);
