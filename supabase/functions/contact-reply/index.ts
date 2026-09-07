@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
       reply: replyRow,
       dispatch: { channel, to: dispatchTo, ...dispatchInfo },
       message: channel === "email"
-        ? "Email queued for delivery — it will be sent within seconds."
+        ? "Email sent."
         : "SMS dispatched.",
     });
   } catch (e) {
