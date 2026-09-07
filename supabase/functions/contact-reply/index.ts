@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
     if (channel === "email") {
       if (!submission.email) return json({ success: false, error: "This contact has no email address on file" });
       const finalSubject = subject || "Reply from Rent Control Ghana";
-      const r = await enqueueEmail(admin, submission.email, finalSubject, emailLayout(messageBody, finalSubject));
+      const r = await sendReplyEmail(admin, submission.email, finalSubject, emailLayout(messageBody, finalSubject));
       if (!r.ok) dispatchError = r.error || "Email enqueue failed";
       else dispatchInfo.message_id = r.messageId;
       dispatchTo = submission.email;
