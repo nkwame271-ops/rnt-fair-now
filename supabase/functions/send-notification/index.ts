@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getUnsubscribeToken } from "../_shared/unsubscribe-token.ts";
-import { FROM_ADDRESS, SENDER_DOMAIN } from "../_shared/project-domain.ts";
+import { sendManagedEmail } from "../_shared/send-managed-email.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
