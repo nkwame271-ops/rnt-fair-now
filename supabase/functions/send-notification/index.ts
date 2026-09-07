@@ -604,8 +604,8 @@ Deno.serve(async (req) => {
       const template = EMAIL_TEMPLATES[event];
       if (template) {
         const { subject, html } = template(d);
-        await enqueueEmail(supabase, email, subject, html);
-        results.email = "enqueued";
+        results.email = await sendEmail(supabase, email, subject, html);
+
       }
     }
 
