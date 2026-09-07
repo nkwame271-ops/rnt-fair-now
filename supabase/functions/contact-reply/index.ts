@@ -31,42 +31,30 @@ function emailLayout(content: string, subject: string) {
 }
 
 /**
- * Enqueue an email through the project's queued email pipeline so the dispatcher
- * (process-email-queue) actually delivers it. This mirrors send-notification.
+ * Send the reply through Lovable's managed email delivery.
  */
-async function enqueueEmail(admin: any, to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string; messageId?: string }> {
+async function sendReplyEmail(admin: any, to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   try {
-    const messageId = crypto.randomUUID();
-    const unsubscribeToken = await getUnsubscribeToken(admin, to);
-    await admin.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: "contact_reply",
-      recipient_email: to,
-      status: "pending",
+    const result = await sendManagedEmail(admin, {
+      to,
+      subject,
+      html,
+      text: subject,
+      label: "contact_reply",
     });
-    const { error } = await admin.rpc("enqueue_email", {
-      queue_name: "transactional_emails",
-      payload: {
-        message_id: messageId,
-        to,
-        from: FROM_ADDRESS,
-        sender_domain: SENDER_DOMAIN,
-        subject,
-        html,
-        text: subject,
-        purpose: "transactional",
-        label: "contact_reply",
-        idempotency_key: messageId,
-        unsubscribe_token: unsubscribeToken,
-        queued_at: new Date().toISOString(),
-      },
-    });
-    if (error) return { ok: false, error: `Email queue error: ${error.message}` };
-    return { ok: true, messageId };
+    if (result.sent) return { ok: true, messageId: result.messageId };
+    if (result.reason === "recipient_suppressed") {
+      return {
+        ok: false,
+        error: "This recipient has unsubscribed or previously bounced, so email cannot be delivered to them.",
+      };
+    }
+    return { ok: false, error: `Email send error: ${result.error}` };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
