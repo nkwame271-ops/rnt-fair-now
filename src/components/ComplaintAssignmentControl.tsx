@@ -10,6 +10,7 @@ import { UserPlus, History, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminProfile } from "@/hooks/useAdminProfile";
+import { fetchAdminStaff, fetchHearingRooms, fetchStaffNames } from "@/lib/adminDirectory";
 
 interface StaffOption {
   user_id: string;
@@ -66,17 +67,23 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
 
     const histRows: AssignmentRow[] = histRes.data || [];
 
-    const userIds = [
-      ...new Set([
-        ...staffRows.map((s) => s.user_id),
-        ...histRows.map((h) => h.assigned_to),
-        ...histRows.map((h) => h.assigned_by),
-      ]),
+    // Staff names come from a shared cache; only look up extra people that
+    // appear in this complaint's assignment history.
+    const nameMap = new Map(await fetchStaffNames());
+    const missingIds = [
+      ...new Set(
+        [...histRows.map((h) => h.assigned_to), ...histRows.map((h) => h.assigned_by)].filter(
+          (id) => id && !nameMap.has(id),
+        ),
+      ),
     ];
-    const { data: profiles } = userIds.length
-      ? await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds)
-      : { data: [] as any[] };
-    const nameMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
+    if (missingIds.length) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", missingIds);
+      (profiles || []).forEach((p: any) => nameMap.set(p.user_id, p.full_name));
+    }
 
     setStaff(
       staffRows.map((s) => ({
@@ -94,7 +101,7 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
         _assignedByName: nameMap.get(h.assigned_by) || "Admin",
       }))
     );
-    setRooms((roomRes.data || []) as { id: string; name: string; office_id: string }[]);
+    setRooms(roomRows);
     setLoading(false);
   };
 
