@@ -57,7 +57,16 @@ Deno.serve(async (req) => {
 
     if (!escrow) throw new Error("Transaction not found");
     console.log("verify-payment local transaction:", JSON.stringify({ reference, escrow_status: escrow.status }));
-    if (userId && escrow.user_id !== userId) throw new Error("Unauthorized");
+    // The payer is not always the escrow owner: an officer can take payment on
+    // behalf of a complainant. Allow regulator/admin staff to verify too,
+    // otherwise their successful payments were reported back as failures.
+    if (userId && escrow.user_id !== userId) {
+      const [{ data: staffRow }, { data: roleRow }] = await Promise.all([
+        supabaseAdmin.from("admin_staff").select("user_id").eq("user_id", userId).maybeSingle(),
+        supabaseAdmin.from("user_roles").select("role").eq("user_id", userId).in("role", ["regulator", "nugs_admin"]).maybeSingle(),
+      ]);
+      if (!staffRow && !roleRow) throw new Error("Unauthorized");
+    }
 
     // Already completed — run finalize anyway to fill any missing splits/receipts/payouts.
     // Pass the ledger amount (NOT 0) so any receipt created on this recovery path
