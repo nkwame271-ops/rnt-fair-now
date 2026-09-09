@@ -9568,6 +9568,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_accessible_office_ids: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
       admin_can_access_office: {
         Args: { _office_id: string; _user_id: string }
         Returns: boolean
