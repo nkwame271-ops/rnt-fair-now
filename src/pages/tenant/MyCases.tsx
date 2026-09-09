@@ -147,13 +147,11 @@ const MyCases = () => {
 
   const handlePayNow = async (complaint: any) => {
     setPaying(complaint.id);
-    try {
+    // Each attempt must mint a brand new payment session — a session can only
+    // be opened once, so retries after a closed window need a fresh one.
+    const initCheckout = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast.error("Your session expired. Please sign in again.");
-        setPaying(null);
-        return;
-      }
+      if (!session?.access_token) throw new Error("Your session expired. Please sign in again.");
       const { data: rawData, error } = await supabase.functions.invoke("paystack-checkout", {
         body: { type: "complaint_fee", complaintId: complaint.id },
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -171,12 +169,14 @@ const MyCases = () => {
         throw new Error(msg);
       }
       if (data?.error) throw new Error(data.error);
-      if (data?.reference) sessionStorage.setItem("pendingPaymentReference", data.reference);
-      if (startBrandedCheckout(data as any)) {
-        return;
-      } else {
-        throw new Error("No secure checkout details received");
-      }
+      if (!data?.reference) throw new Error("No secure checkout details received");
+      sessionStorage.setItem("pendingPaymentReference", data.reference);
+      return data as any;
+    };
+    try {
+      const data = await initCheckout();
+      startBrandedCheckout(data, initCheckout);
+      return;
     } catch (err: any) {
       toast.error(err.message || "Could not start payment");
     } finally {

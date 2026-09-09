@@ -15,6 +15,14 @@ export interface BrandedCheckoutPayload {
   customerName?: string;
   callbackPath?: string;
   confirmationPath?: string;
+  /**
+   * Optional re-initialiser. A payment session (access code) is single-use:
+   * once the payment window has been opened and closed/cancelled, resuming the
+   * same session fails with "Unable to process transaction". When a retry is
+   * needed we call this to mint a brand new session instead of reusing the old
+   * one.
+   */
+  refresh?: () => Promise<BrandedCheckoutPayload | null>;
 }
 
 const EVENT = "rcg:branded-checkout:open";
@@ -36,7 +44,11 @@ export function hasBrandedCheckoutDetails(payload: Partial<BrandedCheckoutPayloa
   return getBrandedCheckoutValidationError(payload) === null;
 }
 
-export function startBrandedCheckout(payload: BrandedCheckoutPayload) {
+export function startBrandedCheckout(
+  payloadInput: BrandedCheckoutPayload,
+  refresh?: () => Promise<BrandedCheckoutPayload | null>,
+) {
+  const payload: BrandedCheckoutPayload = refresh ? { ...payloadInput, refresh } : payloadInput;
   const validationError = getBrandedCheckoutValidationError(payload);
   if (validationError) {
     console.warn("Branded checkout payload rejected:", validationError);

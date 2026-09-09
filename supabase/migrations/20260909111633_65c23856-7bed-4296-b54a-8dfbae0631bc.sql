@@ -1,0 +1,10 @@
+CREATE INDEX IF NOT EXISTS idx_escrow_tx_related_complaint ON public.escrow_transactions (related_complaint_id) WHERE related_complaint_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_escrow_tx_student_created ON public.escrow_transactions (is_student_revenue, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cases_related_complaint ON public.cases (related_complaint_id) WHERE related_complaint_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_escrow_splits_tx_status ON public.escrow_splits (escrow_transaction_id, status);
+CREATE INDEX IF NOT EXISTS idx_payout_transfers_created ON public.payout_transfers (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_landlord_complaints_status_created ON public.landlord_complaints (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_units_property_rent ON public.units (property_id, monthly_rent);
+CREATE INDEX IF NOT EXISTS idx_rcss_region_type_status_pair ON public.rent_card_serial_stock (region, stock_type, status, pair_index, serial_number);
+CREATE INDEX IF NOT EXISTS idx_case_payments_missing_receipt ON public.case_payments (paid_at) WHERE payment_status = 'paid' AND receipt_number IS NULL;
+CREATE INDEX IF NOT EXISTS idx_hearing_rooms_active_name ON public.hearing_rooms (active, name);
