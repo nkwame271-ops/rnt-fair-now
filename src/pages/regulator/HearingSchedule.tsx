@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { ChevronLeft, ChevronRight, CalendarClock, Filter } from "lucide-react";
 import { useAdminScope } from "@/hooks/useAdminScope";
+import { fetchAdminStaff, fetchHearingRooms } from "@/lib/adminDirectory";
 
 type View = "day" | "week" | "month";
 

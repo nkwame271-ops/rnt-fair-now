@@ -22,6 +22,7 @@ import ComplaintDocumentsHub from "@/components/regulator/ComplaintDocumentsHub"
 import FormEditorDialog from "@/components/regulator/FormEditorDialog";
 import RichTextEditor from "@/components/regulator/RichTextEditor";
 import { StatutoryFormType } from "@/lib/complaintForms";
+import { fetchAdminStaff, fetchHearingRooms } from "@/lib/adminDirectory";
 
 const ComplaintCaseFile = () => {
   const { id } = useParams<{ id: string }>();
