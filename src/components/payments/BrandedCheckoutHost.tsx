@@ -214,9 +214,11 @@ export default function BrandedCheckoutHost() {
               <Button variant="outline" className="flex-1" onClick={close} disabled={processing}>
                 Cancel
               </Button>
-              <Button className="flex-1" onClick={pay} disabled={processing}>
+              <Button className="flex-1" onClick={pay} disabled={processing || expired}>
                 {processing ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Opening…</>
+                ) : expired ? (
+                  <>Session closed</>
                 ) : (
                   <><Lock className="h-4 w-4 mr-2" /> Pay securely</>
                 )}
