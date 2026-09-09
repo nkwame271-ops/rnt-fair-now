@@ -48,14 +48,31 @@ export default function BrandedCheckoutHost() {
       setProcessing(false);
       navigate(path);
     };
+    // A payment session (access code) can only be opened once. If the window
+    // was closed or errored we must mint a NEW session for the retry —
+    // resuming the spent one fails with "Unable to process transaction".
     const reopenForRetry = (msg?: string) => {
-      // Re-mount our branded dialog so the user can retry. Give the browser a
-      // tick so the payment popup fully tears down first (avoids double-modal
-      // pointer-events issues on mobile).
-      setTimeout(() => {
+      setTimeout(async () => {
+        let next: BrandedCheckoutPayload | null = null;
+        if (snapshot.refresh) {
+          try {
+            const fresh = await snapshot.refresh();
+            if (fresh?.reference) next = { ...fresh, refresh: snapshot.refresh };
+          } catch (e) {
+            console.warn("Checkout refresh failed:", e);
+          }
+        }
         setProcessing(false);
-        if (msg) setErrorMsg(msg);
-        setPayload(snapshot);
+        if (next) {
+          if (msg) setErrorMsg(msg);
+          setPayload(next);
+          return;
+        }
+        setErrorMsg(
+          (msg ? `${msg} ` : "") +
+            "This payment session has closed. Please start the payment again from the previous screen.",
+        );
+        setPayload({ ...snapshot, access_code: undefined, expired: true } as BrandedCheckoutPayload & { expired: boolean });
       }, 50);
     };
     try {
