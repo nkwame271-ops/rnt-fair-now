@@ -9849,6 +9849,7 @@ export type Database = {
           read_ct: number
         }[]
       }
+      readable_escrow_transaction_id_set: { Args: never; Returns: string[] }
       recalculate_compliance_score: {
         Args: { p_landlord_user_id: string }
         Returns: undefined
