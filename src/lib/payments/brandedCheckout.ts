@@ -44,7 +44,11 @@ export function hasBrandedCheckoutDetails(payload: Partial<BrandedCheckoutPayloa
   return getBrandedCheckoutValidationError(payload) === null;
 }
 
-export function startBrandedCheckout(payload: BrandedCheckoutPayload) {
+export function startBrandedCheckout(
+  payloadInput: BrandedCheckoutPayload,
+  refresh?: () => Promise<BrandedCheckoutPayload | null>,
+) {
+  const payload: BrandedCheckoutPayload = refresh ? { ...payloadInput, refresh } : payloadInput;
   const validationError = getBrandedCheckoutValidationError(payload);
   if (validationError) {
     console.warn("Branded checkout payload rejected:", validationError);
