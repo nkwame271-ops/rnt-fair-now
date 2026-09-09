@@ -54,17 +54,16 @@ const ComplaintAssignmentControl = ({ complaintId, complaintTable, onChanged }: 
 
   const load = async () => {
     setLoading(true);
-    const [staffRes, histRes, roomRes] = await Promise.all([
-      (supabase.from("admin_staff") as any).select("user_id, office_id, office_name, admin_type"),
+    const [staffRows, histRes, roomRows] = await Promise.all([
+      fetchAdminStaff(),
       (supabase.from("complaint_assignments") as any)
         .select("id, assigned_to, assigned_by, assigned_at, unassigned_at, reason, room_id")
         .eq("complaint_id", complaintId)
         .eq("complaint_table", complaintTable)
         .order("assigned_at", { ascending: false }),
-      (supabase.from("hearing_rooms") as any).select("id, name, office_id").eq("active", true).order("name"),
+      fetchHearingRooms(),
     ]);
 
-    const staffRows: any[] = staffRes.data || [];
     const histRows: AssignmentRow[] = histRes.data || [];
 
     const userIds = [
