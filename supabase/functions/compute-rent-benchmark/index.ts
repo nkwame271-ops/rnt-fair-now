@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { property_id, unit_id, zone_key, property_class, asking_rent } = await req.json();
+    const { property_id, unit_id, zone_key, property_class, asking_rent, record_listing } = await req.json();
 
     if (!zone_key || !property_class) {
       return new Response(JSON.stringify({ error: "zone_key and property_class are required" }), {
@@ -241,6 +241,20 @@ Deno.serve(async (req) => {
         comparable_count: comparableCount,
         computed_at: new Date().toISOString(),
       });
+    }
+
+    // Record the listing as market data (service role — clients cannot insert here)
+    if (record_listing && property_id) {
+      const { error: marketErr } = await supabaseAdmin.from("rent_market_data").insert({
+        property_id,
+        unit_id: unit_id || null,
+        zone_key,
+        property_class,
+        asking_rent: asking_rent ?? null,
+        event_type: "listing",
+        event_date: new Date().toISOString().split("T")[0],
+      });
+      if (marketErr) console.error("rent_market_data insert failed", marketErr);
     }
 
     return new Response(JSON.stringify({

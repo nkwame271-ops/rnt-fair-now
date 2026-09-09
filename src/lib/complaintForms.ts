@@ -279,14 +279,15 @@ async function dispatchForm33Sms(
 
   // Fallback: look up via landlord_complaints if this isn't a tenant complaint
   if (!complaint) {
-    const { data: lc } = await supabase
+    const { data: lc, error: lcError } = await supabase
       .from("landlord_complaints")
-      .select("id, complaint_code, case_number, respondents, placeholder_respondent_phone")
+      .select("id, complaint_code, ticket_number, respondents, placeholder_respondent_phone")
       .eq("id", caseId)
       .maybeSingle();
+    if (lcError) console.error("Form 33 SMS: landlord_complaints lookup failed", lcError);
     respondents = Array.isArray((lc as any)?.respondents) ? (lc as any).respondents : [];
     fallbackPhone = (lc as any)?.placeholder_respondent_phone || null;
-    ref = (lc as any)?.complaint_code || (lc as any)?.case_number || ref;
+    ref = (lc as any)?.complaint_code || (lc as any)?.ticket_number || ref;
   }
 
   const phones: string[] = respondents.map((r: any) => r?.phone).filter(Boolean);
