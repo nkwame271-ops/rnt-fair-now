@@ -374,6 +374,7 @@ const RegisterProperty = () => {
 
           // Compute benchmark for each unit
           if (unitData) {
+            // Benchmark + market data listing are recorded server-side
             await supabase.functions.invoke("compute-rent-benchmark", {
               body: {
                 property_id: prop.id,
@@ -381,19 +382,9 @@ const RegisterProperty = () => {
                 zone_key: `${region}|${effectiveArea}`,
                 property_class: u.type,
                 asking_rent: parseFloat(u.rent),
+                record_listing: true,
               },
             });
-
-            // Store market data event
-            await supabase.from("rent_market_data").insert({
-              property_id: prop.id,
-              unit_id: unitData.id,
-              zone_key: `${region}|${effectiveArea}`,
-              property_class: u.type,
-              asking_rent: parseFloat(u.rent),
-              event_type: "listing",
-              event_date: new Date().toISOString().split("T")[0],
-            } as any);
           }
         }
       }
