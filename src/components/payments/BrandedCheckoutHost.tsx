@@ -33,8 +33,10 @@ export default function BrandedCheckoutHost() {
 
   const close = () => { if (!processing) { setPayload(null); setErrorMsg(null); } };
 
+  const expired = !!(payload as (BrandedCheckoutPayload & { expired?: boolean }) | null)?.expired;
+
   const pay = async () => {
-    if (!payload) return;
+    if (!payload || expired) return;
     const snapshot = payload;
     setProcessing(true);
     setErrorMsg(null);
