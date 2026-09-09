@@ -9568,6 +9568,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_accessible_office_ids: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
       admin_can_access_office: {
         Args: { _office_id: string; _user_id: string }
         Returns: boolean
@@ -9828,6 +9832,7 @@ export type Database = {
           viewer_is_super_admin: boolean
         }[]
       }
+      prune_admin_activity_log: { Args: never; Returns: undefined }
       rcss_office_summary: {
         Args: never
         Returns: {

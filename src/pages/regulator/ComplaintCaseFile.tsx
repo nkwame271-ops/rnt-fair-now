@@ -22,6 +22,7 @@ import ComplaintDocumentsHub from "@/components/regulator/ComplaintDocumentsHub"
 import FormEditorDialog from "@/components/regulator/FormEditorDialog";
 import RichTextEditor from "@/components/regulator/RichTextEditor";
 import { StatutoryFormType } from "@/lib/complaintForms";
+import { fetchAdminStaff, fetchHearingRooms } from "@/lib/adminDirectory";
 
 const ComplaintCaseFile = () => {
   const { id } = useParams<{ id: string }>();
@@ -101,8 +102,9 @@ const ComplaintCaseFile = () => {
       supabase.from("complaint_status_history").select("*").eq("case_id", id).order("changed_at", { ascending: false }),
       supabase.from("complaint_audit_log").select("*").eq("case_id", id).order("created_at", { ascending: false }).limit(100),
       supabase.from("offices").select("*").order("name"),
-      supabase.from("hearing_rooms").select("*").order("name"),
-      supabase.from("admin_staff").select("user_id, admin_type, office_id"),
+      fetchHearingRooms().then((data) => ({ data })),
+      fetchAdminStaff().then((data) => ({ data })),
+
       // Receipts linked through the real cases row
       realCaseId
         ? supabase.from("payment_receipts").select("*").eq("case_id", realCaseId).order("created_at", { ascending: false })

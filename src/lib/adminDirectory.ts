@@ -63,12 +63,15 @@ export interface HearingRoomRow {
   office_id: string;
 }
 
-export function fetchHearingRooms(): Promise<HearingRoomRow[]> {
-  return cached("hearing_rooms", async () => {
-    const { data } = await (supabase.from("hearing_rooms") as any)
+export function fetchHearingRooms(officeId?: string | null): Promise<HearingRoomRow[]> {
+  return cached(`hearing_rooms:${officeId || "all"}`, async () => {
+    let q = (supabase.from("hearing_rooms") as any)
       .select("id, name, office_id")
       .eq("active", true)
       .order("name");
+    if (officeId) q = q.eq("office_id", officeId);
+    const { data } = await q;
     return (data || []) as HearingRoomRow[];
   });
 }
+

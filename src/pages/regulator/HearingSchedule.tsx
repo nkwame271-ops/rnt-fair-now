@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { ChevronLeft, ChevronRight, CalendarClock, Filter } from "lucide-react";
 import { useAdminScope } from "@/hooks/useAdminScope";
+import { fetchAdminStaff, fetchHearingRooms } from "@/lib/adminDirectory";
 
 type View = "day" | "week" | "month";
 
@@ -58,8 +59,9 @@ const HearingSchedule = () => {
           .gte("scheduled_at", range.from.toISOString())
           .lt("scheduled_at", range.to.toISOString())
           .order("scheduled_at"),
-        supabase.from("hearing_rooms").select("*").eq("active", true),
-        supabase.from("admin_staff").select("user_id, admin_type, office_id"),
+        fetchHearingRooms().then((data) => ({ data })),
+        fetchAdminStaff().then((data) => ({ data })),
+
         supabase.from("offices").select("id, name").order("name"),
       ]);
       setHearings(hRes.data || []);
