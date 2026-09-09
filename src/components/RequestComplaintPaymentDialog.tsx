@@ -367,24 +367,27 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
         if (!payerName.trim()) { toast.error("Payer name is required"); setSubmitting(false); return; }
         if (!payerPhone.trim() || payerPhone.replace(/\D/g, "").length < 9) { toast.error("Payer mobile number is required"); setSubmitting(false); return; }
 
-        // Open secure checkout directly using the officer's session
-        const { data: checkout, error: ckErr } = await supabase.functions.invoke("paystack-checkout", {
-          body: {
-            type: "admin_complaint_filing",
-            complaintId,
-            payerName: payerName.trim(),
-            payerPhone: payerPhone.trim(),
-            payerEmail: payerEmail.trim() || undefined,
-            payerRole: defaultPayerRole || null,
-          },
-        });
-        if (ckErr) throw ckErr;
-        if (!checkout?.ok || !checkout?.reference) {
-          throw new Error(checkout?.error || "Could not open secure checkout");
-        }
-        if (!startBrandedCheckout(checkout as any)) {
-          throw new Error("No secure checkout details received");
-        }
+        // Open secure checkout directly using the officer's session.
+        // A payment session is single-use, so retries re-run this initialiser.
+        const initCheckout = async () => {
+          const { data: checkout, error: ckErr } = await supabase.functions.invoke("paystack-checkout", {
+            body: {
+              type: "admin_complaint_filing",
+              complaintId,
+              payerName: payerName.trim(),
+              payerPhone: payerPhone.trim(),
+              payerEmail: payerEmail.trim() || undefined,
+              payerRole: defaultPayerRole || null,
+            },
+          });
+          if (ckErr) throw ckErr;
+          if (!checkout?.ok || !checkout?.reference) {
+            throw new Error(checkout?.error || "Could not open secure checkout");
+          }
+          return checkout as any;
+        };
+        const checkout = await initCheckout();
+        startBrandedCheckout(checkout, initCheckout);
         toast.success("Opening secure checkout…");
         onRequested?.();
         onOpenChange(false);
