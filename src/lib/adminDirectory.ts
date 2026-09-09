@@ -44,6 +44,19 @@ export function fetchAdminStaff(): Promise<AdminStaffRow[]> {
   });
 }
 
+/** user_id -> full name, for every admin staff member. */
+export function fetchStaffNames(): Promise<Map<string, string>> {
+  return cached("admin_staff_names", async () => {
+    const staff = await fetchAdminStaff();
+    const ids = [...new Set(staff.map((s) => s.user_id).filter(Boolean))];
+    if (!ids.length) return new Map<string, string>();
+    const { data } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);
+    return new Map<string, string>(
+      (data || []).map((p: any) => [p.user_id as string, (p.full_name as string) || "Staff member"]),
+    );
+  });
+}
+
 export interface HearingRoomRow {
   id: string;
   name: string;
