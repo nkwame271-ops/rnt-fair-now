@@ -102,14 +102,8 @@ export default function BrandedCheckoutHost() {
       }, 50);
     };
     try {
-      // A resume access code is single-use. Flows that can re-initialize must
-      // mint at the last possible moment, immediately before opening Paystack.
-      if (snapshot.refresh) {
-        const fresh = await snapshot.refresh();
-        if (!fresh?.reference) throw new Error("Could not create a fresh secure payment session.");
-        snapshot = { ...fresh, refresh: snapshot.refresh };
-        setPayload(snapshot);
-      }
+      // The session shown in this dialog has not been opened yet. If a popup
+      // closes or errors, reopenForRetry replaces it with a newly minted one.
       if (!hasBrandedCheckoutDetails(snapshot)) {
         throw new Error("Secure checkout details are incomplete. Please try again.");
       }
@@ -171,6 +165,7 @@ export default function BrandedCheckoutHost() {
         callback: (r) => { completed = true; finishPayment(r.reference); },
         onClose: () => {
           if (completed) return;
+          reportCheckoutError("inline_cancel", "Payment window closed before completion");
           toast("Payment window closed. You can retry any time.");
           reopenForRetry();
         },
