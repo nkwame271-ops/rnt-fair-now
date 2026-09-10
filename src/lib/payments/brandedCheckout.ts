@@ -44,6 +44,46 @@ export function hasBrandedCheckoutDetails(payload: Partial<BrandedCheckoutPayloa
   return getBrandedCheckoutValidationError(payload) === null;
 }
 
+/**
+ * Tracks payment sessions (access codes) that a payment window has already been
+ * opened on. A session is single use: opening a second window on the same
+ * access code fails with "Unable to process transaction".
+ */
+const consumedSessions = new Set<string>();
+
+export function markCheckoutSessionConsumed(accessCode?: string | null) {
+  if (accessCode) consumedSessions.add(accessCode);
+}
+
+export function isCheckoutSessionConsumed(accessCode?: string | null) {
+  return !!accessCode && consumedSessions.has(accessCode);
+}
+
+/**
+ * Builds a session initialiser for the branded checkout host. The host calls it
+ * the moment the payer presses "Pay securely", so the session handed to the
+ * payment window is always freshly minted instead of one created minutes
+ * earlier when the page's own button was pressed.
+ */
+export function makeCheckoutSession(
+  functionName: string,
+  body: Record<string, unknown>,
+): () => Promise<BrandedCheckoutPayload | null> {
+  return async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data, error } = await supabase.functions.invoke(functionName, { body });
+    if (error) throw new Error(error.message || "Payment initiation failed");
+    if ((data as { error?: string } | null)?.error) {
+      throw new Error((data as { error: string }).error);
+    }
+    const payload = data as BrandedCheckoutPayload | null;
+    if (payload?.reference) {
+      try { sessionStorage.setItem("pendingPaymentReference", payload.reference); } catch { /* ignore */ }
+    }
+    return payload;
+  };
+}
+
 export function startBrandedCheckout(
   payloadInput: BrandedCheckoutPayload,
   refresh?: () => Promise<BrandedCheckoutPayload | null>,
@@ -64,6 +104,7 @@ export function startBrandedCheckout(
   window.dispatchEvent(new CustomEvent(EVENT, { detail: payload }));
   return true;
 }
+
 
 export function onBrandedCheckoutOpen(
   handler: (payload: BrandedCheckoutPayload) => void,
