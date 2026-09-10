@@ -95,7 +95,16 @@ export function startBrandedCheckout(
   payloadInput: BrandedCheckoutPayload,
   refresh?: () => Promise<BrandedCheckoutPayload | null>,
 ) {
-  const payload: BrandedCheckoutPayload = refresh ? { ...payloadInput, refresh } : payloadInput;
+  const derivedRefresh =
+    refresh ||
+    payloadInput.refresh ||
+    (payloadInput.retry?.fn
+      ? makeCheckoutSession(payloadInput.retry.fn, payloadInput.retry.body || {})
+      : undefined);
+  const payload: BrandedCheckoutPayload = derivedRefresh
+    ? { ...payloadInput, refresh: derivedRefresh }
+    : payloadInput;
+
   const validationError = getBrandedCheckoutValidationError(payload);
   if (validationError) {
     console.warn("Branded checkout payload rejected:", validationError);
