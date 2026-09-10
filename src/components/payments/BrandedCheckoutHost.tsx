@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -24,22 +24,44 @@ export default function BrandedCheckoutHost() {
   const [payload, setPayload] = useState<BrandedCheckoutPayload | null>(null);
   const [processing, setProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [hostedFallback, setHostedFallback] = useState(false);
+  const openingRef = useRef(false);
 
   useEffect(() => onBrandedCheckoutOpen((p) => {
     setPayload(p);
     setProcessing(false);
     setErrorMsg(null);
+    setHostedFallback(false);
+    openingRef.current = false;
   }), []);
 
-  const close = () => { if (!processing) { setPayload(null); setErrorMsg(null); } };
+  const close = () => { if (!processing) { setPayload(null); setErrorMsg(null); setHostedFallback(false); } };
 
   const expired = !!(payload as (BrandedCheckoutPayload & { expired?: boolean }) | null)?.expired;
 
   const pay = async () => {
-    if (!payload || expired) return;
-    const snapshot = payload;
+    if (!payload || expired || openingRef.current) return;
+    openingRef.current = true;
+    let snapshot = payload;
     setProcessing(true);
     setErrorMsg(null);
+    setHostedFallback(false);
+    const reportCheckoutError = (stage: string, message: string, reference = snapshot.reference) => {
+      void import("@/integrations/supabase/client").then(({ supabase }) =>
+        supabase.functions.invoke("report-checkout-error", {
+          body: {
+            reference,
+            stage,
+            message,
+            context: {
+              userAgent: navigator.userAgent.slice(0, 500),
+              viewport: `${window.innerWidth}x${window.innerHeight}`,
+              online: navigator.onLine,
+            },
+          },
+        }),
+      ).catch(() => undefined);
+    };
     const finishPayment = (reference?: string) => {
       const confirmedReference = reference || snapshot.reference;
       const path = snapshot.confirmationPath
@@ -48,6 +70,7 @@ export default function BrandedCheckoutHost() {
           (snapshot.callbackPath ? `&next=${encodeURIComponent(snapshot.callbackPath)}` : "");
       setPayload(null);
       setProcessing(false);
+      openingRef.current = false;
       navigate(path);
     };
     // A payment session (access code) can only be opened once. If the window
@@ -65,6 +88,7 @@ export default function BrandedCheckoutHost() {
           }
         }
         setProcessing(false);
+        openingRef.current = false;
         if (next) {
           if (msg) setErrorMsg(msg);
           setPayload(next);
@@ -78,6 +102,14 @@ export default function BrandedCheckoutHost() {
       }, 50);
     };
     try {
+      // A resume access code is single-use. Flows that can re-initialize must
+      // mint at the last possible moment, immediately before opening Paystack.
+      if (snapshot.refresh) {
+        const fresh = await snapshot.refresh();
+        if (!fresh?.reference) throw new Error("Could not create a fresh secure payment session.");
+        snapshot = { ...fresh, refresh: snapshot.refresh };
+        setPayload(snapshot);
+      }
       if (!hasBrandedCheckoutDetails(snapshot)) {
         throw new Error("Secure checkout details are incomplete. Please try again.");
       }
@@ -97,13 +129,19 @@ export default function BrandedCheckoutHost() {
         popup.resumeTransaction(snapshot.access_code, {
           onSuccess: (r: { reference?: string; trxref?: string }) => finishPayment(r.reference || r.trxref),
           onCancel: () => {
+            reportCheckoutError("inline_cancel", "Payment window closed before completion");
             toast("Payment window closed. You can retry any time.");
             reopenForRetry();
           },
           onError: (error: { message?: string } | Error) => {
             const msg = error?.message || "Could not start secure payment";
+            reportCheckoutError("inline_error", msg);
             toast.error(msg);
-            reopenForRetry(msg);
+            setProcessing(false);
+            openingRef.current = false;
+            setErrorMsg(`${msg} Use the secure checkout page below to continue with this payment.`);
+            setHostedFallback(Boolean(snapshot.authorization_url));
+            setPayload(snapshot);
           },
         });
         return;
@@ -140,9 +178,33 @@ export default function BrandedCheckoutHost() {
       handler.openIframe();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not start secure payment";
+      reportCheckoutError("inline_open", msg);
       toast.error(msg);
-      reopenForRetry(msg);
+      setProcessing(false);
+      openingRef.current = false;
+      if (snapshot.authorization_url) {
+        setErrorMsg(`${msg} Use the secure checkout page below to continue with this payment.`);
+        setHostedFallback(true);
+        setPayload(snapshot);
+      } else {
+        reopenForRetry(msg);
+      }
     }
+  };
+
+  const openHostedCheckout = () => {
+    if (!payload?.authorization_url) return;
+    void import("@/integrations/supabase/client").then(({ supabase }) =>
+      supabase.functions.invoke("report-checkout-error", {
+        body: {
+          reference: payload.reference,
+          stage: "hosted_fallback",
+          message: "User continued through hosted checkout after inline failure",
+          context: { viewport: `${window.innerWidth}x${window.innerHeight}`, online: navigator.onLine },
+        },
+      }),
+    ).catch(() => undefined);
+    window.location.assign(payload.authorization_url);
   };
 
   const amountLabel = payload
@@ -224,6 +286,11 @@ export default function BrandedCheckoutHost() {
                 )}
               </Button>
             </div>
+            {hostedFallback && payload.authorization_url && (
+              <Button className="w-full" variant="outline" onClick={openHostedCheckout}>
+                Continue on secure payment page
+              </Button>
+            )}
 
             <p className="text-center text-[11px] text-muted-foreground">
               Secure payment powered by our licensed payment partner.
