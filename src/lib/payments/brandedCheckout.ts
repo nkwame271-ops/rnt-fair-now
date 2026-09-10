@@ -23,6 +23,13 @@ export interface BrandedCheckoutPayload {
    * one.
    */
   refresh?: () => Promise<BrandedCheckoutPayload | null>;
+  /**
+   * Server-supplied hint describing how to create another session for the same
+   * charge (edge function name + the request body it was called with). The host
+   * uses it to mint a fresh session, so callers never have to wire one up.
+   */
+  retry?: { fn: string; body: Record<string, unknown> };
+
 }
 
 const EVENT = "rcg:branded-checkout:open";
