@@ -9,8 +9,11 @@ import {
   onBrandedCheckoutOpen,
   loadPaystackInline,
   hasBrandedCheckoutDetails,
+  isCheckoutSessionConsumed,
+  markCheckoutSessionConsumed,
   type BrandedCheckoutPayload,
 } from "@/lib/payments/brandedCheckout";
+
 
 const PLATFORM_NAME = "Rent Control Ghana";
 
