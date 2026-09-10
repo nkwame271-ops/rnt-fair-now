@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
       currency: "GHS",
       email,
       description: "Agent application fee",
+      retry: { fn: "agent-apply-checkout", body: { application_id } },
     });
   } catch (e: any) {
     console.error("agent-apply-checkout error:", e?.message);

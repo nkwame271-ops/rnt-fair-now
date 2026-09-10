@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
       currency: "GHS",
       email,
       description: `Premium Service (${billingFrequency})`,
+      retry: { fn: "premium-checkout", body: { property_id, subscriber_role } },
     });
   } catch (e: any) {
     console.error("premium-checkout error:", e?.message);
