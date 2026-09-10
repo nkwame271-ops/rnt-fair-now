@@ -1501,6 +1501,8 @@ Deno.serve(async (req) => {
       invoiceId: caseNumber || reference,
       callbackPath,
       customerName: profile?.full_name || "Customer",
+      // Lets the client mint a brand-new single-use session on retry.
+      retry: { fn: "paystack-checkout", body },
     };
 
     console.log("Secure checkout response ready:", JSON.stringify({

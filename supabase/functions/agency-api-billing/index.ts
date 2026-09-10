@@ -126,6 +126,7 @@ serve(async (req) => {
         invoiceId: init.data.reference,
         customerName: key.agency_name || "Agency account",
         confirmationPath: "/regulator/agency-api?billing=success",
+        retry: { fn: "agency-api-billing", body },
       });
     }
 

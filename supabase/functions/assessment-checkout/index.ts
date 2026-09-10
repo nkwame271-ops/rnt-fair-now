@@ -132,6 +132,7 @@ Deno.serve(async (req) => {
       currency: "GHS",
       email,
       description: "Property assessment fee",
+      retry: { fn: "assessment-checkout", body },
     });
   } catch (e: any) {
     console.error("assessment-checkout error:", e?.message);

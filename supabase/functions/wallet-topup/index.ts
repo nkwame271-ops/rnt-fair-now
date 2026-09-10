@@ -115,6 +115,7 @@ Deno.serve(async (req) => {
       currency: "GHS",
       email,
       description: description || "Wallet top-up",
+      retry: { fn: "wallet-topup", body },
     });
   } catch (e: any) {
     console.error("wallet-topup error:", e?.message);
