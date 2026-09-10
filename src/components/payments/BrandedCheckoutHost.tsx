@@ -102,8 +102,24 @@ export default function BrandedCheckoutHost() {
       }, 50);
     };
     try {
-      // The session shown in this dialog has not been opened yet. If a popup
-      // closes or errors, reopenForRetry replaces it with a newly minted one.
+      // A session (access code) is single use and also goes stale while the
+      // payer reads this panel. Mint a brand-new one right now, at the moment
+      // the window is about to open, whenever we know how to.
+      if (snapshot.refresh) {
+        try {
+          const fresh = await snapshot.refresh();
+          if (fresh?.reference && !isCheckoutSessionConsumed(fresh.access_code)) {
+            snapshot = { ...fresh, refresh: snapshot.refresh };
+            setPayload(snapshot);
+          }
+        } catch (e) {
+          console.warn("Could not mint a fresh payment session:", e);
+          // Fall through: an existing unused session may still work.
+        }
+      }
+      if (isCheckoutSessionConsumed(snapshot.access_code)) {
+        throw new Error("This payment session has already been used.");
+      }
       if (!hasBrandedCheckoutDetails(snapshot)) {
         throw new Error("Secure checkout details are incomplete. Please try again.");
       }
@@ -117,6 +133,8 @@ export default function BrandedCheckoutHost() {
       // Leaving it mounted traps focus / swallows taps on mobile, so the
       // payment-method options (Card / Mobile Money / Bank) become unclickable.
       setPayload(null);
+      markCheckoutSessionConsumed(snapshot.access_code);
+
 
       if (snapshot.access_code && typeof PaystackPop === "function") {
         const popup = new PaystackPop();
