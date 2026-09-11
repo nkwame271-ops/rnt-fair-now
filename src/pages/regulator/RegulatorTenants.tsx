@@ -330,7 +330,7 @@ const RegulatorTenants = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2"><Users className="h-7 w-7 text-primary" /> Tenant Database</h1>
-          <p className="text-muted-foreground mt-1">{filtered.length} registered tenants</p>
+          <p className="text-muted-foreground mt-1">{filtered.length.toLocaleString()} of {totalTenants.toLocaleString()} registered tenants</p>
         </div>
         <Button variant="outline" onClick={exportCSV} className="w-full sm:w-auto"><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
       </div>
