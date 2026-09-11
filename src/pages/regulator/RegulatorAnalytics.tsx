@@ -113,8 +113,9 @@ const RegulatorAnalytics = () => {
       setData({
         tenantsByRegion,
         complaintsByType,
-        totalTenants: tenants?.length || 0,
-        totalLandlords: landlords?.length || 0,
+        totalTenants: tenantCount || tenants.length,
+        totalLandlords: landlordCount || 0,
+
         citizenVsNonCitizen: [
           { name: "Citizens", value: citizens },
           { name: "Non-Citizens", value: nonCitizens },
