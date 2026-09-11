@@ -234,12 +234,27 @@ const resolveRegistrationOffice = async (
     .eq("user_id", userId)
     .maybeSingle();
   if (roleError) throw new Error(`Could not verify your selected registration office: ${roleError.message}`);
-  if (!roleRecord?.office_id) throw new Error("No registration office is assigned to this account. Please update your registration before paying.");
+
+  let candidateOfficeId: string | null = roleRecord?.office_id || null;
+
+  // Legacy/alternate-signup records may have no office assigned. Fall back to the
+  // tolerant resolver (profile region -> default) and backfill so future flows work.
+  if (!candidateOfficeId) {
+    candidateOfficeId = await resolveOffice(supabaseAdmin, { userId });
+    if (roleRecord) {
+      const { error: backfillError } = await supabaseAdmin
+        .from(roleTable)
+        .update({ office_id: candidateOfficeId })
+        .eq("user_id", userId)
+        .is("office_id", null);
+      if (backfillError) console.error(`Office backfill failed for ${roleTable}:`, backfillError.message);
+    }
+  }
 
   const { data: office, error: officeError } = await supabaseAdmin
     .from("offices")
     .select("id")
-    .eq("id", roleRecord.office_id)
+    .eq("id", candidateOfficeId)
     .maybeSingle();
   if (officeError || !office?.id) throw new Error("Your selected registration office is invalid. Please contact support before paying.");
   return office.id;
