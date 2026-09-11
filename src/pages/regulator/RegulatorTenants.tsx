@@ -137,6 +137,8 @@ const ExpiryValue = ({ date }: { date: string | null }) => {
 
 const RegulatorTenants = () => {
   const [tenants, setTenants] = useState<TenantFull[]>([]);
+  const [totalTenants, setTotalTenants] = useState(0);
+
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -146,15 +148,33 @@ const RegulatorTenants = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { data: tenantData, error: tenantError } = await supabase
+        // True total — not bounded by the PostgREST 1000-row page cap.
+        const { count: totalCount } = await supabase
           .from("tenants")
-          .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, is_student, school, hostel_or_hall, office_id")
-          .order("created_at", { ascending: false });
+          .select("user_id", { count: "exact", head: true });
+        setTotalTenants(totalCount || 0);
 
-        if (tenantError) throw tenantError;
-        if (!tenantData || tenantData.length === 0) { setLoading(false); return; }
+        // Page through rows so every tenant loads, not just the first 1000.
+        const PAGE = 1000;
+        const tenantData: any[] = [];
+        let offset = 0;
+        while (true) {
+          const { data: pageRows, error: pageErr } = await supabase
+            .from("tenants")
+            .select("tenant_id, user_id, status, account_status, registration_date, expiry_date, registration_fee_paid, is_student, school, hostel_or_hall, office_id")
+            .order("created_at", { ascending: false })
+            .range(offset, offset + PAGE - 1);
+          if (pageErr) throw pageErr;
+          if (!pageRows || pageRows.length === 0) break;
+          tenantData.push(...pageRows);
+          if (pageRows.length < PAGE) break;
+          offset += PAGE;
+        }
+
+        if (tenantData.length === 0) { setLoading(false); return; }
 
         const userIds = tenantData.map(t => t.user_id);
+
 
         const [profilesData, tenanciesData, complaintsData] = await Promise.all([
           fetchInBatches(userIds, (batch) =>
