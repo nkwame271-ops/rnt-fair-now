@@ -50,12 +50,17 @@ const RegulatorAnalytics = () => {
       let regionMap: Record<string, { total: number; citizens: number; nonCitizens: number }> = {};
       let citizens = 0, nonCitizens = 0;
       if (tenantUserIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, delivery_region, is_citizen")
-          .in("user_id", tenantUserIds);
+        // Batch the id list — long URLs get rejected above ~150 ids.
+        const profiles: any[] = [];
+        for (let i = 0; i < tenantUserIds.length; i += 100) {
+          const { data } = await supabase
+            .from("profiles")
+            .select("user_id, delivery_region, is_citizen")
+            .in("user_id", tenantUserIds.slice(i, i + 100));
+          if (data) profiles.push(...data);
+        }
 
-        (profiles || []).forEach((p: any) => {
+        profiles.forEach((p: any) => {
           const region = p.delivery_region || "Unknown";
           if (!regionMap[region]) regionMap[region] = { total: 0, citizens: 0, nonCitizens: 0 };
           regionMap[region].total++;
@@ -63,6 +68,7 @@ const RegulatorAnalytics = () => {
           else { nonCitizens++; regionMap[region].nonCitizens++; }
         });
       }
+
 
       const tenantsByRegion = Object.entries(regionMap)
         .map(([region, d]) => ({ region, count: d.total }))
