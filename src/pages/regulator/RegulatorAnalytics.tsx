@@ -26,9 +26,25 @@ const RegulatorAnalytics = () => {
 
   useEffect(() => {
     const fetchAnalytics = async () => {
-      // Fetch tenants
-      const { data: tenants } = await supabase.from("tenants").select("user_id");
-      const tenantUserIds = (tenants || []).map(t => t.user_id);
+      // Exact totals — counts are never capped by the 1000-row read limit.
+      const { count: tenantCount } = await supabase.from("tenants").select("user_id", { count: "exact", head: true });
+      const { count: landlordCount } = await supabase.from("landlords").select("user_id", { count: "exact", head: true });
+
+      // Fetch tenants (paged, so region breakdown covers every tenant)
+      const tenants: { user_id: string }[] = [];
+      {
+        const PAGE = 1000;
+        let offset = 0;
+        while (true) {
+          const { data: pageRows } = await supabase.from("tenants").select("user_id").range(offset, offset + PAGE - 1);
+          if (!pageRows || pageRows.length === 0) break;
+          tenants.push(...pageRows);
+          if (pageRows.length < PAGE) break;
+          offset += PAGE;
+        }
+      }
+      const tenantUserIds = tenants.map(t => t.user_id);
+
 
       // Fetch profiles for tenant region & citizen data
       let regionMap: Record<string, { total: number; citizens: number; nonCitizens: number }> = {};
