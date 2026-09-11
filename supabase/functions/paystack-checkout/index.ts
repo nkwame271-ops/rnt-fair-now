@@ -305,6 +305,9 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { type } = body;
+    // Snapshot of the caller's original request, used for retry sessions.
+    // Later branches mutate `body.type` for finalize routing, which must not leak into retries.
+    const originalRequestBody = JSON.parse(JSON.stringify(body));
 
     const { data: profile } = await supabase
       .from("profiles")
