@@ -100,8 +100,8 @@ const RegulatorAnalytics = () => {
       });
       const complaintsByType = Object.entries(typeMap).map(([name, value]) => ({ name, value }));
 
-      // Landlords
-      const { data: landlords } = await supabase.from("landlords").select("landlord_id");
+      // Landlords total comes from the exact count above.
+
 
       // Tax revenue
       const { data: payments } = await supabase
