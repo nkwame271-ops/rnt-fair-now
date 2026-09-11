@@ -26,20 +26,41 @@ const RegulatorAnalytics = () => {
 
   useEffect(() => {
     const fetchAnalytics = async () => {
-      // Fetch tenants
-      const { data: tenants } = await supabase.from("tenants").select("user_id");
-      const tenantUserIds = (tenants || []).map(t => t.user_id);
+      // Exact totals — counts are never capped by the 1000-row read limit.
+      const { count: tenantCount } = await supabase.from("tenants").select("user_id", { count: "exact", head: true });
+      const { count: landlordCount } = await supabase.from("landlords").select("user_id", { count: "exact", head: true });
+
+      // Fetch tenants (paged, so region breakdown covers every tenant)
+      const tenants: { user_id: string }[] = [];
+      {
+        const PAGE = 1000;
+        let offset = 0;
+        while (true) {
+          const { data: pageRows } = await supabase.from("tenants").select("user_id").range(offset, offset + PAGE - 1);
+          if (!pageRows || pageRows.length === 0) break;
+          tenants.push(...pageRows);
+          if (pageRows.length < PAGE) break;
+          offset += PAGE;
+        }
+      }
+      const tenantUserIds = tenants.map(t => t.user_id);
+
 
       // Fetch profiles for tenant region & citizen data
       let regionMap: Record<string, { total: number; citizens: number; nonCitizens: number }> = {};
       let citizens = 0, nonCitizens = 0;
       if (tenantUserIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, delivery_region, is_citizen")
-          .in("user_id", tenantUserIds);
+        // Batch the id list — long URLs get rejected above ~150 ids.
+        const profiles: any[] = [];
+        for (let i = 0; i < tenantUserIds.length; i += 100) {
+          const { data } = await supabase
+            .from("profiles")
+            .select("user_id, delivery_region, is_citizen")
+            .in("user_id", tenantUserIds.slice(i, i + 100));
+          if (data) profiles.push(...data);
+        }
 
-        (profiles || []).forEach((p: any) => {
+        profiles.forEach((p: any) => {
           const region = p.delivery_region || "Unknown";
           if (!regionMap[region]) regionMap[region] = { total: 0, citizens: 0, nonCitizens: 0 };
           regionMap[region].total++;
@@ -47,6 +68,7 @@ const RegulatorAnalytics = () => {
           else { nonCitizens++; regionMap[region].nonCitizens++; }
         });
       }
+
 
       const tenantsByRegion = Object.entries(regionMap)
         .map(([region, d]) => ({ region, count: d.total }))
@@ -78,8 +100,8 @@ const RegulatorAnalytics = () => {
       });
       const complaintsByType = Object.entries(typeMap).map(([name, value]) => ({ name, value }));
 
-      // Landlords
-      const { data: landlords } = await supabase.from("landlords").select("landlord_id");
+      // Landlords total comes from the exact count above.
+
 
       // Tax revenue
       const { data: payments } = await supabase
@@ -91,13 +113,14 @@ const RegulatorAnalytics = () => {
       setData({
         tenantsByRegion,
         complaintsByType,
-        totalTenants: tenants?.length || 0,
-        totalLandlords: landlords?.length || 0,
+        totalTenants: tenantCount || tenants.length,
+        totalLandlords: landlordCount || 0,
+
         citizenVsNonCitizen: [
           { name: "Citizens", value: citizens },
           { name: "Non-Citizens", value: nonCitizens },
         ],
-        totalRevenue: ((tenants?.length || 0) + (landlords?.length || 0)) * 2,
+        totalRevenue: ((tenantCount || 0) + (landlordCount || 0)) * 2,
         totalTaxCollected,
         regionBreakdown,
         propRegionMap,

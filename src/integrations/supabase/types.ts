@@ -9576,6 +9576,7 @@ export type Database = {
         Args: { _office_id: string; _user_id: string }
         Returns: boolean
       }
+      admin_has_global_scope: { Args: { _user_id: string }; Returns: boolean }
       agent_can_act_on: {
         Args: { _agent: string; _owner: string }
         Returns: boolean
