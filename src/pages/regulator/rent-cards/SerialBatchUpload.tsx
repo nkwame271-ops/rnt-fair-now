@@ -234,6 +234,18 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
         </div>
 
         <div className="space-y-2">
+          <Label>Reason / Note</Label>
+          <p className="text-xs text-muted-foreground">
+            Required when any serial was previously revoked (re-upload). Saved on each record with your name, date and office.
+          </p>
+          <Input
+            placeholder="e.g. Cards recovered from Kumasi office and returned to stock"
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
           <Label>Serial Numbers</Label>
           <p className="text-xs text-muted-foreground">
             One per line or comma-separated. Ranges supported: <code>RC-001 to RC-050</code>

@@ -267,15 +267,20 @@ Deno.serve(async (req) => {
           // Check duplicates — paired serials have 2 rows each, so never cap the
           // lookup by the number of requested serials (that hid existing rows and
           // caused unique-constraint violations on insert).
+          // Revoked rows are history only: they must NOT block re-generation.
           const existingSet = new Set<string>();
+          const revokedSet = new Set<string>();
           for (let i = 0; i < serials.length; i += 100) {
             const batch = serials.slice(i, i + 100);
             const { data, error: dupErr } = await adminClient
               .from("rent_card_serial_stock")
-              .select("serial_number")
+              .select("serial_number, status")
               .in("serial_number", batch);
             if (dupErr) throw dupErr;
-            if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
+            (data || []).forEach((r: any) => {
+              if (r.status === "revoked") revokedSet.add(r.serial_number);
+              else existingSet.add(r.serial_number);
+            });
           }
 
           // Also skip serials already queued earlier in this same batch
