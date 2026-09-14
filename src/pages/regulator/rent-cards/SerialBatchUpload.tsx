@@ -153,12 +153,13 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
       }
 
       const targetLabel = assignToRegion ? `${selectedRegion} region` : officeName;
-      const msg = skippedCount > 0
-        ? `${newSerials.length} new serial(s) added to ${targetLabel}. ${skippedCount} duplicate(s) skipped.`
-        : `${newSerials.length} serial(s) added to ${targetLabel}`;
-      toast.success(msg);
+      const parts = [`${newSerials.length} serial(s) added to ${targetLabel}`];
+      if (reuploadCount > 0) parts.push(`${reuploadCount} re-upload(s) of previously revoked serials`);
+      if (skippedCount > 0) parts.push(`${skippedCount} skipped (already active)`);
+      toast.success(parts.join(" · "));
       setSerialInput("");
       setBatchLabel("");
+      setReason("");
       setPreview(null);
       onStockChanged();
     } catch (err: any) {
