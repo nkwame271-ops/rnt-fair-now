@@ -178,20 +178,50 @@ const SerialLookup = () => {
               </div>
 
               {r.found && r.stock_rows && (
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {r.stock_rows.map((s) => (
-                    <div key={s.pair_index} className="border border-border/60 rounded-md p-2">
-                      <p className="font-medium text-card-foreground">Pair #{s.pair_index}</p>
-                      <p className="text-muted-foreground">Status: {s.status}</p>
-                      <p className="text-muted-foreground">Batch: {s.batch_label || "—"}</p>
-                      {s.assigned_at && (
-                        <p className="text-muted-foreground">Assigned: {format(new Date(s.assigned_at), "dd/MM/yy HH:mm")}</p>
-                      )}
-                      {s.revoked_at && (
-                        <p className="text-muted-foreground">Revoked: {format(new Date(s.revoked_at), "dd/MM/yy HH:mm")}</p>
-                      )}
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-card-foreground">
+                    History — {r.stock_rows.length} record(s)
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2 text-xs">
+                    {r.stock_rows.map((s, idx) => (
+                      <div
+                        key={s.id || `${s.pair_index}-${idx}`}
+                        className={`border rounded-md p-2 space-y-0.5 ${
+                          s.status === "revoked" ? "border-border/40 bg-muted/30" : "border-border/60"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-card-foreground">Pair #{s.pair_index}</span>
+                          <Badge
+                            variant="outline"
+                            className={s.status === "revoked" ? "text-muted-foreground" : "text-primary"}
+                          >
+                            {s.status}
+                          </Badge>
+                          {s.is_reupload && <Badge variant="secondary">Re-upload</Badge>}
+                        </div>
+                        <p className="text-muted-foreground">
+                          {s.office_name || "—"}
+                          {s.region ? ` · ${s.region}` : ""}
+                        </p>
+                        <p className="text-muted-foreground">Batch: {s.batch_label || "—"}</p>
+                        {s.created_at && (
+                          <p className="text-muted-foreground">
+                            Added: {format(new Date(s.created_at), "dd/MM/yy HH:mm")}
+                            {s.stock_source ? ` · ${s.stock_source}` : ""}
+                          </p>
+                        )}
+                        {s.source_note && <p className="text-muted-foreground">Note: {s.source_note}</p>}
+                        {s.assigned_at && (
+                          <p className="text-muted-foreground">Assigned: {format(new Date(s.assigned_at), "dd/MM/yy HH:mm")}</p>
+                        )}
+                        {s.revoked_at && (
+                          <p className="text-muted-foreground">Revoked: {format(new Date(s.revoked_at), "dd/MM/yy HH:mm")}</p>
+                        )}
+                        {s.revoke_reason && <p className="text-muted-foreground">Revoke reason: {s.revoke_reason}</p>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
