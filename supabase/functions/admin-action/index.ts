@@ -251,6 +251,7 @@ Deno.serve(async (req) => {
         const batchLabel = mBatchLabel || target_id;
         let totalGenerated = 0;
         const regionDetails: any[] = [];
+        const seenSerials = new Set<string>();
 
         for (const regionEntry of mRegions) {
           const { region: rName, code: rCode, start_range: rStart, end_range: rEnd } = regionEntry;
