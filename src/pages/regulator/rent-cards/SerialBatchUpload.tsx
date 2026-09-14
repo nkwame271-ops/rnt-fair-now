@@ -41,6 +41,7 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
   const [assignToRegion, setAssignToRegion] = useState(false);
   const [serialInput, setSerialInput] = useState("");
   const [batchLabel, setBatchLabel] = useState("");
+  const [reason, setReason] = useState("");
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string[] | null>(null);
 
@@ -78,62 +79,62 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
 
     setUploading(true);
     try {
-      // 1. Delete ALL revoked rows matching incoming serials FIRST
+      // 1. Look at existing history. Revoked rows are PRESERVED (never deleted) —
+      //    a serial is only blocked when a non-revoked row already exists.
+      const activeSet = new Set<string>();
+      const revokedSet = new Set<string>();
       for (let i = 0; i < serials.length; i += 100) {
         const batch = serials.slice(i, i + 100);
-        await supabase
+        const { data, error: histErr } = await supabase
           .from("rent_card_serial_stock")
-          .delete()
-          .in("serial_number", batch)
-          .eq("status", "revoked");
-      }
-
-      // 2. Check which serials still exist (available/assigned)
-      const existingSet = new Set<string>();
-      for (let i = 0; i < serials.length; i += 100) {
-        const batch = serials.slice(i, i + 100);
-        const { data } = await supabase
-          .from("rent_card_serial_stock")
-          .select("serial_number")
+          .select("serial_number, status")
           .in("serial_number", batch);
-        if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
+        if (histErr) throw histErr;
+        (data || []).forEach((r: any) => {
+          if (r.status === "revoked") revokedSet.add(r.serial_number);
+          else activeSet.add(r.serial_number);
+        });
       }
 
-      // 3. Filter to new serials and insert
-      const newSerials = serials.filter(s => !existingSet.has(s));
+      // 2. Filter to serials with no active instance
+      const newSerials = serials.filter(s => !activeSet.has(s));
       const skippedCount = serials.length - newSerials.length;
+      const reuploadCount = newSerials.filter(s => revokedSet.has(s)).length;
 
       if (newSerials.length === 0) {
-        toast.warning(`All ${serials.length} serial(s) already exist in stock. Nothing uploaded.`);
+        toast.warning(`All ${serials.length} serial(s) already exist in active stock. Nothing uploaded.`);
         setUploading(false);
         return;
       }
 
+      if (reuploadCount > 0 && !reason.trim()) {
+        toast.error(`${reuploadCount} of ${serials.length} serial(s) were previously revoked — enter a reason for re-uploading them.`);
+        setUploading(false);
+        return;
+      }
+
+      const { data: { user: uploader } } = await supabase.auth.getUser();
+
       const targetOfficeName = assignToRegion ? regionOffices[0]?.name || selectedRegion : officeName!;
       const rows: any[] = [];
       for (const s of newSerials) {
+        const base = {
+          serial_number: s,
+          office_name: targetOfficeName,
+          status: "available" as const,
+          batch_label: batchLabel || null,
+          region: assignToRegion ? selectedRegion : null,
+          stock_source: "upload",
+          created_by: uploader?.id || null,
+          source_note: reason.trim() || null,
+          is_reupload: revokedSet.has(s),
+        };
         // Insert BOTH pair rows (pair_index 1 and 2) for every serial
-        rows.push({
-          serial_number: s,
-          office_name: targetOfficeName,
-          status: "available" as const,
-          batch_label: batchLabel || null,
-          region: assignToRegion ? selectedRegion : null,
-          pair_index: 1,
-          stock_source: "upload",
-        });
-        rows.push({
-          serial_number: s,
-          office_name: targetOfficeName,
-          status: "available" as const,
-          batch_label: batchLabel || null,
-          region: assignToRegion ? selectedRegion : null,
-          pair_index: 2,
-          stock_source: "upload",
-        });
+        rows.push({ ...base, pair_index: 1 });
+        rows.push({ ...base, pair_index: 2 });
       }
 
-      const { error } = await supabase.from("rent_card_serial_stock").insert(rows);
+      const { error } = await supabase.from("rent_card_serial_stock").insert(rows as any);
       if (error) throw error;
 
       // Create generation_batches record so it appears in Procurement Report
@@ -152,12 +153,13 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
       }
 
       const targetLabel = assignToRegion ? `${selectedRegion} region` : officeName;
-      const msg = skippedCount > 0
-        ? `${newSerials.length} new serial(s) added to ${targetLabel}. ${skippedCount} duplicate(s) skipped.`
-        : `${newSerials.length} serial(s) added to ${targetLabel}`;
-      toast.success(msg);
+      const parts = [`${newSerials.length} serial(s) added to ${targetLabel}`];
+      if (reuploadCount > 0) parts.push(`${reuploadCount} re-upload(s) of previously revoked serials`);
+      if (skippedCount > 0) parts.push(`${skippedCount} skipped (already active)`);
+      toast.success(parts.join(" · "));
       setSerialInput("");
       setBatchLabel("");
+      setReason("");
       setPreview(null);
       onStockChanged();
     } catch (err: any) {
@@ -228,6 +230,18 @@ const SerialBatchUpload = ({ onStockChanged }: Props) => {
             placeholder="e.g. Batch 2026-Q1"
             value={batchLabel}
             onChange={e => setBatchLabel(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Reason / Note</Label>
+          <p className="text-xs text-muted-foreground">
+            Required when any serial was previously revoked (re-upload). Saved on each record with your name, date and office.
+          </p>
+          <Input
+            placeholder="e.g. Cards recovered from Kumasi office and returned to stock"
+            value={reason}
+            onChange={e => setReason(e.target.value)}
           />
         </div>
 

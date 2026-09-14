@@ -267,15 +267,20 @@ Deno.serve(async (req) => {
           // Check duplicates — paired serials have 2 rows each, so never cap the
           // lookup by the number of requested serials (that hid existing rows and
           // caused unique-constraint violations on insert).
+          // Revoked rows are history only: they must NOT block re-generation.
           const existingSet = new Set<string>();
+          const revokedSet = new Set<string>();
           for (let i = 0; i < serials.length; i += 100) {
             const batch = serials.slice(i, i + 100);
             const { data, error: dupErr } = await adminClient
               .from("rent_card_serial_stock")
-              .select("serial_number")
+              .select("serial_number, status")
               .in("serial_number", batch);
             if (dupErr) throw dupErr;
-            if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
+            (data || []).forEach((r: any) => {
+              if (r.status === "revoked") revokedSet.add(r.serial_number);
+              else existingSet.add(r.serial_number);
+            });
           }
 
           // Also skip serials already queued earlier in this same batch
@@ -290,34 +295,42 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Insert in batches (ignore any residual conflicts instead of failing the batch)
+          // Insert in batches. Uniqueness is now enforced only on non-revoked rows,
+          // so a batch can legitimately re-create a previously revoked serial.
           for (let i = 0; i < newSerials.length; i += 500) {
             const batch = newSerials.slice(i, i + 500);
             const rows: any[] = [];
             for (const s of batch) {
+              const base = {
+                serial_number: s, office_name: rName, status: "available",
+                batch_label: batchLabel, region: rName, stock_type: "regional",
+                created_by: user.id,
+                source_note: extra?.reason || batchLabel || null,
+                is_reupload: revokedSet.has(s),
+              };
               if (mPairedMode) {
-                rows.push({
-                  serial_number: s, office_name: rName, status: "available",
-                  batch_label: batchLabel, region: rName,
-                  pair_index: 1, pair_group: pairGroup, stock_type: "regional",
-                });
-                rows.push({
-                  serial_number: s, office_name: rName, status: "available",
-                  batch_label: batchLabel, region: rName,
-                  pair_index: 2, pair_group: pairGroup, stock_type: "regional",
-                });
+                rows.push({ ...base, pair_index: 1, pair_group: pairGroup });
+                rows.push({ ...base, pair_index: 2, pair_group: pairGroup });
               } else {
-                rows.push({
-                  serial_number: s, office_name: rName, status: "available",
-                  batch_label: batchLabel, region: rName,
-                  pair_index: 1, stock_type: "regional",
-                });
+                rows.push({ ...base, pair_index: 1 });
               }
             }
             const { error: insertErr } = await adminClient
               .from("rent_card_serial_stock")
-              .upsert(rows, { onConflict: "serial_number,pair_index", ignoreDuplicates: true });
-            if (insertErr) throw insertErr;
+              .insert(rows);
+            if (insertErr) {
+              // Residual race on an active duplicate: retry row-by-row, skipping conflicts
+              if ((insertErr as any).code === "23505") {
+                for (const row of rows) {
+                  const { error: rowErr } = await adminClient
+                    .from("rent_card_serial_stock")
+                    .insert(row);
+                  if (rowErr && (rowErr as any).code !== "23505") throw rowErr;
+                }
+              } else {
+                throw insertErr;
+              }
+            }
           }
 
           totalGenerated += newSerials.length;
