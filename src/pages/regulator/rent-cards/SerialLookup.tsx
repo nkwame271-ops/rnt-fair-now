@@ -20,6 +20,7 @@ interface CardLink {
 }
 
 interface StockRow {
+  id?: string;
   pair_index: number;
   status: string;
   stock_type: string;
@@ -29,6 +30,12 @@ interface StockRow {
   assigned_at: string | null;
   unassigned_at: string | null;
   revoked_at: string | null;
+  revoke_reason?: string | null;
+  created_at?: string | null;
+  created_by?: string | null;
+  source_note?: string | null;
+  is_reupload?: boolean | null;
+  stock_source?: string | null;
 }
 
 interface LookupResult {
