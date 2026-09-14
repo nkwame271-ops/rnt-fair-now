@@ -170,15 +170,17 @@ Deno.serve(async (req) => {
           serials.push(prefix + String(i).padStart(padLen, "0"));
         }
 
+        // Revoked rows are audit history only and must NOT block re-generation.
         const existingSet = new Set<string>();
         for (let i = 0; i < serials.length; i += 100) {
           const batch = serials.slice(i, i + 100);
           const { data } = await adminClient
             .from("rent_card_serial_stock")
-            .select("serial_number")
-            .in("serial_number", batch)
-            .limit(batch.length);
-          if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
+            .select("serial_number, status")
+            .in("serial_number", batch);
+          if (data) data.forEach((r: any) => {
+            if (r.status !== "revoked") existingSet.add(r.serial_number);
+          });
         }
 
         const newSerials = serials.filter(s => !existingSet.has(s));

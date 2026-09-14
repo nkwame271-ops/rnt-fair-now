@@ -145,11 +145,23 @@ const SerialSearchPicker = ({
       try {
         const { data } = await supabase
           .from("rent_card_serial_stock" as any)
-          .select("serial_number, status, stock_type, region, office_name, batch_label")
+          .select("serial_number, status, stock_type, region, office_name, batch_label, created_at")
           .eq("pair_index", 1)
           .ilike("serial_number", `%${query.trim()}%`)
-          .limit(5);
-        if (!cancelled) setGlobalHits((data as any[]) || []);
+          .order("created_at", { ascending: false })
+          .limit(25);
+        // A serial can have revoked history rows plus a newer active row.
+        // Always report the CURRENT (non-revoked) record; only fall back to a
+        // revoked row when no active instance exists.
+        const bySerial = new Map<string, any>();
+        for (const row of ((data as any[]) || [])) {
+          const existing = bySerial.get(row.serial_number);
+          if (!existing) { bySerial.set(row.serial_number, row); continue; }
+          if (existing.status === "revoked" && row.status !== "revoked") {
+            bySerial.set(row.serial_number, row);
+          }
+        }
+        if (!cancelled) setGlobalHits(Array.from(bySerial.values()).slice(0, 5));
       } catch {
         if (!cancelled) setGlobalHits([]);
       } finally {
