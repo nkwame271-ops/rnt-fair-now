@@ -6763,7 +6763,9 @@ export type Database = {
           assigned_to_card_id: string | null
           batch_label: string | null
           created_at: string
+          created_by: string | null
           id: string
+          is_reupload: boolean
           office_allocation_id: string | null
           office_name: string
           pair_group: string | null
@@ -6774,6 +6776,7 @@ export type Database = {
           revoked_by: string | null
           sales_channel_id: string | null
           serial_number: string
+          source_note: string | null
           status: string
           stock_source: string
           stock_type: string
@@ -6785,7 +6788,9 @@ export type Database = {
           assigned_to_card_id?: string | null
           batch_label?: string | null
           created_at?: string
+          created_by?: string | null
           id?: string
+          is_reupload?: boolean
           office_allocation_id?: string | null
           office_name: string
           pair_group?: string | null
@@ -6796,6 +6801,7 @@ export type Database = {
           revoked_by?: string | null
           sales_channel_id?: string | null
           serial_number: string
+          source_note?: string | null
           status?: string
           stock_source?: string
           stock_type?: string
@@ -6807,7 +6813,9 @@ export type Database = {
           assigned_to_card_id?: string | null
           batch_label?: string | null
           created_at?: string
+          created_by?: string | null
           id?: string
+          is_reupload?: boolean
           office_allocation_id?: string | null
           office_name?: string
           pair_group?: string | null
@@ -6818,6 +6826,7 @@ export type Database = {
           revoked_by?: string | null
           sales_channel_id?: string | null
           serial_number?: string
+          source_note?: string | null
           status?: string
           stock_source?: string
           stock_type?: string
