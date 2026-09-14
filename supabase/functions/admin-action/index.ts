@@ -263,25 +263,33 @@ Deno.serve(async (req) => {
             serials.push(mPrefix + regionCode + "-" + String(i).padStart(padLen, "0"));
           }
 
-          // Check duplicates
+          // Check duplicates — paired serials have 2 rows each, so never cap the
+          // lookup by the number of requested serials (that hid existing rows and
+          // caused unique-constraint violations on insert).
           const existingSet = new Set<string>();
           for (let i = 0; i < serials.length; i += 100) {
             const batch = serials.slice(i, i + 100);
-            const { data } = await adminClient
+            const { data, error: dupErr } = await adminClient
               .from("rent_card_serial_stock")
               .select("serial_number")
-              .in("serial_number", batch)
-              .limit(batch.length);
+              .in("serial_number", batch);
+            if (dupErr) throw dupErr;
             if (data) data.forEach((r: any) => existingSet.add(r.serial_number));
           }
 
-          const newSerials = serials.filter(s => !existingSet.has(s));
+          // Also skip serials already queued earlier in this same batch
+          // (regions can share a region code / overlapping ranges).
+          const newSerials = serials.filter(s => {
+            if (existingSet.has(s) || seenSerials.has(s)) return false;
+            seenSerials.add(s);
+            return true;
+          });
           if (newSerials.length === 0) {
             regionDetails.push({ region: rName, code: regionCode, generated: 0, skipped: serials.length });
             continue;
           }
 
-          // Insert in batches
+          // Insert in batches (ignore any residual conflicts instead of failing the batch)
           for (let i = 0; i < newSerials.length; i += 500) {
             const batch = newSerials.slice(i, i + 500);
             const rows: any[] = [];
@@ -300,13 +308,14 @@ Deno.serve(async (req) => {
               } else {
                 rows.push({
                   serial_number: s, office_name: rName, status: "available",
-                  batch_label: batchLabel, region: rName, stock_type: "regional",
+                  batch_label: batchLabel, region: rName,
+                  pair_index: 1, stock_type: "regional",
                 });
               }
             }
             const { error: insertErr } = await adminClient
               .from("rent_card_serial_stock")
-              .insert(rows);
+              .upsert(rows, { onConflict: "serial_number,pair_index", ignoreDuplicates: true });
             if (insertErr) throw insertErr;
           }
 
