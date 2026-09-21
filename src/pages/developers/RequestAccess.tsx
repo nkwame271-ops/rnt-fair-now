@@ -122,7 +122,7 @@ export default function RequestAccess() {
                 </div>
                 <div>
                   <Label>Agency type</Label>
-                  <Input value={form.agency_type} onChange={(e) => setForm({ ...form, agency_type: e.target.value })} placeholder={org?.agency_type ?? "Government / Bank / Insurer"} />
+                  <Input value={form.agency_type} onChange={(e) => setForm({ ...form, agency_type: e.target.value })} placeholder={org?.agency_type ?? "Housing Provider / Bank / Insurer"} />
                 </div>
               </div>
 

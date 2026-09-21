@@ -26,8 +26,8 @@ export default function PublicApiDocs() {
         <div>
           <h1 className="text-3xl font-bold">Agency API</h1>
           <p className="text-muted-foreground mt-2 max-w-2xl">
-            A read-only HTTP API for accredited government agencies and institutional
-            partners. Access is granted by the Rent Control regulator and tied to a
+            A read-only HTTP API for accredited organisations and institutional
+            partners. Access is granted after review and tied to a
             signed data-sharing agreement.
           </p>
         </div>

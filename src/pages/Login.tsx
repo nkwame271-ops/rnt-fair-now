@@ -220,7 +220,7 @@ const Login = () => {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 bg-muted rounded-xl p-4 border border-border space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Reset Password</h3>
               <p className="text-xs text-muted-foreground">
-                Please visit the nearest Rent Control Department office with your ID to reset your password, or contact support via the live chat.
+                Please visit the nearest support office with your ID to reset your password, or contact support via the live chat.
               </p>
               <Button size="sm" variant="outline" onClick={() => setShowForgot(false)}>Close</Button>
             </motion.div>

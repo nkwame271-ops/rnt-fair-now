@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Shield, AlertTriangle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import coatOfArms from "@/assets/ghana-coat-of-arms.png";
 
 interface ReceiptInfo {
   receipt_number: string;
@@ -64,7 +63,7 @@ const VerifyReceipt = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="bg-card rounded-xl border border-border shadow-card max-w-md w-full overflow-hidden">
         <div className="bg-primary p-5 text-center space-y-2">
-          <img src={coatOfArms} alt="Ghana Coat of Arms" className="h-12 mx-auto opacity-90" />
+          <Shield className="h-10 w-10 mx-auto text-primary-foreground" />
           <h1 className="text-lg font-bold text-primary-foreground">Rent Control — Receipt Verification</h1>
         </div>
 

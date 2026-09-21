@@ -92,7 +92,7 @@ export default function ApiDocsContent() {
     <div className="space-y-6">
       <Alert>
         <Info className="h-4 w-4" />
-        <AlertTitle>Read-only, government-grade API</AlertTitle>
+        <AlertTitle>Read-only, security-focused API</AlertTitle>
         <AlertDescription>
           Access is granted by the Rent Control regulator after accreditation and a signed
           Data Sharing Agreement (DSA). All requests are over HTTPS and audit-logged.

@@ -55,15 +55,15 @@ const RegulatorLogin = () => {
   return (
     <>
       <Seo
-        title="Staff Login — Rent Control Department Ghana"
-        description="Authorized access for Rent Control Department staff and NUGS administrators to monitor compliance, review complaints, and manage tenancies."
+        title="Staff Login — Rent Control Ghana"
+        description="Authorized staff access to monitor compliance, review complaints, and manage tenancies."
         canonicalPath="/regulator/login"
       />
     <div className="min-h-screen bg-background flex">
       <div className="hidden lg:flex lg:w-1/2 gradient-hero items-center justify-center p-12">
         <div className="text-primary-foreground max-w-md">
           <Shield className="h-12 w-12 text-secondary mb-6" />
-          <h2 className="text-3xl font-bold mb-4">Rent Control Office</h2>
+          <h2 className="text-3xl font-bold mb-4">Rent Control Ghana</h2>
           <p className="text-primary-foreground/80 text-lg">
             Administrative access to the national rent regulation platform. Monitor compliance, review complaints, and generate reports.
           </p>

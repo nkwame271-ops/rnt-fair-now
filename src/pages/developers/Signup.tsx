@@ -149,7 +149,7 @@ export default function DeveloperSignup() {
               </div>
               <div>
                 <Label htmlFor="agency_type">Agency type (optional)</Label>
-                <Input id="agency_type" placeholder="e.g. Government agency, Bank, Insurer" value={form.agency_type} onChange={onChange("agency_type")} />
+                <Input id="agency_type" placeholder="e.g. Housing provider, Bank, Insurer" value={form.agency_type} onChange={onChange("agency_type")} />
               </div>
               <div>
                 <Label htmlFor="intended_use_case">What will you build?</Label>

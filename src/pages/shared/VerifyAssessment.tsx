@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Shield, AlertTriangle, Loader2, ClipboardCheck } from "lucide-react";
 import { format } from "date-fns";
-import coatOfArms from "@/assets/ghana-coat-of-arms.png";
 
 const VerifyAssessment = () => {
   const { token } = useParams<{ token: string }>();
@@ -47,7 +46,7 @@ const VerifyAssessment = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="bg-card rounded-xl border border-border shadow-card max-w-md w-full overflow-hidden">
         <div className="bg-primary p-5 text-center space-y-2">
-          <img src={coatOfArms} alt="Ghana Coat of Arms" className="h-12 mx-auto opacity-95" />
+          <Shield className="h-10 w-10 mx-auto text-primary-foreground" />
           <h1 className="text-lg font-bold text-primary-foreground flex items-center justify-center gap-2">
             <ClipboardCheck className="h-5 w-5" /> Habitability Certificate
           </h1>

@@ -91,7 +91,7 @@ export default function ApiPricing() {
         </div>
 
         <div className="mt-12 max-w-2xl mx-auto text-center text-sm text-muted-foreground">
-          <p>All access requires a signed Data Sharing Agreement and accreditation by the Rent Control Department.</p>
+          <p>All access requires a signed Data Sharing Agreement and platform accreditation.</p>
           <p className="mt-2"><Link to="/developers/api" className="text-primary hover:underline">View full API documentation →</Link></p>
         </div>
       </main>
