@@ -83,7 +83,7 @@ export default function VerifyForm() {
                 <CheckCircle2 className="h-10 w-10 text-primary" />
                 <p className="font-semibold text-primary">Authentic document</p>
                 <p className="text-xs text-muted-foreground text-center">
-                  Issued by the Rent Control Department platform.
+                  Issued through the Rent Control Ghana platform.
                 </p>
               </div>
 

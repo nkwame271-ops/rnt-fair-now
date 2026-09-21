@@ -15,7 +15,7 @@ const PILLARS = [
 const FEATURES = [
   { icon: Code2, title: "REST + JSON", desc: "Stable v1 endpoints, OpenAPI 3.1 spec, idempotency keys." },
   { icon: Webhook, title: "Webhooks", desc: "HMAC-signed events for tenancy, complaints and property changes." },
-  { icon: Shield, title: "Government-grade", desc: "Per-key scopes, IP allowlists, PII masking, full audit log." },
+  { icon: Shield, title: "Secure by design", desc: "Per-key scopes, IP allowlists, PII masking, full audit log." },
   { icon: Activity, title: "Live metrics", desc: "Real-time usage, error rates and rate-limit headroom." },
 ];
 

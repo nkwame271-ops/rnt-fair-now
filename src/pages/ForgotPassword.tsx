@@ -265,7 +265,7 @@ const ForgotPassword = () => {
                   <div>
                     <h3 className="text-sm font-semibold text-foreground">Manual Verification Required</h3>
                     <p className="text-xs text-muted-foreground mt-1">
-                      If you no longer have access to your registered phone number, please visit your nearest Rent Control Department office with a valid ID to reset your password.
+                      If you no longer have access to your registered phone number, please visit your nearest support office with a valid ID to reset your password.
                     </p>
                   </div>
                 </div>
