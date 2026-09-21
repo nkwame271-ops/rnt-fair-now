@@ -15,7 +15,7 @@ export default function DocsIntroduction() {
       </P>
 
       <Callout kind="info" title="Who is this for?">
-        Accredited government agencies (GRA, NIA, GSS), banks, insurers, and product
+        Accredited organisations, banks, insurers, housing providers, and product
         teams building on Ghana's rental infrastructure. You'll need a signed Data
         Sharing Agreement before you can call production data.
       </Callout>
