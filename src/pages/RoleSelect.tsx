@@ -490,12 +490,20 @@ const RoleSelect = () => {
               </div>
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                 <p className="text-muted-foreground/50 text-[11px]">© {new Date().getFullYear()} Rent Control Ghana</p>
+                <div className="flex items-center gap-4">
+                <button
+                  onClick={() => navigate("/reports")}
+                  className="text-muted-foreground/40 hover:text-muted-foreground text-[11px] transition-colors"
+                >
+                  Reports
+                </button>
                 <button
                   onClick={() => navigate("/regulator/login")}
                   className="text-muted-foreground/40 hover:text-muted-foreground text-[11px] transition-colors"
                 >
                   Staff Portal
                 </button>
+                </div>
               </div>
             </div>
           </div>

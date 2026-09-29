@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -269,13 +269,13 @@ export default function StatisticalReportSubmit() {
                 <p className="text-muted-foreground">Period</p><p className="text-foreground">{d.reporting_period} {d.reporting_year}</p>
               </div>
               <div className="border-t border-border pt-3 grid grid-cols-2 gap-1">
-                {(Object.keys(CASE_LABELS) as (keyof CaseStats)[]).map((k) => (<><p key={k} className="text-muted-foreground">{CASE_LABELS[k]}</p><p className="text-foreground tabular-nums">{c[k]}</p></>))}
+                {(Object.keys(CASE_LABELS) as (keyof CaseStats)[]).map((k) => (<Fragment key={k}><p className="text-muted-foreground">{CASE_LABELS[k]}</p><p className="text-foreground tabular-nums">{c[k]}</p></Fragment>))}
               </div>
               <div className="border-t border-border pt-3 grid grid-cols-2 gap-1">
                 <p className="text-muted-foreground">Recovered — Landlords</p><p>{fmtGHS(rec.recovered_landlords)}</p>
                 <p className="text-muted-foreground">Recovered — Tenants</p><p>{fmtGHS(rec.recovered_tenants)}</p>
                 <p className="text-muted-foreground font-semibold">Total Recovered</p><p className="font-semibold">{fmtGHS(totalRecovered)}</p>
-                {Object.entries(REG_LABELS).map(([k, l]) => (<><p key={k} className="text-muted-foreground">{l}</p><p className="tabular-nums">{(reg as any)[k]}</p></>))}
+                {Object.entries(REG_LABELS).map(([k, l]) => (<Fragment key={k}><p className="text-muted-foreground">{l}</p><p className="tabular-nums">{(reg as any)[k]}</p></Fragment>))}
                 <p className="text-muted-foreground">Radio stations</p><p>{radio.filter(Boolean).join(", ") || "—"}</p>
                 <p className="text-muted-foreground">TV stations</p><p>{tv.filter(Boolean).join(", ") || "—"}</p>
               </div>

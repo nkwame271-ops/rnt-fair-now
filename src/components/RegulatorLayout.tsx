@@ -27,7 +27,7 @@ import {
   Wallet,
   CloudUpload,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminProfile, getFeatureKeyForRoute, SENSITIVE_ADMIN_FEATURES } from "@/hooks/useAdminProfile";
@@ -103,6 +103,7 @@ const allNavItems = [
   { to: "/regulator/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/regulator/kyc", label: "KYC Verification", icon: IdCard },
   { to: "/regulator/engine-room", label: "Engine Room", icon: Settings },
+  { to: "/regulator/reports", label: "Reports", icon: FileText, reportsItem: true },
   { to: "/regulator/rentcare", label: "RentCare Assistance", icon: GraduationCap },
   { to: "/regulator/invite-staff", label: "Invite Staff", icon: UserPlus },
   { to: "/regulator/agents", label: "Agent Applications", icon: Shield },
@@ -133,6 +134,14 @@ const RegulatorLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const queryClient = useQueryClient();
   useActivityTracker();
+  const [hasReportPerm, setHasReportPerm] = useState(false);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return;
+      (supabase as any).from("report_permissions").select("id").eq("user_id", data.user.id).eq("permission", "view").limit(1)
+        .then(({ data: rows }: any) => setHasReportPerm(!!rows?.length));
+    });
+  }, []);
 
   const handlePrefetch = (route: string) => {
     const entry = PREFETCH_MAP[route];
@@ -151,6 +160,7 @@ const RegulatorLayout = () => {
 
   // Filter nav items based on admin profile
   const navItems = allNavItems.filter(item => {
+    if ((item as any).reportsItem) return !!profile?.isSuperAdmin || hasReportPerm;
     // Super Admin Only items
     if ((item as any).superAdminOnly && !profile?.isSuperAdmin) return false;
     if ((item as any).mainAdminOnly && !profile?.isMainAdmin && !profile?.isSuperAdmin) return false;
