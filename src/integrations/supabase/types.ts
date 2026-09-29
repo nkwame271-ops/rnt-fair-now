@@ -4553,6 +4553,27 @@ export type Database = {
         }
         Relationships: []
       }
+      office_report_pins: {
+        Row: {
+          office_id: string
+          pin_hash: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          office_id: string
+          pin_hash: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          office_id?: string
+          pin_hash?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       offices: {
         Row: {
           created_at: string | null
@@ -7565,6 +7586,313 @@ export type Database = {
           },
         ]
       }
+      report_audit_log: {
+        Row: {
+          action: string
+          actor_name: string | null
+          actor_user_id: string | null
+          created_at: string
+          details: Json
+          id: string
+          report_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          report_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          report_id?: string | null
+        }
+        Relationships: []
+      }
+      report_awareness_activity: {
+        Row: {
+          id: string
+          medium: string
+          report_id: string
+          station_name: string
+        }
+        Insert: {
+          id?: string
+          medium: string
+          report_id: string
+          station_name: string
+        }
+        Update: {
+          id?: string
+          medium?: string
+          report_id?: string
+          station_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_awareness_activity_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "statistical_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_case_statistics: {
+        Row: {
+          absconded: number
+          ag_landlords: number
+          ag_tenants: number
+          arrears: number
+          digital: number
+          landlord_female: number
+          landlord_male: number
+          manual: number
+          other_matters: number
+          pending: number
+          referred_court: number
+          report_id: string
+          settled: number
+          sittings_to_settle: number
+          struck_off: number
+          tenant_female: number
+          tenant_male: number
+          total_cases: number
+          withdrawn: number
+        }
+        Insert: {
+          absconded?: number
+          ag_landlords: number
+          ag_tenants: number
+          arrears?: number
+          digital: number
+          landlord_female: number
+          landlord_male: number
+          manual: number
+          other_matters?: number
+          pending: number
+          referred_court: number
+          report_id: string
+          settled: number
+          sittings_to_settle?: number
+          struck_off: number
+          tenant_female: number
+          tenant_male: number
+          total_cases: number
+          withdrawn: number
+        }
+        Update: {
+          absconded?: number
+          ag_landlords?: number
+          ag_tenants?: number
+          arrears?: number
+          digital?: number
+          landlord_female?: number
+          landlord_male?: number
+          manual?: number
+          other_matters?: number
+          pending?: number
+          referred_court?: number
+          report_id?: string
+          settled?: number
+          sittings_to_settle?: number
+          struck_off?: number
+          tenant_female?: number
+          tenant_male?: number
+          total_cases?: number
+          withdrawn?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_case_statistics_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: true
+            referencedRelation: "statistical_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_permissions: {
+        Row: {
+          created_at: string
+          granted_by: string | null
+          id: string
+          permission: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          permission: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          permission?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      report_recovery_statistics: {
+        Row: {
+          recovered_landlords: number
+          recovered_tenants: number
+          report_id: string
+          total_recovered: number | null
+        }
+        Insert: {
+          recovered_landlords: number
+          recovered_tenants: number
+          report_id: string
+          total_recovered?: number | null
+        }
+        Update: {
+          recovered_landlords?: number
+          recovered_tenants?: number
+          report_id?: string
+          total_recovered?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_recovery_statistics_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: true
+            referencedRelation: "statistical_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_registration_statistics: {
+        Row: {
+          agreements_registered: number
+          inspections: number
+          landlords_registered: number
+          radio_engagements: number
+          rent_cards_issued: number
+          report_id: string
+          tenants_registered: number
+          tv_engagements: number
+        }
+        Insert: {
+          agreements_registered?: number
+          inspections?: number
+          landlords_registered?: number
+          radio_engagements?: number
+          rent_cards_issued?: number
+          report_id: string
+          tenants_registered?: number
+          tv_engagements?: number
+        }
+        Update: {
+          agreements_registered?: number
+          inspections?: number
+          landlords_registered?: number
+          radio_engagements?: number
+          rent_cards_issued?: number
+          report_id?: string
+          tenants_registered?: number
+          tv_engagements?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_registration_statistics_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: true
+            referencedRelation: "statistical_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_submission_revisions: {
+        Row: {
+          created_at: string
+          id: string
+          office_id: string
+          report_id: string
+          reporting_period: string
+          reporting_year: number
+          revision_no: number
+          snapshot: Json
+          submitted_by_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          office_id: string
+          report_id: string
+          reporting_period: string
+          reporting_year: number
+          revision_no: number
+          snapshot: Json
+          submitted_by_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          office_id?: string
+          report_id?: string
+          reporting_period?: string
+          reporting_year?: number
+          revision_no?: number
+          snapshot?: Json
+          submitted_by_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_submission_revisions_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "statistical_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reporting_config: {
+        Row: {
+          accept_late: boolean
+          deadlines: Json
+          id: number
+          open_years: number[]
+          periods: string[]
+          require_pin: boolean
+          submissions_open: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          accept_late?: boolean
+          deadlines?: Json
+          id?: number
+          open_years?: number[]
+          periods?: string[]
+          require_pin?: boolean
+          submissions_open?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          accept_late?: boolean
+          deadlines?: Json
+          id?: number
+          open_years?: number[]
+          periods?: string[]
+          require_pin?: boolean
+          submissions_open?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       safety_audit_log: {
         Row: {
           action: string
@@ -8167,6 +8495,60 @@ export type Database = {
           staff_user_id?: string
           sub_key?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      statistical_reports: {
+        Row: {
+          id: string
+          ip_hash: string | null
+          is_current: boolean
+          is_late: boolean
+          office_id: string
+          office_name: string | null
+          region: string | null
+          report_code: string
+          reporting_period: string
+          reporting_year: number
+          revision_no: number
+          status: string
+          submitted_at: string
+          submitter_name: string
+          submitter_position: string
+        }
+        Insert: {
+          id?: string
+          ip_hash?: string | null
+          is_current?: boolean
+          is_late?: boolean
+          office_id: string
+          office_name?: string | null
+          region?: string | null
+          report_code: string
+          reporting_period: string
+          reporting_year: number
+          revision_no?: number
+          status?: string
+          submitted_at?: string
+          submitter_name: string
+          submitter_position: string
+        }
+        Update: {
+          id?: string
+          ip_hash?: string | null
+          is_current?: boolean
+          is_late?: boolean
+          office_id?: string
+          office_name?: string | null
+          region?: string | null
+          report_code?: string
+          reporting_period?: string
+          reporting_year?: number
+          revision_no?: number
+          status?: string
+          submitted_at?: string
+          submitter_name?: string
+          submitter_position?: string
         }
         Relationships: []
       }
@@ -9677,6 +10059,50 @@ export type Database = {
         Args: { p_actor: string; p_receipt_id: string }
         Returns: Json
       }
+      consolidate_statistical_reports: {
+        Args: {
+          p_from: string
+          p_office: string
+          p_period: string
+          p_region: string
+          p_to: string
+          p_year: number
+        }
+        Returns: {
+          absconded: number
+          ag_landlords: number
+          ag_tenants: number
+          agreements_registered: number
+          arrears: number
+          avg_sittings: number
+          digital: number
+          inspections: number
+          landlord_female: number
+          landlord_male: number
+          landlords_registered: number
+          manual: number
+          office_id: string
+          office_name: string
+          other_matters: number
+          pending: number
+          radio_engagements: number
+          recovered_landlords: number
+          recovered_tenants: number
+          referred_court: number
+          region: string
+          rent_cards_issued: number
+          reports: number
+          settled: number
+          struck_off: number
+          tenant_female: number
+          tenant_male: number
+          tenants_registered: number
+          total_cases: number
+          total_recovered: number
+          tv_engagements: number
+          withdrawn: number
+        }[]
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -9751,6 +10177,10 @@ export type Database = {
         Args: { _perm: string; _user_id: string }
         Returns: boolean
       }
+      has_report_permission: {
+        Args: { _perm: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -9790,6 +10220,14 @@ export type Database = {
           paystack_transaction_id: string
           reference: string
           total_amount: number
+        }[]
+      }
+      list_office_report_pin_status: {
+        Args: never
+        Returns: {
+          has_pin: boolean
+          office_id: string
+          updated_at: string
         }[]
       }
       lookup_serial_details: { Args: { p_serials: string[] }; Returns: Json }
@@ -9889,6 +10327,10 @@ export type Database = {
         }
         Returns: Json
       }
+      reopen_statistical_report: {
+        Args: { p_reason: string; p_report_id: string }
+        Returns: undefined
+      }
       repair_rent_cards_for_escrow: {
         Args: { p_escrow_id: string }
         Returns: Json
@@ -9909,12 +10351,20 @@ export type Database = {
         Args: { p_area?: string; p_region: string }
         Returns: string
       }
+      set_office_report_pin: {
+        Args: { p_office_id: string; p_pin: string }
+        Returns: undefined
+      }
       set_property_management: {
         Args: { p_enabled: boolean; p_notes?: string; p_property_id: string }
         Returns: Json
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      submit_statistical_report: {
+        Args: { p: Json; p_ip_hash: string }
+        Returns: Json
+      }
       try_finalize_lock: { Args: { p_reference: string }; Returns: boolean }
       unassign_serial_atomic: {
         Args: { p_serial_number: string }

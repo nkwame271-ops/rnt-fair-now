@@ -155,6 +155,8 @@ const DocsDSA = lazy(() => import("./pages/developers/docs/DSA"));
 const DocsPricing = lazy(() => import("./pages/developers/docs/Pricing"));
 const DocsSupport = lazy(() => import("./pages/developers/docs/Support"));
 const EngineRoom = lazy(() => import("./pages/regulator/EngineRoom"));
+const RegulatorReports = lazy(() => import("./pages/regulator/RegulatorReports"));
+const StatisticalReportSubmit = lazy(() => import("./pages/StatisticalReportSubmit"));
 const RegulatorRentAssessments = lazy(() => import("./pages/regulator/RegulatorRentAssessments"));
 const RegulatorApplications = lazy(() => import("./pages/regulator/RegulatorApplications"));
 const RegulatorTerminations = lazy(() => import("./pages/regulator/RegulatorTerminations"));
@@ -362,6 +364,7 @@ const App = () => (
 
 
               {/* Regulator Routes */}
+              <Route path="/reports" element={<StatisticalReportSubmit />} />
               <Route path="/regulator" element={<ProtectedRoute requiredRole="regulator"><RegulatorLayout /></ProtectedRoute>}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<RegulatorDashboard />} />
@@ -394,6 +397,7 @@ const App = () => (
                 <Route path="api-access-requests" element={<ApiAccessRequests />} />
                 <Route path="developer-accounts" element={<DeveloperAccounts />} />
                 <Route path="engine-room" element={<ErrorBoundary section="Engine Room"><EngineRoom /></ErrorBoundary>} />
+                <Route path="reports" element={<ErrorBoundary section="Reports"><RegulatorReports /></ErrorBoundary>} />
                 <Route path="rentcare" element={<ErrorBoundary section="RentCare Management"><RentCareManagement /></ErrorBoundary>} />
                 <Route path="super-admin" element={<ErrorBoundary section="Super Admin Dashboard"><SuperAdminDashboard /></ErrorBoundary>} />
                 <Route path="platform-escrow" element={<ErrorBoundary section="Platform Escrow"><PlatformEscrowDashboard /></ErrorBoundary>} />
