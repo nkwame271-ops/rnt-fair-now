@@ -3830,6 +3830,7 @@ export type Database = {
           assigned_officer_user_id: string | null
           audio_url: string | null
           basket_total: number | null
+          case_number: string | null
           claim_amount: number | null
           complainant_address: string | null
           complainant_gps_lat: number | null
@@ -3889,6 +3890,7 @@ export type Database = {
           assigned_officer_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
+          case_number?: string | null
           claim_amount?: number | null
           complainant_address?: string | null
           complainant_gps_lat?: number | null
@@ -3948,6 +3950,7 @@ export type Database = {
           assigned_officer_user_id?: string | null
           audio_url?: string | null
           basket_total?: number | null
+          case_number?: string | null
           claim_amount?: number | null
           complainant_address?: string | null
           complainant_gps_lat?: number | null
