@@ -44,8 +44,8 @@ const PremiumServicePage = ({ variant }: Props) => {
       const { data } = await supabase.from("properties").select("id,address,property_name,region").eq("landlord_user_id", user.id);
       props = data || [];
     } else {
-      const { data: ts } = await supabase.from("tenancies").select("property_id").eq("tenant_user_id", user.id);
-      const ids = [...new Set((ts || []).map((t: any) => t.property_id).filter(Boolean))];
+      const { data: ts } = await supabase.from("tenancies").select("unit:units(property_id)").eq("tenant_user_id", user.id);
+      const ids = [...new Set((ts || []).map((t: any) => t.unit?.property_id).filter(Boolean))];
       if (ids.length) {
         const { data } = await supabase.from("properties").select("id,address,property_name,region").in("id", ids);
         props = data || [];

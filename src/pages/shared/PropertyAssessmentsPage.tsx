@@ -57,8 +57,8 @@ const PropertyAssessmentsPage = ({ variant }: Props) => {
     if (variant === "landlord") {
       propQuery = supabase.from("properties").select("id, address").eq("landlord_user_id", user.id);
     } else {
-      const { data: ts } = await supabase.from("tenancies").select("property_id").eq("tenant_user_id", user.id);
-      const ids = [...new Set((ts || []).map((t: any) => t.property_id).filter(Boolean))];
+      const { data: ts } = await supabase.from("tenancies").select("unit:units(property_id)").eq("tenant_user_id", user.id);
+      const ids = [...new Set((ts || []).map((t: any) => t.unit?.property_id).filter(Boolean))];
       propQuery = ids.length
         ? supabase.from("properties").select("id, address").in("id", ids)
         : Promise.resolve({ data: [] as any[] });

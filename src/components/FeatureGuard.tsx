@@ -29,6 +29,8 @@ const FeatureGuard = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (featureKey === "dashboard") return <>{children}</>;
+  // Reports uses its own permission system (report_permissions); the page enforces it.
+  if (featureKey === "reports") return <>{children}</>;
 
   if (featureKey && profile.allowedFeatures.includes(featureKey) && !profile.mutedFeatures.includes(featureKey)) {
     return <>{children}</>;

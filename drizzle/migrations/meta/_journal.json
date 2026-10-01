@@ -8,6 +8,13 @@
       "when": 1790671260301,
       "tag": "0000_statistical_reports_module",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790848055793,
+      "tag": "0001_landlord_complaints_case_number",
+      "breakpoints": true
     }
   ]
 }

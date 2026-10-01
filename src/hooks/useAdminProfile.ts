@@ -272,6 +272,7 @@ export const FEATURE_ROUTE_MAP: Record<string, string[]> = {
   analytics: ["/regulator/analytics"],
   kyc: ["/regulator/kyc"],
   engine_room: ["/regulator/engine-room"],
+  reports: ["/regulator/reports"],
   invite_staff: ["/regulator/invite-staff"],
   feedback: ["/regulator/feedback"],
   support_chats: ["/regulator/support-chats"],
