@@ -137,6 +137,11 @@ export default function BrandedCheckoutHost() {
       // payment-method options (Card / Mobile Money / Bank) become unclickable.
       setPayload(null);
       markCheckoutSessionConsumed(snapshot.access_code);
+      // Wait for our dialog to unmount, then clear any leftover Radix lock so
+      // the payment window is fully clickable.
+      await new Promise((r) => setTimeout(r, 300));
+      document.body.style.pointerEvents = "";
+      document.body.removeAttribute("data-scroll-locked");
 
 
       if (snapshot.access_code && typeof PaystackPop === "function") {

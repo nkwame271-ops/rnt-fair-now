@@ -387,10 +387,15 @@ const RequestComplaintPaymentDialog = ({ open, onOpenChange, complaintId, compla
           return checkout as any;
         };
         const checkout = await initCheckout();
+        // Close this dialog FIRST and let it fully unmount before the secure
+        // checkout opens. Two Radix dialogs overlapping leaves the page locked
+        // (pointer-events/focus trap), which breaks the payment window.
+        onOpenChange(false);
+        await new Promise((r) => setTimeout(r, 350));
+        document.body.style.pointerEvents = "";
         startBrandedCheckout(checkout, initCheckout);
         toast.success("Opening secure checkout…");
         onRequested?.();
-        onOpenChange(false);
         return;
       }
 
